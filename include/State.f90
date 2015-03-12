@@ -7,6 +7,8 @@ module State_type
   implicit none
   private
 
+  integer, parameter, private :: wp = SCALAR_KIND
+
   integer, parameter, public ::                                                              &
        QOI_FORWARD_STATE        =  100,                                                      &
        QOI_ADJOINT_STATE        =  101,                                                      &
@@ -19,7 +21,7 @@ module State_type
      type(t_AcousticSource), allocatable :: acousticSources(:)
 
      integer :: nUnknowns = 0
-     real(SCALAR_KIND) :: timeStepSize, cfl, plot3dAuxiliaryData(4)
+     real(wp) :: timeStepSize, cfl, plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables, targetState,            &
           adjointVariables, rightHandSide, specificVolume, velocity, pressure, temperature,  &
@@ -122,6 +124,22 @@ module State_mod
        integer :: nScalars
 
      end function getNumberOfScalars
+
+  end interface
+
+  interface
+
+     subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
+
+       use State_type
+
+       type(t_State) :: this
+       integer, intent(in) :: nDimensions
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+
+       SCALAR_TYPE, intent(out), optional :: conservedVariables(:,:)
+
+     end subroutine makeQuiescent
 
   end interface
 

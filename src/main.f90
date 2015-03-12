@@ -10,7 +10,7 @@ program main
   use RK4Integrator_type
 
   use Grid_mod, only : setupSpatialDiscretization, updateGrid
-  use State_mod, only : updatePatches
+  use State_mod, only : updatePatches, makeQuiescent
   use Region_mod
   use MPIHelper, only : gracefulExit
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
@@ -48,10 +48,18 @@ program main
   call getRequiredOption("grid_file", filename)
   call loadRegionData(region, QOI_GRID, filename)
 
-  ! Read the target state.
+  ! If a target state file was specified, read the target state. Otherwise, initialize the
+  ! target state to a quiescent state by default.
   if (region%simulationFlags%useTargetState) then
-     call getRequiredOption("target_state_file", filename)
-     call loadRegionData(region, QOI_TARGET_STATE, filename)
+     filename = getOption("target_state_file", "")
+     if (len_trim(filename) == 0) then
+        do i = 1, size(region%states)
+           call makeQuiescent(region%states(i), size(globalGridSizes, 1),                    &
+                region%solverOptions%ratioOfSpecificHeats, region%states(i)%targetState)
+        end do
+     else
+        call loadRegionData(region, QOI_TARGET_STATE, filename)
+     end if
   end if
 
   ! Setup spatial discretization.
@@ -84,12 +92,21 @@ program main
   ! Initial condition.
   if (region%simulationFlags%predictionOnly .and. command_argument_count() == 1) then
      call get_command_argument(1, filename)
+  else if (region%simulationFlags%useTargetState) then
+     filename = getOption("initial_condition_file", "")
+     if (len_trim(filename) == 0) then
+        do i = 1, size(region%states)
+           region%states(i)%conservedVariables = region%states(i)%targetState
+        end do
+     else
+        call loadRegionData(region, QOI_FORWARD_STATE, filename)
+     end if
   else
      call getRequiredOption("initial_condition_file", filename)
+     call loadRegionData(region, QOI_FORWARD_STATE, filename)
   end if
 
   if (region%simulationFlags%predictionOnly) then
-     call loadRegionData(region, QOI_FORWARD_STATE, filename)
      call solveForward(region, integrator,                                                   &
           real(region%states(1)%plot3dAuxiliaryData(4), wp),                                 &
           nint(real(region%states(1)%plot3dAuxiliaryData(1), wp)),                           &

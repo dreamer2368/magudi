@@ -49,26 +49,6 @@ contains
 
   end subroutine allocateData
 
-  subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats)
-
-    ! <<< Derived types >>>
-    use State_type
-
-    ! <<< Arguments >>>
-    type(t_State) :: this
-    integer, intent(in) :: nDimensions
-    real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-
-    this%conservedVariables(:,1) = 1.0_wp
-    this%conservedVariables(:,2:nDimensions+1) = 0.0_wp
-    this%conservedVariables(:,nDimensions+2) = 1.0_wp / ratioOfSpecificHeats / &
-         (ratioOfSpecificHeats - 1.0_wp)
-
-  end subroutine makeQuiescent
-
 end module StateImpl
 
 subroutine setupState(this, grid, simulationFlags, solverOptions)
@@ -83,10 +63,10 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   use SimulationFlags_type
 
   ! <<< Private members >>>
-  use StateImpl, only : allocateData, makeQuiescent
+  use StateImpl, only : allocateData
 
   ! <<< Public members >>>
-  use State_mod, only : cleanupState
+  use State_mod, only : cleanupState, makeQuiescent
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
@@ -349,6 +329,36 @@ function getNumberOfScalars(quantityOfInterest, nDimensions) result(nScalars)
   end select
 
 end function getNumberOfScalars
+
+subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
+
+  ! <<< Derived types >>>
+  use State_type
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_State) :: this
+  integer, intent(in) :: nDimensions
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(out), optional :: conservedVariables(:,:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+
+  if (present(conservedVariables)) then
+     conservedVariables(:,1) = 1.0_wp
+     conservedVariables(:,2:nDimensions+1) = 0.0_wp
+     conservedVariables(:,nDimensions+2) = 1.0_wp / ratioOfSpecificHeats /                   &
+          (ratioOfSpecificHeats - 1.0_wp)
+  else
+     this%conservedVariables(:,1) = 1.0_wp
+     this%conservedVariables(:,2:nDimensions+1) = 0.0_wp
+     this%conservedVariables(:,nDimensions+2) = 1.0_wp / ratioOfSpecificHeats /              &
+          (ratioOfSpecificHeats - 1.0_wp)
+  end if
+
+end subroutine makeQuiescent
 
 subroutine updateState(this, grid, time, simulationFlags, solverOptions, conservedVariables)
 
