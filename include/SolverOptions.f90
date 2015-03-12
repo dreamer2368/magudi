@@ -20,6 +20,7 @@ end module SolverOptions_type
 module SolverOptions_mod
 
   implicit none
+  public
 
   interface
 

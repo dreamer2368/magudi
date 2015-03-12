@@ -22,6 +22,7 @@ end module RK4Integrator_type
 module RK4Integrator_mod
 
   implicit none
+  public
 
   interface
 

@@ -3,12 +3,13 @@
 module InputHelperImpl
 
   implicit none
+  public
 
   type, private :: t_DictElement
      character(len = STRING_LENGTH) :: key, val
   end type t_DictElement
 
-  type(t_DictElement), allocatable :: dict(:)
+  type(t_DictElement), allocatable, public :: dict(:)
 
 contains
 

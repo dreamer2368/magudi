@@ -47,6 +47,7 @@ end module Grid_type
 module Grid_mod
 
   implicit none
+  public
 
   interface
 

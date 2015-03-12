@@ -3,6 +3,7 @@
 module AcousticSource_type
 
   implicit none
+  private
 
   type, public :: t_AcousticSource
      real(SCALAR_KIND) :: location(3), amplitude, gaussianFactor, angularFrequency, phase
@@ -13,6 +14,7 @@ end module AcousticSource_type
 module AcousticSource_mod
 
   implicit none
+  public
 
   interface
 

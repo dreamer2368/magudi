@@ -35,6 +35,7 @@ end module State_type
 module State_mod
 
   implicit none
+  public
 
   interface
 

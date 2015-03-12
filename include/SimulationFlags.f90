@@ -26,6 +26,7 @@ end module SimulationFlags_type
 module SimulationFlags_mod
 
   implicit none
+  public
 
   interface
 

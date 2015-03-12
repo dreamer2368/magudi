@@ -3,6 +3,7 @@
 module StateImpl
 
   implicit none
+  public
 
 contains
 

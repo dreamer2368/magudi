@@ -3,6 +3,7 @@
 module RegionImpl
 
   implicit none
+  public
 
 contains
 

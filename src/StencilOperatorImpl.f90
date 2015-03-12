@@ -3,6 +3,7 @@
 module StencilOperatorImpl
 
   implicit none
+  public
 
 contains
 

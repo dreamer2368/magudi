@@ -25,6 +25,7 @@ end module PatchDescriptor_type
 module PatchDescriptor_mod
 
   implicit none
+  public
 
   interface
 

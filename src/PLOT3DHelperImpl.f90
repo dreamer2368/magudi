@@ -3,6 +3,7 @@
 module PLOT3DHelperImpl
 
   implicit none
+  public
 
   interface swapEndianness
      module procedure swapIntegerEndianness_, swapScalarEndianness_

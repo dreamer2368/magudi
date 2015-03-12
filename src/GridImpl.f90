@@ -3,6 +3,7 @@
 module GridImpl
 
   implicit none
+  public
 
 contains
 

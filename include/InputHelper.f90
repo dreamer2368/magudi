@@ -3,6 +3,7 @@
 module InputHelper
 
   implicit none
+  public
 
   interface
 

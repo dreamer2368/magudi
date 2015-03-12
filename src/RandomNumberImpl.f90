@@ -3,6 +3,7 @@
 module RandomNumberImpl
 
   implicit none
+  public
 
 contains
 

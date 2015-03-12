@@ -26,6 +26,7 @@ end module StencilOperator_type
 module StencilOperator_mod
 
   implicit none
+  public
 
   interface
 

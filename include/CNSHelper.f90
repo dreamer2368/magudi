@@ -3,6 +3,7 @@
 module CNSHelper
 
   implicit none
+  public
 
   interface
 

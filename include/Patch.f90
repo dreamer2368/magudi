@@ -33,6 +33,7 @@ end module Patch_type
 module Patch_mod
 
   implicit none
+  public
 
   interface
 

@@ -37,6 +37,7 @@ end module Region_type
 module Region_mod
 
   implicit none
+  public
 
   interface
 

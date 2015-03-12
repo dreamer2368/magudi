@@ -22,6 +22,7 @@ end module PLOT3DDescriptor_type
 module PLOT3DHelper
 
   implicit none
+  public
 
   interface
 

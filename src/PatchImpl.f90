@@ -3,6 +3,7 @@
 module PatchImpl
 
   implicit none
+  public
 
 contains
 

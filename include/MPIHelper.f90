@@ -3,6 +3,7 @@
 module MPIHelper
 
   implicit none
+  public
 
   interface
 
