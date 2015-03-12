@@ -11,7 +11,7 @@ module Patch_type
 
   type, public :: t_Patch
 
-     integer :: index, normalDirection, gridIndex, patchType = INACTIVE, globalPatchSize(3), &
+     integer :: index, normalDirection, gridIndex, patchType, globalPatchSize(3),            &
           patchSize(3), offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints,            &
           comm = MPI_COMM_NULL
      logical :: isCurvilinear

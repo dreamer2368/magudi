@@ -302,7 +302,6 @@ contains
 
     ! <<< Derived types >>>
     use Region_type
-    use PatchDescriptor_type, only : INACTIVE
 
     ! <<< Internal modules >>>
     use MPIHelper, only : issueWarning, gracefulExit
@@ -322,7 +321,6 @@ contains
             this%simulationFlags, errorCode, message)
        if (errorCode == 1) then
           call issueWarning(this%comm, message)
-          this%patchData(i)%patchType = INACTIVE
        else if (errorCode == 2) then
           call gracefulExit(this%comm, message)
        end if
@@ -343,7 +341,7 @@ contains
     type(t_Region) :: this
 
     ! <<< Local variables >>>
-    integer :: i, j, gridOffset(3), gridLocalSize(3), gridIndex, comm, proc, ierror
+    integer :: i, j, gridOffset(3), gridLocalSize(3), gridIndex, color, comm, proc, ierror
     type(t_PatchDescriptor) :: p
 
     if (.not. allocated(this%patchData)) return
@@ -362,6 +360,7 @@ contains
        do j = 1, size(this%patchData)
 
           p = this%patchData(j)
+          color = MPI_UNDEFINED
           if (p%gridIndex /= gridIndex .or.                                                  &
                p%iMax < gridOffset(1) + 1 .or.                                               &
                p%iMin > gridOffset(1) + gridLocalSize(1) .or.                                &
@@ -369,10 +368,9 @@ contains
                p%jMin > gridOffset(2) + gridLocalSize(2) .or.                                &
                p%kMax < gridOffset(3) + 1 .or.                                               &
                p%kMin > gridOffset(3) + gridLocalSize(3)) then
-             this%patchData(j)%patchType = INACTIVE
+             color = p%patchType
           end if
-          call MPI_Comm_split(this%grids(i)%comm, this%patchData(j)%patchType, proc,         &
-               comm, ierror)
+          call MPI_Comm_split(this%grids(i)%comm, color, proc, comm, ierror)
           if (comm /= MPI_COMM_NULL) this%patchCommunicators(j) = comm
 
        end do
@@ -578,7 +576,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
         do k = 1, size(this%grids)
            do i = 1, size(this%patchData)
               p = this%patchData(i)
-              if (p%gridIndex /= this%grids(k)%index .or. p%patchType == INACTIVE) cycle
+              if (p%gridIndex /= this%grids(k)%index) cycle
               if (allocated(this%patches)) then
                  do j = 1, size(this%patches)
                     if (this%patches(j)%index /= 0) cycle

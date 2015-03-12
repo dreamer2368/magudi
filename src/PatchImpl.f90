@@ -132,7 +132,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
   this%isCurvilinear = simulationFlags%isDomainCurvilinear
 
-  call allocateData(this, nDimensions, simulationFlags)  
+  call allocateData(this, nDimensions, simulationFlags)
 
 end subroutine setupPatch
 
@@ -159,7 +159,6 @@ subroutine cleanupPatch(this)
   SAFE_DEALLOCATE(this%gradient)
 
   if (this%comm /= MPI_COMM_NULL) call MPI_Comm_free(this%comm, ierror)
-  this%patchType = INACTIVE
 
 end subroutine cleanupPatch
 
@@ -341,7 +340,7 @@ subroutine addFarFieldPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount
        viscousPenaltyAmount, ratioOfSpecificHeats
   integer, intent(in) :: nDimensions
   SCALAR_TYPE, intent(in) :: conservedVariables(:,:), targetState(:,:)
-  
+
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, direction, gridIndex, patchIndex

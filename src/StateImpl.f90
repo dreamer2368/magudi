@@ -392,11 +392,11 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
 
   if (present(conservedVariables)) then
      call computeDependentVariables(nDimensions, conservedVariables,                         &
-          solverOptions%ratioOfSpecificHeats, this%specificVolume(:,1), this%velocity,       &   
+          solverOptions%ratioOfSpecificHeats, this%specificVolume(:,1), this%velocity,       &
           this%pressure(:,1), this%temperature(:,1))
   else
-     call computeDependentVariables(nDimensions, this%conservedVariables,                    &   
-          solverOptions%ratioOfSpecificHeats, this%specificVolume(:,1), this%velocity,       &   
+     call computeDependentVariables(nDimensions, this%conservedVariables,                    &
+          solverOptions%ratioOfSpecificHeats, this%specificVolume(:,1), this%velocity,       &
           this%pressure(:,1), this%temperature(:,1))
   end if
 
@@ -535,7 +535,7 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
 
   if (allocated(patches)) then
      do i = 1, size(patches)
-        if (patches(i)%gridIndex /= grid%index .or. patches(i)%patchType == INACTIVE) cycle
+        if (patches(i)%gridIndex /= grid%index) cycle
         select case (patches(i)%patchType)
 
         case (SAT_FAR_FIELD)
@@ -618,7 +618,7 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
 
   if (allocated(patches)) then
      do i = 1, size(patches)
-        if (patches(i)%gridIndex /= grid%index .or. patches(i)%patchType == INACTIVE) cycle
+        if (patches(i)%gridIndex /= grid%index) cycle
         select case (patches(i)%patchType)
 
         case (SPONGE)
@@ -672,9 +672,10 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
   do i = 1, size(patches)
-     if (patches(i)%gridIndex /= grid%index .or. patches(i)%patchType == INACTIVE) cycle
-     
-     if (allocated(patches(i)%spongeStrength)) then
+     if (patches(i)%gridIndex /= grid%index) cycle
+     select case (patches(i)%patchType)
+
+     case (SPONGE)
 
         allocate(normalizedCurveLengths(grid%nGridPoints))
 
@@ -689,32 +690,31 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
                 normalizedCurveLengths, .true.)
         end if
         call collectAtPatch(patches(i), normalizedCurveLengths, patches(i)%spongeStrength)
-        patches(i)%spongeStrength = solverOptions%spongeAmount *                             &   
+        patches(i)%spongeStrength = solverOptions%spongeAmount *                             &
              (1.0_wp - patches(i)%spongeStrength) ** real(solverOptions%spongeExponent, wp)
 
         SAFE_DEALLOCATE(normalizedCurveLengths)
 
-     end if
+     case (SAT_FAR_FIELD)
 
-     if (simulationFlags%viscosityOn .and. allocated(this%targetState) .and.                 &
-          allocated(patches(i)%targetViscousFluxes)) then
+        if (simulationFlags%viscosityOn) then
 
-        allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
+           allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
 
-        call updateState(this, grid, 0.0_wp, simulationFlags,                                &
-             solverOptions, this%targetState)
-        call computeCartesianViscousFluxes(nDimensions, this%velocity, this%stressTensor,    &
-             this%heatFlux, targetViscousFluxes)
-        call collectAtPatch(patches(i), targetViscousFluxes,                                 &
-             patches(i)%targetViscousFluxes)
+           call updateState(this, grid, 0.0_wp, simulationFlags,                             &
+                solverOptions, this%targetState)
+           call computeCartesianViscousFluxes(nDimensions, this%velocity, this%stressTensor, &
+                this%heatFlux, targetViscousFluxes)
+           call collectAtPatch(patches(i), targetViscousFluxes,                              &
+                patches(i)%targetViscousFluxes)
 
-        SAFE_DEALLOCATE(targetViscousFluxes)
+           SAFE_DEALLOCATE(targetViscousFluxes)
 
-     end if
+        end if
 
-     if (allocated(patches(i)%metrics))                                                      &
-          call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
-           
+        call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
+
+     end select
   end do
 
 end subroutine updatePatches

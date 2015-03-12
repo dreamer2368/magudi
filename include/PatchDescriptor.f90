@@ -6,7 +6,6 @@ module PatchDescriptor_type
   private
 
   integer, parameter, public ::                                                              &
-       INACTIVE                      = 0,                                                    &
        SPONGE                        = 1,                                                    &
        ACTUATOR                      = 2,                                                    &
        SOLENOIDAL_EXCITATION_SUPPORT = 3,                                                    &
@@ -17,8 +16,7 @@ module PatchDescriptor_type
 
   type, public :: t_PatchDescriptor
 
-     integer :: patchType = INACTIVE, normalDirection, gridIndex,                            &
-          iMin, iMax, jMin, jMax, kMin, kMax
+     integer :: patchType, normalDirection, gridIndex, iMin, iMax, jMin, jMax, kMin, kMax
 
   end type t_PatchDescriptor
 
