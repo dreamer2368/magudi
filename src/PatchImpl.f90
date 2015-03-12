@@ -33,6 +33,9 @@ contains
           allocate(this%targetViscousFluxes(this%nPatchPoints, nDimensions + 2, nDimensions))
        end if
 
+    case (SAT_SLIP_WALL)
+       allocate(this%metrics(this%nPatchPoints, nDimensions ** 2))
+
     case (ACTUATOR)
        allocate(this%gradient(this%nPatchPoints, 1))
 
@@ -418,3 +421,95 @@ subroutine addFarFieldPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount
   SAFE_DEALLOCATE(localTargetState)
 
 end subroutine addFarFieldPenalty
+
+subroutine addWallPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,                &
+     viscousPenaltyAmount, ratioOfSpecificHeats, nDimensions, conservedVariables)
+
+  ! <<< Derived types >>>
+  use Patch_type
+
+  ! <<< Internal modules >>>
+  use CNSHelper
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Patch) :: this
+  SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
+  integer, intent(in) :: iblank(:)
+  real(SCALAR_KIND), intent(in) :: inviscidPenaltyAmount,                                    &
+       viscousPenaltyAmount, ratioOfSpecificHeats
+  integer, intent(in) :: nDimensions
+  SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, direction, gridIndex, patchIndex
+  SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
+       localMetricsAlongNormalDirection(:), localIncomingJacobianOfInviscidFluxes(:,:),      &
+       localInviscidPenalty(:)
+  SCALAR_TYPE :: temp
+
+  direction = abs(this%normalDirection)
+
+  allocate(localConservedVariables(nDimensions + 2))
+  allocate(localMetricsAlongNormalDirection(nDimensions))
+  allocate(localIncomingJacobianOfInviscidFluxes(nDimensions + 2, nDimensions + 2))
+  allocate(localInviscidPenalty(nDimensions + 2))
+
+  do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+     do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+        do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+           gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                      &
+                (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                        &
+                (k - 1 - this%gridOffset(3)))
+           if (iblank(gridIndex) == 0) cycle
+           patchIndex = i - this%offset(1) + this%patchSize(1) *                             &
+                (j - 1 - this%offset(2) + this%patchSize(2) *                                &
+                (k - 1 - this%offset(3)))
+
+           localConservedVariables = conservedVariables(gridIndex,:)
+           localMetricsAlongNormalDirection =                                                &
+                this%metrics(patchIndex,1+nDimensions*(direction-1):nDimensions*direction)
+
+           select case (nDimensions)
+           case (1)
+              call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,          &
+                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
+                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+           case (2)
+              call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,          &
+                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
+                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+           case (3)
+              call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,          &
+                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
+                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+           end select
+
+           temp = dot_product(localConservedVariables(2:nDimensions+1),                      &
+                localMetricsAlongNormalDirection)
+
+           localInviscidPenalty(1) = 0.0_wp
+           localInviscidPenalty(2:nDimensions+1) = localMetricsAlongNormalDirection * temp
+           localInviscidPenalty(nDimensions+2) = &
+                0.5_wp / localConservedVariables(1) * temp ** 2
+           localInviscidPenalty(2:nDimensions+2) = localInviscidPenalty(2:nDimensions+2) /   &
+                sum(localMetricsAlongNormalDirection ** 2)
+           localInviscidPenalty = matmul(localIncomingJacobianOfInviscidFluxes,              &
+                localInviscidPenalty)
+
+           rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                         &
+                sign(inviscidPenaltyAmount, real(this%normalDirection, SCALAR_KIND)) *       &
+                localInviscidPenalty
+
+        end do
+     end do
+  end do
+
+  SAFE_DEALLOCATE(localInviscidPenalty)
+  SAFE_DEALLOCATE(localIncomingJacobianOfInviscidFluxes)
+  SAFE_DEALLOCATE(localMetricsAlongNormalDirection)
+  SAFE_DEALLOCATE(localConservedVariables)
+
+end subroutine addWallPenalty

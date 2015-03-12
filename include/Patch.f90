@@ -152,4 +152,23 @@ module Patch_mod
 
   end interface
 
+  interface
+
+     subroutine addWallPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,           &
+          viscousPenaltyAmount, ratioOfSpecificHeats, nDimensions, conservedVariables)
+
+       use Patch_type
+
+       type(t_Patch) :: this
+       SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
+       integer, intent(in) :: iblank(:)
+       real(SCALAR_KIND), intent(in) :: inviscidPenaltyAmount,                               &
+            viscousPenaltyAmount, ratioOfSpecificHeats
+       integer, intent(in) :: nDimensions
+       SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
+
+     end subroutine addWallPenalty
+
+  end interface
+
 end module Patch_mod

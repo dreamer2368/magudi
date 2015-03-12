@@ -10,7 +10,7 @@ module SolverOptions_type
      real(SCALAR_KIND) :: reynoldsNumber, prandtlNumber, ratioOfSpecificHeats,               &
           powerLawExponent, dissipationAmount, densityRange(2), temperatureRange(2), cfl,    &
           timeStepSize, spongeAmount, farFieldInviscidPenaltyAmount,                         &
-          farFieldViscousPenaltyAmount
+          farFieldViscousPenaltyAmount, wallInviscidPenaltyAmount
      integer :: spongeExponent
 
   end type t_SolverOptions

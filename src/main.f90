@@ -126,10 +126,12 @@ contains
        nTimesteps, reportInterval, saveInterval, outputPrefix)
 
     ! <<< Derived types >>>
+    use State_type
     use Region_type
     use RK4Integrator_type
 
     ! <<< Internal modules >>>
+    use Region_mod, only : saveRegionData
     use RK4Integrator_mod, only : stepForward
 
     implicit none

@@ -475,7 +475,7 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
 
   ! <<< Internal modules >>>
   use CNSHelper
-  use Patch_mod, only : collectAtPatch, addFarFieldPenalty
+  use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
   use StencilOperator_mod, only : applyOperator
 
   implicit none
@@ -489,6 +489,7 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
   SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:,:)
 
@@ -546,6 +547,13 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
                 grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1),       &
                 solverOptions%ratioOfSpecificHeats, nDimensions,                             &
                 this%conservedVariables, this%targetState)
+
+        case (SAT_SLIP_WALL)
+           call addWallPenalty(patches(i), this%rightHandSide, grid%iblank,                  &
+                solverOptions%wallInviscidPenaltyAmount /                                    &
+                grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1),       &
+                0.0_wp, solverOptions%ratioOfSpecificHeats, nDimensions,                     &
+                this%conservedVariables)
 
         end select
      end do
@@ -711,6 +719,10 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
            SAFE_DEALLOCATE(targetViscousFluxes)
 
         end if
+
+        call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
+
+     case (SAT_SLIP_WALL)
 
         call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
 

@@ -77,12 +77,18 @@ subroutine updateSolverOptions(this, simulationFlags, patchData)
   end if
 
   if (any(patchData(:)%patchType == SAT_FAR_FIELD)) then
-     this%farFieldInviscidPenaltyAmount = &
+     this%farFieldInviscidPenaltyAmount =                                                    &
           getOption("far_field_inviscid_penalty_amount", 1.0_wp)
      if (simulationFlags%viscosityOn) then
-        this%farFieldViscousPenaltyAmount = &
+        this%farFieldViscousPenaltyAmount =                                                  &
              getOption("far_field_viscous_penalty_amount", 1.0_wp)
      end if
+  end if
+
+  if (any(patchData(:)%patchType == SAT_SLIP_WALL .or.                                       &
+       patchData(:)%patchType == SAT_ISOTHERMAL_WALL)) then
+     this%wallInviscidPenaltyAmount =                                                        &
+          getOption("wall_inviscid_penalty_amount", 2.0_wp)
   end if
 
 end subroutine updateSolverOptions
