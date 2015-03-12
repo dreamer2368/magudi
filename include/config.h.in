@@ -1,0 +1,63 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define SAFE_DEALLOCATE(x) if (allocated(x)) deallocate(x)
+
+#define PROJECT_NAME "@PROJECT_NAME@"
+#define STRING_LENGTH 256
+
+#ifdef USE_EXTENDED_PLOT3D
+#define _LARGEFILE64_SOURCE  1
+#define _FILE_OFFSET_BITS   64
+#define SIZEOF_PLOT3D_OFF    8
+#else
+#define SIZEOF_PLOT3D_OFF    4
+#endif
+
+#define @SCALAR_TYPE_MACRO@
+
+#ifdef SCALAR_TYPE_IS_real32_iso
+#define SCALAR_KIND     selected_real_kind(6)
+#define SCALAR_TYPE     real(SCALAR_KIND)
+#define SIZEOF_SCALAR   4
+#define SCALAR_FORMAT   "(SP,ES13.6E2)"
+#define SCALAR_TYPE_MPI MPI_REAL
+#endif
+
+#ifdef SCALAR_TYPE_IS_real64_iso
+#define SCALAR_KIND     selected_real_kind(15)
+#define SCALAR_TYPE     real(SCALAR_KIND)
+#define SIZEOF_SCALAR   8
+#define SCALAR_FORMAT   "(SP,ES23.15E3)"
+#define SCALAR_TYPE_MPI MPI_REAL8
+#endif
+
+#ifdef SCALAR_TYPE_IS_binary128_IEEE754
+#define SCALAR_KIND     selected_real_kind(33)
+#define SCALAR_TYPE     real(SCALAR_KIND)
+#define SIZEOF_SCALAR   16
+#define SCALAR_FORMAT   "(SP,ES42.33E4)"
+#define SCALAR_TYPE_MPI MPI_REAL16
+#endif
+
+#ifdef SCALAR_TYPE_IS_complex
+#define SCALAR_KIND     selected_real_kind(6)
+#define SCALAR_TYPE     complex(SCALAR_KIND)
+#define SIZEOF_SCALAR   8
+#define SCALAR_FORMAT   "(SP,'(',ES13.6E2,ES13.6E2,'j)')"
+#define SCALAR_TYPE_MPI MPI_COMPLEX
+#define REAL_TYPE_MPI   MPI_REAL4
+#define SCALAR_IS_COMPLEX
+#endif
+
+#ifdef SCALAR_TYPE_IS_double_complex
+#define SCALAR_KIND     selected_real_kind(15)
+#define SCALAR_TYPE     complex(SCALAR_KIND)
+#define SIZEOF_SCALAR   16
+#define SCALAR_FORMAT   "(SP,'(',ES23.15E3,ES23.15E3,'j)')"
+#define SCALAR_TYPE_MPI MPI_DOUBLE_COMPLEX
+#define REAL_TYPE_MPI   MPI_REAL8
+#define SCALAR_IS_COMPLEX
+#endif
+
+#endif
