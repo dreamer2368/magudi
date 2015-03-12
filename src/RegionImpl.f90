@@ -360,7 +360,7 @@ contains
        do j = 1, size(this%patchData)
 
           p = this%patchData(j)
-          color = MPI_UNDEFINED
+          color = p%patchType
           if (p%gridIndex /= gridIndex .or.                                                  &
                p%iMax < gridOffset(1) + 1 .or.                                               &
                p%iMin > gridOffset(1) + gridLocalSize(1) .or.                                &
@@ -368,7 +368,7 @@ contains
                p%jMin > gridOffset(2) + gridLocalSize(2) .or.                                &
                p%kMax < gridOffset(3) + 1 .or.                                               &
                p%kMin > gridOffset(3) + gridLocalSize(3)) then
-             color = p%patchType
+             color = MPI_UNDEFINED
           end if
           call MPI_Comm_split(this%grids(i)%comm, color, proc, comm, ierror)
           if (comm /= MPI_COMM_NULL) this%patchCommunicators(j) = comm
