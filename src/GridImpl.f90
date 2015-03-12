@@ -855,6 +855,8 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
      else if (hasNegativeJacobian) then
         call gracefulExit(this%comm, message)
      end if
+  else if (hasNegativeJacobian_) then
+     call gracefulExit(this%comm, message)
   end if
 
   ! Update the norm matrix, using the norm from the first derivative operator.
