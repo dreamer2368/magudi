@@ -33,6 +33,8 @@ contains
     if (.not. simulationFlags%repeatFirstDerivative)                                         &
          allocate(this%secondDerivative(nDimensions))
     if (simulationFlags%dissipationOn) allocate(this%dissipation(nDimensions))
+    if (.not. simulationFlags%predictionOnly)                                                &
+         allocate(this%adjointFirstDerivative(nDimensions))
 
     allocate(this%iblank(this%nGridPoints), source = 1)
     allocate(this%coordinates(this%nGridPoints, nDimensions))
@@ -422,6 +424,13 @@ subroutine cleanupGrid(this)
   end if
   SAFE_DEALLOCATE(this%dissipation)
 
+  if (allocated(this%adjointFirstDerivative)) then
+     do i = 1, size(this%adjointFirstDerivative)
+        call cleanupOperator(this%adjointFirstDerivative(i))
+     end do
+  end if
+  SAFE_DEALLOCATE(this%adjointFirstDerivative)
+
   SAFE_DEALLOCATE(this%iblank)
   SAFE_DEALLOCATE(this%coordinates)
   SAFE_DEALLOCATE(this%jacobian)
@@ -536,6 +545,7 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
+  use StencilOperator_mod, only : setupOperator, updateOperator, getAdjointOperator
 
   implicit none
 
@@ -608,6 +618,11 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
         end if
         call updateOperator(this%dissipation(i), this%comm, i,                               &
              this%periodicityType(i) == OVERLAP)
+     end if
+
+     ! Adjoint first derivative operator.
+     if (allocated(this%adjointFirstDerivative)) then
+        call getAdjointOperator(this%firstDerivative(i), this%adjointFirstDerivative(i))
      end if
 
   end do

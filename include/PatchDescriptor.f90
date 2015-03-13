@@ -33,6 +33,10 @@ module PatchDescriptor_mod
 
      subroutine parsePatchType(patchTypeString, patchType)
 
+       !> If `patchTypeString` matches one of the enumerated patch types defined in this
+       !> module, the corresponding numeric value is returned in `patchType`. Otherwise,
+       !> `patchType` is set to -1.
+
        character(len = *), intent(in) :: patchTypeString
        integer, intent(out) :: patchType
 
@@ -52,7 +56,7 @@ module PatchDescriptor_mod
        integer, intent(in) :: globalGridSizes(:,:)
        type(t_SimulationFlags), intent(in) :: simulationFlags
        integer, intent(out) :: errorCode
-       character(len = STRING_LENGTH), intent(out), optional :: message
+       character(len = STRING_LENGTH), intent(out) :: message
 
      end subroutine validatePatchDescriptor
 

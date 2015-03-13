@@ -493,60 +493,69 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
-  SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:,:)
+  SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
-  allocate(temp1(grid%nGridPoints, this%nUnknowns, nDimensions))
-  allocate(temp2(grid%nGridPoints, this%nUnknowns, nDimensions))
+  allocate(fluxes1(grid%nGridPoints, this%nUnknowns, nDimensions))
+  allocate(fluxes2(grid%nGridPoints, this%nUnknowns, nDimensions))
 
+  ! Compute Cartesian form of inviscid fluxes.
   call computeCartesianInvsicidFluxes(nDimensions, this%conservedVariables,                  &
-       this%velocity, this%pressure(:,1), temp1)
+       this%velocity, this%pressure(:,1), fluxes1)
 
+  ! Compute Cartesian form of viscous fluxes if viscous terms are included and computed using
+  ! repeated first derivatives.
   if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
      call computeCartesianViscousFluxes(nDimensions, this%velocity,                          &
-          this%stressTensor, this%heatFlux, temp2)
+          this%stressTensor, this%heatFlux, fluxes2)
      if (allocated(patches)) then
         do i = 1, size(patches)
            if (patches(i)%gridIndex /= grid%index .or. &
                 patches(i)%patchType /= SAT_FAR_FIELD) cycle
-           call collectAtPatch(patches(i), temp2, patches(i)%viscousFluxes)
+           call collectAtPatch(patches(i), fluxes2, &
+                patches(i)%viscousFluxes) !... save viscous fluxes on patches for later use.
         end do
      end if
-     temp1 = temp1 - temp2
+     fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
 
-  call transformFluxes(nDimensions, temp1, grid%metrics, temp2, grid%isCurvilinear)
+  ! Transform fluxes from Cartesian to contravariant form.
+  call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
 
-  SAFE_DEALLOCATE(temp1) !... no longer needed.
+  SAFE_DEALLOCATE(fluxes1) !... no longer needed.
 
+  ! Take derivatives of fluxes.
   do i = 1, nDimensions
-     call applyOperator(grid%firstDerivative(i), temp2(:,:,i), grid%localSize)
+     call applyOperator(grid%firstDerivative(i), fluxes2(:,:,i), grid%localSize)
   end do
-  this%rightHandSide = this%rightHandSide - sum(temp2, dim = 3)
+  this%rightHandSide = this%rightHandSide - sum(fluxes2, dim = 3) !... update right-hand side.
 
+  ! Add dissipation if required.
   if (simulationFlags%dissipationOn) then
      do i = 1, nDimensions
-        temp2(:,:,i) = this%conservedVariables
-        call applyOperator(grid%dissipation(i), temp2(:,:,i), grid%localSize)
+        fluxes2(:,:,i) = this%conservedVariables
+        call applyOperator(grid%dissipation(i), fluxes2(:,:,i), grid%localSize)
      end do
      this%rightHandSide = this%rightHandSide +                                               &
-          solverOptions%dissipationAmount * sum(temp2, dim = 3)
+          solverOptions%dissipationAmount * sum(fluxes2, dim = 3)
   end if
 
-  SAFE_DEALLOCATE(temp2) !... no longer needed
+  SAFE_DEALLOCATE(fluxes2) !... no longer needed
+
+  ! SAT penalties:
 
   if (allocated(patches)) then
      do i = 1, size(patches)
         if (patches(i)%gridIndex /= grid%index) cycle
         select case (patches(i)%patchType)
 
-        case (SAT_FAR_FIELD)
+        case (SAT_FAR_FIELD) !... non-reflecting far-field.
            call addFarFieldPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,     &
                 nDimensions, solverOptions%ratioOfSpecificHeats,                             &
                 this%conservedVariables, this%targetState)
 
-        case (SAT_SLIP_WALL)
+        case (SAT_SLIP_WALL) !... impenetrable wall (for inviscid flow).
            call addWallPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,         &
                 nDimensions, solverOptions%ratioOfSpecificHeats, this%conservedVariables)
 
@@ -580,7 +589,127 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer :: i, nDimensions, ierror
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions, ierror
+  SCALAR_TYPE, allocatable :: gradientOfAdjointVariables(:,:,:), localConservedVariables(:), &
+       localVelocity(:), localMetricsAlongDirection(:), localStressTensor(:),                &
+       localHeatFlux(:), localJacobian1(:,:), localJacobian2(:,:)
+
+  call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+
+  allocate(gradientOfAdjointVariables(grid%nGridPoints, this%nUnknowns, nDimensions))
+  do i = 1, nDimensions
+     gradientOfAdjointVariables(:,:,i) = this%adjointVariables
+     call applyOperator(grid%adjointFirstDerivative(i), gradientOfAdjointVariables(:,:,i),   &
+          grid%localSize)
+  end do
+
+  allocate(localJacobian1(nDimensions + 2, nDimensions + 2))
+  allocate(localConservedVariables(nDimensions + 2))
+  allocate(localVelocity(nDimensions))
+  allocate(localMetricsAlongDirection(nDimensions))
+
+  if (simulationFlags%viscosityOn) then
+     allocate(localJacobian2(nDimensions + 2, nDimensions + 2))
+     allocate(localStressTensor(nDimensions ** 2))
+     allocate(localHeatFlux(nDimensions))
+  end if
+
+  do i = 1, grid%nGridPoints
+
+     localConservedVariables = this%conservedVariables(i,:)
+     localVelocity = this%velocity(i,:)
+     if (simulationFlags%viscosityOn) then
+        localStressTensor = this%stressTensor(i,:)
+        localHeatFlux = this%heatFlux(i,:)
+     end if
+
+     do j = 1, nDimensions
+
+        localMetricsAlongDirection = grid%metrics(i,1+nDimensions*(j-1):nDimensions*j)
+
+        select case (nDimensions)
+        case (1)
+           call computeJacobianOfInviscidFlux1D(localConservedVariables,                     &
+                localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,              &
+                localJacobian1, specificVolume = this%specificVolume(i,1),                   &
+                velocity = localVelocity, temperature = this%temperature(i,1))
+        case (2)
+           call computeJacobianOfInviscidFlux2D(localConservedVariables,                     &
+                localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,              &
+                localJacobian1, specificVolume = this%specificVolume(i,1),                   &
+                velocity = localVelocity, temperature = this%temperature(i,1))
+        case (3)
+           call computeJacobianOfInviscidFlux3D(localConservedVariables,                     &
+                localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,              &
+                localJacobian1, specificVolume = this%specificVolume(i,1),                   &
+                velocity = localVelocity, temperature = this%temperature(i,1))
+        end select
+
+        if (simulationFlags%viscosityOn) then
+           select case (nDimensions)
+           case (1)
+              call computeFirstPartialViscousJacobian1D(localConservedVariables,             &
+                   localMetricsAlongDirection, localStressTensor, localHeatFlux,             &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localJacobian2, specificVolume = this%specificVolume(i,1),                &
+                   velocity = localVelocity, temperature = this%temperature(i,1))
+           case (2)
+              call computeFirstPartialViscousJacobian2D(localConservedVariables,             &
+                   localMetricsAlongDirection, localStressTensor, localHeatFlux,             &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localJacobian2, specificVolume = this%specificVolume(i,1),                &
+                   velocity = localVelocity, temperature = this%temperature(i,1))
+           case (3)
+              call computeFirstPartialViscousJacobian3D(localConservedVariables,             &
+                   localMetricsAlongDirection, localStressTensor, localHeatFlux,             &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localJacobian2, specificVolume = this%specificVolume(i,1),                &
+                   velocity = localVelocity, temperature = this%temperature(i,1))
+           end select
+           localJacobian1 = localJacobian1 - localJacobian2
+        end if
+
+        this%rightHandSide(i,:) = this%rightHandSide(i,:) -                                  &
+             matmul(transpose(localJacobian1), gradientOfAdjointVariables(i,:,j))
+
+     end do
+
+  end do
+
+  if (simulationFlags%viscosityOn) then
+     SAFE_DEALLOCATE(localHeatFlux)
+     SAFE_DEALLOCATE(localStressTensor)
+     SAFE_DEALLOCATE(localJacobian2)
+  end if
+
+  SAFE_DEALLOCATE(localMetricsAlongDirection)
+  SAFE_DEALLOCATE(localVelocity)
+  SAFE_DEALLOCATE(localConservedVariables)
+  SAFE_DEALLOCATE(localJacobian1)
+
+  SAFE_DEALLOCATE(gradientOfAdjointVariables)
+
+  ! SAT penalties:
+
+  if (allocated(patches)) then
+     do i = 1, size(patches)
+        if (patches(i)%gridIndex /= grid%index) cycle
+        select case (patches(i)%patchType)
+
+        case (SAT_FAR_FIELD) !... non-reflecting far-field.
+           call addFarFieldPenalty(patches(i), ADJOINT, this%rightHandSide, grid%iblank,     &
+                nDimensions, solverOptions%ratioOfSpecificHeats,                             &
+                this%conservedVariables, this%targetState, this%adjointVariables)
+
+        case (SAT_SLIP_WALL) !... impenetrable wall (for inviscid flow).
+           call addWallPenalty(patches(i), ADJOINT, this%rightHandSide, grid%iblank,         &
+                nDimensions, solverOptions%ratioOfSpecificHeats, this%conservedVariables,    &
+                this%adjointVariables)
+
+        end select
+     end do
+  end if
 
 end subroutine computeRhsAdjoint
 
@@ -634,6 +763,49 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
   end if
 
 end subroutine addSourcesForward
+
+subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
+
+  ! <<< Derived types >>>
+  use Grid_type
+  use Patch_type
+  use State_type
+  use Region_type, only : ADJOINT
+  use SolverOptions_type
+  use PatchDescriptor_type
+  use SimulationFlags_type
+
+  ! <<< Internal modules >>>
+  use Patch_mod, only : addDamping
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_State) :: this
+  type(t_Grid) :: grid
+  type(t_Patch), allocatable, intent(in) :: patches(:)
+  real(SCALAR_KIND), intent(in) :: time
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i
+
+  if (allocated(patches)) then
+     do i = 1, size(patches)
+        if (patches(i)%gridIndex /= grid%index) cycle
+        select case (patches(i)%patchType)
+
+        case (SPONGE)
+           call addDamping(patches(i), ADJOINT, this%rightHandSide, grid%iblank,             &
+                this%adjointVariables)
+
+        end select
+     end do
+  end if
+
+end subroutine addSourcesAdjoint
 
 subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 

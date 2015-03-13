@@ -6,6 +6,9 @@ subroutine setupRK4Integrator(this, region)
   use RK4Integrator_type
   use Region_type
 
+  ! <<< Public members >>>
+  use RK4Integrator_mod, only : cleanupRK4Integrator
+
   implicit none
 
   ! <<< Arguments >>>

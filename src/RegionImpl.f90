@@ -905,6 +905,9 @@ subroutine computeRhs(this, mode, time)
      case (FORWARD)
         call addSourcesForward(this%states(i), this%grids(i), this%patches, time,            &
              this%simulationFlags, this%solverOptions)
+     case (ADJOINT)
+        call addSourcesAdjoint(this%states(i), this%grids(i), this%patches, time,            &
+             this%simulationFlags, this%solverOptions)
      end select
 
   end do

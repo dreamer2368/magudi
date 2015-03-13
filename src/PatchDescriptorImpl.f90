@@ -45,7 +45,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   integer, intent(in) :: globalGridSizes(:,:)
   type(t_SimulationFlags), intent(in) :: simulationFlags
   integer, intent(out) :: errorCode
-  character(len = STRING_LENGTH), intent(out), optional :: message
+  character(len = STRING_LENGTH), intent(out) :: message
 
   ! <<< Local variables >>>
   integer :: i, extent(6)
