@@ -1,6 +1,37 @@
 #include "config.h"
 
-subroutine validatePatchDescriptor(this, index, globalGridSizes,                             &
+subroutine parsePatchType(patchTypeString, patchType)
+
+  ! <<< Derived types >>>
+  use PatchDescriptor_type
+
+  implicit none
+
+  ! <<< Arguments >>>
+  character(len = *), intent(in) :: patchTypeString
+  integer, intent(out) :: patchType
+
+  patchType = -1
+
+  if (trim(patchTypeString) == "SPONGE") then
+     patchType = SPONGE
+  else if (trim(patchTypeString) == "ACTUATOR") then
+     patchType = ACTUATOR
+  else if (trim(patchTypeString) == "SOLENOIDAL_EXCITATION_SUPPORT") then
+     patchType = SOLENOIDAL_EXCITATION_SUPPORT
+  else if (trim(patchTypeString) == "SAT_FAR_FIELD") then
+     patchType = SAT_FAR_FIELD
+  else if (trim(patchTypeString) == "SAT_SLIP_WALL") then
+     patchType = SAT_SLIP_WALL
+  else if (trim(patchTypeString) == "SAT_ISOTHERMAL_WALL") then
+     patchType = SAT_ISOTHERMAL_WALL
+  else if (trim(patchTypeString) == "SAT_BLOCK_INTERFACE") then
+     patchType = SAT_BLOCK_INTERFACE
+  end if
+
+end subroutine parsePatchType
+
+subroutine validatePatchDescriptor(this, globalGridSizes,                                    &
      simulationFlags, errorCode, message)
 
   ! <<< Derived types >>>
@@ -9,7 +40,7 @@ subroutine validatePatchDescriptor(this, index, globalGridSizes,                
 
   ! <<< Arguments >>>
   type(t_PatchDescriptor) :: this
-  integer, intent(in) :: index, globalGridSizes(:,:)
+  integer, intent(in) :: globalGridSizes(:,:)
   type(t_SimulationFlags), intent(in) :: simulationFlags
   integer, intent(out) :: errorCode
   character(len = STRING_LENGTH), intent(out), optional :: message
@@ -24,16 +55,17 @@ subroutine validatePatchDescriptor(this, index, globalGridSizes,                
 
   ! Check if the grid index is valid.
   if (this%gridIndex <= 0 .or. this%gridIndex > size(globalGridSizes, 2)) then
-     write(message, '(2(A,I0.0),A)') "Patch ", index, " has an invalid grid index: ",        &
-          this%gridIndex, "!"
+     write(message, '(3A,I0.0,A)') "Patch '", trim(this%name),                               &
+          "' has an invalid grid index: ", this%gridIndex, "!"
      errorCode = 2
      return
   end if
 
   ! Check if the normal direction is valid.
   if (abs(this%normalDirection) > size(globalGridSizes, 1)) then
-     write(message, '(2(A,I0.0),A)') "Patch ", index,                                        &
-          " has an invalid normal direction: ", this%normalDirection, "!"
+     write(message, '(3A,2(I0.0,A))') "Patch '", trim(this%name), "' on grid ",              &
+          this%gridIndex, " has an invalid normal direction: ",                              &
+          this%normalDirection, "!"
      errorCode = 2
      return
   end if
@@ -63,7 +95,7 @@ subroutine validatePatchDescriptor(this, index, globalGridSizes,                
 
   ! Fail if the extent is invalid.
   if (.not. isExtentValid) then
-     write(message, '(2(A,I0.0),A,6(I0.0,1X))') "Patch ", index, " on grid ",                &
+     write(message, '(3A,I0.0,A,6(I0.0,1X))') "Patch '", trim(this%name), "' on grid ",      &
           this%gridIndex, " has an invalid extent: ",                                        &
           this%iMin, this%iMax, this%jMin, this%jMax, this%kMin, this%kMax, "!"
      errorCode = 2
@@ -76,8 +108,9 @@ subroutine validatePatchDescriptor(this, index, globalGridSizes,                
   case (SPONGE, ACTUATOR, SOLENOIDAL_EXCITATION_SUPPORT)
   case default
      if (extent(1+2*(i-1)) /= extent(2+2*(i-1))) then
-        write(message, '(2(A,I0.0),A)') "Boundary patch ", index, " on grid ",               &
-             this%gridIndex, " spans more than 1 grid point along the normal direction!"
+        write(message, '(3A,I0.0,A)') "Patch '", trim(this%name), "' on grid ",              &
+             this%gridIndex, " is not allowed to extend across more &
+             &than 1 grid point along the normal direction!"
         errorCode = 2
         return
      end if
@@ -89,7 +122,7 @@ subroutine validatePatchDescriptor(this, index, globalGridSizes,                
      if ((this%normalDirection > 0 .and. .not. extent(1+2*(i-1)) == 1) .or.                  &
           (this%normalDirection < 0 .and.                                                    &
           .not. extent(2+2*(i-1)) == globalGridSizes(i, this%gridIndex))) then
-        write(message, '(2(A,I0.0),A)') "Sponge patch ", index, " on grid ",                 &
+        write(message, '(2(A,I0.0),A)') "Sponge patch '", trim(this%name), "' on grid ",     &
              this%gridIndex, " is not aligned with a computational boundary!"
         errorCode = 2
         return
@@ -100,7 +133,7 @@ subroutine validatePatchDescriptor(this, index, globalGridSizes,                
   select case (this%patchType)
   case (SPONGE, SAT_FAR_FIELD, SAT_ISOTHERMAL_WALL)
      if (.not. simulationFlags%useTargetState) then
-        write(message, '(2(A,I0.0),A)') "Not using patch ", index, " on grid ",              &
+        write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because there is no target state!"
         errorCode = 1
         return
@@ -112,7 +145,7 @@ subroutine validatePatchDescriptor(this, index, globalGridSizes,                
   select case (this%patchType)
   case (SOLENOIDAL_EXCITATION_SUPPORT)
      if (size(globalGridSizes, 1) /= 2) then
-        write(message, '(2(A,I0.0),A)') "Not using patch ", index, " on grid ",              &
+        write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because the domain is not two-dimensional!"
         errorCode = 1
         return
@@ -123,7 +156,7 @@ subroutine validatePatchDescriptor(this, index, globalGridSizes,                
   select case (this%patchType)
   case (ACTUATOR)
      if (simulationFlags%predictionOnly .or. simulationFlags%baselineOnly) then
-        write(message, '(2(A,I0.0),A)') "Not using patch ", index, " on grid ",              &
+        write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because control actuation has been disabled!"
         errorCode = 1
         return

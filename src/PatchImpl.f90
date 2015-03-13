@@ -46,37 +46,6 @@ contains
 
 end module PatchImpl
 
-subroutine parsePatchType(identifier, patchType)
-
-  ! <<< Derived types >>>
-  use PatchDescriptor_type
-
-  implicit none
-
-  ! <<< Arguments >>>
-  character(len = *), intent(in) :: identifier
-  integer, intent(out) :: patchType
-
-  patchType = -1
-
-  if (trim(identifier) == "SPONGE") then
-     patchType = SPONGE
-  else if (trim(identifier) == "ACTUATOR") then
-     patchType = ACTUATOR
-  else if (trim(identifier) == "SOLENOIDAL_EXCITATION_SUPPORT") then
-     patchType = SOLENOIDAL_EXCITATION_SUPPORT
-  else if (trim(identifier) == "SAT_FAR_FIELD") then
-     patchType = SAT_FAR_FIELD
-  else if (trim(identifier) == "SAT_SLIP_WALL") then
-     patchType = SAT_SLIP_WALL
-  else if (trim(identifier) == "SAT_ISOTHERMAL_WALL") then
-     patchType = SAT_ISOTHERMAL_WALL
-  else if (trim(identifier) == "SAT_BLOCK_INTERFACE") then
-     patchType = SAT_BLOCK_INTERFACE
-  end if
-
-end subroutine parsePatchType
-
 subroutine setupPatch(this, index, nDimensions, patchDescriptor,                             &
      comm, gridOffset, gridLocalSize, simulationFlags)
 

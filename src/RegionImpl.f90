@@ -169,8 +169,8 @@ contains
 
     ! <<< Internal modules >>>
     use MPIHelper, only : gracefulExit
-    use Patch_mod, only : parsePatchType
     use InputHelper, only : stripComments
+    use PatchDescriptor_mod, only : parsePatchType
 
     ! <<< Arguments >>>
     type(t_Region) :: this
@@ -179,7 +179,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: fileUnit = 41
     integer :: i, proc, nPatches, lineNo, istat, ierror
-    character(len = STRING_LENGTH) :: line, identifier, message
+    character(len = STRING_LENGTH) :: line, patchTypeString, message
     character(len = 1), parameter :: commentMarker = '#'
     integer, allocatable :: tempBuffer(:,:)
 
@@ -242,8 +242,8 @@ contains
           i = i + 1
 
           ! Parse patch data.
-          read(line, *, iostat = istat) this%patchData(i)%gridIndex,                         &
-               identifier, this%patchData(i)%normalDirection,                                &
+          read(line, *, iostat = istat) this%patchData(i)%name, patchTypeString,             &
+               this%patchData(i)%gridIndex, this%patchData(i)%normalDirection,               &
                this%patchData(i)%iMin, this%patchData(i)%iMax,                               &
                this%patchData(i)%jMin, this%patchData(i)%jMax,                               &
                this%patchData(i)%kMin, this%patchData(i)%kMax
@@ -254,14 +254,21 @@ contains
              exit
           end if
 
+          if (any(this%patchData(:i-1)%name == this%patchData(i)%name)) then
+             istat = -1
+             write(message, "(2A,I0.0,3A)") trim(filename), ":", lineNo,                     &
+                  ": A patch with name '", trim(this%patchData(i)%name), "' already exists!"
+             exit
+          end if
+
           ! Pack patch data into tempBuffer for broadcasting.
           tempBuffer(i,1) = this%patchData(i)%gridIndex
           tempBuffer(i,2) = this%patchData(i)%normalDirection
-          call parsePatchType(identifier, tempBuffer(i,3)) !... validate.
+          call parsePatchType(patchTypeString, tempBuffer(i,3)) !... validate.
           if (tempBuffer(i,3) == -1) then
              istat = -1
-             write(message, "(2A,I0.0,A)") trim(filename), ":", lineNo,                      &
-                  ": Invalid patch type!"
+             write(message, "(2A,I0.0,3A)") trim(filename), ":", lineNo,                     &
+                  ": Invalid type for patch '", this%patchData(i)%name, "'!"
              exit
           end if
           tempBuffer(i,4:9) = (/ this%patchData(i)%iMin, this%patchData(i)%iMax,             &
@@ -293,6 +300,8 @@ contains
        this%patchData(i)%jMax = tempBuffer(i,7)
        this%patchData(i)%kMin = tempBuffer(i,8)
        this%patchData(i)%kMax = tempBuffer(i,9)
+       call MPI_Bcast(this%patchData(i)%name, len(this%patchData(i)%name),                   &
+            MPI_CHARACTER, 0, this%comm, ierror)
     end do
 
     SAFE_DEALLOCATE(tempBuffer)
@@ -318,7 +327,7 @@ contains
     if (.not. allocated(this%patchData)) return
 
     do i = 1, size(this%patchData)
-       call validatePatchDescriptor(this%patchData(i), i, this%globalGridSizes,              &
+       call validatePatchDescriptor(this%patchData(i), this%globalGridSizes,                 &
             this%simulationFlags, errorCode, message)
        if (errorCode == 1) then
           call issueWarning(this%comm, message)

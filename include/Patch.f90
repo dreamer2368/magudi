@@ -37,17 +37,6 @@ module Patch_mod
 
   interface
 
-     subroutine parsePatchType(identifier, patchType)
-
-       character(len = *), intent(in) :: identifier
-       integer, intent(out) :: patchType
-
-     end subroutine parsePatchType
-
-  end interface
-
-  interface
-
      subroutine setupPatch(this, index, nDimensions, patchDescriptor,                        &
           comm, gridOffset, gridLocalSize, simulationFlags)
 

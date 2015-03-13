@@ -16,6 +16,7 @@ module PatchDescriptor_type
 
   type, public :: t_PatchDescriptor
 
+     character(len = 20) :: name
      integer :: patchType, normalDirection, gridIndex, iMin, iMax, jMin, jMax, kMin, kMax
 
   end type t_PatchDescriptor
@@ -29,14 +30,25 @@ module PatchDescriptor_mod
 
   interface
 
-     subroutine validatePatchDescriptor(this, index, globalGridSizes,                        &
+     subroutine parsePatchType(patchTypeString, patchType)
+
+       character(len = *), intent(in) :: patchTypeString
+       integer, intent(out) :: patchType
+
+     end subroutine parsePatchType
+
+  end interface
+
+  interface
+
+     subroutine validatePatchDescriptor(this, globalGridSizes,                               &
           simulationFlags, errorCode, message)
 
        use PatchDescriptor_type
        use SimulationFlags_type
 
        type(t_PatchDescriptor) :: this
-       integer, intent(in) :: index, globalGridSizes(:,:)
+       integer, intent(in) :: globalGridSizes(:,:)
        type(t_SimulationFlags), intent(in) :: simulationFlags
        integer, intent(out) :: errorCode
        character(len = STRING_LENGTH), intent(out), optional :: message
