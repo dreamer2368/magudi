@@ -9,9 +9,7 @@ module SolverOptions_type
 
      real(SCALAR_KIND) :: reynoldsNumber, prandtlNumber, ratioOfSpecificHeats,               &
           powerLawExponent, dissipationAmount, densityRange(2), temperatureRange(2), cfl,    &
-          timeStepSize, spongeAmount, farFieldInviscidPenaltyAmount,                         &
-          farFieldViscousPenaltyAmount, wallInviscidPenaltyAmount
-     integer :: spongeExponent
+          timeStepSize
 
   end type t_SolverOptions
 
@@ -33,22 +31,6 @@ module SolverOptions_mod
        type(t_SimulationFlags), intent(in) :: simulationFlags
 
      end subroutine initializeSolverOptions
-
-  end interface
-
-  interface
-
-     subroutine updateSolverOptions(this, simulationFlags, patchData)
-
-       use SolverOptions_type
-       use PatchDescriptor_type
-       use SimulationFlags_type
-
-       type(t_SolverOptions), intent(out) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_PatchDescriptor), intent(in) :: patchData(:)
-
-     end subroutine updateSolverOptions
 
   end interface
 

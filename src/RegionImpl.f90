@@ -495,7 +495,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   use Patch_mod, only : setupPatch
   use State_mod, only : setupState
   use InputHelper, only : getRequiredOption
-  use SolverOptions_mod, only : initializeSolverOptions, updateSolverOptions
+  use SolverOptions_mod, only : initializeSolverOptions
   use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
@@ -602,9 +602,6 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
               call MPI_Barrier(this%grids(k)%comm, ierror)
            end do
         end do
-
-        ! Update solver options with patch-related input.
-        call updateSolverOptions(this%solverOptions, this%simulationFlags, this%patchData)
 
      end if
 
