@@ -470,6 +470,7 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   use Grid_type
   use Patch_type
   use State_type
+  use Region_type, only : FORWARD
   use SolverOptions_type
   use PatchDescriptor_type
   use SimulationFlags_type
@@ -541,20 +542,13 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
         select case (patches(i)%patchType)
 
         case (SAT_FAR_FIELD)
-           call addFarFieldPenalty(patches(i), this%rightHandSide, grid%iblank,              &
-                solverOptions%farFieldInviscidPenaltyAmount /                                &
-                grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1),       &
-                solverOptions%farFieldViscousPenaltyAmount /                                 &
-                grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1),       &
-                solverOptions%ratioOfSpecificHeats, nDimensions,                             &
+           call addFarFieldPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,     &
+                nDimensions, solverOptions%ratioOfSpecificHeats,                             &
                 this%conservedVariables, this%targetState)
 
         case (SAT_SLIP_WALL)
-           call addWallPenalty(patches(i), this%rightHandSide, grid%iblank,                  &
-                solverOptions%wallInviscidPenaltyAmount /                                    &
-                grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1),       &
-                0.0_wp, solverOptions%ratioOfSpecificHeats, nDimensions,                     &
-                this%conservedVariables)
+           call addWallPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,         &
+                nDimensions, solverOptions%ratioOfSpecificHeats, this%conservedVariables)
 
         end select
      end do
@@ -596,6 +590,7 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
   use Grid_type
   use Patch_type
   use State_type
+  use Region_type, only : FORWARD
   use SolverOptions_type
   use PatchDescriptor_type
   use SimulationFlags_type
@@ -620,7 +615,7 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
 
   if (allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
-        call addAcousticSource(this%acousticSources(i), time, grid%coordinates, &
+        call addAcousticSource(this%acousticSources(i), time, grid%coordinates,              &
              grid%iblank, this%rightHandSide)
      end do
   end if
@@ -631,7 +626,7 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
         select case (patches(i)%patchType)
 
         case (SPONGE)
-           call addDamping(patches(i), this%rightHandSide, grid%iblank, -1.0_wp, &
+           call addDamping(patches(i), FORWARD, this%rightHandSide, grid%iblank,             &
                 this%conservedVariables, this%targetState)
 
         end select
@@ -674,7 +669,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions, ierror
-  real(wp), allocatable :: normalizedCurveLengths(:), targetViscousFluxes(:,:,:)
+  real(wp), allocatable :: targetViscousFluxes(:,:,:)
 
   if (.not. allocated(patches)) return
 
@@ -682,52 +677,31 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
   do i = 1, size(patches)
      if (patches(i)%gridIndex /= grid%index) cycle
-     select case (patches(i)%patchType)
 
-     case (SPONGE)
-
-        allocate(normalizedCurveLengths(grid%nGridPoints))
-
-        j = abs(patches(i)%normalDirection)
-        if (patches(i)%normalDirection > 0) then
-           call computeNormalizedCurveLengths(grid, j,                                       &
-                patches(i)%globalPatchSize(j),                                               &
-                normalizedCurveLengths)
-        else
-           call computeNormalizedCurveLengths(grid, j,                                       &
-                grid%globalSize(j) + 1 - patches(i)%globalPatchSize(j),                      &
-                normalizedCurveLengths, .true.)
-        end if
-        call collectAtPatch(patches(i), normalizedCurveLengths, patches(i)%spongeStrength)
-        patches(i)%spongeStrength = solverOptions%spongeAmount *                             &
-             (1.0_wp - patches(i)%spongeStrength) ** real(solverOptions%spongeExponent, wp)
-
-        SAFE_DEALLOCATE(normalizedCurveLengths)
-
-     case (SAT_FAR_FIELD)
-
-        if (simulationFlags%viscosityOn) then
-
+     if (simulationFlags%viscosityOn) then
+        select case (patches(i)%patchType)
+        case (SAT_FAR_FIELD)
            allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
-
            call updateState(this, grid, 0.0_wp, simulationFlags,                             &
                 solverOptions, this%targetState)
-           call computeCartesianViscousFluxes(nDimensions, this%velocity, this%stressTensor, &
-                this%heatFlux, targetViscousFluxes)
+           call computeCartesianViscousFluxes(nDimensions, this%velocity,                    &
+                this%stressTensor, this%heatFlux, targetViscousFluxes)
            call collectAtPatch(patches(i), targetViscousFluxes,                              &
                 patches(i)%targetViscousFluxes)
-
            SAFE_DEALLOCATE(targetViscousFluxes)
+        end select
+     end if
 
-        end if
-
+     select case (patches(i)%patchType)
+     case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, &
+          SAT_ADIABATIC_WALL, SAT_BLOCK_INTERFACE)
         call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
-
-     case (SAT_SLIP_WALL)
-
-        call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
-
+        patches(i)%inviscidPenaltyAmount = patches(i)%inviscidPenaltyAmount / &
+             grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
+        patches(i)%viscousPenaltyAmount = patches(i)%viscousPenaltyAmount / &
+             grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
      end select
+
   end do
 
 end subroutine updatePatches

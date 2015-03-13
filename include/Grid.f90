@@ -257,4 +257,18 @@ module Grid_mod
 
   end interface
 
+  interface
+
+     subroutine computeSpongeStrengths(this, patches)
+
+       use Grid_type
+       use Patch_type
+
+       type(t_Grid) :: this
+       type(t_Patch), allocatable :: patches(:)
+
+     end subroutine computeSpongeStrengths
+
+  end interface
+
 end module Grid_mod

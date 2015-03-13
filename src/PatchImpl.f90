@@ -23,19 +23,20 @@ contains
     integer, parameter :: wp = SCALAR_KIND
 
     select case (this%patchType)
+    case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
+       allocate(this%metrics(this%nPatchPoints, nDimensions ** 2))
+    end select
 
-    case (SPONGE)
-       allocate(this%spongeStrength(this%nPatchPoints), source = 0.0_wp)
+    select case (this%patchType)
 
     case (SAT_FAR_FIELD)
-       allocate(this%metrics(this%nPatchPoints, nDimensions ** 2))
        if (simulationFlags%viscosityOn) then
           allocate(this%viscousFluxes(this%nPatchPoints, nDimensions + 2, nDimensions))
           allocate(this%targetViscousFluxes(this%nPatchPoints, nDimensions + 2, nDimensions))
        end if
 
-    case (SAT_SLIP_WALL)
-       allocate(this%metrics(this%nPatchPoints, nDimensions ** 2))
+    case (SPONGE)
+       allocate(this%spongeStrength(this%nPatchPoints), source = 0.0_wp)
 
     case (ACTUATOR)
        allocate(this%gradient(this%nPatchPoints, 1))
@@ -60,6 +61,9 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   ! <<< Private members >>>
   use PatchImpl, only : allocateData
 
+  ! <<< Internal modules >>>
+  use InputHelper, only : getOption
+
   implicit none
 
   ! <<< Arguments >>>
@@ -70,7 +74,9 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   type(t_SimulationFlags), intent(in) :: simulationFlags
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i
+  character(len = STRING_LENGTH) :: key
 
   call cleanupPatch(this)
 
@@ -79,23 +85,37 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   this%gridIndex = patchDescriptor%gridIndex
   this%patchType = patchDescriptor%patchType
 
+  this%extent = (/ patchDescriptor%iMin, patchDescriptor%iMax,                               &
+       patchDescriptor%jMin, patchDescriptor%jMax,                                           &
+       patchDescriptor%kMin, patchDescriptor%kMax /)
+
+  ! Global patch size.
   this%globalPatchSize(1) = patchDescriptor%iMax - patchDescriptor%iMin + 1
   this%globalPatchSize(2) = patchDescriptor%jMax - patchDescriptor%jMin + 1
   this%globalPatchSize(3) = patchDescriptor%kMax - patchDescriptor%kMin + 1
 
-  this%patchSize(1) = max(patchDescriptor%iMax, gridOffset(1) + 1)
-  this%patchSize(2) = max(patchDescriptor%jMax, gridOffset(2) + 1)
-  this%patchSize(3) = max(patchDescriptor%kMax, gridOffset(3) + 1)
-
+  ! Zero-based index of first point on the patch belonging to the ``current'' process (this
+  ! value has no meaning if the patch lies outside the part of the grid belonging to the
+  ! ``current'' process).
   this%offset(1) = max(patchDescriptor%iMin, gridOffset(1) + 1)
   this%offset(2) = max(patchDescriptor%jMin, gridOffset(2) + 1)
   this%offset(3) = max(patchDescriptor%kMin, gridOffset(3) + 1)
+  this%offset = min(this%offset, gridOffset + gridLocalSize) - 1
 
-  do i = 1, 3
-     this%offset(i) = min(this%offset(i), gridOffset(i) + gridLocalSize(i)) - 1
-     this%patchSize(i) = min(this%patchSize(i), gridOffset(i) + gridLocalSize(i))            &
-          - this%offset(i)
-  end do
+  ! Extent of the patch belonging to the ``current'' process (this value has no meaning if the
+  ! patch lies outside the part of the grid belonging to the ``current'' process).
+  this%patchSize(1) = max(patchDescriptor%iMax, gridOffset(1) + 1)
+  this%patchSize(2) = max(patchDescriptor%jMax, gridOffset(2) + 1)
+  this%patchSize(3) = max(patchDescriptor%kMax, gridOffset(3) + 1)
+  this%patchSize = min(this%patchSize, gridOffset + gridLocalSize)
+  this%patchSize = this%patchSize - this%offset
+
+  ! Reset size and offset if the patch lies outside the part of the grid belonging to the
+  ! ``current'' process.
+  if (any(this%patchSize < 0)) then
+     this%offset = 0
+     this%patchSize = 0
+  end if
 
   this%gridLocalSize = gridLocalSize
   this%gridOffset = gridOffset
@@ -103,7 +123,64 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   this%nPatchPoints = product(this%patchSize)
   this%comm = comm
 
-  this%isCurvilinear = simulationFlags%isDomainCurvilinear
+  this%isCurvilinear = getOption("default/curvilinear", .true.)
+  write(key, '(A,I3.3,A)') "grid", this%gridIndex, "/curvilinear"
+  this%isCurvilinear = getOption(key, this%isCurvilinear)
+
+  select case (this%patchType)
+
+  case (SPONGE)
+
+     ! Sponge amount.
+     this%spongeAmount = getOption("defaults/sponge_amount", 1.0_wp)
+     write(key, '(3A)') "patches/",                                                          &
+          trim(patchDescriptor%name), "/sponge_amount"
+     this%spongeAmount = getOption(key, this%spongeAmount)
+
+     ! Sponge exponent.
+     this%spongeExponent = getOption("defaults/sponge_exponent", 2)
+     write(key, '(3A)') "patches/",                                                          &
+          trim(patchDescriptor%name), "/sponge_exponent"
+     this%spongeExponent = getOption(key, this%spongeExponent)
+
+  case (SAT_FAR_FIELD, SAT_BLOCK_INTERFACE)
+
+     ! Inviscid penalty amount.
+     this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount", 1.0_wp)
+     write(key, '(3A)') "patches/",                                                          &
+          trim(patchDescriptor%name), "/inviscid_penalty_amount"
+     this%inviscidPenaltyAmount = getOption(key, this%inviscidPenaltyAmount)
+     this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                           &
+          real(this%normalDirection, wp))
+
+  case (SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
+
+     ! Inviscid penalty amount.
+     this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount", 2.0_wp)
+     write(key, '(3A)') "patches/",                                                          &
+          trim(patchDescriptor%name), "/inviscid_penalty_amount"
+     this%inviscidPenaltyAmount = getOption(key, this%inviscidPenaltyAmount)
+     this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                           &
+          real(this%normalDirection, wp))
+
+  end select
+
+  if (simulationFlags%viscosityOn) then
+
+     select case (this%patchType)
+     case (SAT_FAR_FIELD, SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
+
+        ! Viscous penalty amount.
+        this%viscousPenaltyAmount = getOption("defaults/viscous_penalty_amount", 1.0_wp)
+        write(key, '(3A)') "patches/",                                                       &
+             trim(patchDescriptor%name), "/viscous_penalty_amount"
+        this%viscousPenaltyAmount = getOption(key, this%viscousPenaltyAmount)
+        this%viscousPenaltyAmount = sign(this%viscousPenaltyAmount,                          &
+             real(this%normalDirection, wp))
+
+     end select
+
+  end if
 
   call allocateData(this, nDimensions, simulationFlags)
 
@@ -228,26 +305,49 @@ subroutine collectTensorAtPatch_(this, gridArray, patchArray)
 
 end subroutine collectTensorAtPatch_
 
-subroutine addDamping(this, rightHandSide, iblank, spongeAmount,                             &
-     actualVariables, targetVariables)
+subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, targetVariables)
 
   ! <<< Derived types >>>
   use Patch_type
+  use Region_type, only : FORWARD, ADJOINT
 
   implicit none
 
   ! <<< Arguments >>>
   type(t_Patch) :: this
+  integer, intent(in) :: mode
   SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
   integer, intent(in) :: iblank(:)
-  real(SCALAR_KIND), intent(in) :: spongeAmount
-  SCALAR_TYPE, intent(in) :: actualVariables(:,:)
+  SCALAR_TYPE, intent(in) :: solvedVariables(:,:)
   SCALAR_TYPE, intent(in), optional :: targetVariables(:,:)
 
   ! <<< Local variables >>>
   integer :: i, j, k, l, gridIndex, patchIndex
 
-  if (present(targetVariables)) then
+  select case (mode)
+
+  case (FORWARD)
+
+     do l = 1, size(rightHandSide, 2)
+        do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+           do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+              do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+                 gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                &
+                      (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                  &
+                      (k - 1 - this%gridOffset(3)))
+                 if (iblank(gridIndex) == 0) cycle
+                 patchIndex = i - this%offset(1) + this%patchSize(1) *                       &
+                      (j - 1 - this%offset(2) + this%patchSize(2) *                          &
+                      (k - 1 - this%offset(3)))
+                 rightHandSide(gridIndex, l) = rightHandSide(gridIndex, l) -                 &
+                      this%spongeStrength(patchIndex) *                                      &
+                      (solvedVariables(gridIndex, l) - targetVariables(gridIndex, l))
+              end do
+           end do
+        end do
+     end do
+
+  case (ADJOINT)
 
      do l = 1, size(rightHandSide, 2)
         do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
@@ -261,44 +361,23 @@ subroutine addDamping(this, rightHandSide, iblank, spongeAmount,                
                       (j - 1 - this%offset(2) + this%patchSize(2) *                          &
                       (k - 1 - this%offset(3)))
                  rightHandSide(gridIndex, l) = rightHandSide(gridIndex, l) +                 &
-                      spongeAmount * this%spongeStrength(patchIndex) *                       &
-                      (actualVariables(gridIndex, l) - targetVariables(gridIndex, l))
+                      this%spongeStrength(patchIndex) *                                      &
+                      solvedVariables(gridIndex, l)
               end do
            end do
         end do
      end do
 
-  else
-
-     do l = 1, size(rightHandSide, 2)
-        do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
-           do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-              do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
-                 gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                &
-                      (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                  &
-                      (k - 1 - this%gridOffset(3)))
-                 if (iblank(gridIndex) == 0) cycle
-                 patchIndex = i - this%offset(1) + this%patchSize(1) *                       &
-                      (j - 1 - this%offset(2) + this%patchSize(2) *                          &
-                      (k - 1 - this%offset(3)))
-                 rightHandSide(gridIndex, l) = rightHandSide(gridIndex, l) +                 &
-                      spongeAmount * this%spongeStrength(patchIndex) *                       &
-                      actualVariables(gridIndex, l)
-              end do
-           end do
-        end do
-     end do
-
-  end if
+  end select
 
 end subroutine addDamping
 
-subroutine addFarFieldPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,            &
-     viscousPenaltyAmount, ratioOfSpecificHeats, nDimensions, &
-     conservedVariables, targetState)
+subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,                &
+     ratioOfSpecificHeats, conservedVariables, targetState)
 
   ! <<< Derived types >>>
   use Patch_type
+  use Region_type, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -307,11 +386,10 @@ subroutine addFarFieldPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount
 
   ! <<< Arguments >>>
   type(t_Patch) :: this
+  integer, intent(in) :: mode
   SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
-  integer, intent(in) :: iblank(:)
-  real(SCALAR_KIND), intent(in) :: inviscidPenaltyAmount,                                    &
-       viscousPenaltyAmount, ratioOfSpecificHeats
-  integer, intent(in) :: nDimensions
+  integer, intent(in) :: iblank(:), nDimensions
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(in) :: conservedVariables(:,:), targetState(:,:)
 
   ! <<< Local variables >>>
@@ -326,17 +404,12 @@ subroutine addFarFieldPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount
   allocate(localMetricsAlongNormalDirection(nDimensions))
   allocate(localIncomingJacobianOfInviscidFluxes(nDimensions + 2, nDimensions + 2))
 
-  if (allocated(this%viscousFluxes) .and. allocated(this%targetViscousFluxes)) then
+  if (allocated(this%viscousFluxes)) then
      allocate(viscousFluxPenalty(this%nPatchPoints, nDimensions + 1))
-     viscousFluxPenalty = 0.0_wp
-     do k = 1, nDimensions
-        do j = 1, nDimensions + 1
-           do i = 1, this%nPatchPoints
-              viscousFluxPenalty(i,j) = viscousFluxPenalty(i,j) +                            &
-                   this%metrics(i,k+nDimensions*(direction-1)) *                             &
-                   (this%viscousFluxes(i,j+1,k) - this%targetViscousFluxes(i,j+1,k))
-           end do
-        end do
+     do i = 1, this%nPatchPoints
+        viscousFluxPenalty(i,:) = matmul(this%viscousFluxes(i,2:nDimensions+2,:) -           &
+             this%targetViscousFluxes(i,2:nDimensions+2,:),                                  &
+             this%metrics(i,1+nDimensions*(direction-1):nDimensions*direction))
      end do
   end if
 
@@ -359,26 +432,25 @@ subroutine addFarFieldPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount
            case (1)
               call computeIncomingJacobianOfInviscidFlux1D(localTargetState,                 &
                    localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
            case (2)
               call computeIncomingJacobianOfInviscidFlux2D(localTargetState,                 &
                    localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
            case (3)
               call computeIncomingJacobianOfInviscidFlux3D(localTargetState,                 &
                    localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
            end select
 
            rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                         &
-                sign(inviscidPenaltyAmount, real(this%normalDirection, SCALAR_KIND)) *       &
-                matmul(localIncomingJacobianOfInviscidFluxes,                                &
+                this%inviscidPenaltyAmount * matmul(localIncomingJacobianOfInviscidFluxes,   &
                 conservedVariables(gridIndex,:) - localTargetState)
+
            if (allocated(viscousFluxPenalty)) then
               rightHandSide(gridIndex,2:nDimensions+2) =                                     &
                    rightHandSide(gridIndex,2:nDimensions+2) +                                &
-                   sign(viscousPenaltyAmount, real(this%normalDirection, SCALAR_KIND)) *     &
-                   viscousFluxPenalty(patchIndex,:)
+                   this%viscousPenaltyAmount * viscousFluxPenalty(patchIndex,:)
            end if
 
         end do
@@ -392,11 +464,12 @@ subroutine addFarFieldPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount
 
 end subroutine addFarFieldPenalty
 
-subroutine addWallPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,                &
-     viscousPenaltyAmount, ratioOfSpecificHeats, nDimensions, conservedVariables)
+subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,                    &
+     ratioOfSpecificHeats, conservedVariables)
 
   ! <<< Derived types >>>
   use Patch_type
+  use Region_type, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -405,11 +478,10 @@ subroutine addWallPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,   
 
   ! <<< Arguments >>>
   type(t_Patch) :: this
+  integer, intent(in) :: mode
   SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
-  integer, intent(in) :: iblank(:)
-  real(SCALAR_KIND), intent(in) :: inviscidPenaltyAmount,                                    &
-       viscousPenaltyAmount, ratioOfSpecificHeats
-  integer, intent(in) :: nDimensions
+  integer, intent(in) :: iblank(:), nDimensions
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
 
   ! <<< Local variables >>>
@@ -446,15 +518,15 @@ subroutine addWallPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,   
            case (1)
               call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,          &
                    localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
            case (2)
               call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,          &
                    localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
            case (3)
               call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,          &
                    localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   sign(1, this%normalDirection), localIncomingJacobianOfInviscidFluxes)
+                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
            end select
 
            temp = dot_product(localConservedVariables(2:nDimensions+1),                      &
@@ -462,7 +534,7 @@ subroutine addWallPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,   
 
            localInviscidPenalty(1) = 0.0_wp
            localInviscidPenalty(2:nDimensions+1) = localMetricsAlongNormalDirection * temp
-           localInviscidPenalty(nDimensions+2) = &
+           localInviscidPenalty(nDimensions+2) =                                             &
                 0.5_wp / localConservedVariables(1) * temp ** 2
            localInviscidPenalty(2:nDimensions+2) = localInviscidPenalty(2:nDimensions+2) /   &
                 sum(localMetricsAlongNormalDirection ** 2)
@@ -470,8 +542,7 @@ subroutine addWallPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,   
                 localInviscidPenalty)
 
            rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                         &
-                sign(inviscidPenaltyAmount, real(this%normalDirection, SCALAR_KIND)) *       &
-                localInviscidPenalty
+                this%inviscidPenaltyAmount * localInviscidPenalty
 
         end do
      end do

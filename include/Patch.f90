@@ -11,16 +11,21 @@ module Patch_type
 
   type, public :: t_Patch
 
-     integer :: index, normalDirection, gridIndex, patchType, globalPatchSize(3),            &
+     integer :: index, normalDirection, gridIndex, patchType, extent(6), globalPatchSize(3), &
           patchSize(3), offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints,            &
           comm = MPI_COMM_NULL
      logical :: isCurvilinear
 
-     ! SAT far-field patch variables.
+     ! Far-field patch variables.
      SCALAR_TYPE, dimension(:,:,:), allocatable :: viscousFluxes, targetViscousFluxes
+
+     ! Variables common to far-field and wall patches.
+     real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
      SCALAR_TYPE, allocatable :: metrics(:,:)
 
      ! Sponge patch variables.
+     real(SCALAR_KIND) :: spongeAmount
+     integer :: spongeExponent
      real(SCALAR_KIND), allocatable :: spongeStrength(:)
 
      ! Actuator patch variables.
@@ -37,8 +42,8 @@ module Patch_mod
 
   interface
 
-     subroutine setupPatch(this, index, nDimensions, patchDescriptor,                        &
-          comm, gridOffset, gridLocalSize, simulationFlags)
+     subroutine setupPatch(this, index, nDimensions, patchDescriptor, comm,                  &
+          gridOffset, gridLocalSize, simulationFlags)
 
        use Patch_type
        use PatchDescriptor_type
@@ -105,16 +110,16 @@ module Patch_mod
 
   interface
 
-     subroutine addDamping(this, rightHandSide, iblank, spongeAmount, &
-          actualVariables, targetVariables)
+     subroutine addDamping(this, mode, rightHandSide, iblank,                                &
+          solvedVariables, targetVariables)
 
        use Patch_type
 
        type(t_Patch) :: this
+       integer, intent(in) :: mode
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
        integer, intent(in) :: iblank(:)
-       real(SCALAR_KIND), intent(in) :: spongeAmount
-       SCALAR_TYPE, intent(in) :: actualVariables(:,:)
+       SCALAR_TYPE, intent(in) :: solvedVariables(:,:)
 
        SCALAR_TYPE, intent(in), optional :: targetVariables(:,:)
 
@@ -124,18 +129,16 @@ module Patch_mod
 
   interface
 
-     subroutine addFarFieldPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,       &
-          viscousPenaltyAmount, ratioOfSpecificHeats, nDimensions, &
-          conservedVariables, targetState)
+     subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,           &
+          ratioOfSpecificHeats, conservedVariables, targetState)
 
        use Patch_type
 
        type(t_Patch) :: this
+       integer, intent(in) :: mode
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
-       integer, intent(in) :: iblank(:)
-       real(SCALAR_KIND), intent(in) :: inviscidPenaltyAmount, &
-            viscousPenaltyAmount, ratioOfSpecificHeats
-       integer, intent(in) :: nDimensions
+       integer, intent(in) :: iblank(:), nDimensions
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(in) :: conservedVariables(:,:), targetState(:,:)
 
      end subroutine addFarFieldPenalty
@@ -144,17 +147,16 @@ module Patch_mod
 
   interface
 
-     subroutine addWallPenalty(this, rightHandSide, iblank, inviscidPenaltyAmount,           &
-          viscousPenaltyAmount, ratioOfSpecificHeats, nDimensions, conservedVariables)
+     subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,               &
+          ratioOfSpecificHeats, conservedVariables)
 
        use Patch_type
 
        type(t_Patch) :: this
+       integer, intent(in) :: mode
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
-       integer, intent(in) :: iblank(:)
-       real(SCALAR_KIND), intent(in) :: inviscidPenaltyAmount,                               &
-            viscousPenaltyAmount, ratioOfSpecificHeats
-       integer, intent(in) :: nDimensions
+       integer, intent(in) :: iblank(:), nDimensions
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
 
      end subroutine addWallPenalty

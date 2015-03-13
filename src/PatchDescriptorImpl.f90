@@ -17,14 +17,16 @@ subroutine parsePatchType(patchTypeString, patchType)
      patchType = SPONGE
   else if (trim(patchTypeString) == "ACTUATOR") then
      patchType = ACTUATOR
-  else if (trim(patchTypeString) == "SOLENOIDAL_EXCITATION_SUPPORT") then
-     patchType = SOLENOIDAL_EXCITATION_SUPPORT
+  else if (trim(patchTypeString) == "SOLENOIDAL_EXCITATION") then
+     patchType = SOLENOIDAL_EXCITATION
   else if (trim(patchTypeString) == "SAT_FAR_FIELD") then
      patchType = SAT_FAR_FIELD
   else if (trim(patchTypeString) == "SAT_SLIP_WALL") then
      patchType = SAT_SLIP_WALL
   else if (trim(patchTypeString) == "SAT_ISOTHERMAL_WALL") then
      patchType = SAT_ISOTHERMAL_WALL
+  else if (trim(patchTypeString) == "SAT_ADIABATIC_WALL") then
+     patchType = SAT_ADIABATIC_WALL
   else if (trim(patchTypeString) == "SAT_BLOCK_INTERFACE") then
      patchType = SAT_BLOCK_INTERFACE
   end if
@@ -105,7 +107,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   ! Check if patch spans more than one grid point along normal direction.
   i = abs(this%normalDirection)
   select case (this%patchType)
-  case (SPONGE, ACTUATOR, SOLENOIDAL_EXCITATION_SUPPORT)
+  case (SPONGE, ACTUATOR, SOLENOIDAL_EXCITATION)
   case default
      if (extent(1+2*(i-1)) /= extent(2+2*(i-1))) then
         write(message, '(3A,I0.0,A)') "Patch '", trim(this%name), "' on grid ",              &
@@ -131,7 +133,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
 
   ! Check if target state is being used if the patch requires it.
   select case (this%patchType)
-  case (SPONGE, SAT_FAR_FIELD, SAT_ISOTHERMAL_WALL)
+  case (SPONGE, SAT_FAR_FIELD)
      if (.not. simulationFlags%useTargetState) then
         write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because there is no target state!"
@@ -140,10 +142,9 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
      end if
   end select
 
-  ! Check if domain is two-dimensional for using patch
-  ! `SOLENOIDAL_EXCITATION_SUPPORT`.
+  ! Check if domain is two-dimensional for using patch `SOLENOIDAL_EXCITATION`.
   select case (this%patchType)
-  case (SOLENOIDAL_EXCITATION_SUPPORT)
+  case (SOLENOIDAL_EXCITATION)
      if (size(globalGridSizes, 1) /= 2) then
         write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because the domain is not two-dimensional!"

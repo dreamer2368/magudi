@@ -9,7 +9,7 @@ program main
   use Region_type
   use RK4Integrator_type
 
-  use Grid_mod, only : setupSpatialDiscretization, updateGrid
+  use Grid_mod, only : setupSpatialDiscretization, updateGrid, computeSpongeStrengths
   use State_mod, only : updatePatches, makeQuiescent
   use Region_mod
   use MPIHelper, only : gracefulExit
@@ -71,6 +71,7 @@ program main
   ! Update the grids by computing the Jacobian, metrics, and norm.
   do i = 1, size(region%grids)
      call updateGrid(region%grids(i))
+     call computeSpongeStrengths(region%grids(i), region%patches)
      call updatePatches(region%states(i), region%grids(i),                                   &
           region%patches, region%simulationFlags, region%solverOptions)
   end do

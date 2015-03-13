@@ -532,7 +532,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   ! Distribute the grids between available MPI processes.
   if (this%simulationFlags%manualDomainDecomp .and.                                          &
        nProcs > size(this%globalGridSizes, 2)) then
-     call getRequiredOption("manual_decomposition_map_filename", decompositionMapFilename)
+     call getRequiredOption("manual_decomposition_map_filename",                             &
+          decompositionMapFilename, this%comm)
      call readDecompositionMap(this, decompositionMapFilename)
   end if
   call distributeGrids(this)

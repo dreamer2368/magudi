@@ -51,7 +51,7 @@ execute_process(COMMAND basename ${CMAKE_Fortran_COMPILER_PATH} OUTPUT_VARIABLE 
 
 if(CMAKE_Fortran_COMPILER_NAME STREQUAL "gfortran")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-form -fmodule-private -fimplicit-none -cpp -pedantic-errors -std=f2003")
-  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -fbacktrace -Wall -Wextra -Waliasing -fall-intrinsics -fcheck=all -g")
+  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -fbacktrace -Wall -Wextra -Waliasing -ffree-line-length-none -fall-intrinsics -fcheck=all -g")
   set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftree-vectorize -ffast-math -funroll-loops")
 elseif(CMAKE_Fortran_COMPILER_NAME STREQUAL "ifort")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -FR -u -fpp")
