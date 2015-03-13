@@ -27,11 +27,9 @@ module MPIHelper
      subroutine gracefulExit(comm, errorMessage)
 
        !> Attempts to gracefully exit from an MPI application after an error has
-       !> occurred. Tries to guess if all processes in `MPI_COMM_WORLD` are collectively
-       !> executing this call by checking if the relationship between `comm` and
-       !> `MPI_COMM_WORLD` is `MPI_UNEQUAL`. Aborts execution from all processes in `comm` if
-       !> this is true. This subroutine must be called collectively by all processes in
-       !> `comm`.
+       !> occurred. Aborts execution from all processes in `comm` if its relationship with
+       !> `MPI_COMM_WORLD` is `MPI_UNEQUAL`. This subroutine must be called collectively by
+       !> all processes in `comm`.
 
        integer, intent(in) :: comm
        character(len = *), intent(in) :: errorMessage
@@ -107,8 +105,7 @@ module MPIHelper
        !> information. If the direction `direction` is periodic and the optional argument
        !> `periodicOffset` is present, the first `periodicOffset(2)` and last
        !> `periodicOffset(1)` ``physical'' points are skipped when sending data (this is
-       !> useful if the direction `direction` describes a ``ring'' topology with overlapping
-       !> points).
+       !> useful for a ``ring'' topology along direction `direction` with overlapping points).
 
        integer, intent(in) :: comm
        SCALAR_TYPE, intent(inout) :: arrayWithGhostPoints(:,:,:,:)
@@ -125,15 +122,15 @@ module MPIHelper
      subroutine gatherAlongDirection(cartesianCommunicator, localArray,                      &
           localSize, direction, offsetAlongDirection, gatheredArray)
 
-       !> Gathers a grid vector `localArray(localSize(1), localSize(2), localSize(3),
-       !> nScalars)` (flattened along dimensions 1-3 using Fortran-ordering) from all
-       !> processes along direction `direction` and places them sequentially in the grid
-       !> vector `gatheredArray(:,:,:,nScalars)` (flattened along dimensions 1-3 using
-       !> Fortran-ordering). The shape of `gatheredArray` is identical to that of `localArray`
-       !> except along dimension `direction`, where it is the sum of `localSize(direction)`
-       !> taken across all processes along direction `direction`. `offsetAlongDirection` is
-       !> the zero-based index of the first element of `gatheredArray` along dimension
-       !> `direction` received from the ``current'' process.
+       !> Gathers a grid vector `localArray` from all processes along direction `direction`
+       !> and places them sequentially in the grid vector `gatheredArray`. The first dimension
+       !> of `localArray` and `gatheredArray` are flattened from three-dimensional shapes
+       !> using Fortran-ordering. `localSize` is the ``original'' shape of `localArray` prior
+       !> to flattening. The ``original'' shape of `gatheredArray` is identical to
+       !> `localArray` except along dimension `direction`, where it is the sum of
+       !> `localSize(direction)` taken across all processes along direction
+       !> `direction`. `offsetAlongDirection` is the zero-based index of the first element of
+       !> `gatheredArray` along dimension `direction` received from the ``current'' process.
 
        integer, intent(in) :: cartesianCommunicator
        SCALAR_TYPE, intent(in) :: localArray(:,:)
