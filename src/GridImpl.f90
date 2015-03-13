@@ -556,11 +556,13 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
   do i = 1, nDimensions
 
      write(key, '(A,I3.3,A,I1.1,A)') "grid", this%index, "/dir", i, "/"
-     val = ""
 
      ! First derivative operators.
-     if (this%globalSize(i) > 1)                                                             &
-          val = getOption(trim(key) // "first_derivative_scheme", "SBP 3-6")
+     val = "null matrix"
+     if (this%globalSize(i) > 1) then
+        val = getOption("defaults/first_derivative_scheme", "SBP 3-6")
+        val = getOption(trim(key) // "first_derivative_scheme", trim(val))
+     end if
      call setupOperator(this%firstDerivative(i), trim(val) // " first derivative", success_)
      if (.not. success_) then
         write(message, '(2(A,I0.0),3A)')                                                     &
@@ -573,8 +575,11 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
 
      ! Second derivative operators.
      if (allocated(this%secondDerivative)) then
-        if (this%globalSize(i) > 1)                                                          &
-             val = getOption(trim(key) // "second_derivative_scheme", "SBP 3-6")
+        val = "null matrix"
+        if (this%globalSize(i) > 1) then
+           val = getOption("defaults/second_derivative_scheme", "SBP 3-6")
+           val = getOption(trim(key) // "second_derivative_scheme", trim(val))
+        end if
         call setupOperator(this%secondDerivative(i), trim(val) //                            &
              " second derivative", success_)
         if (.not. success_) then
@@ -589,8 +594,11 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
 
      ! Artificial dissipation operators.
      if (allocated(this%dissipation)) then
-        if (this%globalSize(i) > 1)                                                          &
-             val = getOption(trim(key) // "artificial_dissipation_scheme", "SBP 3-6")
+        val = "null matrix"
+        if (this%globalSize(i) > 1) then
+           val = getOption("defaults/artificial_dissipation_scheme", "SBP 3-6")
+           val = getOption(trim(key) // "artificial_dissipation_scheme", trim(val))
+        end if
         call setupOperator(this%dissipation(i), trim(val) // " dissipation", success_)
         if (.not. success_) then
            write(message, '(2(A,I0.0),3A)')                                                  &
