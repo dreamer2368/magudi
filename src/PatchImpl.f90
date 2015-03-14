@@ -679,10 +679,12 @@ subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSid
               temp(3) = sin(angularFrequencies(l) * localOrigin(2) + phases(l,2))
               temp(4) = cos(angularFrequencies(l) * localOrigin(2) + phases(l,2))
 
-              rightHandSide(:,2) = rightHandSide(:,2) + localStrength * temp(1) *            &
+              rightHandSide(gridIndex,2) = rightHandSide(gridIndex,2) +                      &
+                   localStrength * temp(1) *                                                 &
                    (angularFrequencies(l) * temp(4) - 2.0_wp * gaussianFactor *              &
                    (coordinates(gridIndex,2) - location(2)) * temp(3))
-              rightHandSide(:,3) = rightHandSide(:,3) + localStrength * temp(3) *            &
+              rightHandSide(gridIndex,3) = rightHandSide(gridIndex,3) +                      &
+                   localStrength * temp(3) *                                                 &
                    (angularFrequencies(l) * temp(2) - 2.0_wp * gaussianFactor *              &
                    (coordinates(gridIndex,1) - location(1)) * temp(1))
 
