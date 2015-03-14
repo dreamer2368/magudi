@@ -616,8 +616,8 @@ subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
            this%solenoidalExcitationStrength(patchIndex) =                                   &
                 this%solenoidalExcitation%amplitude *                                        &
                 exp(- this%solenoidalExcitation%gaussianFactor *                             &
-                sum(coordinates(gridIndex,:) -                                               &
-                this%solenoidalExcitation%location(1:nDimensions)) ** 2)
+                sum((coordinates(gridIndex,:) -                                              &
+                this%solenoidalExcitation%location(1:nDimensions)) ** 2))
 
         end do
      end do
