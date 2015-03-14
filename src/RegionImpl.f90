@@ -11,12 +11,13 @@ contains
 
     ! <<< External modules >>>
     use MPI
+    use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
     use Region_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : gracefulExit
+    use MPIHelper, only : gracefulExit, writeAndFlush
     use InputHelper, only : stripComments
 
     ! <<< Arguments >>>
@@ -31,6 +32,9 @@ contains
 
     call MPI_Comm_rank(this%comm, proc, ierror)
     call MPI_Comm_size(this%comm, nProcs, ierror)
+
+    write(message, "(2A)") "Reading MPI decomposition map from '", trim(filename), "'..."
+    call writeAndFlush(this%comm, output_unit, message)
 
     ! Check if file exists.
     if (proc == 0) then
@@ -117,22 +121,28 @@ contains
 
     ! <<< External modules >>>
     use MPI
+    use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
     use Region_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : splitCommunicatorMultigrid
+    use MPIHelper, only : splitCommunicatorMultigrid, writeAndFlush
 
     ! <<< Arguments >>>
     type(t_Region) :: this
 
     ! <<< Local variables >>>
     integer :: nProcs, ierror
+    character(len = STRING_LENGTH) :: message
     integer, allocatable :: numProcsInGrid(:)
 
     ! Find the size of the communicator.
     call MPI_Comm_size(this%comm, nProcs, ierror)
+
+    write(message, "(2(A,I0.0),A)") "Distributing ", size(this%globalGridSizes, 2),          &
+         " grid(s) across ", nProcs, " processe(s)... "
+    call writeAndFlush(this%comm, output_unit, message)
 
     ! Find the number of processes to be assigned to each grid: `numProcsInGrid(i)` is the
     ! number of processes assigned to grid `i`.
@@ -163,12 +173,13 @@ contains
 
     ! <<< External modules >>>
     use MPI
+    use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
     use Region_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : gracefulExit
+    use MPIHelper, only : gracefulExit, writeAndFlush
     use InputHelper, only : stripComments
     use PatchDescriptor_mod, only : parsePatchType
 
@@ -196,6 +207,9 @@ contains
        call gracefulExit(this%comm, message)
     end if
 
+    write(message, "(3A)") "Reading boundary conditions from '", trim(filename), "'..."
+    call writeAndFlush(this%comm, output_unit, message)
+
     ! Only the root process reads the file.
     if (proc == 0) then
        nPatches = 0
@@ -211,6 +225,11 @@ contains
 
     ! Broadcast the number of patches to all processes.
     call MPI_Bcast(nPatches, 1, MPI_INTEGER, 0, this%comm, ierror)
+
+    if (nPatches > 0) then
+       write(message, "(A,I0.0,A)") "Found ", nPatches, " boundary conditions!"
+       call writeAndFlush(this%comm, output_unit, message)
+    end if
 
     ! Allocate memory to hold patch information.
     SAFE_DEALLOCATE(this%patchData)
@@ -310,11 +329,14 @@ contains
 
   subroutine validatePatches(this)
 
+    ! <<< External modules >>>
+    use, intrinsic :: iso_fortran_env
+
     ! <<< Derived types >>>
     use Region_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : issueWarning, gracefulExit
+    use MPIHelper, only : issueWarning, gracefulExit, writeAndFlush
     use PatchDescriptor_mod, only : validatePatchDescriptor
 
     ! <<< Arguments >>>
@@ -325,6 +347,9 @@ contains
     character(len = STRING_LENGTH) :: message
 
     if (.not. allocated(this%patchData)) return
+
+    write(message, "(A,I0.0,A)") "Validating boundary conditions..."
+    call writeAndFlush(this%comm, output_unit, message)
 
     do i = 1, size(this%patchData)
        call validatePatchDescriptor(this%patchData(i), this%globalGridSizes,                 &
@@ -422,7 +447,7 @@ contains
     do i = 1, size(this%states)
 
        if (.not. isVariableWithinRange(this%grids(i),                                        &
-            this%states(i)%conservedVariables(:,1), fOutsideRange, &
+            this%states(i)%conservedVariables(:,1), fOutsideRange,                           &
             iGlobal, jGlobal, kGlobal,                                                       &
             minValue = this%solverOptions%densityRange(1),                                   &
             maxValue = this%solverOptions%densityRange(2))) then

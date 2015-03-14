@@ -9,7 +9,7 @@ module SolverOptions_type
 
      real(SCALAR_KIND) :: reynoldsNumber, prandtlNumber, ratioOfSpecificHeats,               &
           powerLawExponent, dissipationAmount, densityRange(2), temperatureRange(2), cfl,    &
-          timeStepSize
+          timeStepSize, convergenceTolerance(3)
 
   end type t_SolverOptions
 

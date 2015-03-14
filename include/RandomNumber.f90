@@ -2,6 +2,9 @@
 
 module RandomNumber
 
+  implicit none
+  public
+
   interface
 
      subroutine initializeRandomNumberGenerator()

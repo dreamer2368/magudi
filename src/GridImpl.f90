@@ -1132,14 +1132,14 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, minIndex, nProcs, ierror
+  integer :: i, j, k, minIndex(3), nProcs, ierror
   real(wp), allocatable :: minValues(:)
-  integer, allocatable :: minIndices(:)
+  integer, allocatable :: minIndices(:,:)
   SCALAR_TYPE :: a, minValue
 
   call MPI_Comm_size(this%comm, nProcs, ierror)
 
-  allocate(minValues(nProcs), minIndices(nProcs))
+  allocate(minValues(nProcs), minIndices(3, nProcs))
 
   minValue = huge(0.0_wp)
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
@@ -1149,12 +1149,12 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
                 this%localSize(2) * (k - 1 - this%offset(3))))
 #ifdef SCALAR_IS_COMPLEX
            if (real(a, wp) < minValue) then
-              minIndex = i - 1 + this%globalSize(1) * (j - 1 + this%globalSize(2) * (k - 1))
+              minIndex = (/ i, j, k /)
               minValue = real(a, wp)
            end if
 #else
            if (a < minValue) then
-              minIndex = i - 1 + this%globalSize(1) * (j - 1 + this%globalSize(2) * (k - 1))
+              minIndex = (/ i, j, k /)
               minValue = a
            end if
 #endif
@@ -1162,7 +1162,7 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
      end do
   end do
 
-  call MPI_Allgather(minIndex, 1, MPI_INTEGER, minIndices, 1, MPI_INTEGER,                   &
+  call MPI_Allgather(minIndex, 3, MPI_INTEGER, minIndices, 3, MPI_INTEGER,                   &
        this%comm, ierror)
   call MPI_Allgather(minValue, 1, SCALAR_TYPE_MPI, minValues, 1, SCALAR_TYPE_MPI,            &
        this%comm, ierror)
@@ -1173,13 +1173,9 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
   i = minloc(minValues, 1)
 #endif
   fMin = minValues(i)
-  j = minIndices(i)
-
-  iMin = mod(j, this%globalSize(1)) + 1
-  j = (j - iMin + 1) / this%globalSize(1)
-  jMin = mod(j, this%globalSize(2)) + 1
-  j = (j - jMin + 1) / this%globalSize(2)
-  kMin = j + 1
+  iMin = minIndices(1,i)
+  jMin = minIndices(2,i)
+  kMin = minIndices(3,i)
 
   SAFE_DEALLOCATE(minValues)
   SAFE_DEALLOCATE(minIndices)
@@ -1204,29 +1200,29 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, maxIndex, nProcs, ierror
+  integer :: i, j, k, maxIndex(3), nProcs, ierror
   real(wp), allocatable :: maxValues(:)
-  integer, allocatable :: maxIndices(:)
+  integer, allocatable :: maxIndices(:,:)
   SCALAR_TYPE :: a, maxValue
 
   call MPI_Comm_size(this%comm, nProcs, ierror)
 
-  allocate(maxValues(nProcs), maxIndices(nProcs))
+  allocate(maxValues(nProcs), maxIndices(3, nProcs))
 
-  maxValue = - huge(0.0_wp)
+  maxValue = huge(0.0_wp)
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
         do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
            a = f(i - this%offset(1) + this%localSize(1) * (j - 1 - this%offset(2) +          &
                 this%localSize(2) * (k - 1 - this%offset(3))))
 #ifdef SCALAR_IS_COMPLEX
-           if (real(a, wp) > maxValue) then
-              maxIndex = i - 1 + this%globalSize(1) * (j - 1 + this%globalSize(2) * (k - 1))
+           if (real(a, wp) < maxValue) then
+              maxIndex = (/ i, j, k /)
               maxValue = real(a, wp)
            end if
 #else
-           if (a > maxValue) then
-              maxIndex = i - 1 + this%globalSize(1) * (j - 1 + this%globalSize(2) * (k - 1))
+           if (a < maxValue) then
+              maxIndex = (/ i, j, k /)
               maxValue = a
            end if
 #endif
@@ -1234,7 +1230,7 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
      end do
   end do
 
-  call MPI_Allgather(maxIndex, 1, MPI_INTEGER, maxIndices, 1, MPI_INTEGER,                   &
+  call MPI_Allgather(maxIndex, 3, MPI_INTEGER, maxIndices, 3, MPI_INTEGER,                   &
        this%comm, ierror)
   call MPI_Allgather(maxValue, 1, SCALAR_TYPE_MPI, maxValues, 1, SCALAR_TYPE_MPI,            &
        this%comm, ierror)
@@ -1245,13 +1241,9 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
   i = maxloc(maxValues, 1)
 #endif
   fMax = maxValues(i)
-  i = maxIndices(i)
-
-  iMax = mod(i, this%globalSize(1)) + 1
-  i = (i - iMax + 1) / this%globalSize(1)
-  jMax = mod(i, this%globalSize(2)) + 1
-  i = (i - jMax + 1) / this%globalSize(2)
-  kMax = i + 1
+  iMax = maxIndices(1,i)
+  jMax = maxIndices(2,i)
+  kMax = maxIndices(3,i)
 
   SAFE_DEALLOCATE(maxValues)
   SAFE_DEALLOCATE(maxIndices)

@@ -18,14 +18,14 @@ module AcousticSource_mod
 
   interface
 
-     subroutine setupAcousticSource(this, amplitude, frequency, radius, x, y, z, phase)
+     subroutine setupAcousticSource(this, location, amplitude, frequency, radius, phase)
 
        use AcousticSource_type
 
        type(t_AcousticSource) :: this
-       real(SCALAR_KIND), intent(in) :: amplitude, frequency, radius
+       real(SCALAR_KIND), intent(in) :: location(:), amplitude, frequency, radius
 
-       real(SCALAR_KIND), intent(in), optional :: x, y, z, phase
+       real(SCALAR_KIND), intent(in), optional :: phase
 
      end subroutine setupAcousticSource
 
@@ -33,13 +33,13 @@ module AcousticSource_mod
 
   interface
 
-     subroutine addAcousticSource(this, time, location, iblank, rightHandSide)
+     subroutine addAcousticSource(this, time, coordinates, iblank, rightHandSide)
 
        use AcousticSource_type
 
        type(t_AcousticSource) :: this
        real(SCALAR_KIND), intent(in) :: time
-       SCALAR_TYPE, intent(in) :: location(:,:)
+       SCALAR_TYPE, intent(in) :: coordinates(:,:)
        integer, intent(in) :: iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 

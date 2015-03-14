@@ -5,31 +5,35 @@ module Patch_type
   use MPI, only : MPI_COMM_NULL, MPI_DATATYPE_NULL
 
   use PatchDescriptor_type
+  use SolenoidalExcitation_type
 
   implicit none
   private
 
   type, public :: t_Patch
 
-     integer :: index, normalDirection, gridIndex, patchType, extent(6), globalPatchSize(3), &
-          patchSize(3), offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints,            &
-          comm = MPI_COMM_NULL
+     integer :: index, normalDirection, gridIndex, patchType, extent(6), patchSize(3),       &
+          offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints, comm = MPI_COMM_NULL
      logical :: isCurvilinear
 
-     ! Far-field patch variables.
-     SCALAR_TYPE, dimension(:,:,:), allocatable :: viscousFluxes, targetViscousFluxes
-
-     ! Variables common to far-field and wall patches.
+     ! Common to far-field and walls.
      real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
      SCALAR_TYPE, allocatable :: metrics(:,:)
 
-     ! Sponge patch variables.
+     ! Far-field variables.
+     SCALAR_TYPE, dimension(:,:,:), allocatable :: viscousFluxes, targetViscousFluxes
+
+     ! Sponge variables.
      real(SCALAR_KIND) :: spongeAmount
      integer :: spongeExponent
      real(SCALAR_KIND), allocatable :: spongeStrength(:)
 
-     ! Actuator patch variables.
+     ! Actuator variables.
      SCALAR_TYPE, allocatable :: gradient(:,:)
+
+     ! Solenoidal excitation variables.
+     type(t_SolenoidalExcitation) :: solenoidalExcitation
+     real(SCALAR_KIND), allocatable :: solenoidalExcitationStrength(:)
 
   end type t_Patch
 
@@ -160,6 +164,36 @@ module Patch_mod
        SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
 
      end subroutine addWallPenalty
+
+  end interface
+
+  interface
+
+     subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
+
+       use Patch_type
+
+       type(t_Patch) :: this
+       SCALAR_TYPE, intent(in) :: coordinates(:,:)
+       integer, intent(in) :: iblank(:)
+
+     end subroutine updateSolenoidalExcitationStrength
+
+  end interface
+
+  interface
+
+     subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSide)
+
+       use Patch_type
+
+       type(t_Patch) :: this
+       SCALAR_TYPE, intent(in) :: coordinates(:,:)
+       integer, intent(in) :: iblank(:)
+       real(SCALAR_KIND), intent(in) :: time
+       SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
+
+     end subroutine addSolenoidalExcitation
 
   end interface
 

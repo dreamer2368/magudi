@@ -1,6 +1,6 @@
 #include "config.h"
 
-program vorticity_dilatation
+program jet
 
   use MPI
   use, intrinsic :: iso_fortran_env
@@ -27,7 +27,7 @@ program vorticity_dilatation
   call MPI_Init(ierror)
 
   ! Parse options from the input file.
-  filename = PROJECT_NAME // ".inp"
+  filename = "jet.inp"
   call parseInputFile(filename)
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
@@ -60,7 +60,7 @@ program vorticity_dilatation
   ! Write out some useful information.
   call reportGridDiagnostics(region)
 
-  ! Compute velocity.
+  ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
      call jetInitialCondition(region%states(i), region%grids(i),                             &
           region%simulationFlags%useTargetState)
@@ -167,4 +167,4 @@ contains
     
   end subroutine jetInitialCondition
 
-end program
+end program jet

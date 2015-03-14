@@ -85,7 +85,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, n, nDimensions, ierror
   type(t_SimulationFlags) :: simulationFlags_
-  real(SCALAR_KIND) :: ratioOfSpecificHeats
+  real(SCALAR_KIND) :: ratioOfSpecificHeats, temp(3)
   character(len = STRING_LENGTH) :: key
 
   call cleanupState(this)
@@ -107,13 +107,13 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      allocate(this%acousticSources(n))
      do i = 1, n
         write(key, '(A,I2.2,A)') "acoustic_source", i, "/"
-        call setupAcousticSource(this%acousticSources(i),                                    &
+        temp(1) = getOption(trim(key) // "x", 0.0_wp)
+        temp(2) = getOption(trim(key) // "y", 0.0_wp)
+        temp(3) = getOption(trim(key) // "z", 0.0_wp)
+        call setupAcousticSource(this%acousticSources(i), temp,                              &
              getOption(trim(key) // "amplitude", 1.0_wp),                                    &
              getOption(trim(key) // "frequency", 1.0_wp),                                    &
              getOption(trim(key) // "radius", 1.0_wp),                                       &
-             getOption(trim(key) // "x", 0.0_wp),                                            &
-             getOption(trim(key) // "y", 0.0_wp),                                            &
-             getOption(trim(key) // "z", 0.0_wp),                                            &
              getOption(trim(key) // "phase", 0.0_wp))
      end do
   end if
@@ -491,7 +491,6 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
 
@@ -571,7 +570,9 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   use Grid_type
   use Patch_type
   use State_type
+  use Region_type, only : ADJOINT
   use SolverOptions_type
+  use PatchDescriptor_type
   use SimulationFlags_type
 
   ! <<< Internal modules >>>
@@ -589,7 +590,6 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions, ierror
   SCALAR_TYPE, allocatable :: gradientOfAdjointVariables(:,:,:), localConservedVariables(:), &
        localVelocity(:), localMetricsAlongDirection(:), localStressTensor(:),                &
@@ -725,7 +725,7 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
   use SimulationFlags_type
 
   ! <<< Internal modules >>>
-  use Patch_mod, only : addDamping
+  use Patch_mod, only : addDamping, addSolenoidalExcitation
   use AcousticSource_mod, only : addAcousticSource
 
   implicit none
@@ -739,7 +739,6 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
   integer :: i
 
   if (allocated(this%acousticSources)) then
@@ -757,6 +756,10 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
         case (SPONGE)
            call addDamping(patches(i), FORWARD, this%rightHandSide, grid%iblank,             &
                 this%conservedVariables, this%targetState)
+
+        case (SOLENOIDAL_EXCITATION)
+           call addSolenoidalExcitation(patches(i), grid%coordinates, &
+                grid%iblank, time, this%rightHandSide)
 
         end select
      end do
@@ -789,7 +792,6 @@ subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
   integer :: i
 
   if (allocated(patches)) then
@@ -826,7 +828,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   ! <<< Internal modules >>>
   use Grid_mod, only : computeNormalizedCurveLengths
   use CNSHelper, only : computeCartesianViscousFluxes
-  use Patch_mod, only : collectAtPatch
+  use Patch_mod, only : collectAtPatch, updateSolenoidalExcitationStrength
   use AcousticSource_mod, only : addAcousticSource
 
   implicit none
@@ -840,7 +842,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions, ierror
+  integer :: i, nDimensions, ierror
   real(wp), allocatable :: targetViscousFluxes(:,:,:)
 
   if (.not. allocated(patches)) return
@@ -851,7 +853,9 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
      if (patches(i)%gridIndex /= grid%index) cycle
 
      if (simulationFlags%viscosityOn) then
+
         select case (patches(i)%patchType)
+
         case (SAT_FAR_FIELD)
            allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
            call updateState(this, grid, 0.0_wp, simulationFlags,                             &
@@ -861,10 +865,13 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
            call collectAtPatch(patches(i), targetViscousFluxes,                              &
                 patches(i)%targetViscousFluxes)
            SAFE_DEALLOCATE(targetViscousFluxes)
+
         end select
+
      end if
 
      select case (patches(i)%patchType)
+
      case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, &
           SAT_ADIABATIC_WALL, SAT_BLOCK_INTERFACE)
         call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
@@ -872,6 +879,10 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
              grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
         patches(i)%viscousPenaltyAmount = patches(i)%viscousPenaltyAmount / &
              grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
+
+     case (SOLENOIDAL_EXCITATION)
+        call updateSolenoidalExcitationStrength(patches(i), grid%coordinates, grid%iblank)
+
      end select
 
   end do

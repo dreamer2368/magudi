@@ -100,6 +100,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/RegionImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticSource.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitation.f90
+  ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationImpl.f90
   ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90
   ${PROJECT_SOURCE_DIR}/src/RK4IntegratorImpl.f90
 

@@ -17,7 +17,8 @@ module SimulationFlags_type
                 manualDomainDecomp    = .false., &
                 enableSolutionLimits  = .false., &
                 useConstantCfl        = .true.,  &
-                filterOn              = .false.
+                filterOn              = .false., &
+                steadyStateSimulation = .false.
 
   end type t_SimulationFlags
 

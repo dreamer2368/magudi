@@ -41,6 +41,9 @@ contains
     case (ACTUATOR)
        allocate(this%gradient(this%nPatchPoints, 1))
 
+    case (SOLENOIDAL_EXCITATION)
+       allocate(this%solenoidalExcitationStrength(this%nPatchPoints), source = 0.0_wp)
+
     end select
 
   end subroutine allocateData
@@ -63,6 +66,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
+  use SolenoidalExcitation_mod, only : setupSolenoidalExcitation
 
   implicit none
 
@@ -76,6 +80,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i
+  real(SCALAR_KIND) :: solenoidalExcitationOrigin(3), solenoidalExcitationSpeed(3)
   character(len = STRING_LENGTH) :: key
 
   call cleanupPatch(this)
@@ -88,11 +93,6 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   this%extent = (/ patchDescriptor%iMin, patchDescriptor%iMax,                               &
        patchDescriptor%jMin, patchDescriptor%jMax,                                           &
        patchDescriptor%kMin, patchDescriptor%kMax /)
-
-  ! Global patch size.
-  this%globalPatchSize(1) = patchDescriptor%iMax - patchDescriptor%iMin + 1
-  this%globalPatchSize(2) = patchDescriptor%jMax - patchDescriptor%jMin + 1
-  this%globalPatchSize(3) = patchDescriptor%kMax - patchDescriptor%kMin + 1
 
   ! Zero-based index of first point on the patch belonging to the ``current'' process (this
   ! value has no meaning if the patch lies outside the part of the grid belonging to the
@@ -127,6 +127,8 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   write(key, '(A,I3.3,A)') "grid", this%gridIndex, "/curvilinear"
   this%isCurvilinear = getOption(key, this%isCurvilinear)
 
+  call allocateData(this, nDimensions, simulationFlags)
+
   select case (this%patchType)
 
   case (SPONGE)
@@ -142,6 +144,26 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
      write(key, '(3A)') "patches/",                                                          &
           trim(patchDescriptor%name), "/sponge_exponent"
      this%spongeExponent = getOption(key, this%spongeExponent)
+
+  case (SOLENOIDAL_EXCITATION)
+
+     write(key, '(3A)') "patches/", trim(patchDescriptor%name), "/"
+
+     solenoidalExcitationOrigin(1) = getOption(trim(key) // "x", 0.0_wp)
+     solenoidalExcitationOrigin(2) = getOption(trim(key) // "y", 0.0_wp)
+     solenoidalExcitationOrigin(3) = getOption(trim(key) // "z", 0.0_wp)
+
+     solenoidalExcitationSpeed(1) = getOption(trim(key) // "u", 0.0_wp)
+     solenoidalExcitationSpeed(2) = getOption(trim(key) // "v", 0.0_wp)
+     solenoidalExcitationSpeed(3) = getOption(trim(key) // "w", 0.0_wp)
+
+     call setupSolenoidalExcitation(this%solenoidalExcitation, this%comm,                    &
+          getOption(trim(key) // "number_of_modes", 1),                                      &
+          solenoidalExcitationOrigin, solenoidalExcitationSpeed,                             &
+          getOption(trim(key) // "amplitude", 0.01_wp),                                      &
+          getOption(trim(key) // "most_unstable_frequency", 0.1_wp),                         &
+          getOption(trim(key) // "radius", 1.0_wp),                                          &
+          getOption(trim(key) // "seed", -1))
 
   case (SAT_FAR_FIELD, SAT_BLOCK_INTERFACE)
 
@@ -168,6 +190,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   if (simulationFlags%viscosityOn) then
 
      select case (this%patchType)
+
      case (SAT_FAR_FIELD, SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
 
         ! Viscous penalty amount.
@@ -182,8 +205,6 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
   end if
 
-  call allocateData(this, nDimensions, simulationFlags)
-
 end subroutine setupPatch
 
 subroutine cleanupPatch(this)
@@ -195,6 +216,9 @@ subroutine cleanupPatch(this)
   use Patch_type
   use PatchDescriptor_type
 
+  ! <<< Internal modules >>>
+  use SolenoidalExcitation_mod, only : cleanupSolenoidalExcitation
+
   implicit none
 
   ! <<< Arguments >>>
@@ -203,10 +227,14 @@ subroutine cleanupPatch(this)
   ! <<< Local variables >>>
   integer :: ierror
 
+  call cleanupSolenoidalExcitation(this%solenoidalExcitation)
+
   SAFE_DEALLOCATE(this%viscousFluxes)
   SAFE_DEALLOCATE(this%targetViscousFluxes)
+  SAFE_DEALLOCATE(this%metrics)
   SAFE_DEALLOCATE(this%spongeStrength)
   SAFE_DEALLOCATE(this%gradient)
+  SAFE_DEALLOCATE(this%solenoidalExcitationStrength)
 
   if (this%comm /= MPI_COMM_NULL) call MPI_Comm_free(this%comm, ierror)
 
@@ -554,3 +582,115 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   SAFE_DEALLOCATE(localConservedVariables)
 
 end subroutine addWallPenalty
+
+subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
+
+  ! <<< Derived types >>>
+  use Patch_type
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Patch) :: this
+  SCALAR_TYPE, intent(in) :: coordinates(:,:)
+  integer, intent(in) :: iblank(:)
+
+  ! <<< Local variables >>>
+  integer :: i, j, k, nDimensions, gridIndex, patchIndex
+
+  nDimensions = size(coordinates, 2)
+
+  do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+     do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+        do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+           gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                      &
+                (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                        &
+                (k - 1 - this%gridOffset(3)))
+           if (iblank(gridIndex) == 0) cycle
+           patchIndex = i - this%offset(1) + this%patchSize(1) *                             &
+                (j - 1 - this%offset(2) + this%patchSize(2) *                                &
+                (k - 1 - this%offset(3)))
+
+           this%solenoidalExcitationStrength(patchIndex) =                                   &
+                this%solenoidalExcitation%amplitude *                                        &
+                exp(- this%solenoidalExcitation%gaussianFactor *                             &
+                sum(coordinates(gridIndex,:) -                                               &
+                this%solenoidalExcitation%location(1:nDimensions)) ** 2)
+
+        end do
+     end do
+  end do
+
+end subroutine updateSolenoidalExcitationStrength
+
+subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSide)
+
+  ! <<< Derived types >>>
+  use Patch_type
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Patch) :: this
+  SCALAR_TYPE, intent(in) :: coordinates(:,:)
+  integer, intent(in) :: iblank(:)
+  real(SCALAR_KIND), intent(in) :: time
+  SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, l, gridIndex, patchIndex, nDimensions
+  real(wp) :: location(3), speed(3), gaussianFactor, localStrength, localOrigin(3), temp(4)
+  real(wp), allocatable :: angularFrequencies(:), phases(:,:)
+
+  nDimensions = size(coordinates, 2)
+
+  gaussianFactor = this%solenoidalExcitation%gaussianFactor
+  location = this%solenoidalExcitation%location
+  speed = this%solenoidalExcitation%speed
+
+  allocate(angularFrequencies(this%solenoidalExcitation%nModes))
+  allocate(phases(this%solenoidalExcitation%nModes, nDimensions))
+
+  angularFrequencies = real(this%solenoidalExcitation%angularFrequencies, wp)
+  phases = real(this%solenoidalExcitation%phases(:,1:nDimensions), wp)
+
+  do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+     do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+        do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+           gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                      &
+                (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                        &
+                (k - 1 - this%gridOffset(3)))
+           if (iblank(gridIndex) == 0) cycle
+           patchIndex = i - this%offset(1) + this%patchSize(1) *                             &
+                (j - 1 - this%offset(2) + this%patchSize(2) *                                &
+                (k - 1 - this%offset(3)))
+
+           localStrength = this%solenoidalExcitationStrength(patchIndex)
+           localOrigin(1:nDimensions) = coordinates(gridIndex,:) -                           &
+                location(1:nDimensions) - speed(1:nDimensions) * time
+
+           do l = 1, this%solenoidalExcitation%nModes
+
+              temp(1) = sin(angularFrequencies(l) * localOrigin(1) + phases(l,1))
+              temp(2) = cos(angularFrequencies(l) * localOrigin(1) + phases(l,1))
+              temp(3) = sin(angularFrequencies(l) * localOrigin(2) + phases(l,2))
+              temp(4) = cos(angularFrequencies(l) * localOrigin(2) + phases(l,2))
+
+              rightHandSide(:,2) = rightHandSide(:,2) + localStrength * temp(1) *            &
+                   (angularFrequencies(l) * temp(4) - 2.0_wp * gaussianFactor *              &
+                   (coordinates(gridIndex,2) - location(2)) * temp(3))
+              rightHandSide(:,3) = rightHandSide(:,3) + localStrength * temp(3) *            &
+                   (angularFrequencies(l) * temp(2) - 2.0_wp * gaussianFactor *              &
+                   (coordinates(gridIndex,1) - location(1)) * temp(1))
+
+           end do
+
+        end do
+     end do
+  end do
+
+  SAFE_DEALLOCATE(phases)
+  SAFE_DEALLOCATE(angularFrequencies)
+
+end subroutine addSolenoidalExcitation

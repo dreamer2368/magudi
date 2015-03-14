@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine setupAcousticSource(this, amplitude, frequency, radius, x, y, z, phase)
+subroutine setupAcousticSource(this, location, amplitude, frequency, radius, phase)
 
   ! <<< Derived types >>>
   use AcousticSource_type
@@ -9,22 +9,21 @@ subroutine setupAcousticSource(this, amplitude, frequency, radius, x, y, z, phas
 
   ! <<< Arguments >>>
   type(t_AcousticSource) :: this
-  real(SCALAR_KIND), intent(in) :: amplitude, frequency, radius
-  real(SCALAR_KIND), intent(in), optional :: x, y, z, phase
+  real(SCALAR_KIND), intent(in) :: location(:), amplitude, frequency, radius
+  real(SCALAR_KIND), intent(in), optional :: phase
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
 
   this%location = 0.0_wp
-  if (present(x)) this%location(1) = x
-  if (present(y)) this%location(2) = y
-  if (present(z)) this%location(3) = z
+  this%location(1:size(location)) = location
 
   this%amplitude = amplitude
-  this%gaussianFactor = 9.0_wp / (2.0_wp * radius ** 2)
   this%angularFrequency = 2.0_wp * pi * frequency
+  this%gaussianFactor = 9.0_wp / (2.0_wp * radius ** 2)
 
+  this%phase = 0.0_wp
   if (present(phase)) this%phase = phase
 
 end subroutine setupAcousticSource
