@@ -1128,7 +1128,7 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
   type(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:)
   SCALAR_TYPE, intent(out) :: fMin
-  integer, intent(out) :: iMin, jMin, kMin
+  integer, intent(out), optional :: iMin, jMin, kMin
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -1162,8 +1162,10 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
      end do
   end do
 
-  call MPI_Allgather(minIndex, 3, MPI_INTEGER, minIndices, 3, MPI_INTEGER,                   &
-       this%comm, ierror)
+  if (present(iMin) .or. present(jMin) .or. present(kMin)) then
+     call MPI_Allgather(minIndex, 3, MPI_INTEGER, minIndices, 3, MPI_INTEGER,                &
+          this%comm, ierror)
+  end if
   call MPI_Allgather(minValue, 1, SCALAR_TYPE_MPI, minValues, 1, SCALAR_TYPE_MPI,            &
        this%comm, ierror)
 
@@ -1173,9 +1175,9 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
   i = minloc(minValues, 1)
 #endif
   fMin = minValues(i)
-  iMin = minIndices(1,i)
-  jMin = minIndices(2,i)
-  kMin = minIndices(3,i)
+  if (present(iMin)) iMin = minIndices(1,i)
+  if (present(jMin)) jMin = minIndices(2,i)
+  if (present(kMin)) kMin = minIndices(3,i)
 
   SAFE_DEALLOCATE(minValues)
   SAFE_DEALLOCATE(minIndices)
@@ -1196,7 +1198,7 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
   type(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:)
   SCALAR_TYPE, intent(out) :: fMax
-  integer, intent(out) :: iMax, jMax, kMax
+  integer, intent(out), optional :: iMax, jMax, kMax
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -1209,19 +1211,19 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
 
   allocate(maxValues(nProcs), maxIndices(3, nProcs))
 
-  maxValue = huge(0.0_wp)
+  maxValue = - huge(0.0_wp)
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
         do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
            a = f(i - this%offset(1) + this%localSize(1) * (j - 1 - this%offset(2) +          &
                 this%localSize(2) * (k - 1 - this%offset(3))))
 #ifdef SCALAR_IS_COMPLEX
-           if (real(a, wp) < maxValue) then
+           if (real(a, wp) > maxValue) then
               maxIndex = (/ i, j, k /)
               maxValue = real(a, wp)
            end if
 #else
-           if (a < maxValue) then
+           if (a > maxValue) then
               maxIndex = (/ i, j, k /)
               maxValue = a
            end if
@@ -1230,8 +1232,10 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
      end do
   end do
 
-  call MPI_Allgather(maxIndex, 3, MPI_INTEGER, maxIndices, 3, MPI_INTEGER,                   &
-       this%comm, ierror)
+  if (present(iMax) .or. present(jMax) .or. present(kMax)) then
+     call MPI_Allgather(maxIndex, 3, MPI_INTEGER, maxIndices, 3, MPI_INTEGER,                &
+          this%comm, ierror)
+  end if
   call MPI_Allgather(maxValue, 1, SCALAR_TYPE_MPI, maxValues, 1, SCALAR_TYPE_MPI,            &
        this%comm, ierror)
 
@@ -1241,9 +1245,9 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
   i = maxloc(maxValues, 1)
 #endif
   fMax = maxValues(i)
-  iMax = maxIndices(1,i)
-  jMax = maxIndices(2,i)
-  kMax = maxIndices(3,i)
+  if (present(iMax)) iMax = maxIndices(1,i)
+  if (present(jMax)) jMax = maxIndices(2,i)
+  if (present(kMax)) kMax = maxIndices(3,i)
 
   SAFE_DEALLOCATE(maxValues)
   SAFE_DEALLOCATE(maxIndices)
@@ -1326,17 +1330,19 @@ subroutine computeSpongeStrengths(this, patches)
        globalArcLengthsAlongDirection
   real(wp), allocatable :: curveLengthIntegrand(:)
 
-  if (.not. allocated(patches)) return
-
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
 
   do direction =  1, nDimensions
 
      ! Check if there are sponge patches along direction `direction`.
-     spongesExistAlongDirection = any(patches(:)%gridIndex == this%index .and.               &
+
+     spongesExistAlongDirection = .false.
+     if (allocated(patches))                                                                 &
+          spongesExistAlongDirection = any(patches(:)%gridIndex == this%index .and.          &
           patches(:)%patchType == SPONGE .and. abs(patches(:)%normalDirection) == direction)
      call MPI_Allreduce(MPI_IN_PLACE, spongesExistAlongDirection, 1, MPI_LOGICAL,            &
           MPI_LOR, this%comm, ierror) !... aggregate across grid-level processes.
+     call MPI_Comm_rank(this%comm, i, ierror)
      if (.not. spongesExistAlongDirection) cycle
 
      ! Compute local arc length.
@@ -1352,6 +1358,8 @@ subroutine computeSpongeStrengths(this, patches)
      call gatherAlongDirection(this%comm, arcLength, this%localSize,                         &
           direction, this%offset(direction), globalArcLengthsAlongDirection)
      SAFE_DEALLOCATE(arcLength) !... no longer needed.
+
+     if (.not. allocated(patches)) cycle
 
      allocate(curveLengthIntegrand(this%globalSize(direction)))
 

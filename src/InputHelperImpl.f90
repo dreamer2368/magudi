@@ -434,7 +434,11 @@ function getOptionString_(key, defaultValue) result(val)
   call find(key, index)
 
   if (index == -1) then
-     read(defaultValue, '(A)') val
+     if (len_trim(defaultValue) == 0) then
+        val = ""
+     else
+        read(defaultValue, '(A)') val
+     end if
      return
   end if
 

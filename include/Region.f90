@@ -133,4 +133,16 @@ module Region_mod
 
   end interface
 
+  interface
+
+     subroutine reportResiduals(this)
+
+       use Region_type
+
+       type(t_Region) :: this
+
+     end subroutine reportResiduals
+
+  end interface
+
 end module Region_mod

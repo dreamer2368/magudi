@@ -62,7 +62,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
 
   ! <<< Internal modules >>>
   use MPIHelper, only : writeAndFlush
-  use Region_mod, only : computeRhs, subStepHooks
+  use Region_mod, only : computeRhs, subStepHooks, reportResiduals
 
   implicit none
 
@@ -146,6 +146,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
                 ", CFL = ", region%states(1)%cfl, ", time = ", time
         end if
         call writeAndFlush(region%comm, output_unit, str)
+        if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
      end if
   end if
 

@@ -288,6 +288,7 @@ end subroutine saveStateData
 
 function getFileType(quantityOfInterest) result(fileType)
 
+  ! <<< Derived types >>>
   use State_type
   use PLOT3DDescriptor_type
 
@@ -298,6 +299,8 @@ function getFileType(quantityOfInterest) result(fileType)
 
   ! <<< Result >>>
   integer :: fileType
+
+  fileType = -1
 
   select case (quantityOfInterest)
   case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE)
@@ -577,6 +580,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
 
   ! <<< Internal modules >>>
   use CNSHelper
+  use Patch_mod, only : addFarFieldPenalty, addWallPenalty
   use StencilOperator_mod, only : applyOperator
 
   implicit none
@@ -828,6 +832,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   ! <<< Internal modules >>>
   use Grid_mod, only : computeNormalizedCurveLengths
   use CNSHelper, only : computeCartesianViscousFluxes
+  use State_mod, only : updateState
   use Patch_mod, only : collectAtPatch, updateSolenoidalExcitationStrength
   use AcousticSource_mod, only : addAcousticSource
 

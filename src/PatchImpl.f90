@@ -401,7 +401,7 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
 end subroutine addDamping
 
 subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,                &
-     ratioOfSpecificHeats, conservedVariables, targetState)
+     ratioOfSpecificHeats, conservedVariables, targetState, adjointVariables)
 
   ! <<< Derived types >>>
   use Patch_type
@@ -419,6 +419,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   integer, intent(in) :: iblank(:), nDimensions
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(in) :: conservedVariables(:,:), targetState(:,:)
+  SCALAR_TYPE, intent(in), optional :: adjointVariables(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -493,7 +494,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
 end subroutine addFarFieldPenalty
 
 subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,                    &
-     ratioOfSpecificHeats, conservedVariables)
+     ratioOfSpecificHeats, conservedVariables, adjointVariables)
 
   ! <<< Derived types >>>
   use Patch_type
@@ -511,6 +512,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   integer, intent(in) :: iblank(:), nDimensions
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
+  SCALAR_TYPE, intent(in), optional :: adjointVariables(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND

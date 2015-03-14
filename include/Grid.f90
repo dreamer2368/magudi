@@ -198,7 +198,7 @@ module Grid_mod
        type(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
        SCALAR_TYPE, intent(out) :: fMin
-       integer, intent(out) :: iMin, jMin, kMin
+       integer, intent(out), optional :: iMin, jMin, kMin
 
      end subroutine findMinimum
 
@@ -213,7 +213,7 @@ module Grid_mod
        type(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
        SCALAR_TYPE, intent(out) :: fMax
-       integer, intent(out) :: iMax, jMax, kMax
+       integer, intent(out), optional :: iMax, jMax, kMax
 
      end subroutine findMaximum
 

@@ -141,7 +141,7 @@ contains
     call MPI_Comm_size(this%comm, nProcs, ierror)
 
     write(message, "(2(A,I0.0),A)") "Distributing ", size(this%globalGridSizes, 2),          &
-         " grid(s) across ", nProcs, " processe(s)... "
+         " grid(s) across ", nProcs, " process(es)... "
     call writeAndFlush(this%comm, output_unit, message)
 
     ! Find the number of processes to be assigned to each grid: `numProcsInGrid(i)` is the
@@ -1015,3 +1015,65 @@ subroutine subStepHooks(this, timestep, stage)
   integer, intent(in) :: timestep, stage
 
 end subroutine subStepHooks
+
+subroutine reportResiduals(this)
+
+  ! <<< External modules >>>
+  use MPI
+  use, intrinsic :: iso_fortran_env
+
+  ! <<< Derived types >>>
+  use Region_type
+
+  ! <<< Internal modules >>>
+  use Grid_mod, only : findMaximum
+  use MPIHelper, only : writeAndFlush
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Region) :: this
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions, ierror
+  SCALAR_TYPE, allocatable :: f(:)
+  SCALAR_TYPE :: fMax
+  real(wp) :: residuals(3)
+  character(len = STRING_LENGTH) :: str
+
+  do i = 1, size(this%states)
+
+     call MPI_Cartdim_get(this%grids(i)%comm, nDimensions, ierror)
+
+     allocate(f(size(this%states(i)%rightHandSide, 1)))
+
+     f = abs(this%states(i)%rightHandSide(:,1))
+     call findMaximum(this%grids(i), f, fMax)
+     residuals(1) = real(fMax, wp)
+
+     residuals(2) = 0.0_wp
+     do j = 1, nDimensions
+        f = abs(this%states(i)%rightHandSide(:,j+1))
+        call findMaximum(this%grids(i), f, fMax)
+        residuals(2) = max(residuals(2), real(fMax, wp))
+     end do
+
+     f = abs(this%states(i)%rightHandSide(:,nDimensions+2))
+     call findMaximum(this%grids(i), f, fMax)
+     residuals(3) = real(fMax, wp)
+
+     SAFE_DEALLOCATE(f)
+
+  end do
+
+#ifdef SCALAR_IS_COMPLEX
+  call MPI_Allreduce(MPI_IN_PLACE, residuals, 3, REAL_TYPE_MPI, MPI_MAX, this%comm, ierror)
+#else
+  call MPI_Allreduce(MPI_IN_PLACE, residuals, 3, SCALAR_TYPE_MPI, MPI_MAX, this%comm, ierror)
+#endif
+  write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),                  &
+       ", momentum = ", residuals(2), ", energy = ", residuals(3)
+  call writeAndFlush(this%comm, output_unit, str)
+
+end subroutine reportResiduals

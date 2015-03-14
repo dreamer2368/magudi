@@ -134,7 +134,7 @@ module Patch_mod
   interface
 
      subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,           &
-          ratioOfSpecificHeats, conservedVariables, targetState)
+          ratioOfSpecificHeats, conservedVariables, targetState, adjointVariables)
 
        use Patch_type
 
@@ -144,6 +144,7 @@ module Patch_mod
        integer, intent(in) :: iblank(:), nDimensions
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(in) :: conservedVariables(:,:), targetState(:,:)
+       SCALAR_TYPE, intent(in), optional :: adjointVariables(:,:)
 
      end subroutine addFarFieldPenalty
 
@@ -152,7 +153,7 @@ module Patch_mod
   interface
 
      subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,               &
-          ratioOfSpecificHeats, conservedVariables)
+          ratioOfSpecificHeats, conservedVariables, adjointVariables)
 
        use Patch_type
 
@@ -162,6 +163,7 @@ module Patch_mod
        integer, intent(in) :: iblank(:), nDimensions
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
+       SCALAR_TYPE, intent(in), optional :: adjointVariables(:,:)
 
      end subroutine addWallPenalty
 
