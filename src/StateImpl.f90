@@ -378,6 +378,7 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
   ! <<< Internal modules >>>
   use Grid_mod
   use CNSHelper
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -391,6 +392,8 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
 
   ! <<< Local variables >>>
   integer :: i, nDimensions, ierror
+
+  call startTiming("updateState")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
@@ -463,6 +466,8 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
 
   end if
 
+  call endTiming("updateState")
+
 end subroutine updateState
 
 subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverOptions)
@@ -482,6 +487,7 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   ! <<< Internal modules >>>
   use CNSHelper
   use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
   implicit none
@@ -497,6 +503,8 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   ! <<< Local variables >>>
   integer :: i, nDimensions, ierror
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
+
+  call startTiming("computeRhsForward")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
@@ -550,6 +558,8 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
 
   SAFE_DEALLOCATE(fluxes2) !... no longer needed
 
+  call endTiming("computeRhsForward")
+
 end subroutine computeRhsForward
 
 subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
@@ -566,6 +576,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   ! <<< Internal modules >>>
   use CNSHelper
   use Patch_mod, only : addFarFieldPenalty, addWallPenalty
+  use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
   implicit none
@@ -583,6 +594,8 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   SCALAR_TYPE, allocatable :: gradientOfAdjointVariables(:,:,:), localConservedVariables(:), &
        localVelocity(:), localMetricsAlongDirection(:), localStressTensor(:),                &
        localHeatFlux(:), localJacobian1(:,:), localJacobian2(:,:)
+
+  call startTiming("computeRhsAdjoint")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
@@ -680,6 +693,8 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
 
   SAFE_DEALLOCATE(gradientOfAdjointVariables)
 
+  call endTiming("computeRhsAdjoint")
+
 end subroutine computeRhsAdjoint
 
 subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solverOptions)
@@ -699,6 +714,7 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
   ! <<< Internal modules >>>
   use CNSHelper
   use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
   implicit none
@@ -713,6 +729,8 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
 
   ! <<< Local variables >>>
   integer :: i, nDimensions, ierror
+
+  call startTiming("addPenaltiesForward")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
@@ -734,6 +752,8 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
      end do
   end if
 
+  call endTiming("addPenaltiesForward")
+
 end subroutine addPenaltiesForward
 
 subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
@@ -753,6 +773,7 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
   ! <<< Internal modules >>>
   use CNSHelper
   use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
   implicit none
@@ -767,6 +788,8 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
 
   ! <<< Local variables >>>
   integer :: i, nDimensions, ierror
+
+  call startTiming("addPenaltiesAdjoint")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
@@ -789,6 +812,8 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
      end do
   end if
 
+  call endTiming("addPenaltiesAdjoint")
+
 end subroutine addPenaltiesAdjoint
 
 subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverOptions)
@@ -804,6 +829,7 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
 
   ! <<< Internal modules >>>
   use Patch_mod, only : addDamping, addSolenoidalExcitation
+  use MPITimingsHelper, only : startTiming, endTiming
   use AcousticSource_mod, only : addAcousticSource
 
   implicit none
@@ -818,6 +844,8 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
 
   ! <<< Local variables >>>
   integer :: i
+
+  call startTiming("addSourcesForward")
 
   if (allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
@@ -843,6 +871,8 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
      end do
   end if
 
+  call endTiming("addSourcesForward")
+
 end subroutine addSourcesForward
 
 subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
@@ -858,6 +888,7 @@ subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverO
 
   ! <<< Internal modules >>>
   use Patch_mod, only : addDamping
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -872,6 +903,8 @@ subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverO
   ! <<< Local variables >>>
   integer :: i
 
+  call startTiming("addSourcesAdjoint")
+
   if (allocated(patches)) then
      do i = 1, size(patches)
         if (patches(i)%gridIndex /= grid%index) cycle
@@ -884,6 +917,8 @@ subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverO
         end select
      end do
   end if
+
+  call endTiming("addSourcesAdjoint")
 
 end subroutine addSourcesAdjoint
 
@@ -908,6 +943,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   use CNSHelper, only : computeCartesianViscousFluxes
   use State_mod, only : updateState
   use Patch_mod, only : collectAtPatch, updateSolenoidalExcitationStrength
+  use MPITimingsHelper, only : startTiming, endTiming
   use AcousticSource_mod, only : addAcousticSource
 
   implicit none
@@ -924,6 +960,8 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   integer :: i, nDimensions, ierror
   logical :: flag
   real(wp), allocatable :: targetViscousFluxes(:,:,:)
+
+  call startTiming("updatePatches")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
@@ -979,5 +1017,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   end if
 
   SAFE_DEALLOCATE(targetViscousFluxes)
+
+  call endTiming("updatePatches")
 
 end subroutine updatePatches

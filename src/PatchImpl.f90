@@ -79,7 +79,6 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i
   real(SCALAR_KIND) :: solenoidalExcitationOrigin(3), solenoidalExcitationSpeed(3)
   character(len = STRING_LENGTH) :: key
 
@@ -244,6 +243,9 @@ subroutine collectScalarAtPatch_(this, gridArray, patchArray)
 
   ! <<< Derived types >>>
   use Patch_type
+  
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Arguments >>>
   type(t_Patch) :: this
@@ -252,6 +254,8 @@ subroutine collectScalarAtPatch_(this, gridArray, patchArray)
 
   ! <<< Local variables >>>
   integer :: i, j, k, patchIndex, localIndex
+
+  call startTiming("collectAtPatch")
 
   do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
@@ -267,12 +271,17 @@ subroutine collectScalarAtPatch_(this, gridArray, patchArray)
      end do
   end do
 
+  call endTiming("collectAtPatch")
+
 end subroutine collectScalarAtPatch_
 
 subroutine collectVectorAtPatch_(this, gridArray, patchArray)
 
   ! <<< Derived types >>>
   use Patch_type
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Arguments >>>
   type(t_Patch) :: this
@@ -281,6 +290,8 @@ subroutine collectVectorAtPatch_(this, gridArray, patchArray)
 
   ! <<< Local variables >>>
   integer :: i, j, k, l, patchIndex, localIndex
+
+  call startTiming("collectAtPatch")
 
   do l = 1, size(patchArray, 2)
      do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
@@ -298,12 +309,17 @@ subroutine collectVectorAtPatch_(this, gridArray, patchArray)
      end do
   end do
 
+  call endTiming("collectAtPatch")
+
 end subroutine collectVectorAtPatch_
 
 subroutine collectTensorAtPatch_(this, gridArray, patchArray)
 
   ! <<< Derived types >>>
   use Patch_type
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Arguments >>>
   type(t_Patch) :: this
@@ -312,6 +328,8 @@ subroutine collectTensorAtPatch_(this, gridArray, patchArray)
 
   ! <<< Local variables >>>
   integer :: i, j, k, l, m, patchIndex, localIndex
+
+  call startTiming("collectAtPatch")
 
   do m = 1, size(patchArray, 3)
      do l = 1, size(patchArray, 2)
@@ -331,6 +349,8 @@ subroutine collectTensorAtPatch_(this, gridArray, patchArray)
      end do
   end do
 
+  call endTiming("collectAtPatch")
+
 end subroutine collectTensorAtPatch_
 
 subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, targetVariables)
@@ -338,6 +358,9 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
   ! <<< Derived types >>>
   use Patch_type
   use Region_type, only : FORWARD, ADJOINT
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -351,6 +374,8 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
 
   ! <<< Local variables >>>
   integer :: i, j, k, l, gridIndex, patchIndex
+
+  call startTiming("addDamping")
 
   select case (mode)
 
@@ -398,6 +423,8 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
 
   end select
 
+  call endTiming("addDamping")
+
 end subroutine addDamping
 
 subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,                &
@@ -409,6 +436,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
 
   ! <<< Internal modules >>>
   use CNSHelper
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -426,6 +454,8 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   integer :: i, j, k, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localTargetState(:), localMetricsAlongNormalDirection(:),      &
        localIncomingJacobianOfInviscidFluxes(:,:), viscousFluxPenalty(:,:)
+
+  call startTiming("addFarFieldPenalty")
 
   direction = abs(this%normalDirection)
 
@@ -472,15 +502,30 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
                    this%normalDirection, localIncomingJacobianOfInviscidFluxes)
            end select
 
-           rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                         &
-                this%inviscidPenaltyAmount * matmul(localIncomingJacobianOfInviscidFluxes,   &
-                conservedVariables(gridIndex,:) - localTargetState)
+           select case (mode)
+           case (FORWARD)
 
-           if (allocated(viscousFluxPenalty)) then
-              rightHandSide(gridIndex,2:nDimensions+2) =                                     &
-                   rightHandSide(gridIndex,2:nDimensions+2) +                                &
-                   this%viscousPenaltyAmount * viscousFluxPenalty(patchIndex,:)
-           end if
+              rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                      &
+                   this%inviscidPenaltyAmount *                                              &
+                   matmul(localIncomingJacobianOfInviscidFluxes,                             &
+                   conservedVariables(gridIndex,:) - localTargetState)
+
+              if (allocated(viscousFluxPenalty)) then
+                 rightHandSide(gridIndex,2:nDimensions+2) =                                  &
+                      rightHandSide(gridIndex,2:nDimensions+2) +                             &
+                      this%viscousPenaltyAmount * viscousFluxPenalty(patchIndex,:)
+              end if
+
+           case (ADJOINT)
+
+              rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) +                      &
+                   this%inviscidPenaltyAmount *                                              &
+                   matmul(transpose(localIncomingJacobianOfInviscidFluxes),                  &
+                   adjointVariables(gridIndex,:))
+
+              ! TODO: add viscous far-field penalties for adjoint variables.
+
+           end select              
 
         end do
      end do
@@ -490,6 +535,8 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   SAFE_DEALLOCATE(localIncomingJacobianOfInviscidFluxes)
   SAFE_DEALLOCATE(localMetricsAlongNormalDirection)
   SAFE_DEALLOCATE(localTargetState)
+
+  call endTiming("addFarFieldPenalty")
 
 end subroutine addFarFieldPenalty
 
@@ -502,6 +549,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
 
   ! <<< Internal modules >>>
   use CNSHelper
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -519,8 +567,10 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   integer :: i, j, k, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
        localMetricsAlongNormalDirection(:), localIncomingJacobianOfInviscidFluxes(:,:),      &
-       localInviscidPenalty(:)
+       localInviscidPenalty(:), localViscousPenalty1(:), localViscousPenalty2(:)
   SCALAR_TYPE :: temp
+
+  call startTiming("addWallPenalty")
 
   direction = abs(this%normalDirection)
 
@@ -583,6 +633,8 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   SAFE_DEALLOCATE(localMetricsAlongNormalDirection)
   SAFE_DEALLOCATE(localConservedVariables)
 
+  call endTiming("addWallPenalty")
+
 end subroutine addWallPenalty
 
 subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
@@ -630,6 +682,9 @@ subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSid
   ! <<< Derived types >>>
   use Patch_type
 
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
   implicit none
 
   ! <<< Arguments >>>
@@ -644,6 +699,8 @@ subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSid
   integer :: i, j, k, l, gridIndex, patchIndex, nDimensions
   real(wp) :: location(3), speed(3), gaussianFactor, localStrength, localOrigin(3), temp(4)
   real(wp), allocatable :: angularFrequencies(:), phases(:,:)
+
+  call startTiming("addSolenoidalExcitation")
 
   nDimensions = size(coordinates, 2)
 
@@ -696,5 +753,7 @@ subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSid
 
   SAFE_DEALLOCATE(phases)
   SAFE_DEALLOCATE(angularFrequencies)
+
+  call endTiming("addSolenoidalExcitation")
 
 end subroutine addSolenoidalExcitation

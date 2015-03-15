@@ -1,5 +1,12 @@
 #include "config.h"
 
+module MPIHelperImpl
+
+  implicit none
+  private
+
+end module MPIHelperImpl
+
 subroutine writeAndFlush(comm, unit, str, advance)
 
   ! <<< External modules >>>

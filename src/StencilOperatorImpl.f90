@@ -1574,12 +1574,17 @@ subroutine applyOperator(this, x, gridSize)
   ! <<< Private members >>>
   use StencilOperatorImpl, only : applyOperator_1, applyOperator_2, applyOperator_3
 
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
   implicit none
 
   ! <<< Arguments >>>
   type(t_StencilOperator) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
+
+  call startTiming("applyOperator")
 
   select case (this%direction)
   case (1)
@@ -1589,6 +1594,8 @@ subroutine applyOperator(this, x, gridSize)
   case (3)
      call applyOperator_3(this, x, gridSize)
   end select
+
+  call endTiming("applyOperator")
 
 end subroutine applyOperator
 

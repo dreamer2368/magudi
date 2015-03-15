@@ -514,6 +514,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
   ! <<< Public members >>>
   use Region_mod, only : cleanupRegion
+  use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Internal modules >>>
   use Grid_mod, only : setupGrid
@@ -534,6 +535,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   integer :: i, j, k, nProcs, nPatches, ierror
   character(len = STRING_LENGTH) :: decompositionMapFilename
   type(t_PatchDescriptor) :: p
+
+  call startTiming("setupRegion")
 
   ! Clean slate.
   call cleanupRegion(this)
@@ -632,6 +635,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
   end if
 
+  call endTiming("setupRegion")
+
 end subroutine setupRegion
 
 subroutine cleanupRegion(this)
@@ -697,6 +702,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   use MPIHelper, only : writeAndFlush
   use State_mod, only : loadStateData, getFileType
   use PLOT3DHelper
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -711,6 +717,8 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   integer :: i, j, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
   real(SCALAR_KIND) :: auxiliaryData(4)
+
+  call startTiming("loadRegionData")
 
   write(message, '(3A)') "Reading '", trim(filename), "'..."
   call writeAndFlush(this%comm, output_unit, message, advance = 'no')
@@ -763,6 +771,8 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   end if
   call writeAndFlush(this%comm, output_unit, message)
 
+  call endTiming("loadRegionData")
+
 end subroutine loadRegionData
 
 subroutine saveRegionData(this, quantityOfInterest, filename)
@@ -781,6 +791,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   use MPIHelper, only : writeAndFlush
   use State_mod, only : saveStateData, getFileType, getNumberOfScalars
   use PLOT3DHelper
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -794,6 +805,8 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   logical :: success
   integer :: i, j, fileType, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
+  
+  call startTiming("saveRegionData")
 
   write(message, '(3A)') "Writing '", trim(filename), "'..."
   call writeAndFlush(this%comm, output_unit, message, advance = 'no')
@@ -856,6 +869,8 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   end if
   call writeAndFlush(this%comm, output_unit, message)
 
+  call endTiming("saveRegionData")
+
 end subroutine saveRegionData
 
 subroutine computeRhs(this, mode, time)
@@ -871,6 +886,7 @@ subroutine computeRhs(this, mode, time)
 
   ! <<< Internal modules >>>
   use State_mod
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -883,6 +899,8 @@ subroutine computeRhs(this, mode, time)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
   real(wp) :: timeStepSize, cfl
+
+  call startTiming("computeRhs")
 
   do i = 1, size(this%states)
      this%states(i)%rightHandSide = 0.0_wp
@@ -950,6 +968,8 @@ subroutine computeRhs(this, mode, time)
      end select
 
   end do
+
+  call endTiming("computeRhs")
 
 end subroutine computeRhs
 

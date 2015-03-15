@@ -15,6 +15,7 @@ program main
   use MPIHelper, only : gracefulExit
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
+  use MPITimingsHelper, only : reportTimings, cleanupTimers
 
   implicit none
 
@@ -114,6 +115,9 @@ program main
           getOption("number_of_timesteps", 1000), getOption("report_interval", 1),           &
           getOption("save_interval", 20), outputPrefix)
   end if
+
+  call reportTimings()
+  call cleanupTimers()
 
   call cleanupRK4Integrator(integrator)
   call cleanupRegion(region)
