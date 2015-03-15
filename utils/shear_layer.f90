@@ -148,9 +148,10 @@ contains
        velocity = lowerFluidVelocity +                                                       &
             0.5_wp * velocityDifference * (1.0_wp + tanh(2.0_wp * grid%coordinates(i,2) /    &
             (1.0_wp + slopeOfVorticityThickness * max(0.0_wp, grid%coordinates(i,1)))))
-          temperature = lowerFluidTemperature * (upperFluidVelocity - velocity) +            &
-               0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity) +  &
-               upperFluidTemperature * (velocity - lowerFluidVelocity) / velocityDifference
+       temperature = (lowerFluidTemperature * (upperFluidVelocity - velocity) +              &
+            upperFluidTemperature * (velocity - lowerFluidVelocity)) /                       &
+            (upperFluidVelocity - lowerFluidVelocity) +                                      &
+            0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity)
 
           state%targetState(i,1) = 1.0_wp / ((ratioOfSpecificHeats - 1.0_wp) * temperature)
           state%targetState(i,2) = state%targetState(i,1) * velocity
@@ -163,9 +164,10 @@ contains
 
        velocity = lowerFluidVelocity +                                                       &
             0.5_wp * velocityDifference * (1.0_wp + tanh(2.0_wp * grid%coordinates(i,2)))
-       temperature = lowerFluidTemperature * (upperFluidVelocity - velocity) +               &
-            0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity) +     &
-            upperFluidTemperature * (velocity - lowerFluidVelocity) / velocityDifference
+       temperature = (lowerFluidTemperature * (upperFluidVelocity - velocity) +              &
+            upperFluidTemperature * (velocity - lowerFluidVelocity)) /                       &
+            (upperFluidVelocity - lowerFluidVelocity) +                                      &
+            0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity)
 
        state%conservedVariables(i,1) =                                                       &
             1.0_wp / ((ratioOfSpecificHeats - 1.0_wp) * temperature)
