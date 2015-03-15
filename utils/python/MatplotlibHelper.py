@@ -40,18 +40,19 @@ def TargetJournal(width = None, height = None):
     matplotlib.rcParams['font.family'] = 'serif'
     matplotlib.rcParams['text.latex.preamble'] = r"\usepackage{amsmath}\usepackage{amsfonts}"
 
-def ApplyTecplotStyle():
-    plt.minorticks_on()
-    plt.tick_params(which = 'major', width = 0.75, length = 3)
-    plt.tick_params(which = 'minor', width = 0.5, length = 1.5)
+def ApplyTecplotStyle(ax):
+    ax.minorticks_on()
+    ax.tick_params(which = 'major', width = 0.75, length = 3)
+    ax.tick_params(which = 'minor', width = 0.5, length = 1.5)
+    return ax
 
-def ApplySpineStyle():
-    ax = plt.gca()
+def ApplySpineStyle(ax):
     ax.spines["right"].set_visible(False)
     ax.spines["top"].set_visible(False)
     ax.tick_params(which = 'both', axis = 'both', direction = 'out')
     ax.get_xaxis().tick_bottom()
     ax.get_yaxis().tick_left()
+    return ax
 
 def NiceLabels(t):
     return t, [(r"$%g$" % t_) for t_ in t]
