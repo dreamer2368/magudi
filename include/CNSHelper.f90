@@ -27,18 +27,17 @@ module CNSHelper
 
   interface
 
-     subroutine computeTransportVariables(temperature, powerLawExponent,                     &
-          ratioOfSpecificHeats, reynoldsNumber, prandtlNumber,                               &
-          dynamicViscosity, secondCoefficientOfViscosity,                                    &
-          thermalDiffusivity)
+     subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio, &
+          ratioOfSpecificHeats, reynoldsNumber, prandtlNumber, dynamicViscosity,             &
+          secondCoefficientOfViscosity, thermalDiffusivity)
 
        !> Computes the requested transport coefficient(s) including the dynamic viscosity,
        !> second coefficient of viscosity and the thermal conductivity assuming a power law
        !> dependence on temperature with exponent `powerLawExponent`.
 
        SCALAR_TYPE, intent(in) :: temperature(:)
-       real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats,              &
-            reynoldsNumber, prandtlNumber
+       real(SCALAR_KIND), intent(in) :: powerLawExponent, bulkViscosityRatio,                &
+            ratioOfSpecificHeats, reynoldsNumber, prandtlNumber
 
        SCALAR_TYPE, intent(out), optional :: dynamicViscosity(:),                            &
             secondCoefficientOfViscosity(:),                                                 &

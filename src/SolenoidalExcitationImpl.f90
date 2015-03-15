@@ -61,12 +61,12 @@ subroutine setupSolenoidalExcitation(this, comm, nModes, location, &
   this%phases = 2.0_real64 * pi * this%phases
 
   do i = 1, nModes
-     this%angularFrequencies(i) = &
-          2.0_real64 * pi * real(this%mostUnstableFrequency, real64) * &
-          (real(i, real64) + (this%angularFrequencies(i) - 0.5_real64)) / &
+     this%angularFrequencies(i) =                                                            &
+          2.0_real64 * pi * real(this%mostUnstableFrequency, real64) *                       &
+          (real(i, real64) + (this%angularFrequencies(i) - 0.5_real64)) /                    &
           (0.5_real64 * real(this%nModes, real64))
   end do
-  call MPI_Bcast(this%angularFrequencies, size(this%angularFrequencies), &
+  call MPI_Bcast(this%angularFrequencies, size(this%angularFrequencies),                     &
        MPI_REAL8, 0, comm, ierror)
   call MPI_Bcast(this%phases, size(this%phases), MPI_REAL8, 0, comm, ierror)
 

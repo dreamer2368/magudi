@@ -23,7 +23,8 @@ subroutine initializeSolverOptions(this, simulationFlags)
   if (simulationFlags%viscosityOn) then
      call getRequiredOption("Reynolds_number", this%reynoldsNumber)
      this%prandtlNumber = getOption("Prandtl_number", 0.72_wp)
-     this%powerLawExponent = getOption("viscosity_power_law_exponent", 0.0_wp)
+     this%powerLawExponent = getOption("viscosity_power_law_exponent", 0.666_wp)
+     this%bulkViscosityRatio = getOption("bulk_viscosity_ratio", 0.6_wp)
   end if
 
   if (simulationFlags%enableSolutionLimits) then

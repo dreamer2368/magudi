@@ -8,8 +8,8 @@ module SolverOptions_type
   type, public :: t_SolverOptions
 
      real(SCALAR_KIND) :: reynoldsNumber, prandtlNumber, ratioOfSpecificHeats,               &
-          powerLawExponent, dissipationAmount, densityRange(2), temperatureRange(2), cfl,    &
-          timeStepSize, convergenceTolerance(3)
+          powerLawExponent, bulkViscosityRatio, dissipationAmount, densityRange(2),          &
+          temperatureRange(2), cfl, timeStepSize, convergenceTolerance(3)
 
   end type t_SolverOptions
 

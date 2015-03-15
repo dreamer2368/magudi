@@ -71,16 +71,16 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
 
 end subroutine computeDependentVariables
 
-subroutine computeTransportVariables(temperature, powerLawExponent, ratioOfSpecificHeats,    &
-     reynoldsNumber, prandtlNumber, dynamicViscosity, secondCoefficientOfViscosity,          &
-     thermalDiffusivity)
+subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio,      &
+     ratioOfSpecificHeats, reynoldsNumber, prandtlNumber, dynamicViscosity,                  &
+     secondCoefficientOfViscosity, thermalDiffusivity)
 
   implicit none
 
   ! <<< Arguments >>>
   SCALAR_TYPE, intent(in) :: temperature(:)
-  real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats,                   &
-       reynoldsNumber, prandtlNumber
+  real(SCALAR_KIND), intent(in) :: powerLawExponent, bulkViscosityRatio,                     &
+       ratioOfSpecificHeats, reynoldsNumber, prandtlNumber
   SCALAR_TYPE, intent(out), optional :: dynamicViscosity(:),                                 &
        secondCoefficientOfViscosity(:),                                                      &
        thermalDiffusivity(:)
@@ -93,7 +93,7 @@ subroutine computeTransportVariables(temperature, powerLawExponent, ratioOfSpeci
      if (present(dynamicViscosity)) dynamicViscosity =                                       &
           1.0_wp / reynoldsNumber
      if (present(secondCoefficientOfViscosity)) secondCoefficientOfViscosity =               &
-          (0.6_wp - 2.0_wp / 3.0_wp) / reynoldsNumber
+          (bulkViscosityRatio - 2.0_wp / 3.0_wp) / reynoldsNumber
      if (present(thermalDiffusivity)) thermalDiffusivity =                                   &
           1.0_wp / (reynoldsNumber * prandtlNumber)
 
@@ -107,9 +107,10 @@ subroutine computeTransportVariables(temperature, powerLawExponent, ratioOfSpeci
      ! Second coefficient of viscosity.
      if (present(secondCoefficientOfViscosity)) then
         if (present(dynamicViscosity)) then
-           secondCoefficientOfViscosity = (0.6_wp - 2.0_wp / 3.0_wp) * dynamicViscosity
+           secondCoefficientOfViscosity =                                                    &
+                (bulkViscosityRatio - 2.0_wp / 3.0_wp) * dynamicViscosity
         else
-           secondCoefficientOfViscosity = (0.6_wp - 2.0_wp / 3.0_wp) *                       &
+           secondCoefficientOfViscosity = (bulkViscosityRatio - 2.0_wp / 3.0_wp) *           &
                 ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent /        &
                 reynoldsNumber
         end if
