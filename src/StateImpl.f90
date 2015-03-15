@@ -515,7 +515,8 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
      if (allocated(patches)) then
         do i = 1, size(patches)
            if (patches(i)%gridIndex /= grid%index .or.                                       &
-                patches(i)%patchType /= SAT_FAR_FIELD) cycle
+                (patches(i)%patchType /= SAT_FAR_FIELD .and.                                 &
+                patches(i)%patchType /= SAT_BLOCK_INTERFACE)) cycle
            call collectAtPatch(patches(i), fluxes2,                                          &
                 patches(i)%viscousFluxes) !... save viscous fluxes on patches for later use.
         end do
@@ -523,7 +524,9 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
 
-  ! Transform fluxes from Cartesian to contravariant form.
+  ! Transform fluxes from Cartesian to contravariant form:
+  ! `fluxes1` has the Cartesian form of total fluxes... upon return, `fluxes2` has the
+  ! contravariant form.
   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
 
   SAFE_DEALLOCATE(fluxes1) !... no longer needed.
@@ -537,34 +540,15 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   ! Add dissipation if required.
   if (simulationFlags%dissipationOn) then
      do i = 1, nDimensions
-        fluxes2(:,:,i) = this%conservedVariables
+        fluxes2(:,:,i) = this%conservedVariables !... dissipation based on high-order even
+                                                 !... derivatives of conserved variables.
         call applyOperator(grid%dissipation(i), fluxes2(:,:,i), grid%localSize)
      end do
      this%rightHandSide = this%rightHandSide +                                               &
-          solverOptions%dissipationAmount * sum(fluxes2, dim = 3)
+          solverOptions%dissipationAmount * sum(fluxes2, dim = 3) !... update right-hand side.
   end if
 
   SAFE_DEALLOCATE(fluxes2) !... no longer needed
-
-  ! SAT penalties:
-
-  if (allocated(patches)) then
-     do i = 1, size(patches)
-        if (patches(i)%gridIndex /= grid%index) cycle
-        select case (patches(i)%patchType)
-
-        case (SAT_FAR_FIELD) !... non-reflecting far-field.
-           call addFarFieldPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,     &
-                nDimensions, solverOptions%ratioOfSpecificHeats,                             &
-                this%conservedVariables, this%targetState)
-
-        case (SAT_SLIP_WALL) !... impenetrable wall (for inviscid flow).
-           call addWallPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,         &
-                nDimensions, solverOptions%ratioOfSpecificHeats, this%conservedVariables)
-
-        end select
-     end do
-  end if
 
 end subroutine computeRhsForward
 
@@ -602,6 +586,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
+  ! Partial derivatives of adjoint variables w.r.t. *computational* coordinates.
   allocate(gradientOfAdjointVariables(grid%nGridPoints, this%nUnknowns, nDimensions))
   do i = 1, nDimensions
      gradientOfAdjointVariables(:,:,i) = this%adjointVariables
@@ -695,7 +680,95 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
 
   SAFE_DEALLOCATE(gradientOfAdjointVariables)
 
-  ! SAT penalties:
+end subroutine computeRhsAdjoint
+
+subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solverOptions)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Grid_type
+  use Patch_type
+  use State_type
+  use Region_type, only : FORWARD
+  use SolverOptions_type
+  use PatchDescriptor_type
+  use SimulationFlags_type
+
+  ! <<< Internal modules >>>
+  use CNSHelper
+  use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use StencilOperator_mod, only : applyOperator
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_State) :: this
+  type(t_Grid) :: grid
+  type(t_Patch), allocatable :: patches(:)
+  real(SCALAR_KIND), intent(in) :: time
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+
+  ! <<< Local variables >>>
+  integer :: i, nDimensions, ierror
+
+  call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+
+  if (allocated(patches)) then
+     do i = 1, size(patches)
+        if (patches(i)%gridIndex /= grid%index) cycle
+        select case (patches(i)%patchType)
+
+        case (SAT_FAR_FIELD) !... non-reflecting far-field.
+           call addFarFieldPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,     &
+                nDimensions, solverOptions%ratioOfSpecificHeats,                             &
+                this%conservedVariables, this%targetState)
+
+        case (SAT_SLIP_WALL) !... impenetrable wall (for inviscid flow).
+           call addWallPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,         &
+                nDimensions, solverOptions%ratioOfSpecificHeats, this%conservedVariables)
+
+        end select
+     end do
+  end if
+
+end subroutine addPenaltiesForward
+
+subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Grid_type
+  use Patch_type
+  use State_type
+  use Region_type, only : ADJOINT
+  use SolverOptions_type
+  use PatchDescriptor_type
+  use SimulationFlags_type
+
+  ! <<< Internal modules >>>
+  use CNSHelper
+  use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use StencilOperator_mod, only : applyOperator
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_State) :: this
+  type(t_Grid) :: grid
+  type(t_Patch), allocatable :: patches(:)
+  real(SCALAR_KIND), intent(in) :: time
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+
+  ! <<< Local variables >>>
+  integer :: i, nDimensions, ierror
+
+  call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
   if (allocated(patches)) then
      do i = 1, size(patches)
@@ -716,7 +789,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
      end do
   end if
 
-end subroutine computeRhsAdjoint
+end subroutine addPenaltiesAdjoint
 
 subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverOptions)
 
@@ -758,11 +831,11 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
         if (patches(i)%gridIndex /= grid%index) cycle
         select case (patches(i)%patchType)
 
-        case (SPONGE)
+        case (SPONGE) !... damp towards target state in sponge zones.
            call addDamping(patches(i), FORWARD, this%rightHandSide, grid%iblank,             &
                 this%conservedVariables, this%targetState)
 
-        case (SOLENOIDAL_EXCITATION)
+        case (SOLENOIDAL_EXCITATION) !... momentum forcing to excite a 2D shear layer.
            call addSolenoidalExcitation(patches(i), grid%coordinates,                        &
                 grid%iblank, time, this%rightHandSide)
 
@@ -804,7 +877,7 @@ subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverO
         if (patches(i)%gridIndex /= grid%index) cycle
         select case (patches(i)%patchType)
 
-        case (SPONGE)
+        case (SPONGE) !... adjoint of damping source term added to forward RHS.
            call addDamping(patches(i), ADJOINT, this%rightHandSide, grid%iblank,             &
                 this%adjointVariables)
 

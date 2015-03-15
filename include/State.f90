@@ -210,6 +210,48 @@ module State_mod
 
   interface
 
+     subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solverOptions)
+
+       use Grid_type
+       use Patch_type
+       use State_type
+       use SolverOptions_type
+       use SimulationFlags_type
+
+       type(t_State) :: this
+       type(t_Grid) :: grid
+       type(t_Patch), allocatable :: patches(:)
+       real(SCALAR_KIND), intent(in) :: time
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+
+     end subroutine addPenaltiesForward
+
+  end interface
+
+  interface
+
+     subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
+
+       use Grid_type
+       use Patch_type
+       use State_type
+       use SolverOptions_type
+       use SimulationFlags_type
+
+       type(t_State) :: this
+       type(t_Grid) :: grid
+       type(t_Patch), allocatable :: patches(:)
+       real(SCALAR_KIND), intent(in) :: time
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+
+     end subroutine addPenaltiesAdjoint
+
+  end interface
+
+  interface
+
      subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverOptions)
 
        use Grid_type

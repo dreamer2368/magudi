@@ -915,6 +915,20 @@ subroutine computeRhs(this, mode, time)
              this%simulationFlags, this%solverOptions)
      end select
 
+  end do
+
+  do i = 1, size(this%states)
+
+     ! SAT penalties.
+     select case (mode)
+     case (FORWARD)
+        call addPenaltiesForward(this%states(i), this%grids(i), this%patches, time,          &
+             this%simulationFlags, this%solverOptions)
+     case (ADJOINT)
+        call addPenaltiesAdjoint(this%states(i), this%grids(i), this%patches, time,          &
+             this%simulationFlags, this%solverOptions)
+     end select
+
      ! Multiply by Jacobian and zero-out at hole points.
      do j = 1, this%states(i)%nUnknowns
         where (this%grids(i)%iblank == 0)
