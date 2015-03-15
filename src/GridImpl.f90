@@ -1359,134 +1359,137 @@ subroutine computeSpongeStrengths(this, patches)
           direction, this%offset(direction), globalArcLengthsAlongDirection)
      SAFE_DEALLOCATE(arcLength) !... no longer needed.
 
-     if (.not. allocated(patches)) cycle
-
      allocate(curveLengthIntegrand(this%globalSize(direction)))
 
-     do l = 1, size(patches)
-        if (patches(l)%gridIndex /= this%index .or.                                          &
-             patches(l)%patchType /= SPONGE .or.                                             &
-             abs(patches(l)%normalDirection) /= direction) cycle
-        select case (direction)
+     if (allocated(patches)) then
+        do l = 1, size(patches)
+           if (patches(l)%gridIndex /= this%index .or.                                       &
+                patches(l)%patchType /= SPONGE .or.                                          &
+                abs(patches(l)%normalDirection) /= direction) cycle
+           select case (direction)
 
-        case (1)
+           case (1)
 
-           iMin = patches(l)%extent(1)
-           iMax = patches(l)%extent(2)
+              iMin = patches(l)%extent(1)
+              iMax = patches(l)%extent(2)
 
-           do k = patches(l)%offset(3) + 1, patches(l)%offset(3) + patches(l)%patchSize(3)
+              do k = patches(l)%offset(3) + 1, patches(l)%offset(3) + patches(l)%patchSize(3)
+                 do j = patches(l)%offset(2) + 1,                                            &
+                      patches(l)%offset(2) + patches(l)%patchSize(2)
+
+                    do i = 1, this%globalSize(1)
+                       curveLengthIntegrand(i) =                                             &
+                            globalArcLengthsAlongDirection(i +                               &
+                            this%globalSize(1) * (j - 1 - this%offset(2) +                   &
+                            this%localSize(2) * (k - 1 - this%offset(3))), 1)
+                    end do
+
+                    if (patches(l)%normalDirection > 0) then
+                       do i = patches(l)%offset(1) + 1,                                      &
+                            patches(l)%offset(1) + patches(l)%patchSize(1)
+                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
+                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
+                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
+                               sum(curveLengthIntegrand(iMin : i - 1)) /                     &
+                               sum(curveLengthIntegrand(iMin : iMax - 1))
+                       end do
+                    else
+                       do i = patches(l)%offset(1) + 1,                                      &
+                            patches(l)%offset(1) + patches(l)%patchSize(1)
+                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
+                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
+                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
+                               sum(curveLengthIntegrand(i + 1 : iMax)) /                     &
+                               sum(curveLengthIntegrand(iMin + 1 : iMax))
+                       end do
+                    end if
+
+                 end do
+              end do
+
+           case (2)
+
+              jMin = patches(l)%extent(3)
+              jMax = patches(l)%extent(4)
+
+              do k = patches(l)%offset(3) + 1, patches(l)%offset(3) + patches(l)%patchSize(3)
+                 do i = patches(l)%offset(1) + 1,                                            &
+                      patches(l)%offset(1) + patches(l)%patchSize(1)
+
+                    do j = 1, this%globalSize(2)
+                       curveLengthIntegrand(j) =                                             &
+                            globalArcLengthsAlongDirection(i - this%offset(1) +              &
+                            this%localSize(1) * (j - 1 +                                     &
+                            this%globalSize(2) * (k - 1 - this%offset(3))), 1)
+                    end do
+
+                    if (patches(l)%normalDirection > 0) then
+                       do j = patches(l)%offset(2) + 1,                                      &
+                            patches(l)%offset(2) + patches(l)%patchSize(2)
+                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
+                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
+                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
+                               sum(curveLengthIntegrand(jMin : j - 1)) /                     &
+                               sum(curveLengthIntegrand(jMin : jMax - 1))
+                       end do
+                    else
+                       do j = patches(l)%offset(2) + 1,                                      &
+                            patches(l)%offset(2) + patches(l)%patchSize(2)
+                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
+                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
+                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
+                               sum(curveLengthIntegrand(j + 1 : jMax)) /                     &
+                               sum(curveLengthIntegrand(jMin + 1 : jMax))
+                       end do
+                    end if
+
+                 end do
+              end do
+
+           case (3)
+
+              kMin = patches(l)%extent(5)
+              kMax = patches(l)%extent(6)
+
               do j = patches(l)%offset(2) + 1, patches(l)%offset(2) + patches(l)%patchSize(2)
+                 do i = patches(l)%offset(1) + 1,                                            &
+                      patches(l)%offset(1) + patches(l)%patchSize(1)
 
-                 do i = 1, this%globalSize(1)
-                    curveLengthIntegrand(i) =                                                &
-                         globalArcLengthsAlongDirection(i +                                  &
-                         this%globalSize(1) * (j - 1 - this%offset(2) +                      &
-                         this%localSize(2) * (k - 1 - this%offset(3))), 1)
+                    do k = 1, this%globalSize(3)
+                       curveLengthIntegrand(k) =                                             &
+                            globalArcLengthsAlongDirection(i - this%offset(1) +              &
+                            this%localSize(1) * (j - 1 - this%offset(2) +                    &
+                            this%localSize(2) * (k - 1)), 1)
+                    end do
+
+                    if (patches(l)%normalDirection > 0) then
+                       do k = patches(l)%offset(3) + 1,                                      &
+                            patches(l)%offset(3) + patches(l)%patchSize(3)
+                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
+                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
+                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
+                               sum(curveLengthIntegrand(kMin : k - 1)) /                     &
+                               sum(curveLengthIntegrand(kMin : kMax - 1))
+                       end do
+                    else
+                       do k = patches(l)%offset(3) + 1,                                      &
+                            patches(l)%offset(3) + patches(l)%patchSize(3)
+                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
+                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
+                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
+                               sum(curveLengthIntegrand(k + 1 : kMax)) /                     &
+                               sum(curveLengthIntegrand(kMin + 1 : kMax))
+                       end do
+                    end if
+
                  end do
-
-                 if (patches(l)%normalDirection > 0) then
-                    do i = patches(l)%offset(1) + 1,                                         &
-                         patches(l)%offset(1) + patches(l)%patchSize(1)
-                       patches(l)%spongeStrength(i - patches(l)%offset(1) +                  &
-                            patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +        &
-                            patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =     &
-                            sum(curveLengthIntegrand(iMin : i - 1)) /                        &
-                            sum(curveLengthIntegrand(iMin : iMax - 1))
-                    end do
-                 else
-                    do i = patches(l)%offset(1) + 1,                                         &
-                         patches(l)%offset(1) + patches(l)%patchSize(1)
-                       patches(l)%spongeStrength(i - patches(l)%offset(1) +                  &
-                            patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +        &
-                            patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =     &
-                            sum(curveLengthIntegrand(i + 1 : iMax)) /                        &
-                            sum(curveLengthIntegrand(iMin + 1 : iMax))
-                    end do
-                 end if
-
               end do
-           end do
 
-        case (2)
-
-           jMin = patches(l)%extent(3)
-           jMax = patches(l)%extent(4)
-
-           do k = patches(l)%offset(3) + 1, patches(l)%offset(3) + patches(l)%patchSize(3)
-              do i = patches(l)%offset(1) + 1, patches(l)%offset(1) + patches(l)%patchSize(1)
-
-                 do j = 1, this%globalSize(2)
-                    curveLengthIntegrand(j) =                                                &
-                         globalArcLengthsAlongDirection(i - this%offset(1) +                 &
-                         this%localSize(1) * (j - 1 +                                        &
-                         this%globalSize(2) * (k - 1 - this%offset(3))), 1)
-                 end do
-
-                 if (patches(l)%normalDirection > 0) then
-                    do j = patches(l)%offset(2) + 1,                                         &
-                         patches(l)%offset(2) + patches(l)%patchSize(2)
-                       patches(l)%spongeStrength(i - patches(l)%offset(1) +                  &
-                            patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +        &
-                            patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =     &
-                            sum(curveLengthIntegrand(jMin : j - 1)) /                        &
-                            sum(curveLengthIntegrand(jMin : jMax - 1))
-                    end do
-                 else
-                    do j = patches(l)%offset(2) + 1,                                         &
-                         patches(l)%offset(2) + patches(l)%patchSize(2)
-                       patches(l)%spongeStrength(i - patches(l)%offset(1) +                  &
-                            patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +        &
-                            patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =     &
-                            sum(curveLengthIntegrand(j + 1 : jMax)) /                        &
-                            sum(curveLengthIntegrand(jMin + 1 : jMax))
-                    end do
-                 end if
-
-              end do
-           end do
-
-        case (3)
-
-           kMin = patches(l)%extent(5)
-           kMax = patches(l)%extent(6)
-
-           do j = patches(l)%offset(2) + 1, patches(l)%offset(2) + patches(l)%patchSize(2)
-              do i = patches(l)%offset(1) + 1, patches(l)%offset(1) + patches(l)%patchSize(1)
-
-                 do k = 1, this%globalSize(3)
-                    curveLengthIntegrand(k) =                                                &
-                         globalArcLengthsAlongDirection(i - this%offset(1) +                 &
-                         this%localSize(1) * (j - 1 - this%offset(2) +                       &
-                         this%localSize(2) * (k - 1)), 1)
-                 end do
-
-                 if (patches(l)%normalDirection > 0) then
-                    do k = patches(l)%offset(3) + 1,                                         &
-                         patches(l)%offset(3) + patches(l)%patchSize(3)
-                       patches(l)%spongeStrength(i - patches(l)%offset(1) +                  &
-                            patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +        &
-                            patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =     &
-                            sum(curveLengthIntegrand(kMin : k - 1)) /                        &
-                            sum(curveLengthIntegrand(kMin : kMax - 1))
-                    end do
-                 else
-                    do k = patches(l)%offset(3) + 1,                                         &
-                         patches(l)%offset(3) + patches(l)%patchSize(3)
-                       patches(l)%spongeStrength(i - patches(l)%offset(1) +                  &
-                            patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +        &
-                            patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =     &
-                            sum(curveLengthIntegrand(k + 1 : kMax)) /                        &
-                            sum(curveLengthIntegrand(kMin + 1 : kMax))
-                    end do
-                 end if
-
-              end do
-           end do
-
-        end select
-        patches(l)%spongeStrength = patches(l)%spongeAmount *                                &
-             (1.0_wp - patches(l)%spongeStrength) ** real(patches(l)%spongeExponent, wp)
-     end do
+           end select
+           patches(l)%spongeStrength = patches(l)%spongeAmount *                             &
+                (1.0_wp - patches(l)%spongeStrength) ** real(patches(l)%spongeExponent, wp)
+        end do
+     end if
 
      SAFE_DEALLOCATE(curveLengthIntegrand)
      SAFE_DEALLOCATE(globalArcLengthsAlongDirection)

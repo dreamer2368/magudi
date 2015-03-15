@@ -15,6 +15,8 @@ program shear_layer
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
 
+  !> Generates the initial condition and target state for a shear layer.
+
   implicit none
 
   integer :: i, ierror
@@ -34,7 +36,7 @@ program shear_layer
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
   if (command_argument_count() == 1) then
      call get_command_argument(1, filename)
-  else     
+  else
      call getRequiredOption("grid_file", filename)
   end if
   call plot3dDetectFormat(MPI_COMM_WORLD, filename,                                          &
@@ -62,7 +64,7 @@ program shear_layer
 
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
-     call shearLayerInitialCondition(region%states(i), region%grids(i),                      &       
+     call shearLayerInitialCondition(region%states(i), region%grids(i),                      &
           region%simulationFlags%useTargetState)
   end do
 
@@ -121,7 +123,7 @@ contains
          lowerFluidVelocity, upperFluidVelocity,                                             &
          lowerFluidTemperature, upperFluidTemperature,                                       &
          velocity, temperature
-         
+
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
 
@@ -135,7 +137,7 @@ contains
 
     lowerFluidVelocity = convectiveVelocity - 0.5_wp * velocityDifference
     upperFluidVelocity = convectiveVelocity + 0.5_wp * velocityDifference
-    
+
     lowerFluidTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
     upperFluidTemperature = lowerFluidTemperature * temperatureRatio
 
@@ -143,17 +145,17 @@ contains
 
        if (generateTargetState_) then
 
-          velocity = lowerFluidVelocity +                                                    &   
+          velocity = lowerFluidVelocity +                                                    &
                0.5_wp * velocityDifference * (1.0_wp + tanh(2.0_wp * grid%coordinates(i,2)))
-          temperature = lowerFluidTemperature * (upperFluidVelocity - velocity) +            &          
+          temperature = lowerFluidTemperature * (upperFluidVelocity - velocity) +            &
                0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity) +  &
                upperFluidTemperature * (velocity - lowerFluidVelocity) / velocityDifference
-               
+
           state%targetState(i,1) = 1.0_wp / ((ratioOfSpecificHeats - 1.0_wp) * temperature)
           state%targetState(i,2) = state%targetState(i,1) * velocity
           state%targetState(i,3:nDimensions+1) = 0.0_wp
-          state%targetState(i,nDimensions+2) =                                               &   
-               state%targetState(i,1) * temperature / ratioOfSpecificHeats +                 &   
+          state%targetState(i,nDimensions+2) =                                               &
+               state%targetState(i,1) * temperature / ratioOfSpecificHeats +                 &
                0.5_wp * state%targetState(i,1) * velocity ** 2
 
        end if
@@ -161,7 +163,7 @@ contains
        velocity = lowerFluidVelocity +                                                       &
             0.5_wp * velocityDifference * (1.0_wp + tanh(2.0_wp * grid%coordinates(i,2) /    &
             (1.0_wp + slopeOfVorticityThickness * max(0.0_wp, grid%coordinates(i,1)))))
-       temperature = lowerFluidTemperature * (upperFluidVelocity - velocity) +               &       
+       temperature = lowerFluidTemperature * (upperFluidVelocity - velocity) +               &
             0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity) +     &
             upperFluidTemperature * (velocity - lowerFluidVelocity) / velocityDifference
 
@@ -169,12 +171,12 @@ contains
             1.0_wp / ((ratioOfSpecificHeats - 1.0_wp) * temperature)
        state%conservedVariables(i,2) = state%conservedVariables(i,1) * velocity
        state%conservedVariables(i,3:nDimensions+1) = 0.0_wp
-       state%conservedVariables(i,nDimensions+2) =                                           &       
-            state%conservedVariables(i,1) * temperature / ratioOfSpecificHeats +             &       
+       state%conservedVariables(i,nDimensions+2) =                                           &
+            state%conservedVariables(i,1) * temperature / ratioOfSpecificHeats +             &
             0.5_wp * state%conservedVariables(i,1) * velocity ** 2
 
     end do
-    
+
   end subroutine shearLayerInitialCondition
 
 end program shear_layer
