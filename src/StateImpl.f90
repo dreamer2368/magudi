@@ -411,7 +411,7 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
 
      call computeTransportVariables(this%temperature(:,1), solverOptions%powerLawExponent,   &
           solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
-          solverOptions%reynoldsNumber, solverOptions%prandtlNumber,                         &
+          solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
           this%dynamicViscosity(:,1), this%secondCoefficientOfViscosity(:,1),                &
           this%thermalDiffusivity(:,1))
 
@@ -463,6 +463,7 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
              this%velocity, this%temperature(:,1), this%timeStepSize,                        &
              solverOptions%ratioOfSpecificHeats)
      end if
+     this%cfl = real(0.0, SCALAR_KIND)
 
   end if
 

@@ -952,6 +952,7 @@ subroutine computeGradientOfScalar_(this, f, gradF)
   use Grid_type
 
   ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
   ! <<< Arguments >>>
@@ -962,6 +963,8 @@ subroutine computeGradientOfScalar_(this, f, gradF)
   ! <<< Local variables >>>
   integer :: nDimensions, ierror
   SCALAR_TYPE, allocatable :: temp(:,:)
+
+  call startTiming("computeGradient")
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
 
@@ -1013,6 +1016,8 @@ subroutine computeGradientOfScalar_(this, f, gradF)
 
   SAFE_DEALLOCATE(temp)
 
+  call endTiming("computeGradient")
+
 end subroutine computeGradientOfScalar_
 
 subroutine computeGradientOfVector_(this, f, gradF)
@@ -1024,6 +1029,7 @@ subroutine computeGradientOfVector_(this, f, gradF)
   use Grid_type
 
   ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
   ! <<< Arguments >>>
@@ -1034,6 +1040,8 @@ subroutine computeGradientOfVector_(this, f, gradF)
   ! <<< Local variables >>>
   integer :: nDimensions, ierror
   SCALAR_TYPE, allocatable :: temp(:,:)
+
+  call startTiming("computeGradient")
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
 
@@ -1111,6 +1119,8 @@ subroutine computeGradientOfVector_(this, f, gradF)
   end select
 
   SAFE_DEALLOCATE(temp)
+
+  call endTiming("computeGradient")
 
 end subroutine computeGradientOfVector_
 

@@ -15,7 +15,7 @@ program main
   use MPIHelper, only : gracefulExit
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
-  use MPITimingsHelper, only : reportTimings, cleanupTimers
+  use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
   implicit none
 
@@ -29,6 +29,7 @@ program main
 
   ! Initialize MPI.
   call MPI_Init(ierror)
+  call startTiming("total")
 
   ! Parse options from the input file.
   filename = PROJECT_NAME // ".inp"
@@ -116,6 +117,7 @@ program main
           getOption("save_interval", 20), outputPrefix)
   end if
 
+  call endTiming("total")
   call reportTimings()
   call cleanupTimers()
 

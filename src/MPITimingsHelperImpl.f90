@@ -235,14 +235,20 @@ subroutine startTiming(name)
            if (.not. associated(current%left)) then
               allocate(current%left)
               current%left%name = trim(name)
+              current%left%startTimeOfLastCall = MPI_Wtime()
+              exit
+           else
+              current => current%left
            end if
-           current => current%left
         else
            if (.not. associated(current%right)) then
               allocate(current%right)
               current%right%name = trim(name)
+              current%right%startTimeOfLastCall = MPI_Wtime()
+              exit
+           else
+              current => current%right
            end if
-           current => current%right
         end if
      end do
 
@@ -271,15 +277,13 @@ subroutine endTiming(name)
 
   do while(associated(current))
      if (trim(current%name) == trim(name)) then
-        current%numCalls = current%numCalls + 1.0_real64
         current%accumulatedTime = current%accumulatedTime +                                  &
              MPI_Wtime() - current%startTimeOfLastCall
+        current%numCalls = current%numCalls + 1.0_real64
         exit
      else if (trim(name) < trim(current%name)) then
-        if (.not. associated(current%left)) allocate(current%left)
         current => current%left
      else
-        if (.not. associated(current%right)) allocate(current%right)
         current => current%right
      end if
   end do

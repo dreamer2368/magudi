@@ -40,15 +40,15 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
   if (present(pressure)) then
      if (present(velocity)) then
         pressure = (ratioOfSpecificHeats_ - 1.0_wp) * (conservedVariables(:,nDimensions+2) - &
-             0.5_wp * sum(velocity ** 2, dim = 2)) * conservedVariables(:,1)
+             0.5_wp * conservedVariables(:,1) * sum(velocity ** 2, dim = 2))
      else if (present(specificVolume)) then
         pressure = (ratioOfSpecificHeats_ - 1.0_wp) * (conservedVariables(:,nDimensions+2) - &
-             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2)) *            &
-             specificVolume
+             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) *             &
+             specificVolume)
      else
         pressure = (ratioOfSpecificHeats_ - 1.0_wp) * (conservedVariables(:,nDimensions+2) - &
-             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2)) /            &
-             conservedVariables(:,1)
+             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) /             &
+             conservedVariables(:,1))
      end if
   end if
 
@@ -72,7 +72,7 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
 end subroutine computeDependentVariables
 
 subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio,      &
-     ratioOfSpecificHeats, reynoldsNumber, prandtlNumber, dynamicViscosity,                  &
+     ratioOfSpecificHeats, reynoldsNumberInverse, prandtlNumberInverse, dynamicViscosity,    &
      secondCoefficientOfViscosity, thermalDiffusivity)
 
   implicit none
@@ -80,7 +80,7 @@ subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosit
   ! <<< Arguments >>>
   SCALAR_TYPE, intent(in) :: temperature(:)
   real(SCALAR_KIND), intent(in) :: powerLawExponent, bulkViscosityRatio,                     &
-       ratioOfSpecificHeats, reynoldsNumber, prandtlNumber
+       ratioOfSpecificHeats, reynoldsNumberInverse, prandtlNumberInverse
   SCALAR_TYPE, intent(out), optional :: dynamicViscosity(:),                                 &
        secondCoefficientOfViscosity(:),                                                      &
        thermalDiffusivity(:)
@@ -90,19 +90,18 @@ subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosit
 
   if (abs(powerLawExponent) <= 0.0_wp) then !... handle powerLawExponent = 0 separately.
 
-     if (present(dynamicViscosity)) dynamicViscosity =                                       &
-          1.0_wp / reynoldsNumber
+     if (present(dynamicViscosity)) dynamicViscosity = reynoldsNumberInverse
      if (present(secondCoefficientOfViscosity)) secondCoefficientOfViscosity =               &
-          (bulkViscosityRatio - 2.0_wp / 3.0_wp) / reynoldsNumber
+          (bulkViscosityRatio - 2.0_wp / 3.0_wp) * reynoldsNumberInverse
      if (present(thermalDiffusivity)) thermalDiffusivity =                                   &
-          1.0_wp / (reynoldsNumber * prandtlNumber)
+          reynoldsNumberInverse * prandtlNumberInverse
 
   else
 
      ! Dynamic viscosity.
      if (present(dynamicViscosity)) dynamicViscosity =                                       &
           ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent /              &
-          reynoldsNumber
+          reynoldsNumberInverse
 
      ! Second coefficient of viscosity.
      if (present(secondCoefficientOfViscosity)) then
@@ -111,19 +110,19 @@ subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosit
                 (bulkViscosityRatio - 2.0_wp / 3.0_wp) * dynamicViscosity
         else
            secondCoefficientOfViscosity = (bulkViscosityRatio - 2.0_wp / 3.0_wp) *           &
-                ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent /        &
-                reynoldsNumber
+                ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent *        &
+                reynoldsNumberInverse
         end if
      end if
 
      ! Thermal diffusivity.
      if (present(thermalDiffusivity)) then
         if (present(dynamicViscosity)) then
-           thermalDiffusivity = dynamicViscosity / prandtlNumber
+           thermalDiffusivity = dynamicViscosity * prandtlNumberInverse
         else
            thermalDiffusivity =                                                              &
-                ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent /        &
-                (reynoldsNumber * prandtlNumber)
+                ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent *        &
+                reynoldsNumberInverse * prandtlNumberInverse
         end if
      end if
 
