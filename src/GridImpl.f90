@@ -1342,7 +1342,6 @@ subroutine computeSpongeStrengths(this, patches)
           patches(:)%patchType == SPONGE .and. abs(patches(:)%normalDirection) == direction)
      call MPI_Allreduce(MPI_IN_PLACE, spongesExistAlongDirection, 1, MPI_LOGICAL,            &
           MPI_LOR, this%comm, ierror) !... aggregate across grid-level processes.
-     call MPI_Comm_rank(this%comm, i, ierror)
      if (.not. spongesExistAlongDirection) cycle
 
      ! Compute local arc length.

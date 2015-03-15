@@ -141,7 +141,7 @@ contains
     call MPI_Comm_size(this%comm, nProcs, ierror)
 
     write(message, "(2(A,I0.0),A)") "Distributing ", size(this%globalGridSizes, 2),          &
-         " grid(s) across ", nProcs, " process(es)... "
+         " grid(s) across ", nProcs, " process(es)..."
     call writeAndFlush(this%comm, output_unit, message)
 
     ! Find the number of processes to be assigned to each grid: `numProcsInGrid(i)` is the
@@ -712,7 +712,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   integer(kind = MPI_OFFSET_KIND) :: offset
   real(SCALAR_KIND) :: auxiliaryData(4)
 
-  write(message, '(3A)') "Reading '", trim(filename), "'... "
+  write(message, '(3A)') "Reading '", trim(filename), "'..."
   call writeAndFlush(this%comm, output_unit, message, advance = 'no')
 
   do i = 1, size(this%gridCommunicators)
@@ -795,7 +795,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   integer :: i, j, fileType, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
 
-  write(message, '(3A)') "Writing '", trim(filename), "'... "
+  write(message, '(3A)') "Writing '", trim(filename), "'..."
   call writeAndFlush(this%comm, output_unit, message, advance = 'no')
 
   select case(quantityOfInterest)

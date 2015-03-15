@@ -232,7 +232,7 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
 
      call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
-     if (.not. allocated(this%velocityGradient) .and. &
+     if (.not. allocated(this%velocityGradient) .and.                                        &
           .not. allocated(this%stressTensor)) then
         allocate(f(grid%nGridPoints, max(2, nDimensions ** 2)))
      else
@@ -513,9 +513,9 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
           this%stressTensor, this%heatFlux, fluxes2)
      if (allocated(patches)) then
         do i = 1, size(patches)
-           if (patches(i)%gridIndex /= grid%index .or. &
+           if (patches(i)%gridIndex /= grid%index .or.                                       &
                 patches(i)%patchType /= SAT_FAR_FIELD) cycle
-           call collectAtPatch(patches(i), fluxes2, &
+           call collectAtPatch(patches(i), fluxes2,                                          &
                 patches(i)%viscousFluxes) !... save viscous fluxes on patches for later use.
         end do
      end if
@@ -762,7 +762,7 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
                 this%conservedVariables, this%targetState)
 
         case (SOLENOIDAL_EXCITATION)
-           call addSolenoidalExcitation(patches(i), grid%coordinates, &
+           call addSolenoidalExcitation(patches(i), grid%coordinates,                        &
                 grid%iblank, time, this%rightHandSide)
 
         end select
@@ -848,48 +848,62 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
+  logical :: flag
   real(wp), allocatable :: targetViscousFluxes(:,:,:)
-
-  if (.not. allocated(patches)) return
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
-  do i = 1, size(patches)
-     if (patches(i)%gridIndex /= grid%index) cycle
+  if (simulationFlags%viscosityOn) then
 
-     if (simulationFlags%viscosityOn) then
+     flag = .false.
+     if (allocated(patches)) flag = any(patches(:)%gridIndex == grid%index .and.             &
+          patches(:)%patchType == SAT_FAR_FIELD)
+     call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
+
+     if (flag) then
+        allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
+        call updateState(this, grid, 0.0_wp, simulationFlags,                                &
+             solverOptions, this%targetState)
+        call computeCartesianViscousFluxes(nDimensions, this%velocity,                       &
+             this%stressTensor, this%heatFlux, targetViscousFluxes)
+     end if
+
+  end if
+
+  if (allocated(patches)) then
+     do i = 1, size(patches)
+        if (patches(i)%gridIndex /= grid%index) cycle
+
+        if (simulationFlags%viscosityOn) then
+
+           select case (patches(i)%patchType)
+
+           case (SAT_FAR_FIELD)
+              call collectAtPatch(patches(i), targetViscousFluxes,                           &
+                   patches(i)%targetViscousFluxes)
+
+           end select
+
+        end if
 
         select case (patches(i)%patchType)
 
-        case (SAT_FAR_FIELD)
-           allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
-           call updateState(this, grid, 0.0_wp, simulationFlags,                             &
-                solverOptions, this%targetState)
-           call computeCartesianViscousFluxes(nDimensions, this%velocity,                    &
-                this%stressTensor, this%heatFlux, targetViscousFluxes)
-           call collectAtPatch(patches(i), targetViscousFluxes,                              &
-                patches(i)%targetViscousFluxes)
-           SAFE_DEALLOCATE(targetViscousFluxes)
+        case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL,                             &
+             SAT_ADIABATIC_WALL, SAT_BLOCK_INTERFACE)
+           call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
+           patches(i)%inviscidPenaltyAmount = patches(i)%inviscidPenaltyAmount /             &
+                grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
+           patches(i)%viscousPenaltyAmount = patches(i)%viscousPenaltyAmount /               &
+                grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
+
+        case (SOLENOIDAL_EXCITATION)
+           call updateSolenoidalExcitationStrength(patches(i), grid%coordinates, grid%iblank)
 
         end select
 
-     end if
+     end do
+  end if
 
-     select case (patches(i)%patchType)
-
-     case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, &
-          SAT_ADIABATIC_WALL, SAT_BLOCK_INTERFACE)
-        call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
-        patches(i)%inviscidPenaltyAmount = patches(i)%inviscidPenaltyAmount / &
-             grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
-        patches(i)%viscousPenaltyAmount = patches(i)%viscousPenaltyAmount / &
-             grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
-
-     case (SOLENOIDAL_EXCITATION)
-        call updateSolenoidalExcitationStrength(patches(i), grid%coordinates, grid%iblank)
-
-     end select
-
-  end do
+  SAFE_DEALLOCATE(targetViscousFluxes)
 
 end subroutine updatePatches

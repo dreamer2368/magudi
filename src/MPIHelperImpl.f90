@@ -17,10 +17,6 @@ subroutine writeAndFlush(comm, unit, str, advance)
 
   call MPI_Comm_rank(comm, procRank, ierror)
 
-  ! Wait till all processes have flushed `unit`.
-  flush(unit)
-  call MPI_Barrier(comm, ierror)
-
   if (procRank == 0) then
 
      ! Write `str` to `unit` from master process.
