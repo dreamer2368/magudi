@@ -60,7 +60,7 @@ subroutine plot3dDetectFormat(comm, filename, success, descriptor,              
   use PLOT3DDescriptor_type
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : errorMessage
+  use PLOT3DHelper, only : plot3dErrorMessage
 
   implicit none
 
@@ -124,18 +124,19 @@ subroutine plot3dDetectFormat(comm, filename, success, descriptor,              
   end if
   call MPI_Bcast(errorCode, 1, MPI_INT, 0, comm, ierror)
 
-  ! If an error occured, update the static `errorMessage` variable and return.
+  ! If an error occured, update the static `plot3dErrorMessage` variable and return.
   if (errorCode /= 0) then
      select case (errorCode)
      case (-1)
-        write(errorMessage, '(2A)') trim(filename), ": File not found or permission denied."
+        write(plot3dErrorMessage, '(2A)') trim(filename),                                    &
+             ": File not found or permission denied."
      case (-2)
-        write(errorMessage, '(2A)') trim(filename), ": Unexpected end of file."
+        write(plot3dErrorMessage, '(2A)') trim(filename), ": Unexpected end of file."
      case (-3)
-        write(errorMessage, '(2A)') trim(filename),                                          &
+        write(plot3dErrorMessage, '(2A)') trim(filename),                                    &
              ": Not a valid multi-block whole-format PLOT3D file."
      case (-4)
-        write(errorMessage, '(2A)') trim(filename), ": Inconsistent record markers."
+        write(plot3dErrorMessage, '(2A)') trim(filename), ": Inconsistent record markers."
      end select
      success = .false.
      return
@@ -147,7 +148,7 @@ subroutine plot3dDetectFormat(comm, filename, success, descriptor,              
 
 #ifdef DEBUG
   if (nDimensions < 0 .or. nDimensions > 3) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": detect_format returned an invalid number of dimensions: ",                      &
           nDimensions, "!"
      success = .false.
@@ -157,7 +158,7 @@ subroutine plot3dDetectFormat(comm, filename, success, descriptor,              
 
 #ifdef DEBUG
   if (nGrids < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": detect_format returned an invalid number of grids: ",                           &
           nGrids, "!"
      success = .false.
@@ -186,7 +187,7 @@ subroutine plot3dDetectFormat(comm, filename, success, descriptor,              
         descriptor%fileType = PLOT3D_FUNCTION_FILE
      case default
 #ifdef DEBUG
-        write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                &
+        write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,          &
              ": detect_format returned an invalid file type: ",                              &
              file_type, "!"
         success = .false.
@@ -199,7 +200,7 @@ subroutine plot3dDetectFormat(comm, filename, success, descriptor,              
         call MPI_Bcast(nScalars, 1, MPI_INT, 0, comm, ierror)
 #ifdef DEBUG
         if (nScalars < 0) then
-           write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
+           write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,       &
                 ": detect_format returned an invalid number of scalars: ",                   &
                 nScalars, "!"
            success = .false.
@@ -249,7 +250,7 @@ function plot3dGetOffsetFromGridSizes_(fileType, globalGridSizes, gridIndex,    
   use PLOT3DDescriptor_type
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : errorMessage
+  use PLOT3DHelper, only : plot3dErrorMessage
 
   implicit none
 
@@ -271,7 +272,7 @@ function plot3dGetOffsetFromGridSizes_(fileType, globalGridSizes, gridIndex,    
   if (present(nScalars)) nScalars_ = nScalars
 #ifdef DEBUG
   if (nScalars_ < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value for argument nScalars: ", nScalars_, "!"
      success = .false.
      return
@@ -281,7 +282,7 @@ function plot3dGetOffsetFromGridSizes_(fileType, globalGridSizes, gridIndex,    
 #ifdef DEBUG
   if (size(globalGridSizes, 2) <= 0 .or. size(globalGridSizes, 1) <= 0 .or.                  &
        size(globalGridSizes, 1) > 3) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument globalGridSizes: (",                            &
           size(globalGridSizes, 1), ", ",                                                    &
           size(globalGridSizes, 2), ")!"
@@ -289,7 +290,7 @@ function plot3dGetOffsetFromGridSizes_(fileType, globalGridSizes, gridIndex,    
      return
   end if
   if (any(globalGridSizes <= 0)) then
-     write(errorMessage, '(3A,I0.0,A)') "In ", __FILE__, ":", __LINE__,                      &
+     write(plot3dErrorMessage, '(3A,I0.0,A)') "In ", __FILE__, ":", __LINE__,                &
           ": Invalid array argument globalGridSizes (some values were non-negative)!"
      success = .false.
      return
@@ -298,7 +299,7 @@ function plot3dGetOffsetFromGridSizes_(fileType, globalGridSizes, gridIndex,    
 
 #ifdef DEBUG
   if (gridIndex < 0 .or. gridIndex > size(globalGridSizes, 2)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value for argument gridIndex: ", gridIndex,                             &
           ". Expected a positive integer <= ",                                               &
           size(globalGridSizes, 2), "!"
@@ -341,7 +342,7 @@ function plot3dGetOffsetFromGridSizes_(fileType, globalGridSizes, gridIndex,    
 
   case default
 #ifdef DEBUG
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value for argument fileType: ", fileType, "!"
      success = .false.
      return
@@ -363,7 +364,7 @@ function plot3dGetOffsetFromFile_(comm, filename, gridIndex, success) result(off
   use PLOT3DDescriptor_type
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : plot3dDetectFormat, plot3dGetOffset, errorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat, plot3dGetOffset, plot3dErrorMessage
 
   ! <<< Arguments >>>
   integer, intent(in) :: comm
@@ -388,7 +389,7 @@ function plot3dGetOffsetFromFile_(comm, filename, gridIndex, success) result(off
 
 #ifdef DEBUG
   if (gridIndex < 0 .or. gridIndex > size(globalGridSizes, 2)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value for argument gridIndex: ", gridIndex,                             &
           ". Expected a positive integer <= ",                                               &
           size(globalGridSizes, 2), "!"
@@ -416,7 +417,7 @@ subroutine plot3dWriteSkeleton(comm, filename, fileType, globalGridSizes, succes
   use PLOT3DDescriptor_type
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : errorMessage
+  use PLOT3DHelper, only : plot3dErrorMessage
 
   implicit none
 
@@ -450,9 +451,9 @@ subroutine plot3dWriteSkeleton(comm, filename, fileType, globalGridSizes, succes
 
 #ifdef DEBUG
   if (fileType == PLOT3D_FUNCTION_FILE .and. .not. present(nScalars)) then
-     write(errorMessage, '(3A,I0.0,A)') "In ", __FILE__, ":", __LINE__,                      &
-          ": Unable to write PLOT3D function file skeleton: required &
-          &argument nScalars not specified!"
+     write(plot3dErrorMessage, '(3A,I0.0,A)') "In ", __FILE__, ":", __LINE__,                &
+          ": Unable to write PLOT3D function file skeleton: required                         &
+          argument nScalars not specified!"                                                  &
      success = .false.
      return
   end if
@@ -461,7 +462,7 @@ subroutine plot3dWriteSkeleton(comm, filename, fileType, globalGridSizes, succes
 #ifdef DEBUG
   if (fileType == PLOT3D_FUNCTION_FILE .and. present(nScalars)) then
      if (nScalars <= 0) then
-        write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                &
+        write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,          &
              ": Invalid value for argument nScalars: ", nScalars, "!"
         success = .false.
         return
@@ -472,7 +473,7 @@ subroutine plot3dWriteSkeleton(comm, filename, fileType, globalGridSizes, succes
 #ifdef DEBUG
   if (size(globalGridSizes, 2) <= 0 .or. size(globalGridSizes, 1) <= 0 .or.                  &
        size(globalGridSizes, 1) > 3) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument globalGridSizes: (",                            &
           size(globalGridSizes, 1), ", ",                                                    &
           size(globalGridSizes, 2), ")!"
@@ -480,7 +481,7 @@ subroutine plot3dWriteSkeleton(comm, filename, fileType, globalGridSizes, succes
      return
   end if
   if (any(globalGridSizes <= 0)) then
-     write(errorMessage, '(3A,I0.0,A)') "In ", __FILE__, ":", __LINE__,                      &
+     write(plot3dErrorMessage, '(3A,I0.0,A)') "In ", __FILE__, ":", __LINE__,                &
           ": Invalid array argument globalGridSizes (some values were non-negative)!"
      success = .false.
      return
@@ -496,7 +497,7 @@ subroutine plot3dWriteSkeleton(comm, filename, fileType, globalGridSizes, succes
      fileType_ = 2
   case default
 #ifdef DEBUG
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value for argument fileType: ", fileType, "!"
      success = .false.
      return
@@ -535,9 +536,9 @@ subroutine plot3dWriteSkeleton(comm, filename, fileType, globalGridSizes, succes
   if (errorCode /= 0) then
      select case (errorCode)
      case (-1)
-        write(errorMessage, '(2A)') trim(filename), ": Could not open file for writing."
+        write(plot3dErrorMessage, '(2A)') trim(filename), ": Could not open file for writing."
      case default
-        write(errorMessage, '(2A)') trim(filename), ": Failed to write to file."
+        write(plot3dErrorMessage, '(2A)') trim(filename), ": Failed to write to file."
      end select
      success = .false.
      return
@@ -557,7 +558,7 @@ subroutine plot3dWriteSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSub
   use MPI
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : errorMessage
+  use PLOT3DHelper, only : plot3dErrorMessage
 
   implicit none
 
@@ -577,7 +578,7 @@ subroutine plot3dWriteSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSub
 
 #ifdef DEBUG
   if (offset < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument offset: ", offset,                                    &
           ". Expected a non-negative value!"
      success = .false.
@@ -588,7 +589,7 @@ subroutine plot3dWriteSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSub
 #ifdef DEBUG
   if (size(coordinates, 1) <= 0 .or. size(coordinates, 2) <= 0 .or.                          &
        size(coordinates, 2) > 3) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument coordinates: (",                                &
           size(coordinates, 1), ", ",                                                        &
           size(coordinates, 2), ")!"
@@ -599,7 +600,7 @@ subroutine plot3dWriteSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSub
 
 #ifdef DEBUG
   if (size(iblank) /= size(coordinates, 1)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument iblank: (", size(iblank),                       &
           "). Expected (", size(coordinates, 1), ")!"
      success = .false.
@@ -609,7 +610,7 @@ subroutine plot3dWriteSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSub
 
 #ifdef DEBUG
   if (any(globalGridSize <= 0)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument globalGridSize: (/ ",                                 &
           globalGridSize(1), ", ", globalGridSize(2), ", ",                                  &
           globalGridSize(3), " /)!"
@@ -655,7 +656,7 @@ subroutine plot3dWriteSingleAuxiliarySolutionData(comm, filename,               
   use MPI
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : errorMessage
+  use PLOT3DHelper, only : plot3dErrorMessage
 
   implicit none
 
@@ -671,7 +672,7 @@ subroutine plot3dWriteSingleAuxiliarySolutionData(comm, filename,               
 
 #ifdef DEBUG
   if (offset < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument offset: ", offset,                                    &
           ". Expected a non-negative value!"
      success = .false.
@@ -702,7 +703,7 @@ subroutine plot3dWriteSingleSolution(comm, filename, offset, mpiDerivedTypeScala
   use MPI
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : errorMessage
+  use PLOT3DHelper, only : plot3dErrorMessage
 
   implicit none
 
@@ -719,7 +720,7 @@ subroutine plot3dWriteSingleSolution(comm, filename, offset, mpiDerivedTypeScala
 
 #ifdef DEBUG
   if (offset < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument offset: ", offset,                                    &
           ". Expected a non-negative value!"
      success = .false.
@@ -730,7 +731,7 @@ subroutine plot3dWriteSingleSolution(comm, filename, offset, mpiDerivedTypeScala
 #ifdef DEBUG
   if (size(solutionVector, 1) <= 0 .or. size(solutionVector, 2) <= 3 .or.                    &
        size(solutionVector, 2) > 5) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument solutionVector: (",                             &
           size(solutionVector, 1), ", ",                                                     &
           size(solutionVector, 2), ")!"
@@ -741,7 +742,7 @@ subroutine plot3dWriteSingleSolution(comm, filename, offset, mpiDerivedTypeScala
 
 #ifdef DEBUG
   if (any(globalGridSize <= 0)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument globalGridSize: (/ ",                                 &
           globalGridSize(1), ", ", globalGridSize(2), ", ",                                  &
           globalGridSize(3), " /)!"
@@ -789,7 +790,7 @@ subroutine plot3dWriteSingleFunction(comm, filename, offset, mpiDerivedTypeScala
   use MPI
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : errorMessage
+  use PLOT3DHelper, only : plot3dErrorMessage
 
   implicit none
 
@@ -806,7 +807,7 @@ subroutine plot3dWriteSingleFunction(comm, filename, offset, mpiDerivedTypeScala
 
 #ifdef DEBUG
   if (offset < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument offset: ", offset,                                    &
           ". Expected a non-negative value!"
      success = .false.
@@ -816,7 +817,7 @@ subroutine plot3dWriteSingleFunction(comm, filename, offset, mpiDerivedTypeScala
 
 #ifdef DEBUG
   if (size(functionVector, 1) <= 0 .or. size(functionVector, 2) <= 0) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument functionVector: (",                             &
           size(functionVector, 1), ", ",                                                     &
           size(functionVector, 2), ")!"
@@ -827,7 +828,7 @@ subroutine plot3dWriteSingleFunction(comm, filename, offset, mpiDerivedTypeScala
 
 #ifdef DEBUG
   if (any(globalGridSize <= 0)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument globalGridSize: (/ ",                                 &
           globalGridSize(1), ", ", globalGridSize(2), ", ",                                  &
           globalGridSize(3), " /)!"
@@ -869,7 +870,7 @@ subroutine plot3dReadSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSuba
   use PLOT3DHelperImpl, only : swapEndianness
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none
 
@@ -890,7 +891,7 @@ subroutine plot3dReadSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSuba
 
 #ifdef DEBUG
   if (offset < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument offset: ", offset,                                    &
           ". Expected a non-negative value!"
      success = .false.
@@ -901,7 +902,7 @@ subroutine plot3dReadSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSuba
 #ifdef DEBUG
   if (size(coordinates, 1) <= 0 .or. size(coordinates, 2) <= 0 .or.                          &
        size(coordinates, 2) > 3) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument coordinates: (",                                &
           size(coordinates, 1), ", ",                                                        &
           size(coordinates, 2), ")!"
@@ -912,7 +913,7 @@ subroutine plot3dReadSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSuba
 
 #ifdef DEBUG
   if (size(iblank) /= size(coordinates, 1)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument iblank: (", size(iblank),                       &
           "). Expected (", size(coordinates, 1), ")!"
      success = .false.
@@ -922,7 +923,7 @@ subroutine plot3dReadSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSuba
 
 #ifdef DEBUG
   if (any(globalGridSize <= 0)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument globalGridSize: (/ ",                                 &
           globalGridSize(1), ", ", globalGridSize(2), ", ",                                  &
           globalGridSize(3), " /)!"
@@ -936,7 +937,7 @@ subroutine plot3dReadSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSuba
   if (.not. success) return
 
   if (descriptor%fileType /= PLOT3D_GRID_FILE) then
-     write(errorMessage, '(3A)') "'", trim(filename), "': Not a valid PLOT3D grid file."
+     write(plot3dErrorMessage, '(3A)') "'", trim(filename), "': Not a valid PLOT3D grid file."
      success = .false.
      return
   end if
@@ -999,7 +1000,7 @@ subroutine plot3dReadSingleAuxiliarySolutionData(comm, filename,                
   use PLOT3DHelperImpl, only : swapEndianness
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none
 
@@ -1016,7 +1017,7 @@ subroutine plot3dReadSingleAuxiliarySolutionData(comm, filename,                
 
 #ifdef DEBUG
   if (offset < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument offset: ", offset,                                    &
           ". Expected a non-negative value!"
      success = .false.
@@ -1029,7 +1030,8 @@ subroutine plot3dReadSingleAuxiliarySolutionData(comm, filename,                
   if (.not. success) return
 
   if (descriptor%fileType /= PLOT3D_SOLUTION_FILE) then
-     write(errorMessage, '(3A)') "'", trim(filename), "': Not a valid PLOT3D solution file."
+     write(plot3dErrorMessage, '(3A)') "'", trim(filename),                                  &
+          "': Not a valid PLOT3D solution file."
      success = .false.
      return
   end if
@@ -1068,7 +1070,7 @@ subroutine plot3dReadSingleSolution(comm, filename, offset, mpiDerivedTypeScalar
   use PLOT3DHelperImpl, only : swapEndianness
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none
 
@@ -1086,7 +1088,7 @@ subroutine plot3dReadSingleSolution(comm, filename, offset, mpiDerivedTypeScalar
 
 #ifdef DEBUG
   if (offset < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument offset: ", offset,                                    &
           ". Expected a non-negative value!"
      success = .false.
@@ -1097,7 +1099,7 @@ subroutine plot3dReadSingleSolution(comm, filename, offset, mpiDerivedTypeScalar
 #ifdef DEBUG
   if (size(solutionVector, 1) <= 0 .or. size(solutionVector, 2) <= 3 .or.                    &
        size(solutionVector, 2) > 5) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument solutionVector: (",                             &
           size(solutionVector, 1), ", ",                                                     &
           size(solutionVector, 2), ")!"
@@ -1108,7 +1110,7 @@ subroutine plot3dReadSingleSolution(comm, filename, offset, mpiDerivedTypeScalar
 
 #ifdef DEBUG
   if (any(globalGridSize <= 0)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument globalGridSize: (/ ",                                 &
           globalGridSize(1), ", ", globalGridSize(2), ", ",                                  &
           globalGridSize(3), " /)!"
@@ -1122,7 +1124,8 @@ subroutine plot3dReadSingleSolution(comm, filename, offset, mpiDerivedTypeScalar
   if (.not. success) return
 
   if (descriptor%fileType /= PLOT3D_SOLUTION_FILE) then
-     write(errorMessage, '(3A)') "'", trim(filename), "': Not a valid PLOT3D solution file."
+     write(plot3dErrorMessage, '(3A)') "'", trim(filename),                                  &
+          "': Not a valid PLOT3D solution file."
      success = .false.
      return
   end if
@@ -1187,7 +1190,7 @@ subroutine plot3dReadSingleFunction(comm, filename, offset, mpiDerivedTypeScalar
   use PLOT3DHelperImpl, only : swapEndianness
 
   ! <<< Public members >>>
-  use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none
 
@@ -1205,7 +1208,7 @@ subroutine plot3dReadSingleFunction(comm, filename, offset, mpiDerivedTypeScalar
 
 #ifdef DEBUG
   if (offset < 0) then
-     write(errorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,2(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument offset: ", offset,                                    &
           ". Expected a non-negative value!"
      success = .false.
@@ -1215,7 +1218,7 @@ subroutine plot3dReadSingleFunction(comm, filename, offset, mpiDerivedTypeScalar
 
 #ifdef DEBUG
   if (size(functionVector, 1) <= 0 .or. size(functionVector, 2) <= 0) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument functionVector: (",                             &
           size(functionVector, 1), ", ",                                                     &
           size(functionVector, 2), ")!"
@@ -1226,7 +1229,7 @@ subroutine plot3dReadSingleFunction(comm, filename, offset, mpiDerivedTypeScalar
 
 #ifdef DEBUG
   if (any(globalGridSize <= 0)) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid value of argument globalGridSize: (/ ",                                 &
           globalGridSize(1), ", ",  globalGridSize(2), ", ",                                 &
           globalGridSize(3), " /)!"
@@ -1240,14 +1243,15 @@ subroutine plot3dReadSingleFunction(comm, filename, offset, mpiDerivedTypeScalar
   if (.not. success) return
 
   if (descriptor%fileType /= PLOT3D_FUNCTION_FILE) then
-     write(errorMessage, '(3A)') "'", trim(filename), "': Not a valid PLOT3D function file."
+     write(plot3dErrorMessage, '(3A)') "'", trim(filename),                                  &
+          "': Not a valid PLOT3D function file."
      success = .true.
      return
   end if
 
 #ifdef DEBUG
   if (size(functionVector, 2) < descriptor%nScalars) then
-     write(errorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,                   &
+     write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument functionVector: (",                             &
           size(functionVector, 1), ", ", size(functionVector, 2),                            &
           "). Expected (", size(functionVector, 1), ", ",                                    &

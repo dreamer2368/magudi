@@ -688,9 +688,9 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
         this%rightHandSide(i,:) = this%rightHandSide(i,:) -                                  &
              matmul(transpose(localJacobian1), gradientOfAdjointVariables(i,:,j))
 
-     end do
+     end do !... j = 1, nDimensions
 
-  end do
+  end do !... i = 1, grid%nGridPoints
 
   if (simulationFlags%viscosityOn) then
      SAFE_DEALLOCATE(localHeatFlux)
@@ -761,7 +761,7 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
                 nDimensions, solverOptions%ratioOfSpecificHeats, this%conservedVariables)
 
         end select
-     end do
+     end do !... i = 1, size(patches)
   end if
 
   call endTiming("addPenaltiesForward")
@@ -821,7 +821,7 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
                 this%adjointVariables)
 
         end select
-     end do
+     end do !... i = 1, size(patches)
   end if
 
   call endTiming("addPenaltiesAdjoint")
@@ -880,7 +880,7 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
                 grid%iblank, time, this%rightHandSide)
 
         end select
-     end do
+     end do !... i = 1, size(patches)
   end if
 
   call endTiming("addSourcesForward")
@@ -927,7 +927,7 @@ subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverO
                 this%adjointVariables)
 
         end select
-     end do
+     end do !... i = 1, size(patches)
   end if
 
   call endTiming("addSourcesAdjoint")
@@ -1025,7 +1025,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
         end select
 
-     end do
+     end do !... i = 1, size(patches)
   end if
 
   SAFE_DEALLOCATE(targetViscousFluxes)

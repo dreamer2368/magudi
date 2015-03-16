@@ -401,10 +401,10 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
                  rightHandSide(gridIndex, l) = rightHandSide(gridIndex, l) -                 &
                       this%spongeStrength(patchIndex) *                                      &
                       (solvedVariables(gridIndex, l) - targetVariables(gridIndex, l))
-              end do
-           end do
-        end do
-     end do
+              end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+           end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+        end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+     end do !... l = 1, size(rightHandSide, 2)
 
   case (ADJOINT)
 
@@ -422,10 +422,10 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
                  rightHandSide(gridIndex, l) = rightHandSide(gridIndex, l) +                 &
                       this%spongeStrength(patchIndex) *                                      &
                       solvedVariables(gridIndex, l)
-              end do
-           end do
-        end do
-     end do
+              end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+           end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+        end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+     end do !... l = 1, size(rightHandSide, 2)
 
   end select
 
@@ -506,7 +506,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
               call computeIncomingJacobianOfInviscidFlux3D(localTargetState,                 &
                    localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
                    this%normalDirection, localIncomingJacobianOfInviscidFluxes)
-           end select
+           end select !... nDimensions
 
            select case (mode)
            case (FORWARD)
@@ -531,11 +531,11 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
 
               ! TODO: add viscous far-field penalties for adjoint variables.
 
-           end select
+           end select !... mode
 
-        end do
-     end do
-  end do
+        end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+     end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+  end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
 
   SAFE_DEALLOCATE(viscousFluxPenalty)
   SAFE_DEALLOCATE(localIncomingJacobianOfInviscidFluxes)
@@ -613,7 +613,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
               call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,          &
                    localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
                    this%normalDirection, localIncomingJacobianOfInviscidFluxes)
-           end select
+           end select !... nDimensions
 
            temp = dot_product(localConservedVariables(2:nDimensions+1),                      &
                 localMetricsAlongNormalDirection)
@@ -627,12 +627,17 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
            localInviscidPenalty = matmul(localIncomingJacobianOfInviscidFluxes,              &
                 localInviscidPenalty)
 
-           rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                         &
-                this%inviscidPenaltyAmount * localInviscidPenalty
+           select case (mode)
 
-        end do
-     end do
-  end do
+           case (FORWARD)
+              rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                         &
+                   this%inviscidPenaltyAmount * localInviscidPenalty
+
+           end select
+
+        end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+     end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+  end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
 
   SAFE_DEALLOCATE(localInviscidPenalty)
   SAFE_DEALLOCATE(localIncomingJacobianOfInviscidFluxes)
@@ -677,9 +682,9 @@ subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
                 sum((coordinates(gridIndex,:) -                                              &
                 this%solenoidalExcitation%location(1:nDimensions)) ** 2))
 
-        end do
-     end do
-  end do
+        end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+     end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+  end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
 
 end subroutine updateSolenoidalExcitationStrength
 
@@ -751,11 +756,11 @@ subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSid
                    (angularFrequencies(l) * temp(2) - 2.0_wp * gaussianFactor *              &
                    (coordinates(gridIndex,1) - location(1)) * temp(1))
 
-           end do
+           end do !... l = 1, this%solenoidalExcitation%nModes
 
-        end do
-     end do
-  end do
+        end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+     end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
+  end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
 
   SAFE_DEALLOCATE(phases)
   SAFE_DEALLOCATE(angularFrequencies)
@@ -808,7 +813,7 @@ subroutine updatePatchConnectivity(this, patchData)
               this%indexOfConformingPatch = i
               exit
            end if
-        end do
+        end do !... i = 1, size(patchData)
 
      else
 
@@ -820,7 +825,7 @@ subroutine updatePatchConnectivity(this, patchData)
               this%indexOfConformingPatch = i
               exit
            end if
-        end do
+        end do !... i = 1, size(patchData)
 
      end if
 

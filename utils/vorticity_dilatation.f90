@@ -14,7 +14,7 @@ program vorticity_dilatation
   use MPIHelper, only : writeAndFlush
   use Region_mod, only : setupRegion, loadRegionData, saveRegionData
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
-  use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none
 
@@ -33,7 +33,7 @@ program vorticity_dilatation
      call get_command_argument(1, filename)
      call plot3dDetectFormat(MPI_COMM_WORLD, filename, success,                              &
           globalGridSizes = globalGridSizes)
-     if (.not. success) call gracefulExit(MPI_COMM_WORLD, errorMessage)
+     if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
      call setupRegion(region, MPI_COMM_WORLD, globalGridSizes)
      call loadRegionData(region, QOI_GRID, filename)
 

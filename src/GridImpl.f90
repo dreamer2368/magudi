@@ -45,8 +45,7 @@ contains
 
     if (.not. simulationFlags%predictionOnly) then
        allocate(this%targetMollifier(this%nGridPoints, 1))
-       if (.not. simulationFlags%baselineOnly)                                               &
-            allocate(this%controlMollifier(this%nGridPoints, 1))
+       allocate(this%controlMollifier(this%nGridPoints, 1))
     end if
 
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
@@ -126,7 +125,7 @@ contains
 
        SAFE_DEALLOCATE(unitInterval)
 
-    end do
+    end do !... l = 1, nDimensions
 
   end subroutine makeUnitCube
 
@@ -315,7 +314,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
         if (this%periodicityType(i) == PLANE)                                                &
              call getRequiredOption(trim(key) // "periodic_length",                          &
              this%periodicLength(i), this%comm)
-     end do
+     end do !... i =  1, size(globalSize)
 
   else if (any(this%periodicityType == PLANE) .and. .not. present(periodicLength)) then
 
@@ -625,7 +624,7 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
         call getAdjointOperator(this%firstDerivative(i), this%adjointFirstDerivative(i))
      end if
 
-  end do
+  end do !... i = 1, nDimensions
 
   if (present(success)) then
      success = success_
@@ -1168,9 +1167,9 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
               minValue = a
            end if
 #endif
-        end do
-     end do
-  end do
+        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+     end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+  end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
 
   if (present(iMin) .or. present(jMin) .or. present(kMin)) then
      call MPI_Allgather(minIndex, 3, MPI_INTEGER, minIndices, 3, MPI_INTEGER,                &
@@ -1238,9 +1237,9 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
               maxValue = a
            end if
 #endif
-        end do
-     end do
-  end do
+        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+     end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+  end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
 
   if (present(iMax) .or. present(jMax) .or. present(kMax)) then
      call MPI_Allgather(maxIndex, 3, MPI_INTEGER, maxIndices, 3, MPI_INTEGER,                &
@@ -1413,8 +1412,10 @@ subroutine computeSpongeStrengths(this, patches)
                        end do
                     end if
 
-                 end do
-              end do
+                 end do !... j = patches(l)%offset(2) + 1,                                   &
+                        !...       patches(l)%offset(2) + patches(l)%patchSize(2)
+              end do !... k = patches(l)%offset(3) + 1,                                      &
+                     !...       patches(l)%offset(3) + patches(l)%patchSize(3)
 
            case (2)
 
@@ -1452,8 +1453,10 @@ subroutine computeSpongeStrengths(this, patches)
                        end do
                     end if
 
-                 end do
-              end do
+                 end do !... i = patches(l)%offset(1) + 1,                                   &
+                        !...       patches(l)%offset(1) + patches(l)%patchSize(1)
+              end do !... k = patches(l)%offset(3) + 1,                                      &
+                     !...       patches(l)%offset(3) + patches(l)%patchSize(3)
 
            case (3)
 
@@ -1491,8 +1494,10 @@ subroutine computeSpongeStrengths(this, patches)
                        end do
                     end if
 
-                 end do
-              end do
+                 end do !... i = patches(l)%offset(1) + 1,                                   &
+                        !...       patches(l)%offset(1) + patches(l)%patchSize(1)
+              end do !... j = patches(l)%offset(2) + 1,                                      &
+                     !...       patches(l)%offset(2) + patches(l)%patchSize(2)
 
            end select
            patches(l)%spongeStrength = patches(l)%spongeAmount *                             &

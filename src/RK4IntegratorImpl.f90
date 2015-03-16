@@ -20,10 +20,10 @@ subroutine setupRK4Integrator(this, region)
 
   call cleanupRK4Integrator(this)
 
-  allocate(this%temp(size(region%states)))
-  do i = 1, size(this%temp)
-     allocate(this%temp(i)%buffer1(region%grids(i)%nGridPoints, region%states(i)%nUnknowns))
-     allocate(this%temp(i)%buffer2(region%grids(i)%nGridPoints, region%states(i)%nUnknowns))
+  allocate(this%temp_(size(region%states)))
+  do i = 1, size(this%temp_)
+     allocate(this%temp_(i)%buffer1(region%grids(i)%nGridPoints, region%states(i)%nUnknowns))
+     allocate(this%temp_(i)%buffer2(region%grids(i)%nGridPoints, region%states(i)%nUnknowns))
   end do
 
 end subroutine setupRK4Integrator
@@ -41,13 +41,13 @@ subroutine cleanupRK4Integrator(this)
   ! <<< Local variables >>>
   integer :: i
 
-  if (allocated(this%temp)) then
-     do i = 1, size(this%temp)
-        SAFE_DEALLOCATE(this%temp(i)%buffer1)
-        SAFE_DEALLOCATE(this%temp(i)%buffer2)
+  if (allocated(this%temp_)) then
+     do i = 1, size(this%temp_)
+        SAFE_DEALLOCATE(this%temp_(i)%buffer1)
+        SAFE_DEALLOCATE(this%temp_(i)%buffer2)
      end do
   end if
-  SAFE_DEALLOCATE(this%temp)
+  SAFE_DEALLOCATE(this%temp_)
 
 end subroutine cleanupRK4Integrator
 
@@ -80,7 +80,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
   character(len = STRING_LENGTH) :: str
 
   do i = 1, size(region%states)
-     this%temp(i)%buffer1 = region%states(i)%conservedVariables
+     this%temp_(i)%buffer1 = region%states(i)%conservedVariables
   end do
 
   ! Stage 1:
@@ -90,9 +90,9 @@ subroutine stepForward(this, region, time, timestep, verbose)
   timeStepSize = region%states(1)%timeStepSize
 
   do i = 1, size(region%states)
-     this%temp(i)%buffer2 = region%states(i)%conservedVariables +                            &
+     this%temp_(i)%buffer2 = region%states(i)%conservedVariables +                           &
           timeStepSize * region%states(i)%rightHandSide / 6.0_wp
-     region%states(i)%conservedVariables = this%temp(i)%buffer1 +                            &
+     region%states(i)%conservedVariables = this%temp_(i)%buffer1 +                           &
           timeStepSize * region%states(i)%rightHandSide / 2.0_wp
   end do
 
@@ -103,9 +103,9 @@ subroutine stepForward(this, region, time, timestep, verbose)
   call subStepHooks(region, timestep, 1)
 
   do i = 1, size(region%states)
-     this%temp(i)%buffer2 = this%temp(i)%buffer2 +                                           &
+     this%temp_(i)%buffer2 = this%temp_(i)%buffer2 +                                         &
           timeStepSize * region%states(i)%rightHandSide / 3.0_wp
-     region%states(i)%conservedVariables = this%temp(i)%buffer1 +                            &
+     region%states(i)%conservedVariables = this%temp_(i)%buffer1 +                           &
           timeStepSize * region%states(i)%rightHandSide / 2.0_wp
   end do
 
@@ -115,9 +115,9 @@ subroutine stepForward(this, region, time, timestep, verbose)
   call subStepHooks(region, timestep, 2)
 
   do i = 1, size(region%states)
-     this%temp(i)%buffer2 = this%temp(i)%buffer2 +                                           &
+     this%temp_(i)%buffer2 = this%temp_(i)%buffer2 +                                         &
           timeStepSize * region%states(i)%rightHandSide / 3.0_wp
-     region%states(i)%conservedVariables = this%temp(i)%buffer1 +                            &
+     region%states(i)%conservedVariables = this%temp_(i)%buffer1 +                           &
           timeStepSize * region%states(i)%rightHandSide
   end do
 
@@ -128,7 +128,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
   call subStepHooks(region, timestep, 3)
 
   do i = 1, size(region%states)
-     region%states(i)%conservedVariables = this%temp(i)%buffer2 +                            &
+     region%states(i)%conservedVariables = this%temp_(i)%buffer2 +                           &
           timeStepSize * region%states(i)%rightHandSide / 6.0_wp
      region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
      region%states(i)%plot3dAuxiliaryData(4) = time
@@ -181,7 +181,7 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
   character(len = STRING_LENGTH) :: str
 
   do i = 1, size(region%states)
-     this%temp(i)%buffer1 = region%states(i)%adjointVariables
+     this%temp_(i)%buffer1 = region%states(i)%adjointVariables
   end do
 
   ! Stage 4:
@@ -191,9 +191,9 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
   timeStepSize = region%states(1)%timeStepSize
 
   do i = 1, size(region%states)
-     this%temp(i)%buffer2 = region%states(i)%adjointVariables -                              &
+     this%temp_(i)%buffer2 = region%states(i)%adjointVariables -                             &
           timeStepSize * region%states(i)%rightHandSide / 6.0_wp
-     region%states(i)%adjointVariables = this%temp(i)%buffer1 -                              &
+     region%states(i)%adjointVariables = this%temp_(i)%buffer1 -                             &
           timeStepSize * region%states(i)%rightHandSide / 2.0_wp
   end do
 
@@ -204,9 +204,9 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
   call computeRhs(region, ADJOINT, time)
 
   do i = 1, size(region%states)
-     this%temp(i)%buffer2 = this%temp(i)%buffer2 -                                           &
+     this%temp_(i)%buffer2 = this%temp_(i)%buffer2 -                                         &
           timeStepSize * region%states(i)%rightHandSide / 3.0_wp
-     region%states(i)%adjointVariables = this%temp(i)%buffer1 -                              &
+     region%states(i)%adjointVariables = this%temp_(i)%buffer1 -                             &
           timeStepSize * region%states(i)%rightHandSide / 2.0_wp
   end do
 
@@ -216,9 +216,9 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
   call computeRhs(region, ADJOINT, time)
 
   do i = 1, size(region%states)
-     this%temp(i)%buffer2 = this%temp(i)%buffer2 -                                           &
+     this%temp_(i)%buffer2 = this%temp_(i)%buffer2 -                                         &
           timeStepSize * region%states(i)%rightHandSide / 3.0_wp
-     region%states(i)%adjointVariables = this%temp(i)%buffer1 -                              &
+     region%states(i)%adjointVariables = this%temp_(i)%buffer1 -                             &
           timeStepSize * region%states(i)%rightHandSide
   end do
 
@@ -229,7 +229,7 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
   call computeRhs(region, ADJOINT, time)
 
   do i = 1, size(region%states)
-     region%states(i)%adjointVariables = this%temp(i)%buffer2 -                              &
+     region%states(i)%adjointVariables = this%temp_(i)%buffer2 -                             &
           timeStepSize * region%states(i)%rightHandSide / 6.0_wp
      region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
      region%states(i)%plot3dAuxiliaryData(4) = time

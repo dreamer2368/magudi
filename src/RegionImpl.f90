@@ -634,7 +634,11 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
            end do
         end do
 
-        call updatePatchConnectivity(this%patches(i), this%patchData)
+        if (allocated(this%patches)) then
+           do i = 1, size(this%patches)
+              call updatePatchConnectivity(this%patches(i), this%patchData)
+           end do
+        end if
 
      end if
 
@@ -704,7 +708,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : loadGridData
-  use MPIHelper, only : writeAndFlush
+  use MPIHelper, only : gracefulExit, writeAndFlush
   use State_mod, only : loadStateData, getFileType
   use PLOT3DHelper
   use MPITimingsHelper, only : startTiming, endTiming
@@ -719,7 +723,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: message
   logical :: success
-  integer :: i, j, ierror
+  integer :: i, j, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
   real(SCALAR_KIND) :: auxiliaryData(4)
 
@@ -776,6 +780,16 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   end if
   call writeAndFlush(this%comm, output_unit, message)
 
+  if (.not. success) then
+     call MPI_Comm_rank(this%comm, procRank, ierror)
+     errorRank = 0
+     if (len_trim(plot3dErrorMessage) > 0) errorRank = procRank
+     call MPI_Allreduce(MPI_IN_PLACE, errorRank, 1, MPI_INTEGER, MPI_MAX, this%comm, ierror)
+     call MPI_Bcast(plot3dErrorMessage, STRING_LENGTH, MPI_CHARACTER, &
+          errorRank, this%comm, ierror)
+     call gracefulExit(this%comm, plot3dErrorMessage)
+  end if
+  
   call endTiming("loadRegionData")
 
 end subroutine loadRegionData
@@ -808,7 +822,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: message
   logical :: success
-  integer :: i, j, fileType, ierror
+  integer :: i, j, fileType, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
 
   call startTiming("saveRegionData")
@@ -873,6 +887,16 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
      write(message, '(A)') " failed!"
   end if
   call writeAndFlush(this%comm, output_unit, message)
+
+  if (.not. success) then
+     call MPI_Comm_rank(this%comm, procRank, ierror)
+     errorRank = 0
+     if (len_trim(plot3dErrorMessage) > 0) errorRank = procRank
+     call MPI_Allreduce(MPI_IN_PLACE, errorRank, 1, MPI_INTEGER, MPI_MAX, this%comm, ierror)
+     call MPI_Bcast(plot3dErrorMessage, STRING_LENGTH, MPI_CHARACTER, &
+          errorRank, this%comm, ierror)
+     call gracefulExit(this%comm, plot3dErrorMessage)
+  end if
 
   call endTiming("saveRegionData")
 

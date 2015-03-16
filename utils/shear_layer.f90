@@ -13,7 +13,7 @@ program shear_layer
   use MPIHelper, only : writeAndFlush
   use Region_mod
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
-  use PLOT3DHelper, only : plot3dDetectFormat, errorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   !> Generates the initial condition and target state for a shear layer.
 
@@ -41,7 +41,7 @@ program shear_layer
   end if
   call plot3dDetectFormat(MPI_COMM_WORLD, filename,                                          &
        success, globalGridSizes = globalGridSizes)
-  if (.not. success) call gracefulExit(MPI_COMM_WORLD, errorMessage)
+  if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
 
   ! Setup the region and load the grid file.
   call setupRegion(region, MPI_COMM_WORLD, globalGridSizes)

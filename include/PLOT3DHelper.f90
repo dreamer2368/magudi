@@ -284,7 +284,7 @@ module PLOT3DHelper
 
   end interface
 
-  character(len = STRING_LENGTH), public :: errorMessage
+  character(len = STRING_LENGTH), public :: plot3dErrorMessage
 
   private :: plot3dGetOffsetFromGridSizes_, plot3dGetOffsetFromFile_
 

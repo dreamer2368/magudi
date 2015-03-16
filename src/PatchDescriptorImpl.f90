@@ -161,7 +161,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   ! Check if an `ACTUATOR` patch will be used.
   select case (this%patchType)
   case (ACTUATOR)
-     if (simulationFlags%predictionOnly .or. simulationFlags%baselineOnly) then
+     if (simulationFlags%predictionOnly) then
         write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because control actuation has been disabled!"
         errorCode = 1

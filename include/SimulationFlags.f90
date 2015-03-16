@@ -11,14 +11,14 @@ module SimulationFlags_type
                 predictionOnly        = .true.,  &
                 repeatFirstDerivative = .true.,  &
                 useTargetState        = .true.,  &
-                baselineOnly          = .false., &
                 dissipationOn         = .false., &
                 isDomainCurvilinear   = .true.,  &
                 manualDomainDecomp    = .false., &
                 enableSolutionLimits  = .false., &
                 useConstantCfl        = .true.,  &
                 filterOn              = .false., &
-                steadyStateSimulation = .false.
+                steadyStateSimulation = .false., &
+                isBaselineAvailable   = .false.
 
   end type t_SimulationFlags
 

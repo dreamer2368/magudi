@@ -13,7 +13,7 @@ module RK4Integrator_type
 
   type, public :: t_RK4Integrator
 
-     type(t_RK4Temporary), allocatable :: temp(:)
+     type(t_RK4Temporary), allocatable :: temp_(:)
 
   end type t_RK4Integrator
 
@@ -64,6 +64,23 @@ module RK4Integrator_mod
        logical, intent(in), optional :: verbose
 
      end subroutine stepForward
+
+  end interface
+
+  interface
+
+     subroutine stepAdjoint(this, region, time, timestep, verbose)
+
+       use RK4Integrator_type
+       use Region_type
+
+       type(t_RK4Integrator) :: this
+       type(t_Region) :: region
+       real(SCALAR_KIND), intent(inout) :: time
+       integer, intent(in) :: timestep
+       logical, intent(in), optional :: verbose
+
+     end subroutine stepAdjoint
 
   end interface
 
