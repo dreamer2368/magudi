@@ -463,7 +463,6 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
              this%velocity, this%temperature(:,1), this%timeStepSize,                        &
              solverOptions%ratioOfSpecificHeats)
      end if
-     this%cfl = real(0.0, SCALAR_KIND)
 
   end if
 

@@ -151,3 +151,102 @@ subroutine stepForward(this, region, time, timestep, verbose)
   end if
 
 end subroutine stepForward
+
+subroutine stepAdjoint(this, region, time, timestep, verbose)
+
+  ! <<< External modules >>>
+  use, intrinsic :: iso_fortran_env, only : output_unit
+
+  ! <<< Derived types >>>
+  use RK4Integrator_type
+  use Region_type
+
+  ! <<< Internal modules >>>
+  use MPIHelper, only : writeAndFlush
+  use Region_mod, only : computeRhs, subStepHooks, reportResiduals
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_RK4Integrator) :: this
+  type(t_Region) :: region
+  real(SCALAR_KIND), intent(inout) :: time
+  integer, intent(in) :: timestep
+  logical, intent(in), optional :: verbose
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i
+  real(wp) :: timeStepSize
+  character(len = STRING_LENGTH) :: str
+
+  do i = 1, size(region%states)
+     this%temp(i)%buffer1 = region%states(i)%adjointVariables
+  end do
+
+  ! Stage 4:
+
+  call subStepHooks(region, timestep, 4)
+  call computeRhs(region, ADJOINT, time)
+  timeStepSize = region%states(1)%timeStepSize
+
+  do i = 1, size(region%states)
+     this%temp(i)%buffer2 = region%states(i)%adjointVariables -                              &
+          timeStepSize * region%states(i)%rightHandSide / 6.0_wp
+     region%states(i)%adjointVariables = this%temp(i)%buffer1 -                              &
+          timeStepSize * region%states(i)%rightHandSide / 2.0_wp
+  end do
+
+  ! Stage 3:
+
+  time = time - timeStepSize / 2.0_wp
+  call subStepHooks(region, timestep, 3)
+  call computeRhs(region, ADJOINT, time)
+
+  do i = 1, size(region%states)
+     this%temp(i)%buffer2 = this%temp(i)%buffer2 -                                           &
+          timeStepSize * region%states(i)%rightHandSide / 3.0_wp
+     region%states(i)%adjointVariables = this%temp(i)%buffer1 -                              &
+          timeStepSize * region%states(i)%rightHandSide / 2.0_wp
+  end do
+
+  ! Stage 2:
+
+  call subStepHooks(region, timestep, 2)
+  call computeRhs(region, ADJOINT, time)
+
+  do i = 1, size(region%states)
+     this%temp(i)%buffer2 = this%temp(i)%buffer2 -                                           &
+          timeStepSize * region%states(i)%rightHandSide / 3.0_wp
+     region%states(i)%adjointVariables = this%temp(i)%buffer1 -                              &
+          timeStepSize * region%states(i)%rightHandSide
+  end do
+
+  ! Stage 1:
+
+  time = time - timeStepSize / 2.0_wp
+  call subStepHooks(region, timestep, 1)
+  call computeRhs(region, ADJOINT, time)
+
+  do i = 1, size(region%states)
+     region%states(i)%adjointVariables = this%temp(i)%buffer2 -                              &
+          timeStepSize * region%states(i)%rightHandSide / 6.0_wp
+     region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
+     region%states(i)%plot3dAuxiliaryData(4) = time
+  end do
+
+  if (present(verbose)) then
+     if (verbose) then
+        if (region%simulationFlags%useConstantCfl) then
+           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,         &
+                ", dt = ", timeStepSize, ", time = ", time
+        else
+           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,         &
+                ", CFL = ", region%states(1)%cfl, ", time = ", time
+        end if
+        call writeAndFlush(region%comm, output_unit, str)
+        if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
+     end if
+  end if
+
+end subroutine stepAdjoint

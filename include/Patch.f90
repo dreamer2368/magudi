@@ -24,7 +24,7 @@ module Patch_type
      SCALAR_TYPE, dimension(:,:,:), allocatable :: viscousFluxes, targetViscousFluxes
 
      ! Block interface variables.
-     integer :: indexOfConformingPatch
+     integer :: indexOfConformingPatch, commOfConformingPatch = MPI_COMM_NULL
      SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables,                         &
           interfaceDataBuffer1, interfaceDataBuffer2
 

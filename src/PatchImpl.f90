@@ -241,6 +241,7 @@ subroutine cleanupPatch(this)
   SAFE_DEALLOCATE(this%solenoidalExcitationStrength)
 
   if (this%comm /= MPI_COMM_NULL) call MPI_Comm_free(this%comm, ierror)
+  this%commOfConformingPatch = MPI_COMM_NULL
 
 end subroutine cleanupPatch
 
@@ -765,6 +766,9 @@ end subroutine addSolenoidalExcitation
 
 subroutine updatePatchConnectivity(this, patchData)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use Patch_type
   use PatchDescriptor_type
@@ -787,6 +791,7 @@ subroutine updatePatchConnectivity(this, patchData)
   case (SAT_BLOCK_INTERFACE)
 
      this%indexOfConformingPatch = 0
+     this%commOfConformingPatch = MPI_COMM_NULL
 
      write(key, '(3A)') "patches/", trim(patchData(this%index)%name), "/conforms_with"
      val = getOption(trim(key), "")
