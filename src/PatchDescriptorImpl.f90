@@ -64,13 +64,18 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   end if
 
   ! Check if the normal direction is valid.
-  if (abs(this%normalDirection) > size(globalGridSizes, 1)) then
-     write(message, '(3A,2(I0.0,A))') "Patch '", trim(this%name), "' on grid ",              &
-          this%gridIndex, " has an invalid normal direction: ",                              &
-          this%normalDirection, "!"
-     errorCode = 2
-     return
-  end if
+  select case (this%patchType)
+  case (ACTUATOR, SOLENOIDAL_EXCITATION)
+  case default
+     if (abs(this%normalDirection) > size(globalGridSizes, 1) .or.                           &
+          this%normalDirection == 0) then
+        write(message, '(3A,2(I0.0,A))') "Patch '", trim(this%name), "' on grid ",           &
+             this%gridIndex, " has an invalid normal direction: ",                           &
+             this%normalDirection, "!"
+        errorCode = 2
+        return
+     end if
+  end select
 
   ! Extents must be non-zero.
   isExtentValid = all(extent /= 0)
@@ -175,3 +180,114 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   errorCode = 0
 
 end subroutine validatePatchDescriptor
+
+subroutine validatePatchesConnectivity(patchDescriptors, errorCode, message)
+
+  ! <<< Derived types >>>
+  use PatchDescriptor_type
+
+  ! <<< Internal modules >>>
+  use InputHelper, only : getOption
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_PatchDescriptor), intent(in) :: patchDescriptors(:)
+  integer, intent(out) :: errorCode
+  character(len = STRING_LENGTH), intent(out) :: message
+
+  ! <<< Local variables >>>
+  integer :: i, j
+  character(len = STRING_LENGTH) :: key, val
+  logical, allocatable :: foundPair(:)
+
+  errorCode = 0
+
+  allocate(foundPair(size(patchDescriptors)), source = .false.)
+
+  do i = 1, size(patchDescriptors)
+     select case (patchDescriptors(i)%patchType)
+     case (SAT_BLOCK_INTERFACE)
+
+        write(key, '(3A)') "patches/", trim(patchDescriptors(i)%name), "/conforms_with"
+        val = getOption(key, "")
+
+        if (len_trim(val) > 0) then
+
+           do j = 1, size(patchDescriptors)
+              if (i == j) cycle
+              if (trim(patchDescriptors(j)%name) == trim(val)) then
+
+                 if (patchDescriptors(j)%patchType /= SAT_BLOCK_INTERFACE) then
+                    write(message, '(2(3A,I0.0),A)') "Patch '",                              &
+                         trim(patchDescriptors(i)%name), "' on grid ",                       &
+                         patchDescriptors(i)%gridIndex, " conforms with patch '",            &
+                         trim(patchDescriptors(j)%name), "' on grid ",                       &
+                         patchDescriptors(j)%gridIndex, ", which is not an interface patch!"
+                    errorCode = 2
+                    return
+                 end if
+
+                 if (patchDescriptors(j)%normalDirection /=                                  &
+                      -patchDescriptors(i)%normalDirection) then
+                    write(message, '(2(3A,I0.0),A)') "Patch '",                              &
+                         trim(patchDescriptors(i)%name), "' on grid ",                       &
+                         patchDescriptors(i)%gridIndex, " conforms with patch '",            &
+                         trim(patchDescriptors(j)%name), "' on grid ",                       &
+                         patchDescriptors(j)%gridIndex, &
+                         ", but the dot product of their unit normals is not -1!"
+                    errorCode = 2
+                    return
+                 end if
+
+                 if (patchDescriptors(j)%gridIndex == patchDescriptors(i)%gridIndex) then
+                    write(message, '(2(3A,I0.0),A)') "Patch '",                              &
+                         trim(patchDescriptors(i)%name), "' on grid ",                       &
+                         patchDescriptors(i)%gridIndex, " conforms with patch '",            &
+                         trim(patchDescriptors(j)%name), "' also on grid ",                  &
+                         patchDescriptors(j)%gridIndex, "!"
+                    errorCode = 2
+                    return
+                 end if
+
+                 if ((patchDescriptors(j)%iMax - patchDescriptors(j)%iMin /=                 &
+                      patchDescriptors(i)%iMax - patchDescriptors(i)%iMin) .or.              &
+                      (patchDescriptors(j)%jMax - patchDescriptors(j)%jMin /=                &
+                      patchDescriptors(i)%jMax - patchDescriptors(i)%jMin) .or.              &
+                      (patchDescriptors(j)%kMax - patchDescriptors(j)%kMin /=                &
+                      patchDescriptors(i)%kMax - patchDescriptors(i)%kMin)) then
+                    write(message, '(2(3A,I0.0),A)') "Patch '",                              &
+                         trim(patchDescriptors(i)%name), "' on grid ",                       &
+                         patchDescriptors(i)%gridIndex, " does not conform with patch '",    &
+                         trim(patchDescriptors(j)%name), "' on grid ",                       &
+                         patchDescriptors(j)%gridIndex, "!"
+                    errorCode = 2
+                    return
+                 end if
+
+                 foundPair(i) = .true.
+                 foundPair(j) = .true.
+
+              end if
+           end do
+
+        end if
+
+     end select
+  end do
+
+  do i = 1, size(patchDescriptors)
+     select case (patchDescriptors(i)%patchType)
+     case (SAT_BLOCK_INTERFACE)
+        if (.not. foundPair(i)) then
+           write(message, '(3A,I0.0,A)')                                                     &
+                "Unable to find a patch that conforms with interface patch '",               &
+                trim(patchDescriptors(i)%name), "' on grid ",                                &
+                patchDescriptors(i)%gridIndex, "!"
+           errorCode = 2
+           return
+        end if
+     end select
+  end do
+
+end subroutine validatePatchesConnectivity

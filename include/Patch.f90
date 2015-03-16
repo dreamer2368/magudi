@@ -16,12 +16,17 @@ module Patch_type
           offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints, comm = MPI_COMM_NULL
      logical :: isCurvilinear
 
-     ! Common to far-field and walls.
+     ! Common to far-field and wall boundaries.
      real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
      SCALAR_TYPE, allocatable :: metrics(:,:)
 
      ! Far-field variables.
      SCALAR_TYPE, dimension(:,:,:), allocatable :: viscousFluxes, targetViscousFluxes
+
+     ! Block interface variables.
+     integer :: indexOfConformingPatch
+     SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables,                         &
+          interfaceDataBuffer1, interfaceDataBuffer2
 
      ! Sponge variables.
      real(SCALAR_KIND) :: spongeAmount
@@ -196,6 +201,20 @@ module Patch_mod
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
      end subroutine addSolenoidalExcitation
+
+  end interface
+
+  interface
+
+     subroutine updatePatchConnectivity(this, patchData)
+
+       use Patch_type
+       use PatchDescriptor_type
+
+       type(t_Patch) :: this
+       type(t_PatchDescriptor), intent(in) :: patchData(:)
+
+     end subroutine updatePatchConnectivity
 
   end interface
 

@@ -77,7 +77,7 @@ program main
      call updatePatches(region%states(i), region%grids(i),                                   &
           region%patches, region%simulationFlags, region%solverOptions)
   end do
-  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+  call MPI_Barrier(region%comm, ierror)
 
   ! Write out some useful information.
   call reportGridDiagnostics(region)

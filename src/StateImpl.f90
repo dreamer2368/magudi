@@ -523,19 +523,19 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
           this%stressTensor, this%heatFlux, fluxes2)
      if (allocated(patches)) then
         do i = 1, size(patches)
-           if (patches(i)%gridIndex /= grid%index .or.                                       &
-                (patches(i)%patchType /= SAT_FAR_FIELD .and.                                 &
-                patches(i)%patchType /= SAT_BLOCK_INTERFACE)) cycle
-           call collectAtPatch(patches(i), fluxes2,                                          &
-                patches(i)%viscousFluxes) !... save viscous fluxes on patches for later use.
+           if (patches(i)%gridIndex /= grid%index) cycle
+           select case (patches(i)%patchType)
+           case (SAT_FAR_FIELD, SAT_BLOCK_INTERFACE)
+              call collectAtPatch(patches(i), fluxes2,                                       &
+                   patches(i)%viscousFluxes) !... save viscous fluxes on patch for later use.
+           end select
         end do
      end if
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
 
-  ! Transform fluxes from Cartesian to contravariant form:
-  ! `fluxes1` has the Cartesian form of total fluxes... upon return, `fluxes2` has the
-  ! contravariant form.
+  ! Transform fluxes from Cartesian to contravariant form: `fluxes1` has the Cartesian form of
+  ! total fluxes... upon return, `fluxes2` has the contravariant form.
   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
 
   SAFE_DEALLOCATE(fluxes1) !... no longer needed.
@@ -558,6 +558,18 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   end if
 
   SAFE_DEALLOCATE(fluxes2) !... no longer needed
+
+  ! Collect conserved variables on SAT block interfaces.
+  if (allocated(patches)) then
+     do i = 1, size(patches)
+        if (patches(i)%gridIndex /= grid%index) cycle
+        select case (patches(i)%patchType)
+        case (SAT_BLOCK_INTERFACE)
+           call collectAtPatch(patches(i), this%conservedVariables,                          &
+                patches(i)%conservedVariables)
+        end select
+     end do
+  end if
 
   call endTiming("computeRhsForward")
 
@@ -1002,7 +1014,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
         select case (patches(i)%patchType)
 
         case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL,                             &
-             SAT_ADIABATIC_WALL, SAT_BLOCK_INTERFACE)
+              SAT_ADIABATIC_WALL, SAT_BLOCK_INTERFACE)
            call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
            patches(i)%inviscidPenaltyAmount = patches(i)%inviscidPenaltyAmount /             &
                 grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)

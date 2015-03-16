@@ -62,4 +62,18 @@ module PatchDescriptor_mod
 
   end interface
 
+  interface
+
+     subroutine validatePatchesConnectivity(patchDescriptors, errorCode, message)
+
+       use PatchDescriptor_type
+
+       type(t_PatchDescriptor), intent(in) :: patchDescriptors(:)
+       integer, intent(out) :: errorCode
+       character(len = STRING_LENGTH), intent(out) :: message
+
+     end subroutine validatePatchesConnectivity
+
+  end interface
+
 end module PatchDescriptor_mod

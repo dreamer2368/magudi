@@ -173,7 +173,7 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j
-    
+
     do i = 2, size(timingsArray)
 
        j = i - 1
@@ -195,7 +195,7 @@ contains
        timingsArray(j+1)%accumulatedTime = temp%accumulatedTime
 
     end do
-    
+
   end subroutine sortTimings
 
 end module MPITimingsHelperImpl

@@ -35,6 +35,11 @@ contains
           allocate(this%targetViscousFluxes(this%nPatchPoints, nDimensions + 2, nDimensions))
        end if
 
+    case (SAT_BLOCK_INTERFACE)
+       allocate(this%conservedVariables(this%nPatchPoints, nDimensions + 2))
+       allocate(this%interfaceDataBuffer1(this%nPatchPoints, 2 * nDimensions + 3))
+       allocate(this%interfaceDataBuffer2(this%nPatchPoints, 2 * nDimensions + 3))
+
     case (SPONGE)
        allocate(this%spongeStrength(this%nPatchPoints), source = 0.0_wp)
 
@@ -243,7 +248,7 @@ subroutine collectScalarAtPatch_(this, gridArray, patchArray)
 
   ! <<< Derived types >>>
   use Patch_type
-  
+
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
 
@@ -525,7 +530,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
 
               ! TODO: add viscous far-field penalties for adjoint variables.
 
-           end select              
+           end select
 
         end do
      end do
@@ -757,3 +762,63 @@ subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSid
   call endTiming("addSolenoidalExcitation")
 
 end subroutine addSolenoidalExcitation
+
+subroutine updatePatchConnectivity(this, patchData)
+
+  ! <<< Derived types >>>
+  use Patch_type
+  use PatchDescriptor_type
+
+  ! <<< Internal modules >>>
+  use InputHelper, only : getOption
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Patch) :: this
+  type(t_PatchDescriptor), intent(in) :: patchData(:)
+
+  ! <<< Local variables >>>
+  character(len = STRING_LENGTH) :: key, val
+  integer :: i
+
+  select case (this%patchType)
+
+  case (SAT_BLOCK_INTERFACE)
+
+     this%indexOfConformingPatch = 0
+
+     write(key, '(3A)') "patches/", trim(patchData(this%index)%name), "/conforms_with"
+     val = getOption(trim(key), "")
+
+     if (len_trim(val) == 0) then
+
+        do i = 1, size(patchData)
+           if (i == this%index) cycle
+           write(key, '(3A)') "patches/", trim(patchData(i)%name), "/conforms_with"
+           val = getOption(trim(key), "")
+           if (trim(val) == trim(patchData(this%index)%name) .and. &
+                patchData(i)%patchType == SAT_BLOCK_INTERFACE .and. &
+                patchData(i)%normalDirection == -this%normalDirection) then
+              this%indexOfConformingPatch = i
+              exit
+           end if
+        end do
+
+     else
+
+        do i = 1, size(patchData)
+           if (i == this%index) cycle
+           if (trim(val) == trim(patchData(i)%name) .and. &
+                patchData(i)%patchType == SAT_BLOCK_INTERFACE .and. &
+                patchData(i)%normalDirection == -this%normalDirection) then
+              this%indexOfConformingPatch = i
+              exit
+           end if
+        end do
+
+     end if
+
+  end select
+
+end subroutine updatePatchConnectivity

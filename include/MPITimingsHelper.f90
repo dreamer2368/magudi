@@ -28,11 +28,11 @@ module MPITimingsHelper
   interface
 
      subroutine reportTimings(comm, outputUnit)
-       
+
        integer, intent(in), optional :: comm, outputUnit
-       
+
      end subroutine reportTimings
-     
+
   end interface
 
   interface

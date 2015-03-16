@@ -337,7 +337,7 @@ contains
 
     ! <<< Internal modules >>>
     use MPIHelper, only : issueWarning, gracefulExit, writeAndFlush
-    use PatchDescriptor_mod, only : validatePatchDescriptor
+    use PatchDescriptor_mod, only : validatePatchDescriptor, validatePatchesConnectivity
 
     ! <<< Arguments >>>
     type(t_Region) :: this
@@ -360,6 +360,9 @@ contains
           call gracefulExit(this%comm, message)
        end if
     end do
+
+    call validatePatchesConnectivity(this%patchData, errorCode, message)
+    if (errorCode == 2) call gracefulExit(this%comm, message)
 
   end subroutine validatePatches
 
@@ -518,7 +521,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : setupGrid
-  use Patch_mod, only : setupPatch
+  use Patch_mod, only : setupPatch, updatePatchConnectivity
   use State_mod, only : setupState
   use InputHelper, only : getRequiredOption
   use SolverOptions_mod, only : initializeSolverOptions
@@ -630,6 +633,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
               call MPI_Barrier(this%grids(k)%comm, ierror)
            end do
         end do
+
+        call updatePatchConnectivity(this%patches(i), this%patchData)
 
      end if
 
@@ -805,7 +810,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   logical :: success
   integer :: i, j, fileType, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
-  
+
   call startTiming("saveRegionData")
 
   write(message, '(3A)') "Writing '", trim(filename), "'..."
