@@ -133,25 +133,21 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
   call allocateData(this, nDimensions, simulationFlags)
 
+  write(key, '(3A)') "patches/", trim(patchDescriptor%name), "/"
+
   select case (this%patchType)
 
   case (SPONGE)
 
      ! Sponge amount.
      this%spongeAmount = getOption("defaults/sponge_amount", 1.0_wp)
-     write(key, '(3A)') "patches/",                                                          &
-          trim(patchDescriptor%name), "/sponge_amount"
-     this%spongeAmount = getOption(key, this%spongeAmount)
+     this%spongeAmount = getOption(trim(key) // "sponge_amount", this%spongeAmount)
 
      ! Sponge exponent.
      this%spongeExponent = getOption("defaults/sponge_exponent", 2)
-     write(key, '(3A)') "patches/",                                                          &
-          trim(patchDescriptor%name), "/sponge_exponent"
-     this%spongeExponent = getOption(key, this%spongeExponent)
+     this%spongeExponent = getOption(trim(key) // "sponge_exponent", this%spongeExponent)
 
   case (SOLENOIDAL_EXCITATION)
-
-     write(key, '(3A)') "patches/", trim(patchDescriptor%name), "/"
 
      solenoidalExcitationOrigin(1) = getOption(trim(key) // "x", 0.0_wp)
      solenoidalExcitationOrigin(2) = getOption(trim(key) // "y", 0.0_wp)
@@ -173,9 +169,8 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
      ! Inviscid penalty amount.
      this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount", 1.0_wp)
-     write(key, '(3A)') "patches/",                                                          &
-          trim(patchDescriptor%name), "/inviscid_penalty_amount"
-     this%inviscidPenaltyAmount = getOption(key, this%inviscidPenaltyAmount)
+     this%inviscidPenaltyAmount = getOption(trim(key) // "inviscid_penalty_amount",          &
+          this%inviscidPenaltyAmount)
      this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                           &
           real(this%normalDirection, wp))
 
@@ -183,11 +178,16 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
      ! Inviscid penalty amount.
      this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount", 2.0_wp)
-     write(key, '(3A)') "patches/",                                                          &
-          trim(patchDescriptor%name), "/inviscid_penalty_amount"
-     this%inviscidPenaltyAmount = getOption(key, this%inviscidPenaltyAmount)
+     this%inviscidPenaltyAmount = getOption(trim(key) // "inviscid_penalty_amount",          &
+          this%inviscidPenaltyAmount)
      this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                           &
           real(this%normalDirection, wp))
+
+     ! Measure lift/drag on this patch?
+     if (.not. simulationFlags%predictionOnly) then
+        this%isLiftMeasured = getOption(trim(key) // "measure_lift", .false.)
+        this%isDragMeasured = getOption(trim(key) // "measure_drag", .false.)
+     end if
 
   end select
 
@@ -199,9 +199,8 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
         ! Viscous penalty amount.
         this%viscousPenaltyAmount = getOption("defaults/viscous_penalty_amount", 1.0_wp)
-        write(key, '(3A)') "patches/",                                                       &
-             trim(patchDescriptor%name), "/viscous_penalty_amount"
-        this%viscousPenaltyAmount = getOption(key, this%viscousPenaltyAmount)
+        this%viscousPenaltyAmount = getOption(trim(key) // "viscous_penalty_amount",         &
+             this%viscousPenaltyAmount)
         this%viscousPenaltyAmount = sign(this%viscousPenaltyAmount,                          &
              real(this%normalDirection, wp))
 
@@ -458,16 +457,16 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, direction, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: localTargetState(:), localMetricsAlongNormalDirection(:),      &
-       localIncomingJacobianOfInviscidFluxes(:,:), viscousFluxPenalty(:,:)
+  SCALAR_TYPE, allocatable :: localTargetState(:), metricsAlongNormalDirection(:),           &
+       incomingJacobianOfInviscidFlux(:,:), viscousFluxPenalty(:,:)
 
   call startTiming("addFarFieldPenalty")
 
   direction = abs(this%normalDirection)
 
   allocate(localTargetState(nDimensions + 2))
-  allocate(localMetricsAlongNormalDirection(nDimensions))
-  allocate(localIncomingJacobianOfInviscidFluxes(nDimensions + 2, nDimensions + 2))
+  allocate(metricsAlongNormalDirection(nDimensions))
+  allocate(incomingJacobianOfInviscidFlux(nDimensions + 2, nDimensions + 2))
 
   if (allocated(this%viscousFluxes)) then
      allocate(viscousFluxPenalty(this%nPatchPoints, nDimensions + 1))
@@ -490,22 +489,22 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
                 (k - 1 - this%offset(3)))
 
            localTargetState = targetState(gridIndex,:)
-           localMetricsAlongNormalDirection =                                                &
+           metricsAlongNormalDirection =                                                     &
                 this%metrics(patchIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
            select case (nDimensions)
            case (1)
               call computeIncomingJacobianOfInviscidFlux1D(localTargetState,                 &
-                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
+                   metricsAlongNormalDirection, ratioOfSpecificHeats,                        &
+                   this%normalDirection, incomingJacobianOfInviscidFlux)
            case (2)
               call computeIncomingJacobianOfInviscidFlux2D(localTargetState,                 &
-                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
+                   metricsAlongNormalDirection, ratioOfSpecificHeats,                        &
+                   this%normalDirection, incomingJacobianOfInviscidFlux)
            case (3)
               call computeIncomingJacobianOfInviscidFlux3D(localTargetState,                 &
-                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
+                   metricsAlongNormalDirection, ratioOfSpecificHeats,                        &
+                   this%normalDirection, incomingJacobianOfInviscidFlux)
            end select !... nDimensions
 
            select case (mode)
@@ -513,7 +512,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
 
               rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                      &
                    this%inviscidPenaltyAmount *                                              &
-                   matmul(localIncomingJacobianOfInviscidFluxes,                             &
+                   matmul(incomingJacobianOfInviscidFlux,                                    &
                    conservedVariables(gridIndex,:) - localTargetState)
 
               if (allocated(viscousFluxPenalty)) then
@@ -526,7 +525,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
 
               rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) +                      &
                    this%inviscidPenaltyAmount *                                              &
-                   matmul(transpose(localIncomingJacobianOfInviscidFluxes),                  &
+                   matmul(transpose(incomingJacobianOfInviscidFlux),                         &
                    adjointVariables(gridIndex,:))
 
               ! TODO: add viscous far-field penalties for adjoint variables.
@@ -538,8 +537,8 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
 
   SAFE_DEALLOCATE(viscousFluxPenalty)
-  SAFE_DEALLOCATE(localIncomingJacobianOfInviscidFluxes)
-  SAFE_DEALLOCATE(localMetricsAlongNormalDirection)
+  SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
+  SAFE_DEALLOCATE(metricsAlongNormalDirection)
   SAFE_DEALLOCATE(localTargetState)
 
   call endTiming("addFarFieldPenalty")
@@ -572,8 +571,9 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
-       localMetricsAlongNormalDirection(:), localIncomingJacobianOfInviscidFluxes(:,:),      &
-       localInviscidPenalty(:), localViscousPenalty1(:), localViscousPenalty2(:)
+       metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),                  &
+       inviscidPenalty(:), viscousPenalty1(:), viscousPenalty2(:),                           &
+       deltaIncomingJacobianOfInviscidFlux(:,:,:)
   SCALAR_TYPE :: temp
 
   call startTiming("addWallPenalty")
@@ -581,9 +581,13 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   direction = abs(this%normalDirection)
 
   allocate(localConservedVariables(nDimensions + 2))
-  allocate(localMetricsAlongNormalDirection(nDimensions))
-  allocate(localIncomingJacobianOfInviscidFluxes(nDimensions + 2, nDimensions + 2))
-  allocate(localInviscidPenalty(nDimensions + 2))
+  allocate(metricsAlongNormalDirection(nDimensions))
+  allocate(incomingJacobianOfInviscidFlux(nDimensions + 2, nDimensions + 2))
+  allocate(inviscidPenalty(nDimensions + 2))
+  if (mode == ADJOINT) then
+     allocate(deltaIncomingJacobianOfInviscidFlux(nDimensions + 2,                           &
+          nDimensions + 2, nDimensions + 2))
+  end if
 
   do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
@@ -597,41 +601,67 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
                 (k - 1 - this%offset(3)))
 
            localConservedVariables = conservedVariables(gridIndex,:)
-           localMetricsAlongNormalDirection =                                                &
+           metricsAlongNormalDirection =                                                     &
                 this%metrics(patchIndex,1+nDimensions*(direction-1):nDimensions*direction)
-
-           select case (nDimensions)
-           case (1)
-              call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,          &
-                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
-           case (2)
-              call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,          &
-                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
-           case (3)
-              call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,          &
-                   localMetricsAlongNormalDirection, ratioOfSpecificHeats,                   &
-                   this%normalDirection, localIncomingJacobianOfInviscidFluxes)
-           end select !... nDimensions
-
-           temp = dot_product(localConservedVariables(2:nDimensions+1),                      &
-                localMetricsAlongNormalDirection)
-
-           localInviscidPenalty(1) = 0.0_wp
-           localInviscidPenalty(2:nDimensions+1) = localMetricsAlongNormalDirection * temp
-           localInviscidPenalty(nDimensions+2) =                                             &
-                0.5_wp / localConservedVariables(1) * temp ** 2
-           localInviscidPenalty(2:nDimensions+2) = localInviscidPenalty(2:nDimensions+2) /   &
-                sum(localMetricsAlongNormalDirection ** 2)
-           localInviscidPenalty = matmul(localIncomingJacobianOfInviscidFluxes,              &
-                localInviscidPenalty)
 
            select case (mode)
 
            case (FORWARD)
-              rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                         &
-                   this%inviscidPenaltyAmount * localInviscidPenalty
+
+              select case (nDimensions)
+              case (1)
+                 call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,       &
+                      metricsAlongNormalDirection, ratioOfSpecificHeats,                     &
+                      this%normalDirection, incomingJacobianOfInviscidFlux)
+              case (2)
+                 call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,       &
+                      metricsAlongNormalDirection, ratioOfSpecificHeats,                     &
+                      this%normalDirection, incomingJacobianOfInviscidFlux)
+              case (3)
+                 call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,       &
+                      metricsAlongNormalDirection, ratioOfSpecificHeats,                     &
+                      this%normalDirection, incomingJacobianOfInviscidFlux)
+              end select !... nDimensions
+
+           case (ADJOINT)
+
+              select case (nDimensions)
+              case (1)
+                 call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,       &
+                      metricsAlongNormalDirection, ratioOfSpecificHeats,                     &
+                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      deltaIncomingJacobianOfInviscidFlux)
+              case (2)
+                 call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,       &
+                      metricsAlongNormalDirection, ratioOfSpecificHeats,                     &
+                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      deltaIncomingJacobianOfInviscidFlux)
+              case (3)
+                 call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,       &
+                      metricsAlongNormalDirection, ratioOfSpecificHeats,                     &
+                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      deltaIncomingJacobianOfInviscidFlux)
+              end select !... nDimensions
+
+           end select !... mode
+
+           temp = dot_product(localConservedVariables(2:nDimensions+1),                      &
+                metricsAlongNormalDirection)
+
+           inviscidPenalty(1) = 0.0_wp
+           inviscidPenalty(2:nDimensions+1) = metricsAlongNormalDirection * temp
+           inviscidPenalty(nDimensions+2) =                                                  &
+                0.5_wp / localConservedVariables(1) * temp ** 2
+           inviscidPenalty(2:nDimensions+2) = inviscidPenalty(2:nDimensions+2) /             &
+                sum(metricsAlongNormalDirection ** 2)
+           inviscidPenalty = matmul(incomingJacobianOfInviscidFlux,                          &
+                inviscidPenalty)
+
+           select case (mode)
+
+           case (FORWARD)
+              rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                      &
+                   this%inviscidPenaltyAmount * inviscidPenalty
 
            end select
 
@@ -639,9 +669,10 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
      end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
   end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
 
-  SAFE_DEALLOCATE(localInviscidPenalty)
-  SAFE_DEALLOCATE(localIncomingJacobianOfInviscidFluxes)
-  SAFE_DEALLOCATE(localMetricsAlongNormalDirection)
+  SAFE_DEALLOCATE(deltaIncomingJacobianOfInviscidFlux)
+  SAFE_DEALLOCATE(inviscidPenalty)
+  SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
+  SAFE_DEALLOCATE(metricsAlongNormalDirection)
   SAFE_DEALLOCATE(localConservedVariables)
 
   call endTiming("addWallPenalty")
@@ -799,16 +830,16 @@ subroutine updatePatchConnectivity(this, patchData)
      this%commOfConformingPatch = MPI_COMM_NULL
 
      write(key, '(3A)') "patches/", trim(patchData(this%index)%name), "/conforms_with"
-     val = getOption(trim(key), "")
+     val = getOption(key, "")
 
      if (len_trim(val) == 0) then
 
         do i = 1, size(patchData)
            if (i == this%index) cycle
            write(key, '(3A)') "patches/", trim(patchData(i)%name), "/conforms_with"
-           val = getOption(trim(key), "")
-           if (trim(val) == trim(patchData(this%index)%name) .and. &
-                patchData(i)%patchType == SAT_BLOCK_INTERFACE .and. &
+           val = getOption(key, "")
+           if (trim(val) == trim(patchData(this%index)%name) .and.                           &
+                patchData(i)%patchType == SAT_BLOCK_INTERFACE .and.                          &
                 patchData(i)%normalDirection == -this%normalDirection) then
               this%indexOfConformingPatch = i
               exit
@@ -819,8 +850,8 @@ subroutine updatePatchConnectivity(this, patchData)
 
         do i = 1, size(patchData)
            if (i == this%index) cycle
-           if (trim(val) == trim(patchData(i)%name) .and. &
-                patchData(i)%patchType == SAT_BLOCK_INTERFACE .and. &
+           if (trim(val) == trim(patchData(i)%name) .and.                                    &
+                patchData(i)%patchType == SAT_BLOCK_INTERFACE .and.                          &
                 patchData(i)%normalDirection == -this%normalDirection) then
               this%indexOfConformingPatch = i
               exit

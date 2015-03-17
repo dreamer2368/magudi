@@ -451,9 +451,9 @@ subroutine plot3dWriteSkeleton(comm, filename, fileType, globalGridSizes, succes
 
 #ifdef DEBUG
   if (fileType == PLOT3D_FUNCTION_FILE .and. .not. present(nScalars)) then
-     write(plot3dErrorMessage, '(3A,I0.0,A)') "In ", __FILE__, ":", __LINE__,                &
-          ": Unable to write PLOT3D function file skeleton: required                         &
-          argument nScalars not specified!"                                                  &
+     write(plot3dErrorMessage, '(3A,I0.0,2A)') "In ", __FILE__, ":", __LINE__,               &
+          ": Unable to write PLOT3D function file skeleton",                                 &
+          ": required argument nScalars not specified!"
      success = .false.
      return
   end if

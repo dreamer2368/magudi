@@ -20,8 +20,11 @@ module Patch_type
      real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
      SCALAR_TYPE, allocatable :: metrics(:,:)
 
-     ! Far-field variables.
+     ! Far-field patch variables.
      SCALAR_TYPE, dimension(:,:,:), allocatable :: viscousFluxes, targetViscousFluxes
+
+     ! Wall patch variables.
+     logical :: isLiftMeasured, isDragMeasured
 
      ! Block interface variables.
      integer :: indexOfConformingPatch, commOfConformingPatch = MPI_COMM_NULL

@@ -190,7 +190,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: fileUnit = 41
     integer :: i, proc, nPatches, lineNo, istat, ierror
-    character(len = STRING_LENGTH) :: line, patchTypeString, message
+    character(len = STRING_LENGTH) :: line, str, message
     character(len = 1), parameter :: commentMarker = '#'
     integer, allocatable :: tempBuffer(:,:)
 
@@ -261,7 +261,7 @@ contains
           i = i + 1
 
           ! Parse patch data.
-          read(line, *, iostat = istat) this%patchData(i)%name, patchTypeString,             &
+          read(line, *, iostat = istat) this%patchData(i)%name, str,                         &
                this%patchData(i)%gridIndex, this%patchData(i)%normalDirection,               &
                this%patchData(i)%iMin, this%patchData(i)%iMax,                               &
                this%patchData(i)%jMin, this%patchData(i)%jMax,                               &
@@ -283,7 +283,7 @@ contains
           ! Pack patch data into tempBuffer for broadcasting.
           tempBuffer(i,1) = this%patchData(i)%gridIndex
           tempBuffer(i,2) = this%patchData(i)%normalDirection
-          call parsePatchType(patchTypeString, tempBuffer(i,3)) !... validate.
+          call parsePatchType(str, tempBuffer(i,3)) !... validate.
           if (tempBuffer(i,3) == -1) then
              istat = -1
              write(message, "(2A,I0.0,3A)") trim(filename), ":", lineNo,                     &
@@ -558,7 +558,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   call initializeSimulationFlags(this%simulationFlags)
 
   ! Initialize solver options.
-  call initializeSolverOptions(this%solverOptions, this%simulationFlags)
+  call initializeSolverOptions(this%solverOptions, this%simulationFlags, this%comm)
 
   ! Distribute the grids between available MPI processes.
   if (this%simulationFlags%manualDomainDecomp .and.                                          &
@@ -789,7 +789,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
           errorRank, this%comm, ierror)
      call gracefulExit(this%comm, plot3dErrorMessage)
   end if
-  
+
   call endTiming("loadRegionData")
 
 end subroutine loadRegionData

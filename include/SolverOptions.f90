@@ -5,11 +5,17 @@ module SolverOptions_type
   implicit none
   private
 
+  integer, parameter, public ::                                                              &
+       SOUND_FUNCTIONAL = 1,                                                                 &
+       LIFT_FUNCTIONAL  = 2,                                                                 &
+       DRAG_FUNCTIONAL  = 3
+
   type, public :: t_SolverOptions
 
      real(SCALAR_KIND) :: reynoldsNumberInverse, prandtlNumberInverse, ratioOfSpecificHeats, &
           powerLawExponent, bulkViscosityRatio, dissipationAmount, densityRange(2),          &
           temperatureRange(2), cfl, timeStepSize, convergenceTolerance(3)
+     integer :: costFunctionalType
 
   end type t_SolverOptions
 
@@ -22,13 +28,14 @@ module SolverOptions_mod
 
   interface
 
-     subroutine initializeSolverOptions(this, simulationFlags)
+     subroutine initializeSolverOptions(this, simulationFlags, comm)
 
        use SolverOptions_type
        use SimulationFlags_type
 
        type(t_SolverOptions), intent(out) :: this
        type(t_SimulationFlags), intent(in) :: simulationFlags
+       integer, intent(in), optional :: comm
 
      end subroutine initializeSolverOptions
 

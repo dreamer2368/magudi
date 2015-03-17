@@ -1,12 +1,49 @@
 #include "config.h"
 
-subroutine initializeSolverOptions(this, simulationFlags)
+module SolverOptionsImpl
+
+  implicit none
+  public
+
+contains
+
+  subroutine parseCostFunctionalType(costFunctionalTypeString, costFunctionalType)
+
+    ! <<< Derived types >>>
+    use SolverOptions_type
+
+    ! <<< Arguments >>>
+    character(len = *), intent(in) :: costFunctionalTypeString
+    integer, intent(out) :: costFunctionalType
+
+    costFunctionalType = -1
+
+    if (trim(costFunctionalTypeString) == "SOUND") then
+       costFunctionalType = SOUND_FUNCTIONAL
+    else if (trim(costFunctionalTypeString) == "LIFT") then
+       costFunctionalType = LIFT_FUNCTIONAL
+    else if (trim(costFunctionalTypeString) == "DRAG") then
+       costFunctionalType = DRAG_FUNCTIONAL
+    end if
+
+  end subroutine parseCostFunctionalType
+
+end module SolverOptionsImpl
+
+subroutine initializeSolverOptions(this, simulationFlags, comm)
+
+  ! <<< External modules >>>
+  use MPI
 
   ! <<< Derived types >>>
   use SolverOptions_type
   use SimulationFlags_type
 
+  ! <<< Private members >>>
+  use SolverOptionsImpl, only : parseCostFunctionalType
+
   ! <<< Internal modules >>>
+  use MPIHelper, only : gracefulExit
   use InputHelper, only : getOption, getRequiredOption
 
   implicit none
@@ -14,9 +51,15 @@ subroutine initializeSolverOptions(this, simulationFlags)
   ! <<< Arguments >>>
   type(t_SolverOptions), intent(out) :: this
   type(t_SimulationFlags), intent(in) :: simulationFlags
+  integer, intent(in), optional :: comm
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  integer :: comm_
+  character(len = STRING_LENGTH) :: str, message
+
+  comm_ = MPI_COMM_WORLD
+  if (present(comm)) comm_ = comm
 
   this%ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
 
@@ -50,6 +93,15 @@ subroutine initializeSolverOptions(this, simulationFlags)
      call getRequiredOption("density_convergence_tolerance",  this%convergenceTolerance(1))
      call getRequiredOption("momentum_convergence_tolerance", this%convergenceTolerance(2))
      call getRequiredOption("energy_convergence_tolerance",   this%convergenceTolerance(3))
+  end if
+
+  if (.not. simulationFlags%predictionOnly) then
+     call getRequiredOption("cost_functional_type", str)
+     call parseCostFunctionalType(str, this%costFunctionalType)
+     if (this%costFunctionalType == -1) then
+        write(message, '(A)') "Invalid cost functional type '", trim(str), "'!"
+        call gracefulExit(comm_, message)
+     end if
   end if
 
 end subroutine initializeSolverOptions

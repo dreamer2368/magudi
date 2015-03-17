@@ -40,6 +40,9 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   use PatchDescriptor_type
   use SimulationFlags_type
 
+  ! <<< Internal modules >>>
+  use InputHelper, only : getOption
+
   ! <<< Arguments >>>
   type(t_PatchDescriptor) :: this
   integer, intent(in) :: globalGridSizes(:,:)
@@ -50,6 +53,9 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   ! <<< Local variables >>>
   integer :: i, extent(6)
   logical :: isExtentValid
+  character(len = STRING_LENGTH) :: key
+
+  errorCode = 0
 
   extent = (/ this%iMin, this%iMax,                                                          &
        this%jMin, this%jMax,                                                                 &
@@ -136,37 +142,58 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
      end if
   end if
 
-  ! Check if target state is being used if the patch requires it.
+  if (.not. simulationFlags%predictionOnly .and. .not. simulationFlags%useTargetState) then
+     select case (this%patchType)
+     case (SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
+        write(key, '(3A)') "patches/", trim(this%name), "/"
+
+        ! Check if target state is available for measuring lift.
+        if (getOption(trim(key) // "measure_lift", .false.)) then
+           write(message, '(3A,I0.0,A)') "Unable to measure lift on patch '",                &
+                trim(this%name), "' on grid ", this%gridIndex,                               &
+                " because there is no target state!"
+           errorCode = 2
+           return
+        end if
+
+        ! Check if target state is available for measuring drag.
+        if (getOption(trim(key) // "measure_drag", .false.)) then
+           write(message, '(3A,I0.0,A)') "Unable to measure drag on patch '",                &
+                trim(this%name), "' on grid ", this%gridIndex,                               &
+                " because there is no target state!"
+           errorCode = 2
+           return
+        end if
+
+     end select !... this%patchType
+  end if
+
   select case (this%patchType)
+
+  ! Check if target state is being used for patches that require it.
   case (SPONGE, SAT_FAR_FIELD)
      if (.not. simulationFlags%useTargetState) then
         write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because there is no target state!"
         errorCode = 1
-        return
      end if
-  end select
 
   ! Check if domain is two-dimensional for using patch `SOLENOIDAL_EXCITATION`.
-  select case (this%patchType)
   case (SOLENOIDAL_EXCITATION)
      if (size(globalGridSizes, 1) /= 2) then
         write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because the domain is not two-dimensional!"
         errorCode = 1
-        return
      end if
-  end select
 
   ! Check if an `ACTUATOR` patch will be used.
-  select case (this%patchType)
   case (ACTUATOR)
      if (simulationFlags%predictionOnly) then
         write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because control actuation has been disabled!"
         errorCode = 1
-        return
      end if
+
   end select
 
   ! Copy over extent to iMin, iMax, etc.
@@ -176,8 +203,6 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   this%jMax = extent(4)
   this%kMin = extent(5)
   this%kMax = extent(6)
-
-  errorCode = 0
 
 end subroutine validatePatchDescriptor
 

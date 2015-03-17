@@ -156,7 +156,7 @@ program main
      end if
 
      ! Baseline adjoint.
-     call solveAdjoint(region, integrator, time, startTimestep, nTimesteps,                  &              
+     call solveAdjoint(region, integrator, time, startTimestep, nTimesteps,                  &
           reportInterval, saveInterval, outputPrefix)
 
   end if
