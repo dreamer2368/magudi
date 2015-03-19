@@ -86,7 +86,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
   ! Stage 1:
 
   call computeRhs(region, FORWARD, time)
-  call subStepHooks(region, timestep, 0)
+  call subStepHooks(region, FORWARD, timestep, 0)
   timeStepSize = region%states(1)%timeStepSize
 
   do i = 1, size(region%states)
@@ -100,7 +100,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
 
   time = time + timeStepSize / 2.0_wp
   call computeRhs(region, FORWARD, time)
-  call subStepHooks(region, timestep, 1)
+  call subStepHooks(region, FORWARD, timestep, 1)
 
   do i = 1, size(region%states)
      this%temp_(i)%buffer2 = this%temp_(i)%buffer2 +                                         &
@@ -112,7 +112,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
   ! Stage 3:
 
   call computeRhs(region, FORWARD, time)
-  call subStepHooks(region, timestep, 2)
+  call subStepHooks(region, FORWARD, timestep, 2)
 
   do i = 1, size(region%states)
      this%temp_(i)%buffer2 = this%temp_(i)%buffer2 +                                         &
@@ -125,7 +125,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
 
   time = time + timeStepSize / 2.0_wp
   call computeRhs(region, FORWARD, time)
-  call subStepHooks(region, timestep, 3)
+  call subStepHooks(region, FORWARD, timestep, 3)
 
   do i = 1, size(region%states)
      region%states(i)%conservedVariables = this%temp_(i)%buffer2 +                           &
@@ -134,7 +134,7 @@ subroutine stepForward(this, region, time, timestep, verbose)
      region%states(i)%plot3dAuxiliaryData(4) = time
   end do
 
-  call subStepHooks(region, timestep, 4)
+  call subStepHooks(region, FORWARD, timestep, 4)
 
   if (present(verbose)) then
      if (verbose) then
@@ -186,7 +186,7 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
 
   ! Stage 4:
 
-  call subStepHooks(region, timestep, 4)
+  call subStepHooks(region, ADJOINT, timestep, 4)
   call computeRhs(region, ADJOINT, time)
   timeStepSize = region%states(1)%timeStepSize
 
@@ -200,7 +200,7 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
   ! Stage 3:
 
   time = time - timeStepSize / 2.0_wp
-  call subStepHooks(region, timestep, 3)
+  call subStepHooks(region, ADJOINT, timestep, 3)
   call computeRhs(region, ADJOINT, time)
 
   do i = 1, size(region%states)
@@ -212,7 +212,7 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
 
   ! Stage 2:
 
-  call subStepHooks(region, timestep, 2)
+  call subStepHooks(region, ADJOINT, timestep, 2)
   call computeRhs(region, ADJOINT, time)
 
   do i = 1, size(region%states)
@@ -225,7 +225,7 @@ subroutine stepAdjoint(this, region, time, timestep, verbose)
   ! Stage 1:
 
   time = time - timeStepSize / 2.0_wp
-  call subStepHooks(region, timestep, 1)
+  call subStepHooks(region, ADJOINT, timestep, 1)
   call computeRhs(region, ADJOINT, time)
 
   do i = 1, size(region%states)

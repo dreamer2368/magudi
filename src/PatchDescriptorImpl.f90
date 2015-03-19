@@ -253,8 +253,8 @@ subroutine validatePatchesConnectivity(patchDescriptors, errorCode, message)
                     return
                  end if
 
-                 if (patchDescriptors(j)%normalDirection /=                                  &
-                      -patchDescriptors(i)%normalDirection) then
+                 if (sign(1, patchDescriptors(j)%normalDirection) /=                         &
+                      - sign(1, patchDescriptors(i)%normalDirection)) then
                     write(message, '(2(3A,I0.0),A)') "Patch '",                              &
                          trim(patchDescriptors(i)%name), "' on grid ",                       &
                          patchDescriptors(i)%gridIndex, " conforms with patch '",            &

@@ -25,6 +25,10 @@ contains
     select case (this%patchType)
     case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
        allocate(this%metrics(this%nPatchPoints, nDimensions ** 2))
+       if (this%isLiftMeasured .or. this%isDragMeasured)                                     &
+            allocate(this%adjointSource(this%nPatchPoints, nDimensions + 2))
+       if (this%isLiftMeasured) this%liftDirection = (/ 0.0_wp, 1.0_wp, 0.0_wp /)
+       if (this%isDragMeasured) this%DragDirection = (/ 1.0_wp, 0.0_wp, 0.0_wp /)
     end select
 
     select case (this%patchType)
@@ -131,8 +135,6 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   write(key, '(A,I3.3,A)') "grid", this%gridIndex, "/curvilinear"
   this%isCurvilinear = getOption(key, this%isCurvilinear)
 
-  call allocateData(this, nDimensions, simulationFlags)
-
   write(key, '(3A)') "patches/", trim(patchDescriptor%name), "/"
 
   select case (this%patchType)
@@ -207,6 +209,8 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
      end select
 
   end if
+
+  call allocateData(this, nDimensions, simulationFlags)
 
 end subroutine setupPatch
 
@@ -569,12 +573,13 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, direction, gridIndex, patchIndex
+  integer :: i, j, k, l, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
        metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),                  &
        inviscidPenalty(:), viscousPenalty1(:), viscousPenalty2(:),                           &
+       deltaNormalVelocity(:), deltaInviscidPenalty(:,:),                                    &
        deltaIncomingJacobianOfInviscidFlux(:,:,:)
-  SCALAR_TYPE :: temp
+  SCALAR_TYPE :: normalVelocity
 
   call startTiming("addWallPenalty")
 
@@ -585,6 +590,8 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   allocate(incomingJacobianOfInviscidFlux(nDimensions + 2, nDimensions + 2))
   allocate(inviscidPenalty(nDimensions + 2))
   if (mode == ADJOINT) then
+     allocate(deltaNormalVelocity(nDimensions + 2))
+     allocate(deltaInviscidPenalty(nDimensions + 2, nDimensions + 2))
      allocate(deltaIncomingJacobianOfInviscidFlux(nDimensions + 2,                           &
           nDimensions + 2, nDimensions + 2))
   end if
@@ -603,6 +610,15 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
            localConservedVariables = conservedVariables(gridIndex,:)
            metricsAlongNormalDirection =                                                     &
                 this%metrics(patchIndex,1+nDimensions*(direction-1):nDimensions*direction)
+
+           normalVelocity = dot_product(localConservedVariables(2:nDimensions+1) /           &
+                localConservedVariables(1), metricsAlongNormalDirection /                    &
+                sqrt(sum(metricsAlongNormalDirection ** 2)))
+           inviscidPenalty(1) = 0.0_wp
+           inviscidPenalty(2:nDimensions+1) = metricsAlongNormalDirection * normalVelocity / &
+                sqrt(sum(metricsAlongNormalDirection ** 2))
+           inviscidPenalty(nDimensions+2) =                                                  &
+                0.5_wp * localConservedVariables(1) * normalVelocity ** 2
 
            select case (mode)
 
@@ -625,6 +641,21 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
 
            case (ADJOINT)
 
+              deltaNormalVelocity(1) = - normalVelocity / localConservedVariables(1)
+              deltaNormalVelocity(2:nDimensions+1) = metricsAlongNormalDirection /           &
+                sqrt(sum(metricsAlongNormalDirection ** 2)) / localConservedVariables(1)
+              deltaNormalVelocity(nDimensions+2) = 0.0_wp
+              deltaInviscidPenalty(1,:) = 0.0_wp
+              do l = 1, nDimensions
+                 deltaInviscidPenalty(l+1,:) =                                               &
+                      metricsAlongNormalDirection(l) * deltaNormalVelocity /                 &
+                      sqrt(sum(metricsAlongNormalDirection ** 2))
+              end do
+              deltaInviscidPenalty(nDimensions+2,:) =                                        &
+                   localConservedVariables(1) * normalVelocity * deltaNormalVelocity
+              deltaInviscidPenalty(nDimensions+2,1) =                                        &
+                   deltaInviscidPenalty(nDimensions+2,1) + 0.5_wp * normalVelocity ** 2
+
               select case (nDimensions)
               case (1)
                  call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,       &
@@ -645,24 +676,45 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
 
            end select !... mode
 
-           temp = dot_product(localConservedVariables(2:nDimensions+1),                      &
-                metricsAlongNormalDirection)
-
-           inviscidPenalty(1) = 0.0_wp
-           inviscidPenalty(2:nDimensions+1) = metricsAlongNormalDirection * temp
-           inviscidPenalty(nDimensions+2) =                                                  &
-                0.5_wp / localConservedVariables(1) * temp ** 2
-           inviscidPenalty(2:nDimensions+2) = inviscidPenalty(2:nDimensions+2) /             &
-                sum(metricsAlongNormalDirection ** 2)
-           inviscidPenalty = matmul(incomingJacobianOfInviscidFlux,                          &
-                inviscidPenalty)
-
            select case (mode)
 
            case (FORWARD)
               rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                      &
-                   this%inviscidPenaltyAmount * inviscidPenalty
+                   this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &
+                   inviscidPenalty)
 
+           case (ADJOINT)
+
+              do l = 1, nDimensions + 2
+                 rightHandSide(gridIndex,l) = rightHandSide(gridIndex,l) +                   &
+                      this%inviscidPenaltyAmount *                                           &
+                      dot_product(adjointVariables(gridIndex,:),                             &
+                      matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l), inviscidPenalty) +  &
+                      matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)))
+              end do
+
+              if (this%isLiftMeasured .or. this%isDragMeasured) then
+                 this%adjointSource(patchIndex,1) =                                          &
+                      0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                             &
+                      sum(localConservedVariables(2:nDimensions+1) ** 2) /                   &
+                      localConservedVariables(1) ** 2
+                 this%adjointSource(patchIndex,2:nDimensions+1) =                            &
+                      - (ratioOfSpecificHeats - 1.0_wp) *                                    &
+                      localConservedVariables(2:nDimensions+1) / localConservedVariables(1)
+                 this%adjointSource(patchIndex,nDimensions+2) =                              &
+                      ratioOfSpecificHeats - 1.0_wp
+              end if
+
+              if (this%isLiftMeasured) then
+                 this%adjointSource(patchIndex,:) =                                          &
+                   this%adjointSource(patchIndex,:) *                                        &
+                   dot_product(this%liftDirection(1:nDimensions),                            &
+                   metricsAlongNormalDirection)
+                 rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) +                   &
+                      this%adjointSource(patchIndex,:)
+              end if
+              
+              
            end select
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
@@ -670,6 +722,8 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
 
   SAFE_DEALLOCATE(deltaIncomingJacobianOfInviscidFlux)
+  SAFE_DEALLOCATE(deltaInviscidPenalty)
+  SAFE_DEALLOCATE(deltaNormalVelocity)
   SAFE_DEALLOCATE(inviscidPenalty)
   SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)

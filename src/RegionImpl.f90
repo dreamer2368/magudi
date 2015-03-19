@@ -1066,7 +1066,7 @@ subroutine reportGridDiagnostics(this)
 
 end subroutine reportGridDiagnostics
 
-subroutine subStepHooks(this, timestep, stage)
+subroutine subStepHooks(this, mode, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type
@@ -1075,7 +1075,7 @@ subroutine subStepHooks(this, timestep, stage)
 
   ! <<< Arguments >>>
   type(t_Region) :: this
-  integer, intent(in) :: timestep, stage
+  integer, intent(in) :: mode, timestep, stage
 
 end subroutine subStepHooks
 

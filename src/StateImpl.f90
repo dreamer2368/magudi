@@ -605,7 +605,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   integer :: i, j, nDimensions, ierror
   SCALAR_TYPE, allocatable :: gradientOfAdjointVariables(:,:,:), localConservedVariables(:), &
        localVelocity(:), localMetricsAlongDirection(:), localStressTensor(:),                &
-       localHeatFlux(:), localJacobian1(:,:), localJacobian2(:,:)
+       localHeatFlux(:), localJacobian1(:,:), localJacobian2(:,:), temp(:,:,:)
 
   call startTiming("computeRhsAdjoint")
 
@@ -685,7 +685,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
            localJacobian1 = localJacobian1 - localJacobian2
         end if
 
-        this%rightHandSide(i,:) = this%rightHandSide(i,:) -                                  &
+        this%rightHandSide(i,:) = this%rightHandSide(i,:) +                                  &
              matmul(transpose(localJacobian1), gradientOfAdjointVariables(i,:,j))
 
      end do !... j = 1, nDimensions
@@ -704,6 +704,19 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   SAFE_DEALLOCATE(localJacobian1)
 
   SAFE_DEALLOCATE(gradientOfAdjointVariables)
+
+  ! Add dissipation if required.
+  if (simulationFlags%dissipationOn) then
+     allocate(temp(grid%nGridPoints, this%nUnknowns, nDimensions))
+     do i = 1, nDimensions
+        temp(:,:,i) = this%adjointVariables
+        call applyOperator(grid%dissipation(i), temp(:,:,i), grid%localSize)
+     end do
+     this%rightHandSide = this%rightHandSide -                                               &
+          solverOptions%dissipationAmount * sum(temp, dim = 3) !... update right-hand side.
+  end if
+
+  SAFE_DEALLOCATE(temp)
 
   call endTiming("computeRhsAdjoint")
 

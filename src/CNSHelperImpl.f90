@@ -546,7 +546,7 @@ subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,         
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   SCALAR_TYPE :: specificVolume_, velocity_(1), temperature_, contravariantVelocity,         &
-       & phiSquared, deltaConservedVariables_(3,3), deltaSpecificVolume(3),                  &
+       phiSquared, deltaConservedVariables_(3,3), deltaSpecificVolume(3),                    &
        deltaVelocity(1,3), deltaTemperature(3), deltaContravariantVelocity(3),               &
        deltaPhiSquared(3)
 
@@ -609,7 +609,8 @@ subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,         
      ! Compute variations of specific volume, velocity and temperature.
      deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
           deltaConservedVariables_(1,:)
-     deltaVelocity(1,:) = deltaSpecificVolume * deltaConservedVariables_(2,:)
+     deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
+          specificVolume_ * deltaConservedVariables_(2,:)
      deltaTemperature = ratioOfSpecificHeats * (deltaSpecificVolume *                        &
           conservedVariables(3) + specificVolume_ * deltaConservedVariables_(2,:) -          &
           (velocity_(1) * deltaVelocity(1,:)))
@@ -659,7 +660,7 @@ subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,         
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   SCALAR_TYPE :: specificVolume_, velocity_(2), temperature_, contravariantVelocity,         &
-       & phiSquared, deltaConservedVariables_(4,4), deltaSpecificVolume(4),                  &
+       phiSquared, deltaConservedVariables_(4,4), deltaSpecificVolume(4),                    &
        deltaVelocity(2,4), deltaTemperature(4), deltaContravariantVelocity(4),               &
        deltaPhiSquared(4)
 
@@ -739,8 +740,10 @@ subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,         
      ! Compute variations of specific volume, velocity and temperature.
      deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
           deltaConservedVariables_(1,:)
-     deltaVelocity(1,:) = deltaSpecificVolume * deltaConservedVariables_(2,:)
-     deltaVelocity(2,:) = deltaSpecificVolume * deltaConservedVariables_(3,:)
+     deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
+          specificVolume_ * deltaConservedVariables(2,:)
+     deltaVelocity(2,:) = deltaSpecificVolume * conservedVariables(3) +                      &
+          specificVolume_ * deltaConservedVariables(3,:)
      deltaTemperature = ratioOfSpecificHeats * (deltaSpecificVolume *                        &
           conservedVariables(4) + specificVolume_ * deltaConservedVariables_(4,:) -          &
           (velocity_(1) * deltaVelocity(1,:) + velocity_(2) * deltaVelocity(2,:)))
@@ -755,11 +758,11 @@ subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,         
 
      deltaJacobianOfInviscidFlux(1,1,:) = 0.0_wp
      deltaJacobianOfInviscidFlux(2,1,:) = deltaPhiSquared * metrics(1) -                     &
-          deltaContravariantVelocity * velocity_(1) - contravariantVelocity *                &
-          deltaVelocity(1,:)
+          deltaContravariantVelocity * velocity_(1) -                                        &
+          contravariantVelocity * deltaVelocity(1,:)
      deltaJacobianOfInviscidFlux(3,1,:) = deltaPhiSquared * metrics(2) -                     &
-          deltaContravariantVelocity * velocity_(2) - contravariantVelocity *                &
-          deltaVelocity(2,:)
+          deltaContravariantVelocity * velocity_(2) -                                        &
+          contravariantVelocity * deltaVelocity(2,:)
      deltaJacobianOfInviscidFlux(4,1,:) = deltaContravariantVelocity *                       &
           ((ratioOfSpecificHeats - 2.0_wp) / (ratioOfSpecificHeats - 1.0_wp) * phiSquared -  &
           temperature_) + contravariantVelocity * ((ratioOfSpecificHeats - 2.0_wp) /         &
@@ -808,7 +811,7 @@ subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,         
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   SCALAR_TYPE :: specificVolume_, velocity_(3), temperature_, contravariantVelocity,         &
-       & phiSquared, deltaConservedVariables_(5,5), deltaSpecificVolume(5),                  &
+       phiSquared, deltaConservedVariables_(5,5), deltaSpecificVolume(5),                    &
        deltaVelocity(3,5), deltaTemperature(5), deltaContravariantVelocity(5),               &
        deltaPhiSquared(5)
 
@@ -907,9 +910,12 @@ subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,         
      ! Compute variations of specific volume, velocity and temperature.
      deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
           deltaConservedVariables_(1,:)
-     deltaVelocity(1,:) = deltaSpecificVolume * deltaConservedVariables_(2,:)
-     deltaVelocity(2,:) = deltaSpecificVolume * deltaConservedVariables_(3,:)
-     deltaVelocity(3,:) = deltaSpecificVolume * deltaConservedVariables_(4,:)
+     deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
+          specificVolume_ * deltaConservedVariables(2,:)
+     deltaVelocity(2,:) = deltaSpecificVolume * conservedVariables(3) +                      &
+          specificVolume_ * deltaConservedVariables(3,:)
+     deltaVelocity(3,:) = deltaSpecificVolume * conservedVariables(4) +                      &
+          specificVolume_ * deltaConservedVariables(4,:)
      deltaTemperature = ratioOfSpecificHeats * (deltaSpecificVolume *                        &
           conservedVariables(5) + specificVolume_ * deltaConservedVariables_(5,:) -          &
           (velocity_(1) * deltaVelocity(1,:) + velocity_(2) * deltaVelocity(2,:) +           &
@@ -1008,7 +1014,7 @@ subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics, 
        rightEigenvectors(3,3), eigenvalues(3), leftEigenvectors(3,3),                        &
        deltaConservedVariables_(3,3), deltaSpecificVolume(3), deltaVelocity(1,3),            &
        deltaTemperature(3), deltaContravariantVelocity(3), deltaSpeedOfSound(3),             &
-       deltaRightEigenvectorshiSquared(3), deltaRightEigenvectors(3,3,3),                    &
+       deltaPhiSquared(3), deltaRightEigenvectors(3,3,3),                                    &
        deltaEigenvalues(3,3), deltaLeftEigenvectors(3,3,3), temp(3)
 
   ! Normalize the metrics.
@@ -1063,7 +1069,8 @@ subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics, 
      ! Compute variations of specific volume, velocity and temperature.
      deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
           deltaConservedVariables_(1,:)
-     deltaVelocity(1,:) = deltaSpecificVolume * deltaConservedVariables_(2,:)
+     deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
+          specificVolume_ * deltaConservedVariables(2,:)
      deltaTemperature = ratioOfSpecificHeats *                                               &
           (deltaSpecificVolume * conservedVariables(3) +                                     &
           specificVolume_ * deltaConservedVariables_(3,:) -                                  &
@@ -1073,7 +1080,7 @@ subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics, 
      deltaContravariantVelocity = normalizedMetrics(1) * deltaVelocity(1,:)
      deltaSpeedOfSound = 0.5_wp / speedOfSound *                                             &
           (ratioOfSpecificHeats - 1.0_wp) * deltaTemperature
-     deltaRightEigenvectorshiSquared = (ratioOfSpecificHeats - 1.0_wp) *                     &
+     deltaPhiSquared = (ratioOfSpecificHeats - 1.0_wp) *                                     &
           (velocity_(1) * deltaVelocity(1,:))
 
      ! Variation of matrix containing eigenvalues.
@@ -1143,14 +1150,14 @@ subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics, 
 
      deltaRightEigenvectors(1,1,:) = 0.0_wp
      deltaRightEigenvectors(2,1,:) = deltaVelocity(1,:)
-     deltaRightEigenvectors(3,1,:) = deltaRightEigenvectorshiSquared /                       &
+     deltaRightEigenvectors(3,1,:) = deltaPhiSquared /                                       &
           (ratioOfSpecificHeats - 1.0_wp)
 
      deltaRightEigenvectors(1,2,:) = 0.0_wp
      deltaRightEigenvectors(2,2,:) = deltaVelocity(1,:) +                                    &
           normalizedMetrics(1) * deltaSpeedOfSound
      deltaRightEigenvectors(3,2,:) = deltaTemperature +                                      &
-          deltaRightEigenvectorshiSquared / (ratioOfSpecificHeats - 1.0_wp) +                &
+          deltaPhiSquared / (ratioOfSpecificHeats - 1.0_wp) +                                &
           deltaSpeedOfSound * contravariantVelocity +                                        &
           speedOfSound * deltaContravariantVelocity
 
@@ -1158,13 +1165,13 @@ subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics, 
      deltaRightEigenvectors(2,3,:) = deltaVelocity(1,:) -                                    &
           normalizedMetrics(1) * deltaSpeedOfSound
      deltaRightEigenvectors(3,3,:) = deltaTemperature +                                      &
-          deltaRightEigenvectorshiSquared / (ratioOfSpecificHeats - 1.0_wp) -                &
+          deltaPhiSquared / (ratioOfSpecificHeats - 1.0_wp) -                                &
           deltaSpeedOfSound * contravariantVelocity -                                        &
           speedOfSound * deltaContravariantVelocity
 
      ! Variation of the matrix whose rows are the left eigenvectors:
 
-     temp = deltaRightEigenvectorshiSquared / speedOfSound ** 2 -                            &
+     temp = deltaPhiSquared / speedOfSound ** 2 -                                            &
           2.0_wp * phiSquared / speedOfSound ** 3 * deltaSpeedOfSound
      deltaLeftEigenvectors(1,1,:) = -temp
      deltaLeftEigenvectors(2,1,:) = 0.5_wp * (temp -                                         &
@@ -1230,7 +1237,7 @@ subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics, 
        rightEigenvectors(4,4), eigenvalues(4), leftEigenvectors(4,4),                        &
        deltaConservedVariables_(4,4), deltaSpecificVolume(4), deltaVelocity(2,4),            &
        deltaTemperature(4), deltaContravariantVelocity(4), deltaSpeedOfSound(4),             &
-       deltaRightEigenvectorshiSquared(4), deltaRightEigenvectors(4,4,4),                    &
+       deltaPhiSquared(4), deltaRightEigenvectors(4,4,4),                                    &
        deltaEigenvalues(4,4), deltaLeftEigenvectors(4,4,4), temp(4)
 
   ! Normalize the metrics.
@@ -1290,8 +1297,10 @@ subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics, 
      ! Compute variations of specific volume, velocity and temperature.
      deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
           deltaConservedVariables_(1,:)
-     deltaVelocity(1,:) = deltaSpecificVolume * deltaConservedVariables_(2,:)
-     deltaVelocity(2,:) = deltaSpecificVolume * deltaConservedVariables_(3,:)
+     deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
+          specificVolume_ * deltaConservedVariables_(2,:)
+     deltaVelocity(2,:) = deltaSpecificVolume * conservedVariables(3) +                      &
+          specificVolume_ * deltaConservedVariables_(3,:)
      deltaTemperature = ratioOfSpecificHeats *                                               &
           (deltaSpecificVolume * conservedVariables(4) +                                     &
           specificVolume_ * deltaConservedVariables_(4,:) -                                  &
@@ -1302,7 +1311,7 @@ subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics, 
           normalizedMetrics(2) * deltaVelocity(2,:)
      deltaSpeedOfSound = 0.5_wp / speedOfSound *                                             &
           (ratioOfSpecificHeats - 1.0_wp) * deltaTemperature
-     deltaRightEigenvectorshiSquared = (ratioOfSpecificHeats - 1.0_wp) *                     &
+     deltaPhiSquared = (ratioOfSpecificHeats - 1.0_wp) *                                     &
           (velocity_(1) * deltaVelocity(1,:) + velocity_(2) * deltaVelocity(2,:))
 
      ! Variation of matrix containing eigenvalues.
@@ -1395,7 +1404,7 @@ subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics, 
      deltaRightEigenvectors(1,1,:) = 0.0_wp
      deltaRightEigenvectors(2,1,:) = deltaVelocity(1,:)
      deltaRightEigenvectors(3,1,:) = deltaVelocity(2,:)
-     deltaRightEigenvectors(4,1,:) = deltaRightEigenvectorshiSquared /                       &
+     deltaRightEigenvectors(4,1,:) = deltaPhiSquared /                                       &
           (ratioOfSpecificHeats - 1.0_wp)
 
      deltaRightEigenvectors(1,2,:) = 0.0_wp
@@ -1412,7 +1421,7 @@ subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics, 
      deltaRightEigenvectors(3,3,:) = deltaVelocity(2,:) +                                    &
           normalizedMetrics(2) * deltaSpeedOfSound
      deltaRightEigenvectors(4,3,:) = deltaTemperature +                                      &
-          deltaRightEigenvectorshiSquared / (ratioOfSpecificHeats - 1.0_wp) +                &
+          deltaPhiSquared / (ratioOfSpecificHeats - 1.0_wp) +                                &
           deltaSpeedOfSound * contravariantVelocity +                                        &
           speedOfSound * deltaContravariantVelocity
 
@@ -1422,13 +1431,13 @@ subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics, 
      deltaRightEigenvectors(3,4,:) = deltaVelocity(2,:) -                                    &
           normalizedMetrics(2) * deltaSpeedOfSound
      deltaRightEigenvectors(4,4,:) = deltaTemperature +                                      &
-          deltaRightEigenvectorshiSquared / (ratioOfSpecificHeats - 1.0_wp) -                &
+          deltaPhiSquared / (ratioOfSpecificHeats - 1.0_wp) -                                &
           deltaSpeedOfSound * contravariantVelocity -                                        &
           speedOfSound * deltaContravariantVelocity
 
      ! Variation of the matrix whose rows are the left eigenvectors:
 
-     temp = deltaRightEigenvectorshiSquared / speedOfSound ** 2 -                            &
+     temp = deltaPhiSquared / speedOfSound ** 2 -                                            &
           2.0_wp * phiSquared / speedOfSound ** 3 * deltaSpeedOfSound
      deltaLeftEigenvectors(1,1,:) = -temp
      deltaLeftEigenvectors(2,1,:) = -deltaSpecificVolume *                                   &
@@ -1575,9 +1584,12 @@ subroutine computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metrics, 
      ! Compute variations of specific volume, velocity and temperature.
      deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
           deltaConservedVariables_(1,:)
-     deltaVelocity(1,:) = deltaSpecificVolume * deltaConservedVariables_(2,:)
-     deltaVelocity(2,:) = deltaSpecificVolume * deltaConservedVariables_(3,:)
-     deltaVelocity(3,:) = deltaSpecificVolume * deltaConservedVariables_(4,:)
+     deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
+          specificVolume_ * deltaConservedVariables_(2,:)
+     deltaVelocity(2,:) = deltaSpecificVolume * conservedVariables(3) +                      &
+          specificVolume_ * deltaConservedVariables_(3,:)
+     deltaVelocity(3,:) = deltaSpecificVolume * conservedVariables(4) +                      &
+          specificVolume_ * deltaConservedVariables_(4,:)
      deltaTemperature = ratioOfSpecificHeats *                                               &
           (deltaSpecificVolume * conservedVariables(5) +                                     &
           specificVolume_ * deltaConservedVariables_(5,:) -                                  &

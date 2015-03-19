@@ -122,12 +122,12 @@ module Region_mod
 
   interface
 
-     subroutine subStepHooks(this, timestep, stage)
+     subroutine subStepHooks(this, mode, timestep, stage)
 
        use Region_type
 
        type(t_Region) :: this
-       integer, intent(in) :: timestep, stage
+       integer, intent(in) :: mode, timestep, stage
 
      end subroutine subStepHooks
 

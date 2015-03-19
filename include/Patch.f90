@@ -25,21 +25,23 @@ module Patch_type
 
      ! Wall patch variables.
      logical :: isLiftMeasured, isDragMeasured
+     real(SCALAR_KIND) :: liftDirection(3), dragDirection(3)
+     SCALAR_TYPE, allocatable :: adjointSource(:,:)
 
-     ! Block interface variables.
+     ! Block interface patch variables.
      integer :: indexOfConformingPatch, commOfConformingPatch = MPI_COMM_NULL
      SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables,                         &
           interfaceDataBuffer1, interfaceDataBuffer2
 
-     ! Sponge variables.
+     ! Sponge patch variables.
      real(SCALAR_KIND) :: spongeAmount
      integer :: spongeExponent
      real(SCALAR_KIND), allocatable :: spongeStrength(:)
 
-     ! Actuator variables.
+     ! Actuator patch variables.
      SCALAR_TYPE, allocatable :: gradient(:,:)
 
-     ! Solenoidal excitation variables.
+     ! Solenoidal excitation patch variables.
      type(t_SolenoidalExcitation) :: solenoidalExcitation
      real(SCALAR_KIND), allocatable :: solenoidalExcitationStrength(:)
 

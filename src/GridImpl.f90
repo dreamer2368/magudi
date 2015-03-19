@@ -622,6 +622,8 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
      ! Adjoint first derivative operator.
      if (allocated(this%adjointFirstDerivative)) then
         call getAdjointOperator(this%firstDerivative(i), this%adjointFirstDerivative(i))
+        call updateOperator(this%adjointFirstDerivative(i), this%comm, i,                    &
+             this%periodicityType(i) == OVERLAP)
      end if
 
   end do !... i = 1, nDimensions

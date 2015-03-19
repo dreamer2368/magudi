@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-from numpy import sqrt, log10
 import matplotlib
-matplotlib.rcParams['legend.fontsize'] = 'medium'
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from numpy import sqrt, log10
 GoldenRatio = 0.5 * (1 + sqrt(5))
 
 def TargetPresentation(width = None, height = None):
@@ -30,6 +29,7 @@ def TargetPresentation(width = None, height = None):
     matplotlib.rcParams['grid.color'] = '#AAAAAA'
     matplotlib.rcParams['axes.axisbelow'] = False
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
+    matplotlib.rcParams['legend.fontsize'] = 'medium'
 
 def TargetAnimation(width = None, height = None):
     TargetPresentation(width, height)
