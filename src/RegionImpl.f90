@@ -1023,7 +1023,7 @@ subroutine reportGridDiagnostics(this)
   ! <<< Local variables >>>
   integer :: i, j, iGlobal, jGlobal, kGlobal, procRank, ierror
   character(len = STRING_LENGTH) :: str
-  real(SCALAR_KIND) :: minimumJacobian, maximumJacobian
+  SCALAR_TYPE :: minimumJacobian, maximumJacobian
 
   call MPI_Comm_rank(this%comm, procRank, ierror)
 

@@ -64,8 +64,8 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
         end if
      else
         temperature = ratioOfSpecificHeats_ * (conservedVariables(:,nDimensions+2) -         &
-             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2)) /            &
-             conservedVariables(:,1) ** 2
+             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) /             &
+             conservedVariables(:,1)) / conservedVariables(:,1)
      end if
   end if
 
@@ -383,7 +383,11 @@ subroutine transformFluxes(nDimensions, fluxes, metrics,                        
   logical, intent(in), optional :: isDomainCurvilinear
 
   ! <<< Local variables >>>
+  logical :: isDomainCurvilinear_
   integer :: i
+
+  isDomainCurvilinear_ = .true.
+  if (present(isDomainCurvilinear)) isDomainCurvilinear_ = isDomainCurvilinear
 
   select case (nDimensions)
 
@@ -393,7 +397,7 @@ subroutine transformFluxes(nDimensions, fluxes, metrics,                        
      end do
 
   case (2)
-     if (isDomainCurvilinear) then
+     if (isDomainCurvilinear_) then
         do i = 1, size(fluxes, 2)
            transformedFluxes(:,i,1) = metrics(:,1) * fluxes(:,i,1) +                         &
                 metrics(:,2) * fluxes(:,i,2)
@@ -408,7 +412,7 @@ subroutine transformFluxes(nDimensions, fluxes, metrics,                        
      end if
 
   case (3)
-     if (isDomainCurvilinear) then
+     if (isDomainCurvilinear_) then
         do i = 1, size(fluxes, 2)
            transformedFluxes(:,i,1) = metrics(:,1) * fluxes(:,i,1) +                         &
                 metrics(:,2) * fluxes(:,i,2) + metrics(:,3) * fluxes(:,i,3)
@@ -533,11 +537,12 @@ function computeTimeStepSize(nDimensions, iblank, jacobian, metrics, velocity, t
 end function computeTimeStepSize
 
 subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,                      &
-     ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables, specificVolume,  &
-     velocity, temperature, deltaJacobianOfInviscidFlux)
+     ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,                  &
+     specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
   ! <<< Arguments >>>
-  SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1), ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux(3,3)
   SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(3,3),                         &
        specificVolume, velocity(1), temperature
@@ -574,7 +579,7 @@ subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,         
   end if
 
   ! Other dependent variables.
-  contravariantVelocity = metrics(1) * velocity(1) !... not normalized.
+  contravariantVelocity = metrics(1) * velocity_(1) !... not normalized.
 
   phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * (velocity_(1) ** 2)
 
@@ -651,7 +656,8 @@ subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,         
      velocity, temperature, deltaJacobianOfInviscidFlux)
 
   ! <<< Arguments >>>
-  SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2), ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux(4,4)
   SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(4,4),                         &
        specificVolume, velocity(2), temperature
@@ -689,8 +695,8 @@ subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,         
   end if
 
   ! Other dependent variables.
-  contravariantVelocity = metrics(1) * velocity(1) +                                         &
-       metrics(2) * velocity(2) !... not normalized.
+  contravariantVelocity = metrics(1) * velocity_(1) +                                        &
+       metrics(2) * velocity_(2) !... not normalized.
 
   phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                                    &
        (velocity_(1) ** 2 + velocity_(2) ** 2)
@@ -798,11 +804,12 @@ subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,         
 end subroutine computeJacobianOfInviscidFlux2D
 
 subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,                      &
-     ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables, specificVolume,  &
-     velocity, temperature, deltaJacobianOfInviscidFlux)
+     ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,                  &
+     specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
   ! <<< Arguments >>>
-  SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3), ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux(5,5)
   SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(5,5),                         &
        specificVolume, velocity(3), temperature
@@ -837,12 +844,11 @@ subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,         
   else
      temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(5)          &
           - 0.5_wp * (velocity_(1) ** 2 + velocity_(2) ** 2 + velocity_(3) ** 2))
-
   end if
 
   ! Other dependent variables.
-  contravariantVelocity = metrics(1) * velocity(1) + metrics(2) * velocity(2) +              &
-       metrics(3) * velocity(3) !... not normalized.
+  contravariantVelocity = metrics(1) * velocity_(1) + metrics(2) * velocity_(2) +            &
+       metrics(3) * velocity_(3) !... not normalized.
 
   phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                                    &
        (velocity_(1) ** 2 + velocity_(2) ** 2 + velocity_(3) ** 2)
@@ -923,8 +929,10 @@ subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,         
 
      ! Compute variations of other dependent variables:
 
-     deltaContravariantVelocity = metrics(1) * deltaVelocity(1,:) + metrics(2) *             &
-          deltaVelocity(2,:) + metrics(3) * deltaVelocity(3,:)
+     deltaContravariantVelocity =                                                            &
+          metrics(1) * deltaVelocity(1,:) +                                                  &
+          metrics(2) * deltaVelocity(2,:) +                                                  &
+          metrics(3) * deltaVelocity(3,:)
 
      deltaPhiSquared = (ratioOfSpecificHeats - 1.0_wp) *                                     &
           (velocity_(1) * deltaVelocity(1,:) + velocity_(2) * deltaVelocity(2,:) +           &
@@ -999,7 +1007,8 @@ subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics, 
   implicit none
 
   ! <<< Arguments >>>
-  SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1), ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   integer, intent(in) :: incomingDirection
   SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(3,3)
   SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(3,3,3)
@@ -1040,13 +1049,13 @@ subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics, 
      temperature_ = temperature
   else
      temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(3) -        &
-          0.5_wp * (velocity_(1) ** 2))
+          0.5_wp * velocity_(1) ** 2)
   end if
 
   ! Other dependent variables.
   contravariantVelocity = normalizedMetrics(1) * velocity_(1)
   speedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * temperature_)
-  phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * (velocity_(1) ** 2)
+  phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * velocity_(1) ** 2
 
   ! Eigenvalues.
   eigenvalues(1) = contravariantVelocity
@@ -1222,7 +1231,8 @@ subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics, 
   implicit none
 
   ! <<< Arguments >>>
-  SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2), ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   integer, intent(in) :: incomingDirection
   SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(4,4)
   SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(4,4,4)
@@ -1506,7 +1516,8 @@ subroutine computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metrics, 
   implicit none
 
   ! <<< Arguments >>>
-  SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3), ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   integer, intent(in) :: incomingDirection
   SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(5,5)
   SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(5,5,5)
@@ -1897,7 +1908,8 @@ subroutine computeFirstPartialViscousJacobian1D(conservedVariables, metrics, str
 
   ! <<< Arguments >>>
   SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1), stressTensor(1),             &
-       heatFlux(1), powerLawExponent, ratioOfSpecificHeats
+       heatFlux(1)
+  real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(3,3)
   SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(1), temperature
 
@@ -1962,8 +1974,8 @@ subroutine computeFirstPartialViscousJacobian2D(conservedVariables, metrics, str
   implicit none
 
   ! <<< Arguments >>>
-  SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2), stressTensor(4),             &
-       heatFlux(2), powerLawExponent, ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2), stressTensor(4), heatFlux(2)
+  real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(4,4)
   SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(2), temperature
 
@@ -2047,8 +2059,8 @@ subroutine computeFirstPartialViscousJacobian3D(conservedVariables, metrics, str
   implicit none
 
   ! <<< Arguments >>>
-  SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3), stressTensor(9),             &
-       heatFlux(3), powerLawExponent, ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3), stressTensor(9), heatFlux(3)
+  real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(5,5)
   SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(3), temperature
 

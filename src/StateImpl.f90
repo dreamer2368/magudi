@@ -984,7 +984,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
   logical :: flag
-  real(wp), allocatable :: targetViscousFluxes(:,:,:)
+  SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:)
 
   call startTiming("updatePatches")
 

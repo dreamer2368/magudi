@@ -1528,6 +1528,8 @@ subroutine getAdjointOperator(this, adjointOperator)
   end do
 
   ! Copy `normBoundary`.
+  SAFE_DEALLOCATE(adjointOperator%normBoundary)
+  allocate(adjointOperator%normBoundary(this%boundaryDepth))
   adjointOperator%normBoundary = this%normBoundary
 
   ! Transpose the left-boundary coefficients.

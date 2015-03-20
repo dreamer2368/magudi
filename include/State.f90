@@ -21,7 +21,8 @@ module State_type
      type(t_AcousticSource), allocatable :: acousticSources(:)
 
      integer :: nUnknowns = 0
-     real(wp) :: timeStepSize, cfl, plot3dAuxiliaryData(4) = 0.0_wp
+     real(wp) :: timeStepSize, cfl
+     SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables, targetState,            &
           adjointVariables, rightHandSide, specificVolume, velocity, pressure, temperature,  &

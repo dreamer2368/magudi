@@ -1146,7 +1146,8 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
   integer :: i, j, k, minIndex(3), nProcs, ierror
   real(wp), allocatable :: minValues(:)
   integer, allocatable :: minIndices(:,:)
-  SCALAR_TYPE :: a, minValue
+  SCALAR_TYPE :: a
+  real(wp) :: minValue
 
   call MPI_Comm_size(this%comm, nProcs, ierror)
 
@@ -1177,8 +1178,13 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
      call MPI_Allgather(minIndex, 3, MPI_INTEGER, minIndices, 3, MPI_INTEGER,                &
           this%comm, ierror)
   end if
-  call MPI_Allgather(minValue, 1, SCALAR_TYPE_MPI, minValues, 1, SCALAR_TYPE_MPI,            &
-       this%comm, ierror)
+#ifdef SCALAR_IS_COMPLEX
+  call MPI_Allgather(minValue, 1, REAL_TYPE_MPI, minValues,                                  &
+       1, REAL_TYPE_MPI, this%comm, ierror)
+#else
+  call MPI_Allgather(minValue, 1, SCALAR_TYPE_MPI, minValues,                                &
+       1, SCALAR_TYPE_MPI, this%comm, ierror)
+#endif
 
 #ifdef SCALAR_IS_COMPLEX
   i = minloc(real(minValues, wp), 1)
@@ -1216,7 +1222,8 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
   integer :: i, j, k, maxIndex(3), nProcs, ierror
   real(wp), allocatable :: maxValues(:)
   integer, allocatable :: maxIndices(:,:)
-  SCALAR_TYPE :: a, maxValue
+  SCALAR_TYPE :: a
+  real(wp) :: maxValue
 
   call MPI_Comm_size(this%comm, nProcs, ierror)
 
@@ -1247,8 +1254,13 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
      call MPI_Allgather(maxIndex, 3, MPI_INTEGER, maxIndices, 3, MPI_INTEGER,                &
           this%comm, ierror)
   end if
-  call MPI_Allgather(maxValue, 1, SCALAR_TYPE_MPI, maxValues, 1, SCALAR_TYPE_MPI,            &
-       this%comm, ierror)
+#ifdef SCALAR_IS_COMPLEX
+  call MPI_Allgather(maxValue, 1, REAL_TYPE_MPI, maxValues,                                  &
+       1, REAL_TYPE_MPI, this%comm, ierror)
+#else
+  call MPI_Allgather(maxValue, 1, SCALAR_TYPE_MPI, maxValues,                                &
+       1, SCALAR_TYPE_MPI, this%comm, ierror)
+#endif
 
 #ifdef SCALAR_IS_COMPLEX
   i = maxloc(real(maxValues, wp), 1)
@@ -1389,9 +1401,9 @@ subroutine computeSpongeStrengths(this, patches)
 
                     do i = 1, this%globalSize(1)
                        curveLengthIntegrand(i) =                                             &
-                            globalArcLengthsAlongDirection(i +                               &
+                            real(globalArcLengthsAlongDirection(i +                          &
                             this%globalSize(1) * (j - 1 - this%offset(2) +                   &
-                            this%localSize(2) * (k - 1 - this%offset(3))), 1)
+                            this%localSize(2) * (k - 1 - this%offset(3))), 1), wp)
                     end do
 
                     if (patches(l)%normalDirection > 0) then
@@ -1430,9 +1442,9 @@ subroutine computeSpongeStrengths(this, patches)
 
                     do j = 1, this%globalSize(2)
                        curveLengthIntegrand(j) =                                             &
-                            globalArcLengthsAlongDirection(i - this%offset(1) +              &
+                            real(globalArcLengthsAlongDirection(i - this%offset(1) +         &
                             this%localSize(1) * (j - 1 +                                     &
-                            this%globalSize(2) * (k - 1 - this%offset(3))), 1)
+                            this%globalSize(2) * (k - 1 - this%offset(3))), 1), wp)
                     end do
 
                     if (patches(l)%normalDirection > 0) then
@@ -1471,9 +1483,9 @@ subroutine computeSpongeStrengths(this, patches)
 
                     do k = 1, this%globalSize(3)
                        curveLengthIntegrand(k) =                                             &
-                            globalArcLengthsAlongDirection(i - this%offset(1) +              &
+                            real(globalArcLengthsAlongDirection(i - this%offset(1) +         &
                             this%localSize(1) * (j - 1 - this%offset(2) +                    &
-                            this%localSize(2) * (k - 1)), 1)
+                            this%localSize(2) * (k - 1)), 1), wp)
                     end do
 
                     if (patches(l)%normalDirection > 0) then

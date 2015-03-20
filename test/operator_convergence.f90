@@ -177,7 +177,7 @@ contains
     if (present(startSize)) then
        startSize_ = startSize
     else
-       startSize_ = max(nProcs * A%boundaryWidth, 32)
+       startSize_ = max(nProcs * A%boundaryDepth, 32)
     end if
     n = startSize_
 
@@ -335,12 +335,12 @@ function F3(x) result(y)
   SCALAR_TYPE, intent(in) :: x
   SCALAR_TYPE :: y
   integer, parameter :: wp = SCALAR_KIND
-  y = tanh(4.0_wp * (x - 0.5_wp))
+  y = tanh(4.0_wp * (real(x, wp) - 0.5_wp))
 end function F3
 
 function dF3(x) result(y)
   SCALAR_TYPE, intent(in) :: x
   SCALAR_TYPE :: y
   integer, parameter :: wp = SCALAR_KIND
-  y = 4.0_wp * (1.0_wp - tanh(4.0_wp * (x - 0.5_wp)) ** 2)
+  y = 4.0_wp * (1.0_wp - tanh(4.0_wp * (real(x, wp) - 0.5_wp)) ** 2)
 end function dF3

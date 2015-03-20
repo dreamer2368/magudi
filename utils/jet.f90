@@ -142,7 +142,7 @@ contains
     do i = 1, grid%nGridPoints
 
        momentumThickness = momentumThicknessAtExit + slopeOfMomentumThickness *              &
-            max(grid%coordinates(i,3) - axialCoordinateAtNozzleExit, 0.0_wp)
+            max(real(grid%coordinates(i,3), wp) - axialCoordinateAtNozzleExit, 0.0_wp)
        radialCoordinate = sqrt(grid%coordinates(i,1) ** 2 + grid%coordinates(i,2) ** 2) /    &
             nozzleLipRadius + epsilon(0.0_wp)
        normalizedExitVelocity = 0.5_wp * (1.0_wp + tanh(0.25_wp / momentumThickness *        &

@@ -146,8 +146,9 @@ contains
        if (generateTargetState_) then
 
        velocity = lowerFluidVelocity +                                                       &
-            0.5_wp * velocityDifference * (1.0_wp + tanh(2.0_wp * grid%coordinates(i,2) /    &
-            (1.0_wp + slopeOfVorticityThickness * max(0.0_wp, grid%coordinates(i,1)))))
+            0.5_wp * velocityDifference * (1.0_wp +                                          &
+            tanh(2.0_wp * real(grid%coordinates(i,2), wp) / (1.0_wp +                        &
+            slopeOfVorticityThickness * max(0.0_wp, real(grid%coordinates(i,1), wp)))))
        temperature = (lowerFluidTemperature * (upperFluidVelocity - velocity) +              &
             upperFluidTemperature * (velocity - lowerFluidVelocity)) /                       &
             (upperFluidVelocity - lowerFluidVelocity) +                                      &
@@ -163,7 +164,8 @@ contains
        end if
 
        velocity = lowerFluidVelocity +                                                       &
-            0.5_wp * velocityDifference * (1.0_wp + tanh(2.0_wp * grid%coordinates(i,2)))
+            0.5_wp * velocityDifference *                                                    &
+            (1.0_wp + tanh(2.0_wp * real(grid%coordinates(i,2), wp)))
        temperature = (lowerFluidTemperature * (upperFluidVelocity - velocity) +              &
             upperFluidTemperature * (velocity - lowerFluidVelocity)) /                       &
             (upperFluidVelocity - lowerFluidVelocity) +                                      &

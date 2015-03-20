@@ -10,7 +10,15 @@ endfunction(add_mpi_test)
 set(numprocs 1)
 add_mpi_test(stencil_coefficients "${numprocs}")
 add_mpi_test(options_parser "${numprocs}")
+add_mpi_test(inviscid_flux_jacobian "${numprocs}")
+
+find_package(LAPACK)
+if (LAPACK_FOUND)
+  add_mpi_test(incoming_inviscid_flux_jacobian "${numprocs}")
+  target_link_libraries(incoming_inviscid_flux_jacobian ${LAPACK_LIBRARIES})
+endif()
 
 # MPI tests
 set(numprocs 1 2 4 8)
 add_mpi_test(operator_convergence "${numprocs}")
+add_mpi_test(adjoint_relation "${numprocs}")

@@ -173,11 +173,12 @@ module CNSHelper
           ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,             &
           specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1), ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1)
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux(3,3)
 
-       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(3,3), specificVolume,    &
-            velocity(1), temperature
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(3,3),                    &
+            specificVolume, velocity(1), temperature
        SCALAR_TYPE, intent(out), optional :: deltaJacobianOfInviscidFlux(3,3,3)
 
      end subroutine computeJacobianOfInviscidFlux1D
@@ -190,11 +191,12 @@ module CNSHelper
           ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,             &
           specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2), ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2)
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux(4,4)
 
-       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(4,4), specificVolume,    &
-            velocity(2), temperature
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(4,4),                    &
+            specificVolume, velocity(2), temperature
        SCALAR_TYPE, intent(out), optional :: deltaJacobianOfInviscidFlux(4,4,4)
 
      end subroutine computeJacobianOfInviscidFlux2D
@@ -207,11 +209,12 @@ module CNSHelper
           ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,             &
           specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3), ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3)
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux(5,5)
 
-       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(5,5), specificVolume,    &
-            velocity(3), temperature
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(5,5),                    &
+            specificVolume, velocity(3), temperature
        SCALAR_TYPE, intent(out), optional :: deltaJacobianOfInviscidFlux(5,5,5)
 
      end subroutine computeJacobianOfInviscidFlux3D
@@ -222,15 +225,17 @@ module CNSHelper
 
      subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics,         &
           ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,           &
-          deltaConservedVariables, specificVolume, velocity, temperature,                    &
-          deltaIncomingJacobianOfInviscidFlux)
+          deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,      &
+          velocity, temperature)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1), ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1)
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        integer, intent(in) :: incomingDirection
        SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(3,3)
-       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(3,3),                    &
-            specificVolume, velocity(1), temperature
+
        SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(3,3,3)
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(3,3), specificVolume,    &
+            velocity(1), temperature
 
      end subroutine computeIncomingJacobianOfInviscidFlux1D
 
@@ -240,15 +245,17 @@ module CNSHelper
 
      subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics,         &
           ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,           &
-          deltaConservedVariables, specificVolume, velocity, temperature,                    &
-          deltaIncomingJacobianOfInviscidFlux)
+          deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,      &
+          velocity, temperature)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2), ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2)
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        integer, intent(in) :: incomingDirection
        SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(4,4)
-       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(4,4),                    &
-            specificVolume, velocity(2), temperature
+
        SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(4,4,4)
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(4,4), specificVolume,    &
+            velocity(2), temperature
 
      end subroutine computeIncomingJacobianOfInviscidFlux2D
 
@@ -258,15 +265,17 @@ module CNSHelper
 
      subroutine computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metrics,         &
           ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,           &
-          deltaConservedVariables, specificVolume, velocity, temperature,                    &
-          deltaIncomingJacobianOfInviscidFlux)
+          deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,      &
+          velocity, temperature)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3), ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3)
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        integer, intent(in) :: incomingDirection
        SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(5,5)
-       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(5,5),                    &
-            specificVolume, velocity(3), temperature
+
        SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(5,5,5)
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(5,5), specificVolume,    &
+            velocity(3), temperature
 
      end subroutine computeIncomingJacobianOfInviscidFlux3D
 
@@ -278,9 +287,11 @@ module CNSHelper
           stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                    &
           firstPartialViscousJacobian, specificVolume, velocity, temperature)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(3), metrics(1), stressTensor(1),        &
-            heatFlux(1), powerLawExponent, ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(3),                                     &
+            metrics(1), stressTensor(1), heatFlux(1)
+       real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(3,3)
+
        SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(1), temperature
 
      end subroutine computeFirstPartialViscousJacobian1D
@@ -293,9 +304,11 @@ module CNSHelper
           stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                    &
           firstPartialViscousJacobian, specificVolume, velocity, temperature)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(4), metrics(2), stressTensor(4),        &
-            heatFlux(2), powerLawExponent, ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(4),                                     &
+            metrics(2), stressTensor(4), heatFlux(2)
+       real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(4,4)
+
        SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(2), temperature
 
      end subroutine computeFirstPartialViscousJacobian2D
@@ -308,9 +321,11 @@ module CNSHelper
           stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                    &
           firstPartialViscousJacobian, specificVolume, velocity, temperature)
 
-       SCALAR_TYPE, intent(in) :: conservedVariables(5), metrics(3), stressTensor(9),        &
-            heatFlux(3), powerLawExponent, ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: conservedVariables(5),                                     &
+            metrics(3), stressTensor(9), heatFlux(3)
+       real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(5,5)
+
        SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(3), temperature
 
      end subroutine computeFirstPartialViscousJacobian3D
