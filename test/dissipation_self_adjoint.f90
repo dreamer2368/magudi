@@ -4,10 +4,7 @@ program dissipation_self_adjoint
 
   use MPI
 
-  use StencilOperator_type
-
   use RandomNumber, only : initializeRandomNumberGenerator, random
-  use StencilOperator_mod
 
   implicit none
 
@@ -92,12 +89,13 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   use MPI
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_type, only : t_StencilOperator
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
   use RandomNumber, only : initializeRandomNumberGenerator, random
-  use StencilOperator_mod
+  use StencilOperator_mod, only : setupOperator, updateOperator, &
+       getAdjointOperator, applyOperator, cleanupOperator
 
   ! <<< Arguments >>>
   character(len = *), intent(in) :: identifier
@@ -111,7 +109,7 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   logical :: isPeriodic_(3), success_
   real(wp) :: tolerance_
   integer :: n, offset, nLocal, gridSize(3), cartesianCommunicator,                          &
-       numProcesses(3), proc, nProcs, ierror
+       numProcesses(3), procRank, nProcs, ierror
   type(t_StencilOperator) :: A, adjointOfA
   real(wp), allocatable :: f(:,:)
   SCALAR_TYPE, allocatable :: u(:,:), v(:,:)
@@ -129,7 +127,8 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
 
   call initializeRandomNumberGenerator()
 
-  ! Find the number of processes in the communicator.
+  ! Find the rank and number of processes in the communicator.
+  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
   call MPI_Comm_size(MPI_COMM_WORLD, nProcs, ierror)
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
   allocate(mpiReduceBuffer(nProcs))
@@ -158,7 +157,7 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
 
   ! Determine the offset and number of points that will be distributed to the current
   ! process.
-  call pigeonhole(n, nProcs, proc, offset, nLocal)
+  call pigeonhole(n, nProcs, procRank, offset, nLocal)
   gridSize = 1; gridSize(direction) = nLocal
 
   ! Allocate process-level data.
@@ -177,5 +176,8 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   SAFE_DEALLOCATE(f)
   SAFE_DEALLOCATE(u)
   SAFE_DEALLOCATE(v)
+
+  call cleanupOperator(A)
+  call cleanupOperator(adjointOfA)
 
 end subroutine testSelfAdjointness

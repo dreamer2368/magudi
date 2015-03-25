@@ -6,6 +6,14 @@
 #define PROJECT_NAME "@PROJECT_NAME@"
 #define STRING_LENGTH 256
 
+#define STRINGIFY(x) "x"
+
+#ifdef DEBUG
+#define assert(x) call assertImpl((x), STRINGIFY(x), __FILE__, __LINE__)
+#else
+#define assert(x) if (.false.) stop
+#endif
+
 #ifdef USE_EXTENDED_PLOT3D
 #define _LARGEFILE64_SOURCE  1
 #define _FILE_OFFSET_BITS   64

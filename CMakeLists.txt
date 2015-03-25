@@ -55,8 +55,8 @@ if(CMAKE_Fortran_COMPILER_NAME STREQUAL "gfortran")
   set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftree-vectorize -ffast-math -funroll-loops")
 elseif(CMAKE_Fortran_COMPILER_NAME STREQUAL "ifort")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -FR -u -fpp")
-  set(CMAKE_Fortran_FLAGS_DEBUG "-check all -traceback -debug all -debug-parameters all -ftrapuv -warn all")
-  set(CMAKE_Fortran_FLAGS_RELEASE "-xHost -O3 -parallel")
+  set(CMAKE_Fortran_FLAGS_DEBUG "-traceback -gen-interfaces -check all -debug all -debug-parameters all -ftrapuv -fpe0 -warn all")
+  set(CMAKE_Fortran_FLAGS_RELEASE "-xHost -O3 -parallel -gen-interfaces")
 else()
   message(FATAL_ERROR "${CMAKE_Fortran_COMPILER_NAME}: Fortran compiler could not be determined correctly or is unsupported.")
 endif()
@@ -106,6 +106,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationImpl.f90
   ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90
   ${PROJECT_SOURCE_DIR}/src/RK4IntegratorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
+  ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

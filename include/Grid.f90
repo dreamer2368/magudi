@@ -34,7 +34,7 @@ module Grid_type
 #endif
 
      integer :: index, comm = MPI_COMM_NULL, globalSize(3), periodicityType(3),              &
-          localSize(3), offset(3), nGridPoints
+          localSize(3), offset(3), nGridPoints = 0
      integer :: mpiDerivedTypeScalarSubarray = MPI_DATATYPE_NULL,                            &
           mpiDerivedTypeIntegerSubarray = MPI_DATATYPE_NULL
      logical :: isCurvilinear

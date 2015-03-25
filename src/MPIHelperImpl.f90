@@ -132,6 +132,10 @@ subroutine pigeonhole(nPigeons, nHoles, holeIndex, offset, nPigeonsInHole)
   integer, intent(in) :: nPigeons, nHoles, holeIndex
   integer, intent(out) :: offset, nPigeonsInHole
 
+  assert(nHoles > 0)
+  assert(nPigeons >= 0)
+  assert(holeIndex >= 0 .and. holeIndex < nHoles)
+
   offset = holeIndex * (nPigeons / nHoles) + min(holeIndex, mod(nPigeons, nHoles))
   nPigeonsInHole = nPigeons / nHoles
   if (holeIndex < mod(nPigeons, nHoles)) nPigeonsInHole = nPigeonsInHole + 1
@@ -154,9 +158,14 @@ subroutine splitCommunicatorMultigrid(comm, gridSizes, gridCommunicators, numPro
   integer :: i, procRank, nProcs, group, newgroup, offset, count, color, ierror
   integer, allocatable :: ranks(:), numProcsInGrid_(:)
 
-  ! Get the rank, size and group of `comm`.
-  call MPI_Comm_rank(comm, procRank, ierror)
+  assert(size(gridSizes, 1) >= 1 .and. size(gridSizes, 1) <= 3)
+  assert(size(gridSizes, 2) > 0)
+  assert(size(gridSizes, 2) == size(gridCommunicators))
+
+  ! Get the size, rank and group of `comm`.
   call MPI_Comm_size(comm, nProcs, ierror)
+  assert(nProcs > 0)
+  call MPI_Comm_rank(comm, procRank, ierror)
   call MPI_Comm_group(comm, group, ierror)
 
   ! Set all elements of `gridCommunicators` to `MPI_COMM_NULL` by default.
@@ -180,20 +189,25 @@ subroutine splitCommunicatorMultigrid(comm, gridSizes, gridCommunicators, numPro
 
   else
 
-     allocate(numProcsInGrid_(size(gridSizes, 2)))
-
-     ! Number of processes assigned to a grid is proportional to number of grid points.
-     numProcsInGrid_ = ceiling(real(nProcs) * real(product(gridSizes, dim = 1)) /            &
-          real(sum(product(gridSizes, dim = 1))))
-     i = 1
-     do while (sum(numProcsInGrid_) /= nProcs) !... total should match
-        numProcsInGrid_(i) = max(1, numProcsInGrid_(i) - 1)
-        i = mod(i, size(gridSizes, 2)) + 1
-     end do
-
-     ! Use manual distribution, if specified.
      if (present(numProcsInGrid)) then
-        if (sum(numProcsInGrid_) == nProcs) numProcsInGrid_ = numProcsInGrid
+
+        ! Use manual distribution, if specified.
+        assert(size(numProcsInGrid) == size(gridSizes, 2))
+        assert(sum(numProcsInGrid) == nProcs)
+        allocate(numProcsInGrid_(size(gridSizes, 2)), source = numProcsInGrid)
+
+     else
+
+        ! Assign processes to a grid proportional to number of grid points.
+        allocate(numProcsInGrid_(size(gridSizes, 2)))
+        numProcsInGrid_ = ceiling(real(nProcs) * real(product(gridSizes, dim = 1)) /         &
+             real(sum(product(gridSizes, dim = 1))))
+        i = 1
+        do while (sum(numProcsInGrid_) /= nProcs) !... total should match
+           numProcsInGrid_(i) = max(1, numProcsInGrid_(i) - 1)
+           i = mod(i, size(gridSizes, 2)) + 1
+        end do
+
      end if
 
      ! Split using MPI color/key mechanism:
@@ -242,11 +256,14 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
        sentToPreviousProcess(:,:,:),                                                         &
        sentToNextProcess(:,:,:)
 
-  if (all(numGhostPoints <= 0)) return
+  assert(all(shape(arrayWithGhostPoints) > 0))
 
   ! Get number of dimensions from communicator.
   call MPI_Cartdim_get(cartesianCommunicator, nDimensions, ierror)
-  if (direction > nDimensions .or. nDimensions > 3) return
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(direction >= 1 .and. direction <= nDimensions)
+
+  if (all(numGhostPoints <= 0)) return
 
   ! Get process distribution, coordinates and periodicity.
   processDistribution = 1
@@ -270,7 +287,6 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
   tagNext = 2
   call MPI_Cart_shift(cartesianCommunicator, direction - 1, 1,                               &
        rankOfPreviousProcess, rankOfNextProcess, ierror)
-
 
   if (numGhostPoints(1) > 0) then
 
@@ -506,12 +522,21 @@ subroutine gatherAlongDirection(cartesianCommunicator, localArray,              
   integer, allocatable :: localSizes(:), offsets(:)
   SCALAR_TYPE, allocatable :: sendBuffer(:,:), receiveBuffer(:,:)
 
+  assert(all(localSize > 0))
+  assert(size(localArray, 1) == product(localSize))
+  assert(size(gatheredArray, 1) > 0)
+  assert(size(localArray, 2) == size(gatheredArray, 2))
+  assert(mod(size(gatheredArray, 1), size(localArray, 1) / localSize(direction)) == 0)
+
   ! Get the dimensions of the local and gathered arrays.
-  globalSizeAlongDirection = size(gatheredArray) / (size(localArray) / localSize(direction))
+  globalSizeAlongDirection = size(gatheredArray, 1) /                                        &
+       (size(localArray, 1) / localSize(direction))
   nScalars = size(localArray, 2)
 
   ! Get number of dimensions from the grid communicator.
   call MPI_Cartdim_get(cartesianCommunicator, nDimensions, ierror)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(direction >= 1 .and. direction <= nDimensions)
 
   ! Create a pencil communicator including the ``current'' process and all neighboring
   ! processes along direction `direction`.
@@ -636,3 +661,27 @@ subroutine gatherAlongDirection(cartesianCommunicator, localArray,              
   SAFE_DEALLOCATE(localSizes)
 
 end subroutine gatherAlongDirection
+
+subroutine assertImpl(condition, conditionString, filename, lineNo)
+
+  ! <<< External modules >>>
+  use MPI
+  use, intrinsic :: iso_fortran_env, only : error_unit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  logical, intent(in) :: condition
+  character(len = *), intent(in) :: conditionString, filename
+  integer, intent(in) :: lineNo
+
+  ! <<< Local variables >>>
+  integer :: ierror
+
+  if (.not. condition) then
+     write(error_unit, '(3A,I0.0,3A)') "AssertionError at ", trim(filename), ":", lineNo,    &
+          ": ", trim(conditionString), "!"
+     call MPI_Abort(MPI_COMM_WORLD, -1, ierror)
+  end if
+
+end subroutine assertImpl

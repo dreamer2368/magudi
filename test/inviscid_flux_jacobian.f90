@@ -13,11 +13,23 @@ program inviscid_flux_jacobian
   integer :: i, j, k, nDimensions
   SCALAR_TYPE, allocatable :: conservedVariables1(:,:), deltaConservedVariables(:,:),        &
        conservedVariables2(:,:), metrics(:,:), specificVolume(:), velocity(:,:),             &
-       pressure(:), temperature(:), fluxes1(:,:,:), fluxes2(:,:,:), fluxes3(:,:,:),          &                             
+       pressure(:), temperature(:), fluxes1(:,:,:), fluxes2(:,:,:), fluxes3(:,:,:),          &
        localConservedVariables(:), localVelocity(:), localMetricsAlongDirection(:),          &
        jacobianOfInviscidFlux(:,:)
   logical :: isDomainCurvilinear
   real(wp), allocatable :: stepSizes(:), errorHistory(:), convergenceHistory(:)
+
+  interface
+
+     real(SCALAR_KIND) function meanTrimmed(a)
+       real(SCALAR_KIND), intent(inout) :: a(:)
+     end function meanTrimmed
+
+     subroutine sort(a)
+       real(SCALAR_KIND), intent(inout) :: a(:)
+     end subroutine sort
+
+  end interface
 
   success = .true.
 
@@ -95,8 +107,8 @@ program inviscid_flux_jacobian
 
         conservedVariables2 = conservedVariables1 + stepSizes(i) * deltaConservedVariables
 
-        call computeDependentVariables(nDimensions, conservedVariables2,                     &   
-             ratioOfSpecificHeats, specificVolume = specificVolume, velocity = velocity,     &   
+        call computeDependentVariables(nDimensions, conservedVariables2,                     &
+             ratioOfSpecificHeats, specificVolume = specificVolume, velocity = velocity,     &
              pressure = pressure, temperature = temperature)
         call computeCartesianInvsicidFluxes(nDimensions, conservedVariables2,                &
              velocity, pressure, fluxes1)
@@ -181,57 +193,85 @@ program inviscid_flux_jacobian
   if (.not. success) stop -1
   stop 0
 
-contains
-
-  subroutine sort(a)
-    real(wp), intent(inout) :: a(:)
-    integer :: i, j
-    real(wp) :: temp
-    do i = 2, size(a)
-       j = i - 1
-       temp = a(i)
-       do while (a(j) > temp)
-          a(j+1) = a(j)
-          j = j - 1
-          if (j < 1) exit
-       end do
-       a(j+1) = temp
-    end do
-  end subroutine sort
-
-  real(wp) function median(a)
-    real(wp), intent(in) :: a(:)
-    integer :: n
-    n = size(a)
-    if (mod(n, 2) == 1) then
-       median = a((n + 1) / 2)
-    else
-       median = 0.5_wp * (a(n / 2) + a(n / 2 + 1))
-    end if
-  end function median
-
-  real(wp) function meanTrimmed(a)
-    real(wp), intent(inout) :: a(:)
-    integer :: i, n
-    real(wp) :: firstQuartile, thirdQuartile
-    n = size(a)
-    if (mod(n, 2) == 0) then
-       firstQuartile = median(a(1:n/2))
-       thirdQuartile = median(a(n/2+1:n))
-    else
-       firstQuartile = median(a(1:(n-1)/2))
-       thirdQuartile = median(a((n+1)/2+1:n))
-    end if
-    meanTrimmed = 0.0_wp
-    n = 0
-    do i = 1, size(a)
-       if (a(i) >= firstQuartile .and. a(i) <= thirdQuartile) then
-          meanTrimmed = meanTrimmed + a(i)
-          n = n + 1
-       end if
-    end do
-    if (n == 0) return
-    meanTrimmed = meanTrimmed / real(n, wp)
-  end function meanTrimmed
-
 end program inviscid_flux_jacobian
+
+subroutine sort(a)
+
+  ! <<< Arguments >>>
+  real(SCALAR_KIND), intent(inout) :: a(:)
+
+  ! <<< Local variables >>>
+  integer :: i, j
+  real(SCALAR_KIND) :: temp
+
+  do i = 2, size(a)
+     j = i - 1
+     temp = a(i)
+     do while (a(j) > temp)
+        a(j+1) = a(j)
+        j = j - 1
+        if (j < 1) exit
+     end do
+     a(j+1) = temp
+  end do
+
+end subroutine sort
+
+real(SCALAR_KIND) function median(a)
+
+  ! <<< Arguments >>>
+  real(SCALAR_KIND), intent(in) :: a(:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: n
+
+  n = size(a)
+  if (mod(n, 2) == 1) then
+     median = a((n + 1) / 2)
+  else
+     median = 0.5_wp * (a(n / 2) + a(n / 2 + 1))
+  end if
+
+end function median
+
+real(SCALAR_KIND) function meanTrimmed(a)
+
+  ! <<< Arguments >>>
+  real(SCALAR_KIND), intent(inout) :: a(:)
+
+  ! <<< Scalar variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, n
+  real(wp) :: firstQuartile, thirdQuartile
+
+  interface
+     real(SCALAR_KIND) function median(a)
+       real(SCALAR_KIND), intent(in) :: a(:)
+     end function median
+  end interface
+
+  n = size(a)
+
+  if (mod(n, 2) == 0) then
+     firstQuartile = median(a(1:n/2))
+     thirdQuartile = median(a(n/2+1:n))
+  else
+     firstQuartile = median(a(1:(n-1)/2))
+     thirdQuartile = median(a((n+1)/2+1:n))
+  end if
+
+  meanTrimmed = 0.0_wp
+  n = 0
+
+  do i = 1, size(a)
+     if (a(i) >= firstQuartile .and. a(i) <= thirdQuartile) then
+        meanTrimmed = meanTrimmed + a(i)
+        n = n + 1
+     end if
+  end do
+
+  if (n == 0) return
+  meanTrimmed = meanTrimmed / real(n, wp)
+
+end function meanTrimmed

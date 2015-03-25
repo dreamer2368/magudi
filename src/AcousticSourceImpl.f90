@@ -16,6 +16,9 @@ subroutine setupAcousticSource(this, location, amplitude, frequency, radius, pha
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
 
+  assert(size(location) >= 1 .and. size(location) <= 3)
+  assert(radius > 0.0_wp)
+
   this%location = 0.0_wp
   this%location(1:size(location)) = location
 
@@ -48,6 +51,7 @@ subroutine addAcousticSource(this, time, coordinates, iblank, rightHandSide)
   real(wp) :: a, r
 
   nDimensions = size(coordinates, 2)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
 
   a = this%amplitude * cos(this%angularFrequency * time + this%phase)
   do i = 1, size(rightHandSide, 1)

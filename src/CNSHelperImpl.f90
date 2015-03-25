@@ -17,14 +17,26 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
   real(wp) :: ratioOfSpecificHeats_
   integer :: i
 
+  assert(size(conservedVariables, 1) > 0)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(size(conservedVariables, 2) == nDimensions + 2)
+
   ratioOfSpecificHeats_ = 1.4_wp
-  if (present(ratioOfSpecificHeats)) ratioOfSpecificHeats_ = ratioOfSpecificHeats
+  if (present(ratioOfSpecificHeats)) then
+     assert(ratioOfSpecificHeats > 1.0_wp)
+     ratioOfSpecificHeats_ = ratioOfSpecificHeats
+  end if
 
   ! Specific volume.
-  if (present(specificVolume)) specificVolume = 1.0_wp / conservedVariables(:,1)
+  if (present(specificVolume)) then
+     assert(size(specificVolume) == size(conservedVariables, 1))
+     specificVolume = 1.0_wp / conservedVariables(:,1)
+  end if
 
   ! Velocity.
   if (present(velocity)) then
+     assert(size(velocity, 1) == size(conservedVariables, 1))
+     assert(size(velocity, 2) == nDimensions)
      if (present(specificVolume)) then
         do i = 1, nDimensions
            velocity(:,i) = specificVolume * conservedVariables(:,i+1)
@@ -38,6 +50,7 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
 
   ! Pressure.
   if (present(pressure)) then
+     assert(size(pressure) == size(conservedVariables, 1))
      if (present(velocity)) then
         pressure = (ratioOfSpecificHeats_ - 1.0_wp) * (conservedVariables(:,nDimensions+2) - &
              0.5_wp * conservedVariables(:,1) * sum(velocity ** 2, dim = 2))
@@ -54,6 +67,7 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
 
   ! Temperature.
   if (present(temperature)) then
+     assert(size(temperature) == size(conservedVariables, 1))
      if (present(pressure)) then
         if (present(specificVolume)) then
            temperature = ratioOfSpecificHeats_ *                                             &
@@ -79,8 +93,9 @@ subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosit
 
   ! <<< Arguments >>>
   SCALAR_TYPE, intent(in) :: temperature(:)
-  real(SCALAR_KIND), intent(in) :: powerLawExponent, bulkViscosityRatio,                     &
-       ratioOfSpecificHeats, reynoldsNumberInverse, prandtlNumberInverse
+  real(SCALAR_KIND), intent(in) :: powerLawExponent,                                         &
+       ratioOfSpecificHeats, reynoldsNumberInverse
+  real(SCALAR_KIND), intent(in), optional :: bulkViscosityRatio, prandtlNumberInverse
   SCALAR_TYPE, intent(out), optional :: dynamicViscosity(:),                                 &
        secondCoefficientOfViscosity(:),                                                      &
        thermalDiffusivity(:)
@@ -88,23 +103,50 @@ subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosit
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
 
-  if (abs(powerLawExponent) <= 0.0_wp) then !... handle powerLawExponent = 0 separately.
+  assert(size(temperature) > 0)
+  assert(powerLawExponent >= 0.0_wp)
+  assert(reynoldsNumberInverse > 0.0_wp)
 
-     if (present(dynamicViscosity)) dynamicViscosity = reynoldsNumberInverse
-     if (present(secondCoefficientOfViscosity)) secondCoefficientOfViscosity =               &
-          (bulkViscosityRatio - 2.0_wp / 3.0_wp) * reynoldsNumberInverse
-     if (present(thermalDiffusivity)) thermalDiffusivity =                                   &
-          reynoldsNumberInverse * prandtlNumberInverse
+  if (powerLawExponent <= 0.0_wp) then !... handle powerLawExponent = 0 separately.
+
+     ! Dynamic viscosity.
+     if (present(dynamicViscosity)) then
+        assert(size(dynamicViscosity) == size(temperature))
+        dynamicViscosity = reynoldsNumberInverse
+     end if
+
+     ! Second coefficient of viscosity.
+     if (present(secondCoefficientOfViscosity)) then
+        assert(size(secondCoefficientOfViscosity) == size(temperature))
+        assert(present(bulkViscosityRatio))
+        assert(bulkViscosityRatio > 0.0_wp)
+        secondCoefficientOfViscosity =                                                       &
+             (bulkViscosityRatio - 2.0_wp / 3.0_wp) * reynoldsNumberInverse
+     end if
+
+     ! Thermal diffusivity.
+     if (present(thermalDiffusivity)) then
+        assert(size(thermalDiffusivity) == size(temperature))
+        assert(present(prandtlNumberInverse))
+        assert(prandtlNumberInverse > 0.0_wp)
+        thermalDiffusivity = reynoldsNumberInverse * prandtlNumberInverse
+     end if
 
   else
 
      ! Dynamic viscosity.
-     if (present(dynamicViscosity)) dynamicViscosity =                                       &
-          ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent /              &
+     if (present(dynamicViscosity)) then
+        assert(size(dynamicViscosity) == size(temperature))
+        dynamicViscosity =                                                                   &
+             ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent *           &
           reynoldsNumberInverse
+     end if
 
      ! Second coefficient of viscosity.
      if (present(secondCoefficientOfViscosity)) then
+        assert(size(secondCoefficientOfViscosity) == size(temperature))
+        assert(present(bulkViscosityRatio))
+        assert(bulkViscosityRatio > 0.0_wp)
         if (present(dynamicViscosity)) then
            secondCoefficientOfViscosity =                                                    &
                 (bulkViscosityRatio - 2.0_wp / 3.0_wp) * dynamicViscosity
@@ -117,6 +159,9 @@ subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosit
 
      ! Thermal diffusivity.
      if (present(thermalDiffusivity)) then
+        assert(size(thermalDiffusivity) == size(temperature))
+        assert(present(prandtlNumberInverse))
+        assert(prandtlNumberInverse > 0.0_wp)
         if (present(dynamicViscosity)) then
            thermalDiffusivity = dynamicViscosity * prandtlNumberInverse
         else
@@ -145,7 +190,16 @@ subroutine computeStressTensor(nDimensions, velocityGradient, dynamicViscosity, 
   integer, parameter :: wp = SCALAR_KIND
   SCALAR_TYPE, allocatable :: divergenceOfVelocity(:)
 
+  assert(size(velocityGradient, 1) > 0)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(size(velocityGradient, 2) == nDimensions ** 2)
+  assert(size(dynamicViscosity) == size(velocityGradient, 1))
+  assert(size(secondCoefficientOfViscosity) == size(velocityGradient, 1))
+
   if (present(stressTensor)) then !... out-of-place computation.
+
+     assert(size(stressTensor, 1) == size(velocityGradient, 1))
+     assert(size(stressTensor, 2) == nDimensions ** 2)
 
      select case (nDimensions)
 
@@ -241,24 +295,43 @@ subroutine computeVorticityMagnitudeAndDilatation(nDimensions, velocityGradient,
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
 
+  assert(size(velocityGradient, 1) > 0)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(size(velocityGradient, 2) == nDimensions ** 2)
+
   select case (nDimensions)
 
   case (1)
-     if (present(dilatation)) dilatation = velocityGradient(:,1)
-     if (present(vorticityMagnitude)) vorticityMagnitude = 0.0_wp
+     if (present(dilatation)) then
+        assert(size(dilatation) == size(velocityGradient, 1))
+        dilatation = velocityGradient(:,1)
+     end if
+     if (present(vorticityMagnitude)) then
+        assert(size(vorticityMagnitude) == size(velocityGradient, 1))
+        vorticityMagnitude = 0.0_wp
+     end if
 
   case (2)
-     if (present(dilatation)) dilatation = velocityGradient(:,1) + velocityGradient(:,4)
-     if (present(vorticityMagnitude)) vorticityMagnitude =                                   &
-          abs(velocityGradient(:,3) - velocityGradient(:,2))
+     if (present(dilatation)) then
+        assert(size(dilatation) == size(velocityGradient, 1))
+        dilatation = velocityGradient(:,1) + velocityGradient(:,4)
+     end if
+     if (present(vorticityMagnitude)) then
+        assert(size(vorticityMagnitude) == size(velocityGradient, 1))
+        vorticityMagnitude = abs(velocityGradient(:,3) - velocityGradient(:,2))
+     end if
 
   case (3)
-     if (present(dilatation)) dilatation = velocityGradient(:,1) +                           &
-          velocityGradient(:,5) + velocityGradient(:,9)
-     if (present(vorticityMagnitude)) vorticityMagnitude =                                   &
-          sqrt(abs(velocityGradient(:,8) - velocityGradient(:,6)) ** 2 +                     &
-          abs(velocityGradient(:,3) - velocityGradient(:,7)) ** 2 +                          &
-          abs(velocityGradient(:,4) - velocityGradient(:,2)) ** 2)
+     if (present(dilatation)) then
+        assert(size(dilatation) == size(velocityGradient, 1))
+        dilatation = velocityGradient(:,1) + velocityGradient(:,5) + velocityGradient(:,9)
+     end if
+     if (present(vorticityMagnitude)) then
+        assert(size(vorticityMagnitude) == size(velocityGradient, 1))
+        vorticityMagnitude = sqrt(abs(velocityGradient(:,8) - velocityGradient(:,6)) ** 2 +  &                   
+             abs(velocityGradient(:,3) - velocityGradient(:,7)) ** 2 +                       &   
+             abs(velocityGradient(:,4) - velocityGradient(:,2)) ** 2)
+     end if
 
   end select
 
@@ -273,6 +346,16 @@ subroutine computeCartesianInvsicidFluxes(nDimensions, conservedVariables,      
   integer, intent(in) :: nDimensions
   SCALAR_TYPE, intent(in) :: conservedVariables(:,:), velocity(:,:), pressure(:)
   SCALAR_TYPE, intent(out) :: inviscidFluxes(:,:,:)
+
+  assert(size(conservedVariables, 1) > 0)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(size(conservedVariables, 2) == nDimensions + 2)
+  assert(size(velocity, 1) == size(conservedVariables, 1))
+  assert(size(velocity, 2) == nDimensions)
+  assert(size(pressure) == size(conservedVariables, 1))
+  assert(size(inviscidFluxes, 1) == size(conservedVariables, 1))
+  assert(size(inviscidFluxes, 2) == nDimensions + 2)
+  assert(size(inviscidFluxes, 3) == nDimensions)
 
   select case (nDimensions)
 
@@ -324,6 +407,19 @@ subroutine computeCartesianViscousFluxes(nDimensions, velocity,                 
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+
+  assert(size(velocity, 1) > 0)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(size(velocity, 2) == nDimensions)
+  assert(size(stressTensor, 1) == size(velocity, 1))
+  assert(size(stressTensor, 2) == nDimensions ** 2)
+  assert(size(heatFlux, 1) == size(velocity, 1))
+  assert(size(heatFlux, 2) == nDimensions)
+  assert(size(viscousFluxes, 1) == size(velocity, 1))
+  assert(size(viscousFluxes, 2) == nDimensions + 2)
+  assert(size(viscousFluxes, 3) == nDimensions)
+
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
 
   select case (nDimensions)
 
@@ -389,6 +485,14 @@ subroutine transformFluxes(nDimensions, fluxes, metrics,                        
   isDomainCurvilinear_ = .true.
   if (present(isDomainCurvilinear)) isDomainCurvilinear_ = isDomainCurvilinear
 
+  assert(size(fluxes, 1) > 0)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(size(fluxes, 2) == nDimensions + 2)
+  assert(size(fluxes, 3) == nDimensions)
+  assert(size(metrics, 1) == size(fluxes, 1))
+  assert(size(metrics, 2) == nDimensions ** 2)
+  assert(all(shape(transformedFluxes) == shape(fluxes)))
+
   select case (nDimensions)
 
   case (1)
@@ -453,11 +557,23 @@ function computeCfl(nDimensions, iblank, jacobian, metrics, velocity, temperatur
   integer :: i, j
   real(wp) :: gridSpeedOfSound, gridVelocity(3), f
 
+  assert(size(iblank) > 0)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(size(jacobian) == size(iblank))
+  assert(size(metrics, 1) == size(iblank))
+  assert(size(metrics, 2) == nDimensions ** 2)
+  assert(size(velocity, 1) == size(iblank))
+  assert(size(velocity, 2) == nDimensions)
+  assert(size(temperature) == size(iblank))
+  assert(timeStepSize > 0.0_wp)
+  assert(ratioOfSpecificHeats > 1.0_wp)
+
   cfl = 0.0_wp
 
   ! Advection.
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
+     assert(real(temperature(i), wp) > 0.0_wp)
      gridSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))     &
           * sqrt(sum(real(metrics(i,:), wp) ** 2)) ! ... scaled speed of sound.
      gridVelocity = 0.0_wp
@@ -470,7 +586,10 @@ function computeCfl(nDimensions, iblank, jacobian, metrics, velocity, temperatur
   end do
 
   ! Diffusion.
-  if (present(dynamicViscosity) .and. present(thermalDiffusivity)) then
+  if (present(dynamicViscosity)) then
+     assert(present(thermalDiffusivity))
+     assert(size(dynamicViscosity) == size(iblank))
+     assert(size(thermalDiffusivity) == size(iblank))
      do i = 1, size(iblank)
         if (iblank(i) == 0) cycle !... skip hole points.
         f = 0.0_wp
@@ -504,6 +623,17 @@ function computeTimeStepSize(nDimensions, iblank, jacobian, metrics, velocity, t
   integer :: i, j
   real(wp) :: f, gridSpeedOfSound, gridVelocity(3)
 
+  assert(size(iblank) > 0)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(size(jacobian) == size(iblank))
+  assert(size(metrics, 1) == size(iblank))
+  assert(size(metrics, 2) == nDimensions ** 2)
+  assert(size(velocity, 1) == size(iblank))
+  assert(size(velocity, 2) == nDimensions)
+  assert(size(temperature) == size(iblank))
+  assert(cfl > 0.0_wp)
+  assert(ratioOfSpecificHeats > 1.0_wp)
+
   timeStepSize = huge(0.0_wp)
 
   ! Advection.
@@ -521,9 +651,13 @@ function computeTimeStepSize(nDimensions, iblank, jacobian, metrics, velocity, t
   end do
 
   ! Diffusion.
-  if (present(dynamicViscosity) .and. present(thermalDiffusivity)) then
+  if (present(dynamicViscosity)) then
+     assert(present(thermalDiffusivity))
+     assert(size(dynamicViscosity) == size(iblank))
+     assert(size(thermalDiffusivity) == size(iblank))
      do i = 1, size(iblank)
         if (iblank(i) == 0) cycle !... skip hole points.
+        assert(real(temperature(i), wp) > 0.0_wp)
         f = 0.0_wp
         do j = 1, nDimensions
            f = f + sqrt(sum(real(metrics(i,1+nDimensions*(j-1):nDimensions*j), wp) ** 2))

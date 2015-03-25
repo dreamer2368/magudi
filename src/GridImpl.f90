@@ -290,6 +290,10 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   logical :: isPeriodic(3)
   type(t_SimulationFlags) :: simulationFlags_
 
+  assert(size(globalSize) > 0 .and. size(globalSize) <= 3)
+  assert(index > 0)
+  assert(all(globalSize > 0))
+
   ! Clean slate.
   call cleanupGrid(this)
   this%index = index
@@ -316,15 +320,21 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
              this%periodicLength(i), this%comm)
      end do !... i =  1, size(globalSize)
 
-  else if (any(this%periodicityType == PLANE) .and. .not. present(periodicLength)) then
+  else
 
-     return
+     assert(size(periodicityType) == size(globalSize))
+     this%periodicityType(1:size(periodicityType)) = periodicityType
 
-  else if (any(this%periodicityType == PLANE)) then
+     if (any(periodicityType == PLANE)) then
 
-     where (this%periodicityType == PLANE)
-        this%periodicLength = periodicLength
-     end where
+        assert(present(periodicLength))
+        assert(size(periodicLength) == size(globalSize))
+        
+        where (this%periodicityType(1:size(periodicityType)) == PLANE)
+           this%periodicLength(1:size(periodicityType)) = periodicLength
+        end where
+
+     end if
 
   end if
 
@@ -335,9 +345,13 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   call MPI_Comm_size(comm_, nProcs, ierror)
 
   ! Generate a default process distribution. If one was specified, override the default.
-  allocate(processDistribution_(size(globalSize)), source = 0)
-  if (present(processDistribution)) processDistribution_ =                                   &
-       processDistribution(1:size(globalSize))
+  if (present(processDistribution)) then
+     assert(size(processDistribution) == size(globalSize))
+     assert(all(processDistribution >= 0))
+     allocate(processDistribution_(size(globalSize)), source = processDistribution)
+  else
+     allocate(processDistribution_(size(globalSize)), source = 0)
+  end if
   call MPI_Dims_create(nProcs, size(globalSize), processDistribution_, ierror)
 
   ! Create a Cartesian communicator.
@@ -372,9 +386,12 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   write(key, '(A,I3.3,A)') "grid", this%index, "/curvilinear"
   this%isCurvilinear = getOption(key, this%isCurvilinear)
 
-  ! Allocate grid data.
-  call initializeSimulationFlags(simulationFlags_)
-  if (present(simulationFlags)) simulationFlags_ = simulationFlags
+  ! Allocate grid data.  
+  if (present(simulationFlags)) then
+     simulationFlags_ = simulationFlags
+  else
+     call initializeSimulationFlags(simulationFlags_)
+  end if
   call allocateData(this, simulationFlags_)
   call makeUnitCube(this)
 
@@ -453,6 +470,8 @@ subroutine cleanupGrid(this)
   this%mpiDerivedTypeScalarSubarray = MPI_DATATYPE_NULL
   this%mpiDerivedTypeIntegerSubarray = MPI_DATATYPE_NULL
 
+  this%nGridPoints = 0
+
 end subroutine cleanupGrid
 
 subroutine loadGridData(this, quantityOfInterest, filename, offsetInBytes, success)
@@ -472,6 +491,9 @@ subroutine loadGridData(this, quantityOfInterest, filename, offsetInBytes, succe
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offsetInBytes
   logical, intent(out) :: success
+
+  assert(len_trim(filename) > 0)
+  assert(offsetInBytes >= 0)
 
   select case (quantityOfInterest)
   case (QOI_GRID)
@@ -513,6 +535,9 @@ subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, succe
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offsetInBytes
   logical, intent(out) :: success
+
+  assert(len_trim(filename) > 0)
+  assert(offsetInBytes >= 0)
 
   select case (quantityOfInterest)
   case (QOI_GRID)
@@ -559,6 +584,7 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
   logical :: success_
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
 
   success_ = .true.
 
@@ -674,6 +700,10 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   SCALAR_TYPE :: jacobianOutsideRange
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)  
+
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
 
   allocate(jacobianMatrixInverse(this%nGridPoints, nDimensions ** 2))
   do i = 1, nDimensions
@@ -682,9 +712,21 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   end do
 
   ! Zero out `jacobianMatrixInverse` at hole points.
+  assert(allocated(this%iblank))
+  assert(size(this%iblank) == this%nGridPoints)
   do i = 1, nDimensions ** 2
      where (this%iblank == 0) jacobianMatrixInverse(:,i) = 0.0_wp
   end do
+
+  assert(allocated(this%metrics))
+  assert(size(this%metrics, 1) == this%nGridPoints)
+  assert(size(this%metrics, 2) == nDimensions ** 2)
+
+  assert(allocated(this%jacobian))
+  assert(size(this%jacobian) == this%nGridPoints)
+
+  assert(allocated(this%firstDerivative))
+  assert(size(this%firstDerivative) == nDimensions)
 
   select case (nDimensions)
 
@@ -761,6 +803,10 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         end if
 
      else
+
+        assert(allocated(this%coordinates))
+        assert(size(this%coordinates, 1) == this%nGridPoints)
+        assert(size(this%coordinates, 2) == nDimensions)
 
         allocate(F(this%nGridPoints, 1))
 
@@ -891,6 +937,8 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   end if
 
   ! Update the norm matrix, using the norm from the first derivative operator.
+  assert(allocated(this%norm))
+  assert(size(this%norm) == this%nGridPoints)
   this%norm = 1.0_wp
   do i = 1, nDimensions
      call applyOperatorNorm(this%firstDerivative(i), this%norm, this%localSize)
@@ -923,9 +971,18 @@ function computeInnerProduct(this, f, g, weight) result(innerProduct)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, ierror
 
-  innerProduct = 0.0_wp
+  assert(all(shape(f) > 0))
+  assert(all(shape(g) == shape(f)))
+  assert(size(f, 1) == this%nGridPoints)
+#ifdef DEBUG
+  if (present(weight)) assert(size(weight) == size(f, 1))
+#endif
+  assert(allocated(this%norm))
+  assert(size(this%norm) == this%nGridPoints)
 
-  do i = 1, min(size(f, 2), size(g, 2))
+  innerProduct = 0.0_wp
+  
+  do i = 1, size(f, 2)
      if (present(weight)) then
         innerProduct = innerProduct + sum(f(:,i) * this%norm(:,1) * g(:,i) * weight)
      else
@@ -934,6 +991,7 @@ function computeInnerProduct(this, f, g, weight) result(innerProduct)
   end do
 
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
+  assert(allocated(this%mpiReduceBuffer))
   call MPI_Allgather(innerProduct, 1, SCALAR_TYPE_MPI, this%mpiReduceBuffer,                 &
        1, SCALAR_TYPE_MPI, this%comm, ierror)
   innerProduct = sum(this%mpiReduceBuffer)
@@ -968,6 +1026,22 @@ subroutine computeGradientOfScalar_(this, f, gradF)
   call startTiming("computeGradient")
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
+
+  assert(size(f) == this%nGridPoints)
+  assert(size(gradF, 1) == size(f))
+  assert(size(gradF, 2) == nDimensions)
+
+  assert(allocated(this%firstDerivative))
+  assert(size(this%firstDerivative) == nDimensions)
+  assert(allocated(this%metrics))
+  assert(size(this%metrics, 1) == this%nGridPoints)
+  assert(size(this%metrics, 2) == nDimensions ** 2)
+  assert(allocated(this%jacobian))
+  assert(size(this%jacobian) == this%nGridPoints)
 
   if (this%isCurvilinear .and. nDimensions > 1)                                              &
        allocate(temp(this%nGridPoints, nDimensions - 1))
@@ -1045,6 +1119,23 @@ subroutine computeGradientOfVector_(this, f, gradF)
   call startTiming("computeGradient")
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
+
+  assert(size(f, 1) == this%nGridPoints)
+  assert(size(f, 2) == nDimensions)
+  assert(size(gradF, 1) == size(f, 1))
+  assert(size(gradF, 2) == nDimensions ** 2)
+
+  assert(allocated(this%firstDerivative))
+  assert(size(this%firstDerivative) == nDimensions)
+  assert(allocated(this%metrics))
+  assert(size(this%metrics, 1) == this%nGridPoints)
+  assert(size(this%metrics, 2) == nDimensions ** 2)
+  assert(allocated(this%jacobian))
+  assert(size(this%jacobian) == this%nGridPoints)
 
   if (this%isCurvilinear .and. nDimensions > 1)                                              &
        allocate(temp(this%nGridPoints, nDimensions - 1))
@@ -1149,7 +1240,14 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
   SCALAR_TYPE :: a
   real(wp) :: minValue
 
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
+  assert(all(this%offset >= 0))
+
+  assert(size(f) == this%nGridPoints)
+
   call MPI_Comm_size(this%comm, nProcs, ierror)
+  assert(nProcs > 0)
 
   allocate(minValues(nProcs), minIndices(3, nProcs))
 
@@ -1225,7 +1323,14 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
   SCALAR_TYPE :: a
   real(wp) :: maxValue
 
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
+  assert(all(this%offset >= 0))
+
+  assert(size(f) == this%nGridPoints)
+
   call MPI_Comm_size(this%comm, nProcs, ierror)
+  assert(nProcs > 0)
 
   allocate(maxValues(nProcs), maxIndices(3, nProcs))
 
@@ -1302,6 +1407,9 @@ function isVariableWithinRange(this, f, fOutsideRange,                          
   ! <<< Local variables >>>
   SCALAR_TYPE :: fMin, fMax
 
+  assert(this%nGridPoints > 0)
+  assert(size(f) == this%nGridPoints)
+
   isVariableWithinRange = .true.
   if (.not. present(minValue) .and. .not. present(maxValue)) return
 
@@ -1354,6 +1462,12 @@ subroutine computeSpongeStrengths(this, patches)
   real(wp), allocatable :: curveLengthIntegrand(:)
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
+  assert(all(this%offset >= 0))
+  assert(all(this%globalSize >= this%localSize))
 
   do direction =  1, nDimensions
 
@@ -1364,7 +1478,7 @@ subroutine computeSpongeStrengths(this, patches)
           spongesExistAlongDirection = any(patches(:)%gridIndex == this%index .and.          &
           patches(:)%patchType == SPONGE .and. abs(patches(:)%normalDirection) == direction)
      call MPI_Allreduce(MPI_IN_PLACE, spongesExistAlongDirection, 1, MPI_LOGICAL,            &
-          MPI_LOR, this%comm, ierror) !... aggregate across grid-level processes.
+          MPI_LOR, this%comm, ierror) !... reduce across grid-level processes.
      if (.not. spongesExistAlongDirection) cycle
 
      ! Compute local arc length.

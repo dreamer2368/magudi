@@ -7,6 +7,18 @@ module MPIHelper
 
   interface
 
+     subroutine assertImpl(condition, conditionString, filename, lineNo)
+
+       logical, intent(in) :: condition
+       character(len = *), intent(in) :: conditionString, filename
+       integer, intent(in) :: lineNo
+
+     end subroutine assertImpl
+
+  end interface
+
+  interface
+
      subroutine writeAndFlush(comm, unit, str, advance)
 
        !> Attempts to write the string `str` to the Fortran file unit `unit` from the master

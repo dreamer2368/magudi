@@ -1439,7 +1439,8 @@ subroutine updateOperator(this, cartesianCommunicator, direction, isPeriodicityO
 
   ! Get number of dimensions from communicator.
   call MPI_Cartdim_get(cartesianCommunicator, nDimensions, ierror)
-  if (nDimensions > 3 .or. direction > nDimensions) return
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert(direction >= 1 .and. direction <= nDimensions)
 
   ! Get process distribution, coordinates and periodicity.
   processDistribution = 1
@@ -1447,6 +1448,7 @@ subroutine updateOperator(this, cartesianCommunicator, direction, isPeriodicityO
   processCoordinates = 0
   call MPI_Cart_get(cartesianCommunicator, nDimensions, processDistribution,                 &
        isPeriodic, processCoordinates, ierror)
+  assert(all(processDistribution > 0))
 
   ! Does this process contain the boundary of the computational domain?
   this%hasDomainBoundary(1) = (processCoordinates(direction) == 0)
@@ -1515,6 +1517,11 @@ subroutine getAdjointOperator(this, adjointOperator)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j
 
+  assert(this%symmetryType == SYMMETRIC .or. this%symmetryType == SKEW_SYMMETRIC)
+  assert(this%interiorWidth > 0)
+  assert(this%boundaryWidth > 0)
+  assert(this%boundaryDepth > 0)
+
   ! Copy basic information.
   adjointOperator%symmetryType = this%symmetryType
   adjointOperator%interiorWidth = this%interiorWidth
@@ -1523,16 +1530,25 @@ subroutine getAdjointOperator(this, adjointOperator)
   call allocateData(adjointOperator)
 
   ! Reverse the interior stencil.
+  assert(allocated(this%rhsInterior))
+  assert(lbound(this%rhsInterior) == - this%interiorWidth / 2)
+  assert(ubound(this%rhsInterior) == + this%interiorWidth / 2)
   do i = - this%interiorWidth / 2, this%interiorWidth / 2
      adjointOperator%rhsInterior(i) = this%rhsInterior(-i)
   end do
 
   ! Copy `normBoundary`.
+  assert(allocated(this%normBoundary))
+  assert(size(this%normBoundary) == this%boundaryDepth)
+  assert(all(this%normBoundary > 0))
   SAFE_DEALLOCATE(adjointOperator%normBoundary)
   allocate(adjointOperator%normBoundary(this%boundaryDepth))
   adjointOperator%normBoundary = this%normBoundary
 
   ! Transpose the left-boundary coefficients.
+  assert(allocated(this%rhsBoundary1))
+  assert(size(this%rhsBoundary1, 1) == this%boundaryWidth)
+  assert(size(this%rhsBoundary1, 2) == this%boundaryDepth)
   adjointOperator%rhsBoundary1 = 0.0_wp
   adjointOperator%rhsBoundary1(1:this%boundaryDepth,:) = transpose(this%rhsBoundary1)
   do i = this%boundaryDepth + 1, this%boundaryWidth + this%interiorWidth / 2
@@ -1588,6 +1604,11 @@ subroutine applyOperator(this, x, gridSize)
 
   call startTiming("applyOperator")
 
+  assert(size(x, 2) > 0)
+  assert(all(gridSize > 0))
+  assert(size(x, 1) == product(gridSize))
+  assert(this%direction >= 1 .and. this%direction <= 3)
+
   select case (this%direction)
   case (1)
      call applyOperator_1(this, x, gridSize)
@@ -1611,6 +1632,9 @@ subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
                                   applyOperatorAtInteriorPoints_2,                           &
                                   applyOperatorAtInteriorPoints_3
 
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
   implicit none
 
   ! <<< Arguments >>>
@@ -1619,14 +1643,33 @@ subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
   SCALAR_TYPE, intent(out) :: x(:,:)
   integer, intent(in) :: gridSize(3)
 
+  call startTiming("applyOperatorAtInteriorPoints")
+
+  assert(size(x, 2) > 0)
+  assert(size(xWithGhostPoints, 4) == size(x, 2))
+  assert(all(gridSize > 0))
+  assert(size(x, 1) == product(gridSize))
+  assert(this%direction >= 1 .and. this%direction <= 3) 
+
   select case (this%direction)
   case (1)
+     assert(size(xWithGhostPoints, 1) >= gridSize(1))
+     assert(size(xWithGhostPoints, 2) == gridSize(2))
+     assert(size(xWithGhostPoints, 3) == gridSize(3))
      call applyOperatorAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
   case (2)
+     assert(size(xWithGhostPoints, 1) == gridSize(1))
+     assert(size(xWithGhostPoints, 2) >= gridSize(2))
+     assert(size(xWithGhostPoints, 3) == gridSize(3))
      call applyOperatorAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
   case (3)
+     assert(size(xWithGhostPoints, 1) == gridSize(1))
+     assert(size(xWithGhostPoints, 2) == gridSize(2))
+     assert(size(xWithGhostPoints, 3) >= gridSize(3))
      call applyOperatorAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
   end select
+
+  call endTiming("applyOperatorAtInteriorPoints")
 
 end subroutine applyOperatorAtInteriorPoints
 
@@ -1646,6 +1689,11 @@ subroutine applyOperatorNorm(this, x, gridSize)
   type(t_StencilOperator) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
+
+  assert(size(x, 2) > 0)
+  assert(all(gridSize > 0))
+  assert(size(x, 1) == product(gridSize))
+  assert(this%direction >= 1 .and. this%direction <= 3)
 
   select case (this%direction)
   case (1)
@@ -1674,6 +1722,11 @@ subroutine applyOperatorNormInverse(this, x, gridSize)
   type(t_StencilOperator) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
+
+  assert(size(x, 2) > 0)
+  assert(all(gridSize > 0))
+  assert(size(x, 1) == product(gridSize))
+  assert(this%direction >= 1 .and. this%direction <= 3)
 
   select case (this%direction)
   case (1)

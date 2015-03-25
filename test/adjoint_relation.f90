@@ -4,10 +4,7 @@ program adjoint_relation
 
   use MPI
 
-  use StencilOperator_type
-
   use RandomNumber, only : initializeRandomNumberGenerator, random
-  use StencilOperator_mod
 
   implicit none
 
@@ -92,12 +89,13 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
   use MPI
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_type, only : t_StencilOperator
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
   use RandomNumber, only : initializeRandomNumberGenerator, random
-  use StencilOperator_mod
+  use StencilOperator_mod, only : setupOperator, updateOperator,                             &
+       getAdjointOperator, applyOperator, applyOperatorNorm, cleanupOperator
 
   ! <<< Arguments >>>
   character(len = *), intent(in) :: identifier
@@ -209,5 +207,8 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
   SAFE_DEALLOCATE(u)
   SAFE_DEALLOCATE(v)
   SAFE_DEALLOCATE(norm)
+
+  call cleanupOperator(A)
+  call cleanupOperator(adjointOfA)
 
 end subroutine testAdjointRelation

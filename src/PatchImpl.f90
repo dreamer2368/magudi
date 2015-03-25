@@ -459,7 +459,6 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   SCALAR_TYPE, intent(in), optional :: adjointVariables(:,:)
 
   ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localTargetState(:), metricsAlongNormalDirection(:),           &
        incomingJacobianOfInviscidFlux(:,:), viscousFluxPenalty(:,:)
@@ -713,8 +712,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
                  rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) +                   &
                       this%adjointSource(patchIndex,:)
               end if
-              
-              
+
            end select
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
