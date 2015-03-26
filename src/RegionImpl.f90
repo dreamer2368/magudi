@@ -977,11 +977,9 @@ subroutine computeRhs(this, mode, time)
              this%simulationFlags, this%solverOptions)
      end select
 
-     ! Multiply by Jacobian and zero-out at hole points.
+     ! Multiply by Jacobian.
      do j = 1, this%states(i)%nUnknowns
-        where (this%grids(i)%iblank == 0)
-           this%states(i)%rightHandSide(:,j) = 0
-        elsewhere
+        where (this%grids(i)%iblank /= 0)
            this%states(i)%rightHandSide(:,j) = this%states(i)%rightHandSide(:,j) *           &
                 this%grids(i)%jacobian(:,1)
         end where
@@ -996,6 +994,13 @@ subroutine computeRhs(this, mode, time)
         call addSourcesAdjoint(this%states(i), this%grids(i), this%patches, time,            &
              this%simulationFlags, this%solverOptions)
      end select
+
+     ! Zero-out at hole points.
+     do j = 1, this%states(i)%nUnknowns
+        where (this%grids(i)%iblank == 0)
+           this%states(i)%rightHandSide(:,j) = 0.0_wp
+        end where
+     end do
 
   end do
 
