@@ -4,12 +4,12 @@ module Region_type
 
   use MPI, only : MPI_COMM_NULL
 
-  use Grid_type
-  use State_type
-  use Patch_type
-  use SolverOptions_type
-  use PatchDescriptor_type
-  use SimulationFlags_type
+  use Grid_type, only : t_Grid
+  use State_type, only : t_State
+  use Patch_type, only : t_Patch
+  use SolverOptions_type, only : t_SolverOptions
+  use PatchDescriptor_type, only : t_PatchDescriptor
+  use SimulationFlags_type, only : t_SimulationFlags
 
   implicit none
   private
@@ -43,7 +43,7 @@ module Region_mod
 
      subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
-       use Region_type
+       use Region_type, only : t_Region
 
        type(t_Region) :: this
        integer, intent(in) :: comm, globalGridSizes(:,:)
@@ -58,7 +58,7 @@ module Region_mod
 
      subroutine cleanupRegion(this)
 
-       use Region_type
+       use Region_type, only : t_Region
 
        type(t_Region) :: this
 
@@ -70,7 +70,7 @@ module Region_mod
 
      subroutine loadRegionData(this, quantityOfInterest, filename)
 
-       use Region_type
+       use Region_type, only : t_Region
 
        type(t_Region) :: this
        integer, intent(in) :: quantityOfInterest
@@ -84,7 +84,7 @@ module Region_mod
 
      subroutine saveRegionData(this, quantityOfInterest, filename)
 
-       use Region_type
+       use Region_type, only : t_Region
 
        type(t_Region) :: this
        integer, intent(in) :: quantityOfInterest
@@ -98,7 +98,7 @@ module Region_mod
 
      subroutine reportGridDiagnostics(this)
 
-       use Region_type
+       use Region_type, only : t_Region
 
        type(t_Region) :: this
 
@@ -110,7 +110,7 @@ module Region_mod
 
      subroutine computeRhs(this, mode, time)
 
-       use Region_type
+       use Region_type, only : t_Region
 
        type(t_Region) :: this
        integer, intent(in) :: mode
@@ -124,7 +124,7 @@ module Region_mod
 
      subroutine reportResiduals(this)
 
-       use Region_type
+       use Region_type, only : t_Region
 
        type(t_Region) :: this
 

@@ -182,8 +182,9 @@ contains
     use RK4Integrator_type, only : t_RK4Integrator
 
     ! <<< Internal modules >>>
-    use Region_mod, only : saveRegionData
-    use RK4Integrator_mod, only : stepForward
+    use Region_mod, only : saveRegionData, reportResiduals
+    use ErrorHandler, only : writeAndFlush
+    use RK4Integrator_mod, only : subStepForward
 
     implicit none
 
@@ -196,8 +197,9 @@ contains
     character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
 
     ! <<< Local variables >>>
-    character(len = STRING_LENGTH) :: outputPrefix_, filename
-    integer :: timestep
+    integer, parameter :: wp = SCALAR_KIND
+    character(len = STRING_LENGTH) :: outputPrefix_, filename, str
+    integer :: i, timestep
     logical :: verbose
 
     assert(startTimestep >= 0)
@@ -205,21 +207,40 @@ contains
     outputPrefix_ = PROJECT_NAME
     if (present(outputPrefix)) outputPrefix_ = outputPrefix
 
-    verbose = .false.
-
     timestep = startTimestep
     write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
     call saveRegionData(region, QOI_FORWARD_STATE, filename)
+
+    verbose = .false.
 
     do timestep = startTimestep + 1, startTimestep + nTimesteps
 
        if (present(reportInterval)) verbose = (reportInterval > 0 .and.                      &
             mod(timestep, reportInterval) == 0)
-       call stepForward(integrator, region, time, timestep, verbose)
+
+       do i = 1, 4
+          call subStepForward(integrator, region, time, timestep, i)
+       end do
+
+       if (verbose) then
+          if (region%simulationFlags%useConstantCfl) then
+             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,       &
+                  ", dt = ", region%states(1)%timeStepSize, ", time = ", time
+          else
+             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,       &
+                  ", CFL = ", region%states(1)%cfl, ", time = ", time
+          end if
+          call writeAndFlush(region%comm, output_unit, str)
+          if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
+       end if
 
        if (present(saveInterval)) then
           if (saveInterval > 0) then
              if (mod(timestep, saveInterval) == 0) then
+                do i = 1, size(region%states)
+                   region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
+                   region%states(i)%plot3dAuxiliaryData(4) = time
+                end do
                 write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
                 call saveRegionData(region, QOI_FORWARD_STATE, filename)
              end if
@@ -240,8 +261,9 @@ contains
     use ReverseMigrator_type, only : t_ReverseMigrator
 
     ! <<< Internal modules >>>
-    use Region_mod, only : saveRegionData
-    use RK4Integrator_mod, only : stepAdjoint
+    use Region_mod, only : saveRegionData, reportResiduals
+    use ErrorHandler, only : writeAndFlush
+    use RK4Integrator_mod, only : subStepAdjoint
 
     implicit none
 
@@ -254,15 +276,13 @@ contains
     character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
 
     ! <<< Local variables >>>
-    character(len = STRING_LENGTH) :: outputPrefix_, filename
-    integer :: timestep
-    logical :: verbose
+    character(len = STRING_LENGTH) :: outputPrefix_, filename, str
     type(t_ReverseMigrator) :: reverseMigrator
+    integer :: i, timestep
+    logical :: verbose
 
     outputPrefix_ = PROJECT_NAME
     if (present(outputPrefix)) outputPrefix_ = outputPrefix
-
-    verbose = .false.
 
     call setupReverseMigrator(reverseMigrator,                                               &
          getOption("checkpointing_scheme", "uniform checkpointing"),                         &
@@ -272,6 +292,8 @@ contains
     write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
     call saveRegionData(region, QOI_ADJOINT_STATE, filename)
 
+    verbose = .false.
+
     do timestep = startTimestep - 1, startTimestep - nTimesteps, -1
 
        if (.not. region%simulationFlags%steadyStateSimulation) then
@@ -280,10 +302,29 @@ contains
 
        if (present(reportInterval)) verbose = (reportInterval > 0 .and.                      &
             mod(timestep, reportInterval) == 0)
-       call stepAdjoint(integrator, region, time, timestep, verbose)
+
+       do i = 4, 1, -1
+          call subStepAdjoint(integrator, region, time, timestep, i)
+       end do
+
+       if (verbose) then
+          if (region%simulationFlags%useConstantCfl) then
+             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,       &
+                  ", dt = ", region%states(1)%timeStepSize, ", time = ", time
+          else
+             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,       &
+                  ", CFL = ", region%states(1)%cfl, ", time = ", time
+          end if
+          call writeAndFlush(region%comm, output_unit, str)
+          if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
+       end if
 
        if (saveInterval > 0) then
           if (mod(timestep, saveInterval) == 0) then
+             do i = 1, size(region%states)
+                region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
+                region%states(i)%plot3dAuxiliaryData(4) = time
+             end do
              write(filename, '(2A,I8.8,A)')                                                  &
                   trim(outputPrefix_), "-", timestep, ".adjoint.q"
              call saveRegionData(region, QOI_ADJOINT_STATE, filename)

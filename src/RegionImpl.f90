@@ -14,7 +14,7 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
-    use Region_type
+    use Region_type, only : t_Region
 
     ! <<< Internal modules >>>
     use InputHelper, only : stripComments
@@ -124,7 +124,7 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
-    use Region_type
+    use Region_type, only : t_Region
 
     ! <<< Internal modules >>>
     use MPIHelper, only : splitCommunicatorMultigrid
@@ -177,7 +177,7 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
-    use Region_type
+    use Region_type, only : t_Region
 
     ! <<< Internal modules >>>
     use InputHelper, only : stripComments
@@ -334,7 +334,7 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
-    use Region_type
+    use Region_type, only : t_Region
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : issueWarning, gracefulExit, writeAndFlush
@@ -373,8 +373,8 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Region_type
-    use PatchDescriptor_type
+    use Region_type, only : t_Region
+    use PatchDescriptor_type, only : t_PatchDescriptor
 
     ! <<< Arguments >>>
     type(t_Region) :: this
@@ -426,8 +426,8 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use State_type
-    use Region_type
+    use State_type, only : t_State, QOI_FORWARD_STATE
+    use Region_type, only : t_Region, FORWARD
 
     ! <<< Public members >>>
     use Region_mod, only : saveRegionData
@@ -510,8 +510,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   use MPI
 
   ! <<< Derived types >>>
-  use Region_type
-  use PatchDescriptor_type
+  use Region_type, only : t_Region
+  use PatchDescriptor_type, only : t_PatchDescriptor
 
   ! <<< Private members >>>
   use RegionImpl
@@ -655,7 +655,7 @@ subroutine cleanupRegion(this)
   use MPI
 
   ! <<< Derived types >>>
-  use Region_type
+  use Region_type, only : t_Region
 
   ! <<< Internal modules >>>
   use Grid_mod, only : cleanupGrid
@@ -704,8 +704,8 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
 
   ! <<< Derived types >>>
   use Grid_type
-  use Region_type
-  use PLOT3DDescriptor_type
+  use Region_type, only : t_Region
+  use PLOT3DDescriptor_type, only : t_PLOT3DDescriptor, PLOT3D_SOLUTION_FILE
 
   ! <<< Internal modules >>>
   use Grid_mod, only : loadGridData
@@ -803,8 +803,8 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   ! <<< Derived types >>>
   use Grid_type
-  use Region_type
-  use PLOT3DDescriptor_type
+  use Region_type, only : t_Region
+  use PLOT3DDescriptor_type, only : t_PLOT3DDescriptor, PLOT3D_GRID_FILE, PLOT3D_FUNCTION_FILE
 
   ! <<< Internal modules >>>
   use Grid_mod, only : saveGridData
@@ -909,7 +909,7 @@ subroutine computeRhs(this, mode, time)
   use MPI
 
   ! <<< Derived types >>>
-  use Region_type
+  use Region_type, only : t_Region, FORWARD, ADJOINT
 
   ! <<< Private members >>>
   use RegionImpl, only : checkSolutionLimits
@@ -988,11 +988,9 @@ subroutine computeRhs(this, mode, time)
      ! Source terms.
      select case (mode)
      case (FORWARD)
-        call addSourcesForward(this%states(i), this%grids(i), this%patches, time,            &
-             this%simulationFlags, this%solverOptions)
+        call addSourcesForward(this%states(i), this%grids(i), this%patches, time)
      case (ADJOINT)
-        call addSourcesAdjoint(this%states(i), this%grids(i), this%patches, time,            &
-             this%simulationFlags, this%solverOptions)
+        call addSourcesAdjoint(this%states(i), this%grids(i), this%patches, time)
      end select
 
      ! Zero-out at hole points.
@@ -1015,7 +1013,7 @@ subroutine reportGridDiagnostics(this)
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
-  use Region_type
+  use Region_type, only : t_Region
 
   ! <<< Internal modules >>>
   use Grid_mod, only : findMinimum, findMaximum
@@ -1079,7 +1077,7 @@ subroutine reportResiduals(this)
   use, intrinsic :: iso_fortran_env
 
   ! <<< Derived types >>>
-  use Region_type
+  use Region_type, only : t_Region
 
   ! <<< Internal modules >>>
   use Grid_mod, only : findMaximum

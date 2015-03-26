@@ -10,8 +10,8 @@ contains
   subroutine allocateData(this, simulationFlags, nGridPoints, nDimensions)
 
     ! <<< Derived types >>>
-    use State_type
-    use SimulationFlags_type
+    use State_type, only : t_State
+    use SimulationFlags_type, only : t_SimulationFlags
 
     ! <<< Arguments >>>
     type(t_State) :: this
@@ -58,10 +58,10 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
-  use State_type
-  use SolverOptions_type
-  use SimulationFlags_type
+  use Grid_type, only : t_Grid
+  use State_type, only : t_State
+  use SolverOptions_type, only : t_SolverOptions
+  use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use StateImpl, only : allocateData
@@ -131,7 +131,7 @@ end subroutine setupState
 subroutine cleanupState(this)
 
   ! <<< Derived types >>>
-  use State_type
+  use State_type, only : t_State
 
   implicit none
 
@@ -165,7 +165,7 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
   use State_type
 
   ! <<< Internal modules >>>
@@ -214,7 +214,7 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
   use State_type
 
   ! <<< Internal modules >>>
@@ -347,7 +347,7 @@ end function getNumberOfScalars
 subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
 
   ! <<< Derived types >>>
-  use State_type
+  use State_type, only : t_State
 
   implicit none
 
@@ -382,10 +382,10 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
-  use State_type
-  use SolverOptions_type
-  use SimulationFlags_type
+  use Grid_type, only : t_Grid
+  use State_type, only : t_State
+  use SolverOptions_type, only : t_SolverOptions
+  use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use Grid_mod
@@ -489,12 +489,12 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
-  use Patch_type
-  use State_type
-  use SolverOptions_type
-  use PatchDescriptor_type
-  use SimulationFlags_type
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use State_type, only : t_State
+  use SolverOptions_type, only : t_SolverOptions
+  use PatchDescriptor_type, only : SAT_FAR_FIELD, SAT_BLOCK_INTERFACE
+  use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -589,12 +589,11 @@ end subroutine computeRhsForward
 subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
 
   ! <<< Derived types >>>
-  use Grid_type
-  use Patch_type
-  use State_type
-  use SolverOptions_type
-  use PatchDescriptor_type
-  use SimulationFlags_type
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use State_type, only : t_State
+  use SolverOptions_type, only : t_SolverOptions
+  use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -739,13 +738,13 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
-  use Patch_type
-  use State_type
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use State_type, only : t_State
   use Region_type, only : FORWARD
-  use SolverOptions_type
+  use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type
-  use SimulationFlags_type
+  use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -798,13 +797,13 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
-  use Patch_type
-  use State_type
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use State_type, only : t_State
   use Region_type, only : ADJOINT
-  use SolverOptions_type
+  use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type
-  use SimulationFlags_type
+  use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -852,16 +851,14 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
 
 end subroutine addPenaltiesAdjoint
 
-subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverOptions)
+subroutine addSourcesForward(this, grid, patches, time)
 
   ! <<< Derived types >>>
-  use Grid_type
-  use Patch_type
-  use State_type
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use State_type, only : t_State
   use Region_type, only : FORWARD
-  use SolverOptions_type
-  use PatchDescriptor_type
-  use SimulationFlags_type
+  use PatchDescriptor_type, only : SPONGE, SOLENOIDAL_EXCITATION
 
   ! <<< Internal modules >>>
   use Patch_mod, only : addDamping, addSolenoidalExcitation
@@ -875,8 +872,6 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
   type(t_Grid) :: grid
   type(t_Patch), allocatable, intent(in) :: patches(:)
   real(SCALAR_KIND), intent(in) :: time
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
   integer :: i
@@ -911,16 +906,14 @@ subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverO
 
 end subroutine addSourcesForward
 
-subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
+subroutine addSourcesAdjoint(this, grid, patches, time)
 
   ! <<< Derived types >>>
-  use Grid_type
-  use Patch_type
-  use State_type
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use State_type, only : t_State
   use Region_type, only : ADJOINT
-  use SolverOptions_type
-  use PatchDescriptor_type
-  use SimulationFlags_type
+  use PatchDescriptor_type, only : SPONGE
 
   ! <<< Internal modules >>>
   use Patch_mod, only : addDamping
@@ -933,8 +926,6 @@ subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverO
   type(t_Grid) :: grid
   type(t_Patch), allocatable, intent(in) :: patches(:)
   real(SCALAR_KIND), intent(in) :: time
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
   integer :: i
@@ -964,12 +955,12 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
-  use Patch_type
-  use State_type
-  use SolverOptions_type
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use State_type, only : t_State
+  use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type
-  use SimulationFlags_type
+  use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Public members >>>
   use State_mod, only : updateState

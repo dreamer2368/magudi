@@ -75,11 +75,19 @@ subroutine subStepForward(this, region, time, timestep, stage)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  integer, save :: stageLastCall = 0
   integer :: i
   real(wp), save :: timeStepSize
 
   assert(timestep >= 0)
   assert(stage >= 1 .and. stage <= 4)
+
+#ifdef DEBUG
+  if (stageLastCall /= 0) then
+     assert(stage == stageLastCall + 1 .or. (stageLastCall == 4 .and. stage == 1))
+  end if
+#endif
+  stageLastCall = stage
 
   select case (stage)
 
@@ -155,11 +163,19 @@ subroutine subStepAdjoint(this, region, time, timestep, stage)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  integer, save :: stageLastCall = 0
   integer :: i
   real(wp), save :: timeStepSize
 
   assert(timestep >= 0)
   assert(stage >= 1 .and. stage <= 4)
+
+#ifdef DEBUG
+  if (stageLastCall /= 0) then
+     assert(stage == stageLastCall - 1 .or. (stageLastCall == 1 .and. stage == 4))
+  end if
+#endif
+  stageLastCall = stage
 
   select case (stage)
 
@@ -215,114 +231,3 @@ subroutine subStepAdjoint(this, region, time, timestep, stage)
   end select
 
 end subroutine subStepAdjoint
-
-subroutine stepForward(this, region, time, timestep, verbose)
-
-  ! <<< External modules >>>
-  use, intrinsic :: iso_fortran_env, only : output_unit
-
-  ! <<< Derived types >>>
-  use Region_type, only : t_Region
-  use RK4Integrator_type, only : t_RK4Integrator
-
-  ! <<< Public members >>>
-  use RK4Integrator_mod, only : subStepForward
-
-  ! <<< Internal modules >>>
-  use Region_mod, only : reportResiduals
-  use ErrorHandler, only : writeAndFlush
-
-  implicit none
-
-  ! <<< Arguments >>>
-  type(t_RK4Integrator) :: this
-  type(t_Region) :: region
-  real(SCALAR_KIND), intent(inout) :: time
-  integer, intent(in) :: timestep
-  logical, intent(in), optional :: verbose
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i
-  character(len = STRING_LENGTH) :: str
-
-  assert(timestep >= 0)
-
-  do i = 1, 4
-     call subStepForward(this, region, time, timestep, i)
-  end do
-
-  do i = 1, size(region%states)
-     region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
-     region%states(i)%plot3dAuxiliaryData(4) = time
-  end do
-
-  if (present(verbose)) then
-     if (verbose) then
-        if (region%simulationFlags%useConstantCfl) then
-           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,         &
-                ", dt = ", region%states(1)%timeStepSize, ", time = ", time
-        else
-           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,         &
-                ", CFL = ", region%states(1)%cfl, ", time = ", time
-        end if
-        call writeAndFlush(region%comm, output_unit, str)
-        if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
-     end if
-  end if
-
-end subroutine stepForward
-
-subroutine stepAdjoint(this, region, time, timestep, verbose)
-
-  ! <<< External modules >>>
-  use, intrinsic :: iso_fortran_env, only : output_unit
-
-  ! <<< Derived types >>>
-  use Region_type, only : t_Region
-  use RK4Integrator_type, only : t_RK4Integrator
-
-  ! <<< Internal modules >>>
-  use Region_mod, only : computeRhs, reportResiduals
-  use ErrorHandler, only : writeAndFlush
-
-  implicit none
-
-  ! <<< Arguments >>>
-  type(t_RK4Integrator) :: this
-  type(t_Region) :: region
-  real(SCALAR_KIND), intent(inout) :: time
-  integer, intent(in) :: timestep
-  logical, intent(in), optional :: verbose
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i
-  character(len = STRING_LENGTH) :: str
-
-  assert(timestep > 0)
-
-  do i = 4, 1, -1
-     call subStepAdjoint(this, region, time, timestep, i)
-  end do
-
-  do i = 1, size(region%states)
-     region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
-     region%states(i)%plot3dAuxiliaryData(4) = time
-  end do
-
-  if (present(verbose)) then
-     if (verbose) then
-        if (region%simulationFlags%useConstantCfl) then
-           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,         &
-                ", dt = ", region%states(1)%timeStepSize, ", time = ", time
-        else
-           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,         &
-                ", CFL = ", region%states(1)%cfl, ", time = ", time
-        end if
-        call writeAndFlush(region%comm, output_unit, str)
-        if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
-     end if
-  end if
-
-end subroutine stepAdjoint

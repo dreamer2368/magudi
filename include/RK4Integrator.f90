@@ -82,38 +82,4 @@ module RK4Integrator_mod
 
   end interface
 
-  interface
-
-     subroutine stepForward(this, region, time, timestep, verbose)
-
-       use Region_type, only : t_Region
-       use RK4Integrator_type, only : t_RK4Integrator
-
-       type(t_RK4Integrator) :: this
-       type(t_Region) :: region
-       real(SCALAR_KIND), intent(inout) :: time
-       integer, intent(in) :: timestep
-       logical, intent(in), optional :: verbose
-
-     end subroutine stepForward
-
-  end interface
-
-  interface
-
-     subroutine stepAdjoint(this, region, time, timestep, verbose)
-
-       use Region_type, only : t_Region
-       use RK4Integrator_type, only : t_RK4Integrator
-
-       type(t_RK4Integrator) :: this
-       type(t_Region) :: region
-       real(SCALAR_KIND), intent(inout) :: time
-       integer, intent(in) :: timestep
-       logical, intent(in), optional :: verbose
-
-     end subroutine stepAdjoint
-
-  end interface
-
 end module RK4Integrator_mod

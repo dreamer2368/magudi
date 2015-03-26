@@ -2,7 +2,7 @@
 
 module State_type
 
-  use AcousticSource_type
+  use AcousticSource_type, only : t_AcousticSource
 
   implicit none
   private
@@ -42,10 +42,10 @@ module State_mod
 
      subroutine setupState(this, grid, simulationFlags, solverOptions)
 
-       use Grid_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
 
        type(t_State) :: this
        type(t_Grid) :: grid
@@ -61,7 +61,7 @@ module State_mod
 
      subroutine cleanupState(this)
 
-       use State_type
+       use State_type, only : t_State
 
        type(t_State) :: this
 
@@ -74,8 +74,8 @@ module State_mod
      subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, success)
 
        use MPI, only : MPI_OFFSET_KIND
-       use Grid_type
-       use State_type
+       use Grid_type, only : t_Grid
+       use State_type, only : t_State
 
        type(t_State) :: this
        type(t_Grid) :: grid
@@ -93,8 +93,8 @@ module State_mod
      subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, success)
 
        use MPI, only : MPI_OFFSET_KIND
-       use Grid_type
-       use State_type
+       use Grid_type, only : t_Grid
+       use State_type, only : t_State
 
        type(t_State) :: this
        type(t_Grid) :: grid
@@ -133,7 +133,7 @@ module State_mod
 
      subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
 
-       use State_type
+       use State_type, only : t_State
 
        type(t_State) :: this
        integer, intent(in) :: nDimensions
@@ -150,10 +150,10 @@ module State_mod
      subroutine updateState(this, grid, time, simulationFlags, &
           solverOptions, conservedVariables)
 
-       use Grid_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
 
        type(t_State) :: this
        type(t_Grid) :: grid
@@ -171,11 +171,11 @@ module State_mod
 
      subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverOptions)
 
-       use Grid_type
-       use Patch_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
 
        type(t_State) :: this
        type(t_Grid) :: grid
@@ -192,11 +192,11 @@ module State_mod
 
      subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
 
-       use Grid_type
-       use Patch_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
 
        type(t_State) :: this
        type(t_Grid) :: grid
@@ -213,11 +213,11 @@ module State_mod
 
      subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solverOptions)
 
-       use Grid_type
-       use Patch_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
 
        type(t_State) :: this
        type(t_Grid) :: grid
@@ -234,11 +234,11 @@ module State_mod
 
      subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
 
-       use Grid_type
-       use Patch_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
 
        type(t_State) :: this
        type(t_Grid) :: grid
@@ -253,20 +253,16 @@ module State_mod
 
   interface
 
-     subroutine addSourcesForward(this, grid, patches, time, simulationFlags, solverOptions)
+     subroutine addSourcesForward(this, grid, patches, time)
 
-       use Grid_type
-       use Patch_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+       use State_type, only : t_State
 
        type(t_State) :: this
        type(t_Grid) :: grid
        type(t_Patch), allocatable, intent(in) :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
 
      end subroutine addSourcesForward
 
@@ -274,20 +270,16 @@ module State_mod
 
   interface
 
-     subroutine addSourcesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
+     subroutine addSourcesAdjoint(this, grid, patches, time)
 
-       use Grid_type
-       use Patch_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+       use State_type, only : t_State
 
        type(t_State) :: this
        type(t_Grid) :: grid
        type(t_Patch), allocatable, intent(in) :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
 
      end subroutine addSourcesAdjoint
 
@@ -297,11 +289,11 @@ module State_mod
 
      subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
-       use Grid_type
-       use Patch_type
-       use State_type
-       use SolverOptions_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
 
        type(t_State) :: this
        type(t_Grid) :: grid

@@ -4,7 +4,7 @@ module Grid_type
 
   use MPI, only : MPI_COMM_NULL, MPI_DATATYPE_NULL
 
-  use StencilOperator_type
+  use StencilOperator_type, only : t_StencilOperator
 
   implicit none
   private
@@ -54,8 +54,8 @@ module Grid_mod
      subroutine setupGrid(this, index, globalGridSize, comm, processDistribution,            &
           periodicityType, periodicLength, simulationFlags)
 
-       use Grid_type
-       use SimulationFlags_type
+       use Grid_type, only : t_Grid
+       use SimulationFlags_type, only : t_SimulationFlags
 
        type(t_Grid) :: this
        integer, intent(in) :: index, globalGridSize(:)
@@ -73,7 +73,7 @@ module Grid_mod
 
      subroutine cleanupGrid(this)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
 
@@ -86,7 +86,7 @@ module Grid_mod
      subroutine loadGridData(this, quantityOfInterest, filename, offsetInBytes, success)
 
        use MPI, only : MPI_OFFSET_KIND
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
        integer, intent(in) :: quantityOfInterest
@@ -103,7 +103,7 @@ module Grid_mod
      subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, success)
 
        use MPI, only : MPI_OFFSET_KIND
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
        integer, intent(in) :: quantityOfInterest
@@ -119,7 +119,7 @@ module Grid_mod
 
      subroutine setupSpatialDiscretization(this, success, errorMessage)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
 
@@ -137,7 +137,7 @@ module Grid_mod
        !> Updates the Jacobian, norm and normalized metrics. Generally called if the
        !> derivative schemes or the grid coordinates have changed.
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
 
@@ -152,7 +152,7 @@ module Grid_mod
 
      function computeInnerProduct(this, f, g, weight) result(innerProduct)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:,:), g(:,:)
@@ -169,7 +169,7 @@ module Grid_mod
 
      subroutine computeGradientOfScalar_(this, f, gradF)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
@@ -179,7 +179,7 @@ module Grid_mod
 
      subroutine computeGradientOfVector_(this, f, gradF)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:,:)
@@ -193,7 +193,7 @@ module Grid_mod
 
      subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
@@ -208,7 +208,7 @@ module Grid_mod
 
      subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
@@ -224,7 +224,7 @@ module Grid_mod
      function isVariableWithinRange(this, f, fOutsideRange,                                  &
           iOutOfRange, jOutOfRange, kOutOfRange, minValue, maxValue)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
@@ -244,7 +244,7 @@ module Grid_mod
      subroutine computeNormalizedCurveLengths(this, direction, indexAtUnitCurveLength,       &
           normalizedCurveLengths, reverseDirection, coordinateDerivatives)
 
-       use Grid_type
+       use Grid_type, only : t_Grid
 
        type(t_Grid), intent(in) :: this
        integer, intent(in) :: direction, indexAtUnitCurveLength
@@ -261,8 +261,8 @@ module Grid_mod
 
      subroutine computeSpongeStrengths(this, patches)
 
-       use Grid_type
-       use Patch_type
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
 
        type(t_Grid) :: this
        type(t_Patch), allocatable :: patches(:)
