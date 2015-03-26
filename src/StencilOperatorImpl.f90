@@ -704,6 +704,22 @@ subroutine setupOperator(this, identifier, success)
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: x1, x2, x3
 
+  assert_key(identifier, (     \
+  'SBP 1-2 first derivative',  \
+  'SBP 1-2 second derivative', \
+  'SBP 1-2 dissipation',       \
+  'SBP 2-4 first derivative',  \
+  'SBP 2-4 second derivative', \
+  'SBP 2-4 dissipation',       \
+  'SBP 3-6 first derivative',  \
+  'SBP 3-6 second derivative', \
+  'SBP 3-6 dissipation',       \
+  'SBP 4-8 first derivative',  \
+  'SBP 4-8 second derivative', \
+  'SBP 4-8 dissipation',       \
+  'null matrix'                \
+  ))
+
   call cleanupOperator(this)
   if (present(success)) success = .true.
 

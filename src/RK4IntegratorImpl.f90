@@ -56,7 +56,7 @@ subroutine cleanupRK4Integrator(this)
 
 end subroutine cleanupRK4Integrator
 
-subroutine subStepForward(this, region, time, timestep, stage)
+subroutine substepForward(this, region, time, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, FORWARD
@@ -142,9 +142,9 @@ subroutine subStepForward(this, region, time, timestep, stage)
 
   end select
 
-end subroutine subStepForward
+end subroutine substepForward
 
-subroutine subStepAdjoint(this, region, time, timestep, stage)
+subroutine substepAdjoint(this, region, time, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, ADJOINT
@@ -230,4 +230,4 @@ subroutine subStepAdjoint(this, region, time, timestep, stage)
 
   end select
 
-end subroutine subStepAdjoint
+end subroutine substepAdjoint

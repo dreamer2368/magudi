@@ -1,5 +1,46 @@
 #include "config.h"
 
+module ErrorHandlerImpl
+
+  use MPI, only : MPI_WIN_NULL
+
+  implicit none
+  public
+
+  integer, public :: mpiWindowBase = 0, mpiWindow = MPI_WIN_NULL
+
+end module ErrorHandlerImpl
+
+subroutine initializeErrorHandler()
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Private members >>>
+  use ErrorHandlerImpl, only : mpiWindowBase, mpiWindow
+
+  ! <<< Public members >>>
+  use ErrorHandler, only : cleanupErrorHandler
+
+  implicit none
+
+  ! <<< Local variables >>>
+  integer :: procRank, ierror
+
+  call cleanupErrorHandler()
+
+  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
+
+  if (procRank == 0) then
+     call MPI_Win_create(mpiWindowBase, int(sizeof(mpiWindowBase), MPI_ADDRESS_KIND),        &
+          sizeof(mpiWindowBase), MPI_INFO_NULL, MPI_COMM_WORLD, mpiWindow, ierror)
+  else
+     call MPI_Win_create(0, int(0, MPI_ADDRESS_KIND), 1, MPI_INFO_NULL,                      &
+          MPI_COMM_WORLD, mpiWindow, ierror)
+  end if
+
+end subroutine initializeErrorHandler
+
 #ifdef DEBUG
 
 subroutine assertImpl(condition, conditionString, filename, lineNo)
@@ -7,6 +48,9 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
   ! <<< External modules >>>
   use MPI
   use, intrinsic :: iso_fortran_env, only : error_unit
+
+  ! <<< Private members >>>
+  use ErrorHandlerImpl, only : mpiWindow
 
   implicit none
 
@@ -16,12 +60,32 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
   integer, intent(in) :: lineNo
 
   ! <<< Local variables >>>
-  integer :: ierror
+  integer :: i, j, one = 1, flag, procRank, ierror
+  character(len = len_trim(conditionString)) :: str
+
+  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
+
+  str(1:1) = conditionString(1:1)
+  j = 2
+  do i = 2, len_trim(conditionString)
+     if (conditionString(i:i) /= ' ' .or. conditionString(i-1:i-1) /= ' ') then
+        str(j:j) = conditionString(i:i)
+        j = j + 1
+     end if
+  end do
+  str(j:) = ' '
 
   if (.not. condition) then
-     write(error_unit, '(3A,I0.0,3A)') "AssertionError at ", trim(filename), ":", lineNo,    &
-          ": ", trim(conditionString), "!"
-     call MPI_Abort(MPI_COMM_WORLD, -1, ierror)
+     call MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, mpiWindow, ierror)
+     call MPI_Fetch_and_op(one, flag, MPI_INTEGER, 0, int(0, MPI_ADDRESS_KIND),              &
+          MPI_SUM, mpiWindow, ierror)
+     call MPI_Win_unlock(0, mpiWindow, ierror)
+     if (flag == 0) then
+        write(error_unit, '(3A,I0.0,3A)') "AssertionError at ",                              &
+             trim(filename), ":", lineNo, ": ", trim(str), "!"
+        call backtrace
+        call MPI_Abort(MPI_COMM_WORLD, -1, ierror)
+     end if
   end if
 
 end subroutine assertImpl
@@ -144,3 +208,25 @@ subroutine issueWarning(comm, warningMessage)
        "[0m: " // trim(warningMessage))
 
 end subroutine issueWarning
+
+subroutine cleanupErrorHandler()
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Private members >>>
+  use ErrorHandlerImpl, only : mpiWindowBase, mpiWindow
+
+  implicit none
+
+  ! <<< Local variables >>>
+  integer :: ierror
+
+  mpiWindowBase = 0
+
+  if (mpiWindow /= MPI_WIN_NULL) then
+     call MPI_Win_free(mpiWindow, ierror)
+  end if
+  mpiWindow = MPI_WIN_NULL
+
+end subroutine cleanupErrorHandler

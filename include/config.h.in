@@ -10,6 +10,13 @@
 
 #ifdef DEBUG
 #define assert(x) call assertImpl((x), STRINGIFY(x), __FILE__, __LINE__)
+#define assert_key(x, y) \
+  select case (x); \
+  case y;          \
+  case default;    \
+  call assertImpl(.false., STRINGIFY(x) // " is not in " // adjustl(STRINGIFY(y)), \
+                  __FILE__, __LINE__); \
+  end select
 #else
 #define assert(x) if (.false.) stop
 #endif

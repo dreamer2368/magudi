@@ -5,6 +5,22 @@ module ErrorHandler
   implicit none
   public
 
+  interface
+
+     subroutine initializeErrorHandler()
+
+     end subroutine initializeErrorHandler
+
+  end interface
+
+  interface
+
+     subroutine cleanupErrorHandler()
+
+     end subroutine cleanupErrorHandler
+
+  end interface
+
 #ifdef DEBUG
 
   interface

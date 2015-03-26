@@ -14,7 +14,7 @@ program main
   use State_mod, only : updatePatches, makeQuiescent
   use Region_mod
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
-  use ErrorHandler, only : gracefulExit, writeAndFlush
+  use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
@@ -32,6 +32,8 @@ program main
   ! Initialize MPI.
   call MPI_Init(ierror)
 
+  call initializeErrorHandler()
+
   if (command_argument_count() > 1) then
      write(message, '(A)') "Usage: magudi [FILE]"
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
@@ -40,6 +42,7 @@ program main
      write(message, '(A)') &
           "FILE is an optional restart file used if running in prediction-only mode."
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     call cleanupErrorHandler()
      call MPI_Finalize(ierror)
      stop -1
   end if
@@ -169,6 +172,7 @@ program main
   call cleanupTimers()
 
   ! Finalize MPI.
+  call cleanupErrorHandler()
   call MPI_Finalize(ierror)
 
 contains
@@ -184,7 +188,7 @@ contains
     ! <<< Internal modules >>>
     use Region_mod, only : saveRegionData, reportResiduals
     use ErrorHandler, only : writeAndFlush
-    use RK4Integrator_mod, only : subStepForward
+    use RK4Integrator_mod, only : substepForward
 
     implicit none
 
@@ -219,7 +223,7 @@ contains
             mod(timestep, reportInterval) == 0)
 
        do i = 1, 4
-          call subStepForward(integrator, region, time, timestep, i)
+          call substepForward(integrator, region, time, timestep, i)
        end do
 
        if (verbose) then
@@ -262,8 +266,10 @@ contains
 
     ! <<< Internal modules >>>
     use Region_mod, only : saveRegionData, reportResiduals
+    use InputHelper, only : getOption
     use ErrorHandler, only : writeAndFlush
-    use RK4Integrator_mod, only : subStepAdjoint
+    use RK4Integrator_mod, only : substepAdjoint
+    use ReverseMigrator_mod
 
     implicit none
 
@@ -284,9 +290,10 @@ contains
     outputPrefix_ = PROJECT_NAME
     if (present(outputPrefix)) outputPrefix_ = outputPrefix
 
-    call setupReverseMigrator(reverseMigrator,                                               &
+    call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                        &
          getOption("checkpointing_scheme", "uniform checkpointing"),                         &
-         region, 4, saveInterval * 4)
+         startTimestep, startTimestep + nTimesteps,                                          &
+         saveInterval, saveInterval * 4)
 
     timestep = startTimestep
     write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
@@ -296,15 +303,18 @@ contains
 
     do timestep = startTimestep - 1, startTimestep - nTimesteps, -1
 
-       if (.not. region%simulationFlags%steadyStateSimulation) then
-          call migrateToTimestep(reverseMigrator, region, timestep, outputPrefix_)
-       end if
-
        if (present(reportInterval)) verbose = (reportInterval > 0 .and.                      &
             mod(timestep, reportInterval) == 0)
 
        do i = 4, 1, -1
-          call subStepAdjoint(integrator, region, time, timestep, i)
+          if (.not. region%simulationFlags%steadyStateSimulation) then
+             if (i == 1) then
+                call migrateToSubstep(reverseMigrator, region, timestep, 4)
+             else
+                call migrateToSubstep(reverseMigrator, region, timestep + 1, i - 1)
+             end if
+          end if
+          call substepAdjoint(integrator, region, time, timestep, i)
        end do
 
        if (verbose) then

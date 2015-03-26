@@ -16,7 +16,9 @@ module ReverseMigrator_type
 
   type, public :: t_ReverseMigrator
 
-     integer :: algorithm, numIntermediateStates, nStages
+     integer :: nStages = 4
+     integer :: algorithm, startTimestep, endTimestep, saveInterval, numIntermediateStates
+     character(len = STRING_LENGTH) :: outputPrefix
      type(t_IntermediateStorage), allocatable :: temp_(:)
 
   end type t_ReverseMigrator
@@ -30,15 +32,16 @@ module ReverseMigrator_mod
 
   interface
 
-     subroutine setupReverseMigrator(this, algorithm, region, nStages, numIntermediateStates)
+     subroutine setupReverseMigrator(this, region, outputPrefix, algorithm,                  &
+          startTimestep, endTimestep, saveInterval, numIntermediateStates)
 
        use Region_type, only : t_Region
        use ReverseMigrator_type, only : t_ReverseMigrator
 
        type(t_ReverseMigrator) :: this
-       integer, intent(in) :: algorithm
        type(t_Region), intent(in) :: region
-       integer, intent(in) :: nStages, numIntermediateStates
+       character(len = *), intent(in) :: outputPrefix, algorithm
+       integer, intent(in) :: startTimestep, endTimestep, saveInterval, numIntermediateStates
 
      end subroutine setupReverseMigrator
 
