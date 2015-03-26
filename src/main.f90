@@ -13,8 +13,8 @@ program main
   use Grid_mod, only : setupSpatialDiscretization, updateGrid, computeSpongeStrengths
   use State_mod, only : updatePatches, makeQuiescent
   use Region_mod
-  use MPIHelper, only : gracefulExit, writeAndFlush
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit, writeAndFlush
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
@@ -139,14 +139,14 @@ program main
      time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
      startTimestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
      call solveForward(region, integrator, time, startTimestep, nTimesteps,                  &
-          reportInterval, saveInterval, outputPrefix)
+          saveInterval, reportInterval, outputPrefix)
   else
 
      ! Baseline forward.
      time = 0.0_wp
      if (.not. region%simulationFlags%isBaselineAvailable) then
         call solveForward(region, integrator, time, 0, nTimesteps,                           &
-             reportInterval, saveInterval, outputPrefix)
+             saveInterval, reportInterval, outputPrefix)
      else
         write(filename, '(2A,I8.8,A)')                                                       &
              trim(outputPrefix), "-", nTimesteps, ".q"
@@ -157,7 +157,7 @@ program main
 
      ! Baseline adjoint.
      call solveAdjoint(region, integrator, time, startTimestep, nTimesteps,                  &
-          reportInterval, saveInterval, outputPrefix)
+          saveInterval, reportInterval, outputPrefix)
 
   end if
 
@@ -174,12 +174,12 @@ program main
 contains
 
   subroutine solveForward(region, integrator, time, startTimestep,                           &
-       nTimesteps, reportInterval, saveInterval, outputPrefix)
+       nTimesteps, saveInterval, reportInterval, outputPrefix)
 
     ! <<< Derived types >>>
-    use State_type
-    use Region_type
-    use RK4Integrator_type
+    use State_type, only : t_State
+    use Region_type, only : t_Region
+    use RK4Integrator_type, only : t_RK4Integrator
 
     ! <<< Internal modules >>>
     use Region_mod, only : saveRegionData
@@ -192,13 +192,15 @@ contains
     type(t_RK4Integrator) :: integrator
     real(SCALAR_KIND), intent(inout) :: time
     integer, intent(in) :: startTimestep, nTimesteps
-    integer, intent(in), optional :: reportInterval, saveInterval
+    integer, intent(in), optional :: saveInterval, reportInterval
     character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
 
     ! <<< Local variables >>>
     character(len = STRING_LENGTH) :: outputPrefix_, filename
     integer :: timestep
     logical :: verbose
+
+    assert(startTimestep >= 0)
 
     outputPrefix_ = PROJECT_NAME
     if (present(outputPrefix)) outputPrefix_ = outputPrefix
@@ -229,12 +231,13 @@ contains
   end subroutine solveForward
 
   subroutine solveAdjoint(region, integrator, time, startTimestep,                           &
-       nTimesteps, reportInterval, saveInterval, outputPrefix)
+       nTimesteps, saveInterval, reportInterval, outputPrefix)
 
     ! <<< Derived types >>>
-    use State_type
-    use Region_type
-    use RK4Integrator_type
+    use State_type, only : t_State
+    use Region_type, only : t_Region
+    use RK4Integrator_type, only : t_RK4Integrator
+    use ReverseMigrator_type, only : t_ReverseMigrator
 
     ! <<< Internal modules >>>
     use Region_mod, only : saveRegionData
@@ -246,19 +249,24 @@ contains
     type(t_Region) :: region
     type(t_RK4Integrator) :: integrator
     real(SCALAR_KIND), intent(inout) :: time
-    integer, intent(in) :: startTimestep, nTimesteps
-    integer, intent(in), optional :: reportInterval, saveInterval
+    integer, intent(in) :: startTimestep, nTimesteps, saveInterval
+    integer, intent(in), optional :: reportInterval
     character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
 
     ! <<< Local variables >>>
     character(len = STRING_LENGTH) :: outputPrefix_, filename
     integer :: timestep
     logical :: verbose
+    type(t_ReverseMigrator) :: reverseMigrator
 
     outputPrefix_ = PROJECT_NAME
     if (present(outputPrefix)) outputPrefix_ = outputPrefix
 
     verbose = .false.
+
+    call setupReverseMigrator(reverseMigrator,                                               &
+         getOption("checkpointing_scheme", "uniform checkpointing"),                         &
+         region, 4, saveInterval * 4)
 
     timestep = startTimestep
     write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
@@ -266,21 +274,25 @@ contains
 
     do timestep = startTimestep - 1, startTimestep - nTimesteps, -1
 
+       if (.not. region%simulationFlags%steadyStateSimulation) then
+          call migrateToTimestep(reverseMigrator, region, timestep, outputPrefix_)
+       end if
+
        if (present(reportInterval)) verbose = (reportInterval > 0 .and.                      &
             mod(timestep, reportInterval) == 0)
        call stepAdjoint(integrator, region, time, timestep, verbose)
 
-       if (present(saveInterval)) then
-          if (saveInterval > 0) then
-             if (mod(timestep, saveInterval) == 0) then
-                write(filename, '(2A,I8.8,A)')                                               &
-                     trim(outputPrefix_), "-", timestep, ".adjoint.q"
-                call saveRegionData(region, QOI_ADJOINT_STATE, filename)
-             end if
+       if (saveInterval > 0) then
+          if (mod(timestep, saveInterval) == 0) then
+             write(filename, '(2A,I8.8,A)')                                                  &
+                  trim(outputPrefix_), "-", timestep, ".adjoint.q"
+             call saveRegionData(region, QOI_ADJOINT_STATE, filename)
           end if
        end if
 
     end do
+
+    call cleanupReverseMigrator(reverseMigrator)
 
   end subroutine solveAdjoint
 

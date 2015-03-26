@@ -122,19 +122,6 @@ module Region_mod
 
   interface
 
-     subroutine subStepHooks(this, mode, timestep, stage)
-
-       use Region_type
-
-       type(t_Region) :: this
-       integer, intent(in) :: mode, timestep, stage
-
-     end subroutine subStepHooks
-
-  end interface
-
-  interface
-
      subroutine reportResiduals(this)
 
        use Region_type

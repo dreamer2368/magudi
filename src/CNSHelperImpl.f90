@@ -328,8 +328,8 @@ subroutine computeVorticityMagnitudeAndDilatation(nDimensions, velocityGradient,
      end if
      if (present(vorticityMagnitude)) then
         assert(size(vorticityMagnitude) == size(velocityGradient, 1))
-        vorticityMagnitude = sqrt(abs(velocityGradient(:,8) - velocityGradient(:,6)) ** 2 +  &                   
-             abs(velocityGradient(:,3) - velocityGradient(:,7)) ** 2 +                       &   
+        vorticityMagnitude = sqrt(abs(velocityGradient(:,8) - velocityGradient(:,6)) ** 2 +  &
+             abs(velocityGradient(:,3) - velocityGradient(:,7)) ** 2 +                       &
              abs(velocityGradient(:,4) - velocityGradient(:,2)) ** 2)
      end if
 

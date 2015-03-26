@@ -28,8 +28,8 @@ module RK4Integrator_mod
 
      subroutine setupRK4Integrator(this, region)
 
-       use RK4Integrator_type
-       use Region_type
+       use Region_type, only : t_Region
+       use RK4Integrator_type, only : t_RK4Integrator
 
        type(t_RK4Integrator) :: this
        type(t_Region), intent(in) :: region
@@ -42,7 +42,7 @@ module RK4Integrator_mod
 
      subroutine cleanupRK4Integrator(this)
 
-       use RK4Integrator_type
+       use RK4Integrator_type, only : t_RK4Integrator
 
        type(t_RK4Integrator) :: this
 
@@ -52,10 +52,42 @@ module RK4Integrator_mod
 
   interface
 
+     subroutine subStepForward(this, region, time, timestep, stage)
+
+       use Region_type, only : t_Region
+       use RK4Integrator_type, only : t_RK4Integrator
+
+       type(t_RK4Integrator) :: this
+       type(t_Region) :: region
+       real(SCALAR_KIND), intent(inout) :: time
+       integer, intent(in) :: timestep, stage
+
+     end subroutine subStepForward
+
+  end interface
+
+  interface
+
+     subroutine subStepAdjoint(this, region, time, timestep, stage)
+
+       use Region_type, only : t_Region
+       use RK4Integrator_type, only : t_RK4Integrator
+
+       type(t_RK4Integrator) :: this
+       type(t_Region) :: region
+       real(SCALAR_KIND), intent(inout) :: time
+       integer, intent(in) :: timestep, stage
+
+     end subroutine subStepAdjoint
+
+  end interface
+
+  interface
+
      subroutine stepForward(this, region, time, timestep, verbose)
 
-       use RK4Integrator_type
-       use Region_type
+       use Region_type, only : t_Region
+       use RK4Integrator_type, only : t_RK4Integrator
 
        type(t_RK4Integrator) :: this
        type(t_Region) :: region
@@ -71,8 +103,8 @@ module RK4Integrator_mod
 
      subroutine stepAdjoint(this, region, time, timestep, verbose)
 
-       use RK4Integrator_type
-       use Region_type
+       use Region_type, only : t_Region
+       use RK4Integrator_type, only : t_RK4Integrator
 
        type(t_RK4Integrator) :: this
        type(t_Region) :: region

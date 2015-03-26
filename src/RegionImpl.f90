@@ -17,8 +17,8 @@ contains
     use Region_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : gracefulExit, writeAndFlush
     use InputHelper, only : stripComments
+    use ErrorHandler, only : gracefulExit, writeAndFlush
 
     ! <<< Arguments >>>
     type(t_Region) :: this
@@ -127,7 +127,8 @@ contains
     use Region_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : splitCommunicatorMultigrid, writeAndFlush
+    use MPIHelper, only : splitCommunicatorMultigrid
+    use ErrorHandler, only : writeAndFlush
 
     ! <<< Arguments >>>
     type(t_Region) :: this
@@ -179,8 +180,8 @@ contains
     use Region_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : gracefulExit, writeAndFlush
     use InputHelper, only : stripComments
+    use ErrorHandler, only : gracefulExit, writeAndFlush
     use PatchDescriptor_mod, only : parsePatchType
 
     ! <<< Arguments >>>
@@ -336,7 +337,7 @@ contains
     use Region_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : issueWarning, gracefulExit, writeAndFlush
+    use ErrorHandler, only : issueWarning, gracefulExit, writeAndFlush
     use PatchDescriptor_mod, only : validatePatchDescriptor, validatePatchesConnectivity
 
     ! <<< Arguments >>>
@@ -433,7 +434,7 @@ contains
 
     ! <<< Internal modules >>>
     use Grid_mod, only : isVariableWithinRange
-    use MPIHelper, only : gracefulExit
+    use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
     type(t_Region) :: this
@@ -708,8 +709,8 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : loadGridData
-  use MPIHelper, only : gracefulExit, writeAndFlush
   use State_mod, only : loadStateData, getFileType
+  use ErrorHandler, only : gracefulExit, writeAndFlush
   use PLOT3DHelper
   use MPITimingsHelper, only : startTiming, endTiming
 
@@ -807,8 +808,8 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : saveGridData
-  use MPIHelper, only : writeAndFlush
   use State_mod, only : saveStateData, getFileType, getNumberOfScalars
+  use ErrorHandler, only : writeAndFlush
   use PLOT3DHelper
   use MPITimingsHelper, only : startTiming, endTiming
 
@@ -1013,7 +1014,7 @@ subroutine reportGridDiagnostics(this)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : findMinimum, findMaximum
-  use MPIHelper, only : writeAndFlush
+  use ErrorHandler, only : writeAndFlush
 
   implicit none
 
@@ -1066,19 +1067,6 @@ subroutine reportGridDiagnostics(this)
 
 end subroutine reportGridDiagnostics
 
-subroutine subStepHooks(this, mode, timestep, stage)
-
-  ! <<< Derived types >>>
-  use Region_type
-
-  implicit none
-
-  ! <<< Arguments >>>
-  type(t_Region) :: this
-  integer, intent(in) :: mode, timestep, stage
-
-end subroutine subStepHooks
-
 subroutine reportResiduals(this)
 
   ! <<< External modules >>>
@@ -1090,7 +1078,7 @@ subroutine reportResiduals(this)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : findMaximum
-  use MPIHelper, only : writeAndFlush
+  use ErrorHandler, only : writeAndFlush
 
   implicit none
 

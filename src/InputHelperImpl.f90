@@ -131,7 +131,7 @@ subroutine parseInputFile(filename, commentMarker, separator)
   use InputHelper, only : stripComments
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : gracefulExit
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -144,6 +144,8 @@ subroutine parseInputFile(filename, commentMarker, separator)
   integer, parameter :: fileUnit = 21
   integer :: i, procRank, dictSize, lineNo, istat, ierror
   character(len = STRING_LENGTH) :: line, message
+
+  assert(len_trim(filename) > 0)
 
   ! Assign default values to optional arguments.
   commentMarker_ = '#'
@@ -455,7 +457,7 @@ subroutine getRequiredOptionInteger_(key, val, comm)
   use InputHelperImpl, only : dict, find
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : gracefulExit
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -490,7 +492,7 @@ subroutine getRequiredOptionLogical_(key, val, comm)
   use InputHelperImpl, only : dict, find
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : gracefulExit
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -536,7 +538,7 @@ subroutine getRequiredOptionReal_(key, val, comm)
   use InputHelperImpl, only : dict, find
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : gracefulExit
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -572,7 +574,7 @@ subroutine getRequiredOptionScalar_(key, val, comm)
   use InputHelperImpl, only : dict, find
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : gracefulExit
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -620,7 +622,7 @@ subroutine getRequiredOptionString_(key, val, comm)
   use InputHelperImpl, only : dict, find
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : gracefulExit
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 

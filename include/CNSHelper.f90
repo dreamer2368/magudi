@@ -27,7 +27,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio, &     
+     subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio, &
           ratioOfSpecificHeats, reynoldsNumberInverse, prandtlNumberInverse,                 &
           dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity)
 
@@ -36,12 +36,12 @@ module CNSHelper
        !> dependence on temperature with exponent `powerLawExponent`.
 
        SCALAR_TYPE, intent(in) :: temperature(:)
-       real(SCALAR_KIND), intent(in) :: powerLawExponent,                                    &     
+       real(SCALAR_KIND), intent(in) :: powerLawExponent,                                    &
             ratioOfSpecificHeats, reynoldsNumberInverse
 
        real(SCALAR_KIND), intent(in), optional :: bulkViscosityRatio, prandtlNumberInverse
-       SCALAR_TYPE, intent(out), optional :: dynamicViscosity(:),                            &     
-            secondCoefficientOfViscosity(:),                                                 &     
+       SCALAR_TYPE, intent(out), optional :: dynamicViscosity(:),                            &
+            secondCoefficientOfViscosity(:),                                                 &
             thermalDiffusivity(:)
 
      end subroutine computeTransportVariables

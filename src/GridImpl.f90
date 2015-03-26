@@ -329,7 +329,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
 
         assert(present(periodicLength))
         assert(size(periodicLength) == size(globalSize))
-        
+
         where (this%periodicityType(1:size(periodicityType)) == PLANE)
            this%periodicLength(1:size(periodicityType)) = periodicLength
         end where
@@ -386,7 +386,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   write(key, '(A,I3.3,A)') "grid", this%index, "/curvilinear"
   this%isCurvilinear = getOption(key, this%isCurvilinear)
 
-  ! Allocate grid data.  
+  ! Allocate grid data.
   if (present(simulationFlags)) then
      simulationFlags_ = simulationFlags
   else
@@ -569,6 +569,7 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
+  use ErrorHandler, only : gracefulExit
   use StencilOperator_mod, only : setupOperator, updateOperator, getAdjointOperator
 
   implicit none
@@ -681,7 +682,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   use Grid_mod, only : isVariableWithinRange
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : gracefulExit
+  use ErrorHandler, only : gracefulExit
   use StencilOperator_mod, only : applyOperator, applyOperatorNorm
 
   implicit none
@@ -700,7 +701,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   SCALAR_TYPE :: jacobianOutsideRange
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)  
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
 
   assert(this%nGridPoints > 0)
   assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
@@ -981,7 +982,7 @@ function computeInnerProduct(this, f, g, weight) result(innerProduct)
   assert(size(this%norm) == this%nGridPoints)
 
   innerProduct = 0.0_wp
-  
+
   do i = 1, size(f, 2)
      if (present(weight)) then
         innerProduct = innerProduct + sum(f(:,i) * this%norm(:,1) * g(:,i) * weight)

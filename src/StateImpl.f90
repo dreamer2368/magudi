@@ -91,15 +91,23 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   call cleanupState(this)
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
 
-  call initializeSimulationFlags(simulationFlags_)
-  if (present(simulationFlags)) simulationFlags_ = simulationFlags
+  if (present(simulationFlags)) then
+     simulationFlags_ = simulationFlags
+  else
+     call initializeSimulationFlags(simulationFlags_)
+  end if
 
+  assert(grid%nGridPoints > 0)
   this%nUnknowns = nDimensions + 2
   call allocateData(this, simulationFlags_, grid%nGridPoints, nDimensions)
 
   ratioOfSpecificHeats = 1.4_wp
-  if (present(solverOptions)) ratioOfSpecificHeats = solverOptions%ratioOfSpecificHeats
+  if (present(solverOptions)) then
+     assert(solverOptions%ratioOfSpecificHeats > 1.0_wp)
+     ratioOfSpecificHeats = solverOptions%ratioOfSpecificHeats
+  end if
   call makeQuiescent(this, nDimensions, ratioOfSpecificHeats)
 
   n = min(getOption("number_of_acoustic_sources", 0), 99)
@@ -325,6 +333,8 @@ function getNumberOfScalars(quantityOfInterest, nDimensions) result(nScalars)
   ! <<< Result >>>
   integer :: nScalars
 
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
+
   select case (quantityOfInterest)
   case (QOI_MEAN_PRESSURE)
      nScalars = 1
@@ -349,6 +359,8 @@ subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVaria
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+
+  assert(ratioOfSpecificHeats > 1.0_wp)
 
   if (present(conservedVariables)) then
      conservedVariables(:,1) = 1.0_wp
@@ -396,6 +408,7 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
   call startTiming("updateState")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+  assert(nDimensions >= 1 .and. nDimensions <= 3)
 
   if (present(conservedVariables)) then
      call computeDependentVariables(nDimensions, conservedVariables,                         &
@@ -479,7 +492,6 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   use Grid_type
   use Patch_type
   use State_type
-  use Region_type, only : FORWARD
   use SolverOptions_type
   use PatchDescriptor_type
   use SimulationFlags_type
@@ -580,7 +592,6 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   use Grid_type
   use Patch_type
   use State_type
-  use Region_type, only : ADJOINT
   use SolverOptions_type
   use PatchDescriptor_type
   use SimulationFlags_type

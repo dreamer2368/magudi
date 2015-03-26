@@ -43,8 +43,8 @@ subroutine initializeSolverOptions(this, simulationFlags, comm)
   use SolverOptionsImpl, only : parseCostFunctionalType
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : gracefulExit
   use InputHelper, only : getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 

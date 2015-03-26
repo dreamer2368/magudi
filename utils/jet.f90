@@ -10,9 +10,9 @@ program jet
   use Region_type
 
   use Grid_mod, only : setupSpatialDiscretization, updateGrid
-  use MPIHelper, only : writeAndFlush
   use Region_mod
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use ErrorHandler, only : writeAndFlush
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none
@@ -104,8 +104,8 @@ contains
     use State_type
 
     ! <<< Internal modules >>>
-    use MPIHelper, only : gracefulExit
     use InputHelper, only : getOption
+    use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
     type(t_State) :: state

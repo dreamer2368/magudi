@@ -11,9 +11,9 @@ program vorticity_dilatation
 
   use Grid_mod, only : setupSpatialDiscretization, updateGrid
   use CNSHelper, only : computeDependentVariables
-  use MPIHelper, only : writeAndFlush
   use Region_mod, only : setupRegion, loadRegionData, saveRegionData
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use ErrorHandler, only : writeAndFlush
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none

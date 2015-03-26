@@ -1649,7 +1649,7 @@ subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
   assert(size(xWithGhostPoints, 4) == size(x, 2))
   assert(all(gridSize > 0))
   assert(size(x, 1) == product(gridSize))
-  assert(this%direction >= 1 .and. this%direction <= 3) 
+  assert(this%direction >= 1 .and. this%direction <= 3)
 
   select case (this%direction)
   case (1)
