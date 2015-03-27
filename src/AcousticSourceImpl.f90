@@ -51,7 +51,7 @@ subroutine addAcousticSource(this, time, coordinates, iblank, rightHandSide)
   real(wp) :: a, r
 
   nDimensions = size(coordinates, 2)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   a = this%amplitude * cos(this%angularFrequency * time + this%phase)
   do i = 1, size(rightHandSide, 1)

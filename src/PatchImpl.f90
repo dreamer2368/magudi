@@ -7,16 +7,16 @@ module PatchImpl
 
 contains
 
-  subroutine allocateData(this, nDimensions, simulationFlags)
+  subroutine allocateData(this, nDimensions, nUnknowns, simulationFlags)
 
     ! <<< Derived types >>>
-    use Patch_type
+    use Patch_type, only : t_Patch
     use PatchDescriptor_type
     use SimulationFlags_type
 
     ! <<< Arguments >>>
     type(t_Patch) :: this
-    integer, intent(in) :: nDimensions
+    integer, intent(in) :: nDimensions, nUnknowns
     type(t_SimulationFlags), intent(in) :: simulationFlags
 
     ! <<< Local variables >>>
@@ -26,7 +26,7 @@ contains
     case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
        allocate(this%metrics(this%nPatchPoints, nDimensions ** 2))
        if (this%isLiftMeasured .or. this%isDragMeasured)                                     &
-            allocate(this%adjointSource(this%nPatchPoints, nDimensions + 2))
+            allocate(this%adjointSource(this%nPatchPoints, nUnknowns))
        if (this%isLiftMeasured) this%liftDirection = (/ 0.0_wp, 1.0_wp, 0.0_wp /)
        if (this%isDragMeasured) this%DragDirection = (/ 1.0_wp, 0.0_wp, 0.0_wp /)
     end select
@@ -35,20 +35,24 @@ contains
 
     case (SAT_FAR_FIELD)
        if (simulationFlags%viscosityOn) then
-          allocate(this%viscousFluxes(this%nPatchPoints, nDimensions + 2, nDimensions))
-          allocate(this%targetViscousFluxes(this%nPatchPoints, nDimensions + 2, nDimensions))
+          allocate(this%viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
+          allocate(this%targetViscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
        end if
 
     case (SAT_BLOCK_INTERFACE)
-       allocate(this%conservedVariables(this%nPatchPoints, nDimensions + 2))
-       allocate(this%interfaceDataBuffer1(this%nPatchPoints, 2 * nDimensions + 3))
-       allocate(this%interfaceDataBuffer2(this%nPatchPoints, 2 * nDimensions + 3))
+       allocate(this%conservedVariables(this%nPatchPoints, nUnknowns))
+       allocate(this%interfaceDataBuffer1(this%nPatchPoints, 2 * nUnknowns - 1))
+       allocate(this%interfaceDataBuffer2(this%nPatchPoints, 2 * nUnknowns - 1))
 
     case (SPONGE)
        allocate(this%spongeStrength(this%nPatchPoints), source = 0.0_wp)
 
     case (ACTUATOR)
        allocate(this%gradient(this%nPatchPoints, 1))
+       allocate(this%controlMollifier(this%nPatchPoints))
+
+    case (CONTROL_TARGET)
+       allocate(this%targetMollifier(this%nPatchPoints))
 
     case (SOLENOIDAL_EXCITATION)
        allocate(this%solenoidalExcitationStrength(this%nPatchPoints), source = 0.0_wp)
@@ -60,13 +64,13 @@ contains
 end module PatchImpl
 
 subroutine setupPatch(this, index, nDimensions, patchDescriptor,                             &
-     comm, gridOffset, gridLocalSize, simulationFlags)
+     comm, gridOffset, gridLocalSize, nUnknowns, simulationFlags)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
   use PatchDescriptor_type
   use SimulationFlags_type
 
@@ -83,13 +87,40 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   type(t_Patch) :: this
   integer, intent(in) :: index, nDimensions
   type(t_PatchDescriptor) :: patchDescriptor
-  integer, intent(in) :: comm, gridOffset(3), gridLocalSize(3)
+  integer, intent(in) :: comm, gridOffset(3), gridLocalSize(3), nUnknowns
   type(t_SimulationFlags), intent(in) :: simulationFlags
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(SCALAR_KIND) :: solenoidalExcitationOrigin(3), solenoidalExcitationSpeed(3)
   character(len = STRING_LENGTH) :: key
+
+  assert(index > 0)
+  assert_key(nDimensions, (1, 2, 3))
+  assert(all(gridOffset >= 0))
+  assert(all(gridLocalSize > 0))
+  assert(nUnknowns > 0)
+
+  assert(patchDescriptor%gridIndex > 0)
+  assert(abs(patchDescriptor%normalDirection) <= nDimensions)
+  assert(patchDescriptor%iMin > 0)
+  assert(patchDescriptor%jMin > 0)
+  assert(patchDescriptor%kMin > 0)
+  assert(patchDescriptor%iMax >= patchDescriptor%iMin)
+  assert(patchDescriptor%jMax >= patchDescriptor%jMin)
+  assert(patchDescriptor%kMax >= patchDescriptor%kMin)
+  assert(len_trim(patchDescriptor%name) > 0)
+
+  assert_key(patchDescriptor%patchType, ( \
+  SPONGE,                \
+  ACTUATOR,              \
+  CONTROL_TARGET,        \
+  SOLENOIDAL_EXCITATION, \
+  SAT_FAR_FIELD,         \
+  SAT_SLIP_WALL,         \
+  SAT_ISOTHERMAL_WALL,   \
+  SAT_ADIABATIC_WALL,    \
+  SAT_BLOCK_INTERFACE))
 
   call cleanupPatch(this)
 
@@ -210,7 +241,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
   end if
 
-  call allocateData(this, nDimensions, simulationFlags)
+  if (this%nPatchPoints > 0) call allocateData(this, nDimensions, nUnknowns, simulationFlags)
 
 end subroutine setupPatch
 
@@ -220,7 +251,7 @@ subroutine cleanupPatch(this)
   use MPI
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
   use PatchDescriptor_type
 
   ! <<< Internal modules >>>
@@ -241,9 +272,12 @@ subroutine cleanupPatch(this)
   SAFE_DEALLOCATE(this%metrics)
   SAFE_DEALLOCATE(this%spongeStrength)
   SAFE_DEALLOCATE(this%gradient)
+  SAFE_DEALLOCATE(this%controlMollifier)
+  SAFE_DEALLOCATE(this%targetMollifier)
   SAFE_DEALLOCATE(this%solenoidalExcitationStrength)
 
   if (this%comm /= MPI_COMM_NULL) call MPI_Comm_free(this%comm, ierror)
+  this%comm = MPI_COMM_NULL
   this%commOfConformingPatch = MPI_COMM_NULL
 
 end subroutine cleanupPatch
@@ -251,7 +285,7 @@ end subroutine cleanupPatch
 subroutine collectScalarAtPatch_(this, gridArray, patchArray)
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -263,6 +297,9 @@ subroutine collectScalarAtPatch_(this, gridArray, patchArray)
 
   ! <<< Local variables >>>
   integer :: i, j, k, patchIndex, localIndex
+
+  assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
+  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%gridLocalSize))
 
   call startTiming("collectAtPatch")
 
@@ -287,7 +324,7 @@ end subroutine collectScalarAtPatch_
 subroutine collectVectorAtPatch_(this, gridArray, patchArray)
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -299,6 +336,11 @@ subroutine collectVectorAtPatch_(this, gridArray, patchArray)
 
   ! <<< Local variables >>>
   integer :: i, j, k, l, patchIndex, localIndex
+
+  assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
+  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%gridLocalSize))
+  assert(size(gridArray, 2) > 0)
+  assert(size(patchArray, 2) == size(gridArray, 2))
 
   call startTiming("collectAtPatch")
 
@@ -325,7 +367,7 @@ end subroutine collectVectorAtPatch_
 subroutine collectTensorAtPatch_(this, gridArray, patchArray)
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -337,6 +379,13 @@ subroutine collectTensorAtPatch_(this, gridArray, patchArray)
 
   ! <<< Local variables >>>
   integer :: i, j, k, l, m, patchIndex, localIndex
+
+  assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
+  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%gridLocalSize))
+  assert(size(gridArray, 2) > 0)
+  assert(size(patchArray, 2) == size(gridArray, 2))
+  assert(size(gridArray, 3) > 0)
+  assert(size(patchArray, 3) == size(gridArray, 3))
 
   call startTiming("collectAtPatch")
 
@@ -365,7 +414,7 @@ end subroutine collectTensorAtPatch_
 subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, targetVariables)
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
   use Region_type, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
@@ -384,11 +433,24 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
   ! <<< Local variables >>>
   integer :: i, j, k, l, gridIndex, patchIndex
 
+  assert(all(this%gridLocalSize > 0))
+  assert(size(rightHandSide, 1) == product(this%gridLocalSize))
+  assert(size(iblank) == product(this%gridLocalSize))
+  assert(size(solvedVariables, 1) == product(this%gridLocalSize))
+  assert(size(rightHandSide, 2) > 0)
+  assert(size(solvedVariables, 2) == size(rightHandSide, 2))
+  
+  assert_key(mode, (FORWARD, ADJOINT))
+
   call startTiming("addDamping")
 
   select case (mode)
 
   case (FORWARD)
+
+     assert(present(targetVariables))
+     assert(size(targetVariables, 1) == product(this%gridLocalSize))
+     assert(size(targetVariables, 2) == size(rightHandSide, 2))
 
      do l = 1, size(rightHandSide, 2)
         do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
@@ -410,6 +472,8 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
      end do !... l = 1, size(rightHandSide, 2)
 
   case (ADJOINT)
+
+     assert(.not. present(targetVariables))
 
      do l = 1, size(rightHandSide, 2)
         do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
@@ -440,7 +504,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
      ratioOfSpecificHeats, conservedVariables, targetState, adjointVariables)
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
   use Region_type, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
@@ -459,23 +523,52 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   SCALAR_TYPE, intent(in), optional :: adjointVariables(:,:)
 
   ! <<< Local variables >>>
-  integer :: i, j, k, direction, gridIndex, patchIndex
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localTargetState(:), metricsAlongNormalDirection(:),           &
        incomingJacobianOfInviscidFlux(:,:), viscousFluxPenalty(:,:)
+
+  assert(all(this%gridLocalSize > 0))
+  assert(size(rightHandSide, 1) == product(this%gridLocalSize))
+  assert(size(iblank) == product(this%gridLocalSize))
+  assert_key(nDimensions, (1, 2, 3))
+  assert(ratioOfSpecificHeats > 1.0_wp)
+  assert(size(conservedVariables, 1) == product(this%gridLocalSize))
+  assert(size(targetState, 1) == product(this%gridLocalSize))
+  assert(size(rightHandSide, 2) > 0)
+  assert(size(conservedVariables, 2) == size(rightHandSide, 2))
+  assert(size(targetState, 2) == size(rightHandSide, 2))
+  
+  assert_key(mode, (FORWARD, ADJOINT))
+
+#ifdef DEBUG
+  select case (mode)
+  case (FORWARD)
+     assert(.not. present(adjointVariables))
+  case (ADJOINT)
+     assert(present(adjointVariables))
+     assert(size(adjointVariables, 1) == product(this%gridLocalSize))
+     assert(size(adjointVariables, 2) == size(rightHandSide, 2))
+  end select
+#endif
 
   call startTiming("addFarFieldPenalty")
 
   direction = abs(this%normalDirection)
+  assert(direction >= 1 .and. direction <= nDimensions)
 
-  allocate(localTargetState(nDimensions + 2))
+  nUnknowns = size(rightHandSide, 2)
+  assert(nUnknowns == nDimensions + 2)
+
+  allocate(localTargetState(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
-  allocate(incomingJacobianOfInviscidFlux(nDimensions + 2, nDimensions + 2))
+  allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
 
   if (allocated(this%viscousFluxes)) then
-     allocate(viscousFluxPenalty(this%nPatchPoints, nDimensions + 1))
+     allocate(viscousFluxPenalty(this%nPatchPoints, nUnknowns - 1))
      do i = 1, this%nPatchPoints
-        viscousFluxPenalty(i,:) = matmul(this%viscousFluxes(i,2:nDimensions+2,:) -           &
-             this%targetViscousFluxes(i,2:nDimensions+2,:),                                  &
+        viscousFluxPenalty(i,:) = matmul(this%viscousFluxes(i,2:nUnknowns,:) -               &
+             this%targetViscousFluxes(i,2:nUnknowns,:),                                      &
              this%metrics(i,1+nDimensions*(direction-1):nDimensions*direction))
      end do
   end if
@@ -514,13 +607,12 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
            case (FORWARD)
 
               rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                      &
-                   this%inviscidPenaltyAmount *                                              &
-                   matmul(incomingJacobianOfInviscidFlux,                                    &
+                   this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &                             
                    conservedVariables(gridIndex,:) - localTargetState)
 
               if (allocated(viscousFluxPenalty)) then
-                 rightHandSide(gridIndex,2:nDimensions+2) =                                  &
-                      rightHandSide(gridIndex,2:nDimensions+2) +                             &
+                 rightHandSide(gridIndex,2:nUnknowns) =                                      &
+                      rightHandSide(gridIndex,2:nUnknowns) +                                 &
                       this%viscousPenaltyAmount * viscousFluxPenalty(patchIndex,:)
               end if
 
@@ -552,7 +644,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
      ratioOfSpecificHeats, conservedVariables, adjointVariables)
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
   use Region_type, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
@@ -572,7 +664,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, direction, gridIndex, patchIndex
+  integer :: i, j, k, l, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
        metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),                  &
        inviscidPenalty(:), viscousPenalty1(:), viscousPenalty2(:),                           &
@@ -580,19 +672,44 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
        deltaIncomingJacobianOfInviscidFlux(:,:,:)
   SCALAR_TYPE :: normalVelocity
 
+  assert(all(this%gridLocalSize > 0))
+  assert(size(rightHandSide, 1) == product(this%gridLocalSize))
+  assert(size(iblank) == product(this%gridLocalSize))
+  assert_key(nDimensions, (1, 2, 3))
+  assert(ratioOfSpecificHeats > 1.0_wp)
+  assert(size(conservedVariables, 1) == product(this%gridLocalSize))
+  assert(size(rightHandSide, 2) > 0)
+  assert(size(conservedVariables, 2) == size(rightHandSide, 2))
+  
+  assert_key(mode, (FORWARD, ADJOINT))
+
+#ifdef DEBUG
+  select case (mode)
+  case (FORWARD)
+     assert(.not. present(adjointVariables))
+  case (ADJOINT)
+     assert(present(adjointVariables))
+     assert(size(adjointVariables, 1) == product(this%gridLocalSize))
+     assert(size(adjointVariables, 2) == size(rightHandSide, 2))
+  end select
+#endif
+
   call startTiming("addWallPenalty")
 
   direction = abs(this%normalDirection)
+  assert(direction >= 1 .and. direction <= nDimensions)
 
-  allocate(localConservedVariables(nDimensions + 2))
+  nUnknowns = size(rightHandSide, 2)
+  assert(nUnknowns == nDimensions + 2)
+
+  allocate(localConservedVariables(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
-  allocate(incomingJacobianOfInviscidFlux(nDimensions + 2, nDimensions + 2))
-  allocate(inviscidPenalty(nDimensions + 2))
+  allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
+  allocate(inviscidPenalty(nUnknowns))
   if (mode == ADJOINT) then
-     allocate(deltaNormalVelocity(nDimensions + 2))
-     allocate(deltaInviscidPenalty(nDimensions + 2, nDimensions + 2))
-     allocate(deltaIncomingJacobianOfInviscidFlux(nDimensions + 2,                           &
-          nDimensions + 2, nDimensions + 2))
+     allocate(deltaNormalVelocity(nUnknowns))
+     allocate(deltaInviscidPenalty(nUnknowns, nUnknowns))
+     allocate(deltaIncomingJacobianOfInviscidFlux(nUnknowns, nUnknowns, nUnknowns))
   end if
 
   do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
@@ -684,7 +801,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
 
            case (ADJOINT)
 
-              do l = 1, nDimensions + 2
+              do l = 1, nUnknowns
                  rightHandSide(gridIndex,l) = rightHandSide(gridIndex,l) +                   &
                       this%inviscidPenaltyAmount *                                           &
                       dot_product(adjointVariables(gridIndex,:),                             &
@@ -734,7 +851,7 @@ end subroutine addWallPenalty
 subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
 
   implicit none
 
@@ -744,9 +861,16 @@ subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
   integer, intent(in) :: iblank(:)
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
 
+  assert(all(this%gridLocalSize > 0))
+  assert(size(coordinates, 1) == product(this%gridLocalSize))
+  assert(size(iblank) == product(this%gridLocalSize))
+  assert(this%solenoidalExcitation%gaussianFactor >= 0.0_wp)
+
   nDimensions = size(coordinates, 2)
+  assert_key(nDimensions, (1, 2, 3))
 
   do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
@@ -774,7 +898,7 @@ end subroutine updateSolenoidalExcitationStrength
 subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSide)
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -858,7 +982,7 @@ subroutine updatePatchConnectivity(this, patchData)
   use MPI
 
   ! <<< Derived types >>>
-  use Patch_type
+  use Patch_type, only : t_Patch
   use PatchDescriptor_type
 
   ! <<< Internal modules >>>

@@ -717,8 +717,7 @@ subroutine setupOperator(this, identifier, success)
   'SBP 4-8 first derivative',  \
   'SBP 4-8 second derivative', \
   'SBP 4-8 dissipation',       \
-  'null matrix'                \
-  ))
+  'null matrix'))
 
   call cleanupOperator(this)
   if (present(success)) success = .true.
@@ -1455,7 +1454,7 @@ subroutine updateOperator(this, cartesianCommunicator, direction, isPeriodicityO
 
   ! Get number of dimensions from communicator.
   call MPI_Cartdim_get(cartesianCommunicator, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(direction >= 1 .and. direction <= nDimensions)
 
   ! Get process distribution, coordinates and periodicity.

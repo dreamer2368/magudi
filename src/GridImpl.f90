@@ -28,6 +28,7 @@ contains
 #endif
 
     call MPI_Cartdim_get(this%comm, nDimensions, ierror)
+    assert_key(nDimensions, (1, 2, 3))
 
     allocate(this%firstDerivative(nDimensions))
     if (.not. simulationFlags%repeatFirstDerivative)                                         &
@@ -585,7 +586,7 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
   logical :: success_
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   success_ = .true.
 
@@ -701,7 +702,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   SCALAR_TYPE :: jacobianOutsideRange
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   assert(this%nGridPoints > 0)
   assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
@@ -1027,7 +1028,7 @@ subroutine computeGradientOfScalar_(this, f, gradF)
   call startTiming("computeGradient")
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   assert(this%nGridPoints > 0)
   assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
@@ -1120,7 +1121,7 @@ subroutine computeGradientOfVector_(this, f, gradF)
   call startTiming("computeGradient")
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   assert(this%nGridPoints > 0)
   assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
@@ -1463,7 +1464,7 @@ subroutine computeSpongeStrengths(this, patches)
   real(wp), allocatable :: curveLengthIntegrand(:)
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   assert(this%nGridPoints > 0)
   assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)

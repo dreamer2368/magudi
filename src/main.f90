@@ -145,6 +145,26 @@ program main
           saveInterval, reportInterval, outputPrefix)
   else
 
+     ! Control mollifier.
+     filename = getOption("control_mollifier_file", "")
+     if (len_trim(filename) == 0) then
+        do i = 1, size(region%grids)
+           region%grids(i)%controlMollifier = 1.0_wp
+        end do
+     else
+        call loadRegionData(region, QOI_CONTROL_MOLLIFIER, filename)
+     end if
+
+     ! Target mollifier.
+     filename = getOption("target_mollifier_file", "")
+     if (len_trim(filename) == 0) then
+        do i = 1, size(region%grids)
+           region%grids(i)%targetMollifier = 1.0_wp
+        end do
+     else
+        call loadRegionData(region, QOI_TARGET_MOLLIFIER, filename)
+     end if
+
      ! Baseline forward.
      if (.not. region%simulationFlags%isBaselineAvailable) then
         time = 0.0_wp

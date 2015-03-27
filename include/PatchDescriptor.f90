@@ -8,12 +8,13 @@ module PatchDescriptor_type
   integer, parameter, public ::                                                              &
        SPONGE                = 1,                                                            &
        ACTUATOR              = 2,                                                            &
-       SOLENOIDAL_EXCITATION = 3,                                                            &
-       SAT_FAR_FIELD         = 4,                                                            &
-       SAT_SLIP_WALL         = 5,                                                            &
-       SAT_ISOTHERMAL_WALL   = 6,                                                            &
-       SAT_ADIABATIC_WALL    = 7,                                                            &
-       SAT_BLOCK_INTERFACE   = 8
+       CONTROL_TARGET        = 3,                                                            &
+       SOLENOIDAL_EXCITATION = 4,                                                            &
+       SAT_FAR_FIELD         = 5,                                                            &
+       SAT_SLIP_WALL         = 6,                                                            &
+       SAT_ISOTHERMAL_WALL   = 7,                                                            &
+       SAT_ADIABATIC_WALL    = 8,                                                            &
+       SAT_BLOCK_INTERFACE   = 9
 
   type, public :: t_PatchDescriptor
 

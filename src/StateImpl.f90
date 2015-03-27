@@ -91,7 +91,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   call cleanupState(this)
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   if (present(simulationFlags)) then
      simulationFlags_ = simulationFlags
@@ -138,6 +138,9 @@ subroutine cleanupState(this)
   ! <<< Arguments >>>
   type(t_State) :: this
 
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+
   SAFE_DEALLOCATE(this%acousticSources)
   SAFE_DEALLOCATE(this%conservedVariables)
   SAFE_DEALLOCATE(this%targetState)
@@ -156,6 +159,7 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%meanPressure)
 
   this%nUnknowns = 0
+  this%adjointForcingFactor = 1.0_wp
 
 end subroutine cleanupState
 
@@ -333,7 +337,7 @@ function getNumberOfScalars(quantityOfInterest, nDimensions) result(nScalars)
   ! <<< Result >>>
   integer :: nScalars
 
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   select case (quantityOfInterest)
   case (QOI_MEAN_PRESSURE)
@@ -408,7 +412,7 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
   call startTiming("updateState")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
 
   if (present(conservedVariables)) then
      call computeDependentVariables(nDimensions, conservedVariables,                         &
@@ -612,7 +616,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer :: i, j, nDimensions, ierror
+  integer :: i, j, k, l, nDimensions, ierror
   SCALAR_TYPE, allocatable :: gradientOfAdjointVariables(:,:,:), localConservedVariables(:), &
        localVelocity(:), localMetricsAlongDirection(:), localStressTensor(:),                &
        localHeatFlux(:), localJacobian1(:,:), localJacobian2(:,:), temp(:,:,:)
@@ -1037,6 +1041,14 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
         case (SOLENOIDAL_EXCITATION)
            call updateSolenoidalExcitationStrength(patches(i), grid%coordinates, grid%iblank)
+
+        case (ACTUATOR)
+           call collectAtPatch(patches(i), grid%controlMollifier(:,1),                       &
+                patches(i)%controlMollifier)
+
+        case (CONTROL_TARGET)
+           call collectAtPatch(patches(i), grid%targetMollifier(:,1),                        &
+                patches(i)%targetMollifier)
 
         end select
 

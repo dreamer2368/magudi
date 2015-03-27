@@ -184,7 +184,8 @@ subroutine substepAdjoint(this, region, time, timestep, stage)
      do i = 1, size(region%states)
         this%temp_(i)%buffer1 = region%states(i)%adjointVariables
      end do
-
+     
+     region%states(:)%adjointForcingFactor = 1.0_wp
      call computeRhs(region, ADJOINT, time)
      timeStepSize = region%states(1)%timeStepSize
 
@@ -198,6 +199,7 @@ subroutine substepAdjoint(this, region, time, timestep, stage)
   case (3)
 
      time = time - timeStepSize / 2.0_wp
+     region%states(:)%adjointForcingFactor = 0.5_wp
      call computeRhs(region, ADJOINT, time)
 
      do i = 1, size(region%states)
@@ -209,6 +211,7 @@ subroutine substepAdjoint(this, region, time, timestep, stage)
 
   case (2)
 
+     region%states(:)%adjointForcingFactor = 1.0_wp
      call computeRhs(region, ADJOINT, time)
 
      do i = 1, size(region%states)
@@ -221,6 +224,7 @@ subroutine substepAdjoint(this, region, time, timestep, stage)
   case (1)
 
      time = time - timeStepSize / 2.0_wp
+     region%states(:)%adjointForcingFactor = 2.0_wp
      call computeRhs(region, ADJOINT, time)
 
      do i = 1, size(region%states)

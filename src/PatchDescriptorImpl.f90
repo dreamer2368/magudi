@@ -17,6 +17,8 @@ subroutine parsePatchType(patchTypeString, patchType)
      patchType = SPONGE
   else if (trim(patchTypeString) == "ACTUATOR") then
      patchType = ACTUATOR
+  else if (trim(patchTypeString) == "CONTROL_TARGET") then
+     patchType = CONTROL_TARGET
   else if (trim(patchTypeString) == "SOLENOIDAL_EXCITATION") then
      patchType = SOLENOIDAL_EXCITATION
   else if (trim(patchTypeString) == "SAT_FAR_FIELD") then
@@ -71,7 +73,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
 
   ! Check if the normal direction is valid.
   select case (this%patchType)
-  case (ACTUATOR, SOLENOIDAL_EXCITATION)
+  case (ACTUATOR, CONTROL_TARGET, SOLENOIDAL_EXCITATION)
   case default
      if (abs(this%normalDirection) > size(globalGridSizes, 1) .or.                           &
           this%normalDirection == 0) then
@@ -118,7 +120,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   ! Check if patch spans more than one grid point along normal direction.
   i = abs(this%normalDirection)
   select case (this%patchType)
-  case (SPONGE, ACTUATOR, SOLENOIDAL_EXCITATION)
+  case (SPONGE, ACTUATOR, CONTROL_TARGET, SOLENOIDAL_EXCITATION)
   case default
      if (extent(1+2*(i-1)) /= extent(2+2*(i-1))) then
         write(message, '(3A,I0.0,A)') "Patch '", trim(this%name), "' on grid ",              &
@@ -186,8 +188,8 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
         errorCode = 1
      end if
 
-  ! Check if an `ACTUATOR` patch will be used.
-  case (ACTUATOR)
+  ! Check if an `ACTUATOR` and `CONTROL_TARGET` patches will be used.
+  case (ACTUATOR, CONTROL_TARGET)
      if (simulationFlags%predictionOnly) then
         write(message, '(3A,I0.0,A)') "Not using patch '", trim(this%name), "' on grid ",    &
              this%gridIndex, " because control actuation has been disabled!"

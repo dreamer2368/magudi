@@ -136,7 +136,7 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
 
   ! Get number of dimensions from communicator.
   call MPI_Cartdim_get(cartesianCommunicator, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(direction >= 1 .and. direction <= nDimensions)
 
   if (all(numGhostPoints <= 0)) return
@@ -411,7 +411,7 @@ subroutine gatherAlongDirection(cartesianCommunicator, localArray,              
 
   ! Get number of dimensions from the grid communicator.
   call MPI_Cartdim_get(cartesianCommunicator, nDimensions, ierror)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(direction >= 1 .and. direction <= nDimensions)
 
   ! Create a pencil communicator including the ``current'' process and all neighboring

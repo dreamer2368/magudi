@@ -626,7 +626,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
                     if (this%patchCommunicators(i) /= MPI_COMM_NULL) then
                        call setupPatch(this%patches(j), i, size(globalGridSizes, 1), p,      &
                             this%patchCommunicators(i), this%grids(k)%offset,                &
-                            this%grids(k)%localSize, this%simulationFlags)
+                            this%grids(k)%localSize, this%states(k)%nUnknowns,               &
+                            this%simulationFlags)
                        exit
                     end if
                  end do

@@ -63,19 +63,25 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
 
   ! <<< Local variables >>>
   integer :: i, j, one = 1, flag, procRank, ierror
-  character(len = len_trim(conditionString)) :: str
+  character(len = len_trim(conditionString)) :: str1
+  character(len = len_trim(filename)) :: str2
 
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
 
-  str(1:1) = conditionString(1:1)
+  str1(1:1) = conditionString(1:1)
   j = 2
   do i = 2, len_trim(conditionString)
      if (conditionString(i:i) /= ' ' .or. conditionString(i-1:i-1) /= ' ') then
-        str(j:j) = conditionString(i:i)
+        str1(j:j) = conditionString(i:i)
         j = j + 1
      end if
   end do
-  str(j:) = ' '
+  str1(j:) = ' '
+
+  str2 = filename
+  i = index(str2, '/', .true.)
+  if (i /= 0) str2(:i) = ' '
+  str2 = adjustl(str2)
 
   if (.not. condition) then
      call MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, mpiWindow, ierror)
@@ -84,7 +90,7 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
      call MPI_Win_unlock(0, mpiWindow, ierror)
      if (flag == 0) then
         write(error_unit, '(3A,I0.0,3A)') "AssertionError at ",                              &
-             trim(filename), ":", lineNo, ": ", trim(str), "!"
+             trim(str2), ":", lineNo, ": ", trim(str1), "!"
         call backtrace
         call MPI_Abort(MPI_COMM_WORLD, -1, ierror)
      end if

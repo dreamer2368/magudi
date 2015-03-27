@@ -18,7 +18,7 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
   integer :: i
 
   assert(size(conservedVariables, 1) > 0)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(conservedVariables, 2) == nDimensions + 2)
 
   ratioOfSpecificHeats_ = 1.4_wp
@@ -191,7 +191,7 @@ subroutine computeStressTensor(nDimensions, velocityGradient, dynamicViscosity, 
   SCALAR_TYPE, allocatable :: divergenceOfVelocity(:)
 
   assert(size(velocityGradient, 1) > 0)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(velocityGradient, 2) == nDimensions ** 2)
   assert(size(dynamicViscosity) == size(velocityGradient, 1))
   assert(size(secondCoefficientOfViscosity) == size(velocityGradient, 1))
@@ -296,7 +296,7 @@ subroutine computeVorticityMagnitudeAndDilatation(nDimensions, velocityGradient,
   integer, parameter :: wp = SCALAR_KIND
 
   assert(size(velocityGradient, 1) > 0)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(velocityGradient, 2) == nDimensions ** 2)
 
   select case (nDimensions)
@@ -348,7 +348,7 @@ subroutine computeCartesianInvsicidFluxes(nDimensions, conservedVariables,      
   SCALAR_TYPE, intent(out) :: inviscidFluxes(:,:,:)
 
   assert(size(conservedVariables, 1) > 0)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(conservedVariables, 2) == nDimensions + 2)
   assert(size(velocity, 1) == size(conservedVariables, 1))
   assert(size(velocity, 2) == nDimensions)
@@ -409,7 +409,7 @@ subroutine computeCartesianViscousFluxes(nDimensions, velocity,                 
   integer, parameter :: wp = SCALAR_KIND
 
   assert(size(velocity, 1) > 0)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(velocity, 2) == nDimensions)
   assert(size(stressTensor, 1) == size(velocity, 1))
   assert(size(stressTensor, 2) == nDimensions ** 2)
@@ -418,8 +418,6 @@ subroutine computeCartesianViscousFluxes(nDimensions, velocity,                 
   assert(size(viscousFluxes, 1) == size(velocity, 1))
   assert(size(viscousFluxes, 2) == nDimensions + 2)
   assert(size(viscousFluxes, 3) == nDimensions)
-
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
 
   select case (nDimensions)
 
@@ -486,7 +484,7 @@ subroutine transformFluxes(nDimensions, fluxes, metrics,                        
   if (present(isDomainCurvilinear)) isDomainCurvilinear_ = isDomainCurvilinear
 
   assert(size(fluxes, 1) > 0)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(fluxes, 2) == nDimensions + 2)
   assert(size(fluxes, 3) == nDimensions)
   assert(size(metrics, 1) == size(fluxes, 1))
@@ -558,7 +556,7 @@ function computeCfl(nDimensions, iblank, jacobian, metrics, velocity, temperatur
   real(wp) :: gridSpeedOfSound, gridVelocity(3), f
 
   assert(size(iblank) > 0)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(jacobian) == size(iblank))
   assert(size(metrics, 1) == size(iblank))
   assert(size(metrics, 2) == nDimensions ** 2)
@@ -624,7 +622,7 @@ function computeTimeStepSize(nDimensions, iblank, jacobian, metrics, velocity, t
   real(wp) :: f, gridSpeedOfSound, gridVelocity(3)
 
   assert(size(iblank) > 0)
-  assert(nDimensions >= 1 .and. nDimensions <= 3)
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(jacobian) == size(iblank))
   assert(size(metrics, 1) == size(iblank))
   assert(size(metrics, 2) == nDimensions ** 2)

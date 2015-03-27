@@ -39,7 +39,10 @@ module Patch_type
      real(SCALAR_KIND), allocatable :: spongeStrength(:)
 
      ! Actuator patch variables.
-     SCALAR_TYPE, allocatable :: gradient(:,:)
+     SCALAR_TYPE, allocatable :: gradient(:,:), controlMollifier(:)
+
+     ! Control target patch variables.
+     SCALAR_TYPE, allocatable :: targetMollifier(:)
 
      ! Solenoidal excitation patch variables.
      type(t_SolenoidalExcitation) :: solenoidalExcitation
@@ -57,7 +60,7 @@ module Patch_mod
   interface
 
      subroutine setupPatch(this, index, nDimensions, patchDescriptor, comm,                  &
-          gridOffset, gridLocalSize, simulationFlags)
+          gridOffset, gridLocalSize, nUnknowns, simulationFlags)
 
        use Patch_type
        use PatchDescriptor_type
@@ -66,7 +69,7 @@ module Patch_mod
        type(t_Patch) :: this
        integer, intent(in) :: index, nDimensions
        type(t_PatchDescriptor) :: patchDescriptor
-       integer, intent(in) :: comm, gridOffset(3), gridLocalSize(3)
+       integer, intent(in) :: comm, gridOffset(3), gridLocalSize(3), nUnknowns
        type(t_SimulationFlags), intent(in) :: simulationFlags
 
      end subroutine setupPatch

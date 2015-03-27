@@ -21,7 +21,7 @@ module State_type
      type(t_AcousticSource), allocatable :: acousticSources(:)
 
      integer :: nUnknowns = 0
-     real(wp) :: timeStepSize, cfl
+     real(wp) :: timeStepSize, cfl, adjointForcingFactor = 1.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables, targetState,            &
