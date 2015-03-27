@@ -911,6 +911,7 @@ subroutine computeRhs(this, mode, time)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, FORWARD, ADJOINT
+  use PatchDescriptor_type
 
   ! <<< Private members >>>
   use RegionImpl, only : checkSolutionLimits
@@ -992,6 +993,14 @@ subroutine computeRhs(this, mode, time)
         call addSourcesForward(this%states(i), this%grids(i), this%patches, time)
      case (ADJOINT)
         call addSourcesAdjoint(this%states(i), this%grids(i), this%patches, time)
+        if (allocated(this%patches)) then
+           do j = 1, size(this%patches)
+              if (this%patches(j)%gridIndex /= this%grids(i)%index .or.                      &
+                   this%patches(j)%patchType /= CONTROL_TARGET) cycle
+              call addAdjointForcing(this%states(i), this%grids(i),                          &
+                   this%patches(j), this%solverOptions)
+           end do
+        end if
      end select
 
      ! Zero-out at hole points.

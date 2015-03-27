@@ -7,15 +7,17 @@ module StateImpl
 
 contains
 
-  subroutine allocateData(this, simulationFlags, nGridPoints, nDimensions)
+  subroutine allocateData(this, simulationFlags, solverOptions, nGridPoints, nDimensions)
 
     ! <<< Derived types >>>
     use State_type, only : t_State
+    use SolverOptions_type, only : t_SolverOptions, SOUND_FUNCTIONAL
     use SimulationFlags_type, only : t_SimulationFlags
 
     ! <<< Arguments >>>
     type(t_State) :: this
     type(t_SimulationFlags), intent(in) :: simulationFlags
+    type(t_SolverOptions), intent(in) :: solverOptions
     integer, intent(in) :: nGridPoints, nDimensions
 
     allocate(this%conservedVariables(nGridPoints, this%nUnknowns))
@@ -46,6 +48,10 @@ contains
 
     if (.not. simulationFlags%predictionOnly) then
        allocate(this%adjointVariables(nGridPoints, this%nUnknowns))
+       select case (solverOptions%costFunctionalType)
+       case (SOUND_FUNCTIONAL)
+          allocate(this%meanPressure(nGridPoints, 1))
+       end select
     end if
 
   end subroutine allocateData
@@ -71,7 +77,9 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
+  use SolverOptions_mod, only : initializeSolverOptions
   use AcousticSource_mod, only : setupAcousticSource
+  use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
 
@@ -85,6 +93,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, n, nDimensions, ierror
   type(t_SimulationFlags) :: simulationFlags_
+  type(t_SolverOptions) :: solverOptions_
   real(SCALAR_KIND) :: ratioOfSpecificHeats, temp(3)
   character(len = STRING_LENGTH) :: key
 
@@ -99,9 +108,15 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      call initializeSimulationFlags(simulationFlags_)
   end if
 
+  if (present(solverOptions)) then
+     solverOptions_ = solverOptions
+  else
+     call initializeSolverOptions(solverOptions_, simulationFlags_, grid%comm)
+  end if
+
   assert(grid%nGridPoints > 0)
   this%nUnknowns = nDimensions + 2
-  call allocateData(this, simulationFlags_, grid%nGridPoints, nDimensions)
+  call allocateData(this, simulationFlags_, solverOptions_, grid%nGridPoints, nDimensions)
 
   ratioOfSpecificHeats = 1.4_wp
   if (present(solverOptions)) then
@@ -616,7 +631,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer :: i, j, k, l, nDimensions, ierror
+  integer :: i, j, nDimensions, ierror
   SCALAR_TYPE, allocatable :: gradientOfAdjointVariables(:,:,:), localConservedVariables(:), &
        localVelocity(:), localMetricsAlongDirection(:), localStressTensor(:),                &
        localHeatFlux(:), localJacobian1(:,:), localJacobian2(:,:), temp(:,:,:)
@@ -1042,14 +1057,6 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
         case (SOLENOIDAL_EXCITATION)
            call updateSolenoidalExcitationStrength(patches(i), grid%coordinates, grid%iblank)
 
-        case (ACTUATOR)
-           call collectAtPatch(patches(i), grid%controlMollifier(:,1),                       &
-                patches(i)%controlMollifier)
-
-        case (CONTROL_TARGET)
-           call collectAtPatch(patches(i), grid%targetMollifier(:,1),                        &
-                patches(i)%targetMollifier)
-
         end select
 
      end do !... i = 1, size(patches)
@@ -1060,3 +1067,67 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   call endTiming("updatePatches")
 
 end subroutine updatePatches
+
+subroutine addAdjointForcing(this, grid, patch, solverOptions)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use State_type, only : t_State
+  use SolverOptions_type
+  use PatchDescriptor_type
+
+  implicit none
+
+  ! <<< Arguments >>>  
+  type(t_State) :: this
+  type(t_Grid) :: grid
+  type(t_Patch) :: patch
+  type(t_SolverOptions), intent(in) :: solverOptions
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, nDimensions, gridIndex, patchIndex, ierror
+  SCALAR_TYPE :: temp
+
+  assert(patch%patchType == CONTROL_TARGET)
+  assert(patch%gridIndex == grid%index)
+
+  call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+  assert_key(nDimensions, (1, 2, 3))
+
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+     do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+           gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
+                (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
+                (k - 1 - patch%gridOffset(3)))
+           if (grid%iblank(gridIndex) == 0) cycle
+           patchIndex = i - patch%offset(1) + patch%patchSize(1) *                           &
+                (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
+                (k - 1 - patch%offset(3)))
+
+           select case (solverOptions%costFunctionalType)
+
+           case (SOUND_FUNCTIONAL)
+              temp = - 2.0_wp * (solverOptions%ratioOfSpecificHeats - 1.0_wp) *              &
+                   this%adjointForcingFactor * grid%targetMollifier(gridIndex, 1) *          &
+                   (this%pressure(gridIndex, 1) - this%meanPressure(gridIndex, 1))
+              this%rightHandSide(gridIndex,1) = this%rightHandSide(gridIndex,1) +            &
+                   0.5_wp * sum(this%velocity(gridIndex,:) ** 2) * temp
+              this%rightHandSide(gridIndex,2:nDimensions+1) =                                &
+                   this%rightHandSide(gridIndex,2:nDimensions+1) -                           &
+                   this%velocity(gridIndex,:) * temp
+              this%rightHandSide(gridIndex,nDimensions+2) =                                  &
+                   this%rightHandSide(gridIndex,nDimensions+2) + temp
+                   
+           end select !... solverOptions%costFunctionalType
+
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+
+end subroutine addAdjointForcing

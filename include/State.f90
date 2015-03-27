@@ -305,4 +305,22 @@ module State_mod
 
   end interface
 
+  interface
+
+     subroutine addAdjointForcing(this, grid, patch, solverOptions)
+
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+
+       type(t_State) :: this
+       type(t_Grid) :: grid
+       type(t_Patch) :: patch
+       type(t_SolverOptions), intent(in) :: solverOptions
+
+     end subroutine addAdjointForcing
+
+  end interface
+
 end module State_mod

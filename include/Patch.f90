@@ -39,10 +39,7 @@ module Patch_type
      real(SCALAR_KIND), allocatable :: spongeStrength(:)
 
      ! Actuator patch variables.
-     SCALAR_TYPE, allocatable :: gradient(:,:), controlMollifier(:)
-
-     ! Control target patch variables.
-     SCALAR_TYPE, allocatable :: targetMollifier(:)
+     SCALAR_TYPE, allocatable :: gradient(:,:)
 
      ! Solenoidal excitation patch variables.
      type(t_SolenoidalExcitation) :: solenoidalExcitation

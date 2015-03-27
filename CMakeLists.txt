@@ -84,6 +84,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/CNSHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/InputHelper.f90
   ${PROJECT_SOURCE_DIR}/src/InputHelperImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/Solver.f90
+  ${PROJECT_SOURCE_DIR}/src/SolverImpl.f90
 
   # Object-oriented classes.
   ${PROJECT_SOURCE_DIR}/include/SimulationFlags.f90

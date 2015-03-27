@@ -49,10 +49,6 @@ contains
 
     case (ACTUATOR)
        allocate(this%gradient(this%nPatchPoints, 1))
-       allocate(this%controlMollifier(this%nPatchPoints))
-
-    case (CONTROL_TARGET)
-       allocate(this%targetMollifier(this%nPatchPoints))
 
     case (SOLENOIDAL_EXCITATION)
        allocate(this%solenoidalExcitationStrength(this%nPatchPoints), source = 0.0_wp)
@@ -272,8 +268,6 @@ subroutine cleanupPatch(this)
   SAFE_DEALLOCATE(this%metrics)
   SAFE_DEALLOCATE(this%spongeStrength)
   SAFE_DEALLOCATE(this%gradient)
-  SAFE_DEALLOCATE(this%controlMollifier)
-  SAFE_DEALLOCATE(this%targetMollifier)
   SAFE_DEALLOCATE(this%solenoidalExcitationStrength)
 
   if (this%comm /= MPI_COMM_NULL) call MPI_Comm_free(this%comm, ierror)
@@ -338,7 +332,7 @@ subroutine collectVectorAtPatch_(this, gridArray, patchArray)
   integer :: i, j, k, l, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%gridLocalSize))
+  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%patchSize))
   assert(size(gridArray, 2) > 0)
   assert(size(patchArray, 2) == size(gridArray, 2))
 
@@ -381,7 +375,7 @@ subroutine collectTensorAtPatch_(this, gridArray, patchArray)
   integer :: i, j, k, l, m, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%gridLocalSize))
+  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%patchSize))
   assert(size(gridArray, 2) > 0)
   assert(size(patchArray, 2) == size(gridArray, 2))
   assert(size(gridArray, 3) > 0)
@@ -667,8 +661,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   integer :: i, j, k, l, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
        metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),                  &
-       inviscidPenalty(:), viscousPenalty1(:), viscousPenalty2(:),                           &
-       deltaNormalVelocity(:), deltaInviscidPenalty(:,:),                                    &
+       inviscidPenalty(:), deltaNormalVelocity(:), deltaInviscidPenalty(:,:),                &                    
        deltaIncomingJacobianOfInviscidFlux(:,:,:)
   SCALAR_TYPE :: normalVelocity
 
