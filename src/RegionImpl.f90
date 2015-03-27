@@ -942,12 +942,23 @@ subroutine computeRhs(this, mode, time)
 
   if (this%simulationFlags%useConstantCfl) then
      timeStepSize = minval(this%states(:)%timeStepSize)
-     call MPI_Allreduce(MPI_IN_PLACE, timeStepSize, 1, SCALAR_TYPE_MPI, MPI_MIN,             &
-          this%comm, ierror)
+#ifdef SCALAR_IS_COMPLEX
+     call MPI_Allreduce(MPI_IN_PLACE, timeStepSize, 1, REAL_TYPE_MPI,                        &
+          MPI_MIN, this%comm, ierror)
+#else
+     call MPI_Allreduce(MPI_IN_PLACE, timeStepSize, 1, SCALAR_TYPE_MPI,                      &
+          MPI_MIN, this%comm, ierror)
+#endif
      this%states(:)%timeStepSize = timeStepSize
   else
      cfl = maxval(this%states(:)%cfl)
-     call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, SCALAR_TYPE_MPI, MPI_MAX, this%comm, ierror)
+#ifdef SCALAR_IS_COMPLEX
+     call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, REAL_TYPE_MPI,                                 &
+          MPI_MAX, this%comm, ierror)
+#else
+     call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, SCALAR_TYPE_MPI,                               &
+          MPI_MAX, this%comm, ierror)
+#endif
      this%states(:)%cfl = cfl
   end if
 

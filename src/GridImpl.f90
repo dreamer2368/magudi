@@ -13,8 +13,8 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Grid_type
-    use SimulationFlags_type
+    use Grid_type, only : t_Grid
+    use SimulationFlags_type, only : t_SimulationFlags
 
     ! <<< Arguments >>>
     type(t_Grid) :: this
@@ -62,7 +62,7 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Grid_type
+    use Grid_type, only : t_Grid, PLANE
 
     ! <<< Arguments >>>
     type(t_Grid) :: this
@@ -136,7 +136,7 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Grid_type
+    use Grid_type, only : t_Grid, PLANE
 
     ! <<< Internal modules >>>
     use MPIHelper, only : fillGhostPoints
@@ -261,8 +261,8 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
-  use SimulationFlags_type
+  use Grid_type, only : t_Grid, NONE, PLANE, OVERLAP
+  use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use GridImpl, only : allocateData, makeUnitCube
@@ -325,6 +325,9 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
 
      assert(size(periodicityType) == size(globalSize))
      this%periodicityType(1:size(periodicityType)) = periodicityType
+     assert_key(this%periodicityType(1), (NONE, PLANE, OVERLAP))
+     assert_key(this%periodicityType(2), (NONE, PLANE, OVERLAP))
+     assert_key(this%periodicityType(3), (NONE, PLANE, OVERLAP))
 
      if (any(periodicityType == PLANE)) then
 
@@ -407,7 +410,7 @@ subroutine cleanupGrid(this)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
 
   ! <<< Internal modules >>>
   use StencilOperator_mod, only : cleanupOperator
@@ -566,7 +569,7 @@ end subroutine saveGridData
 subroutine setupSpatialDiscretization(this, success, errorMessage)
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid, OVERLAP
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
@@ -674,7 +677,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid, PLANE
 
   ! <<< Private members >>>
   use GridImpl, only : computeCoordinateDerivatives
@@ -957,7 +960,7 @@ function computeInnerProduct(this, f, g, weight) result(innerProduct)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
 
   implicit none
 
@@ -1010,7 +1013,7 @@ subroutine computeGradientOfScalar_(this, f, gradF)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -1103,7 +1106,7 @@ subroutine computeGradientOfVector_(this, f, gradF)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -1224,7 +1227,7 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
 
   implicit none
 
@@ -1307,7 +1310,7 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
 
   implicit none
 
@@ -1391,7 +1394,7 @@ function isVariableWithinRange(this, f, fOutsideRange,                          
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_type, only : t_Grid
 
   ! <<< Public members >>>
   use Grid_mod, only : findMinimum, findMaximum
@@ -1439,8 +1442,8 @@ subroutine computeSpongeStrengths(this, patches)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
-  use Patch_type
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
   use PatchDescriptor_type, only : SPONGE
 
   ! <<< Private members >>>

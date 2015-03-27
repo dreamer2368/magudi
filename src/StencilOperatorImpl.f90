@@ -1546,8 +1546,8 @@ subroutine getAdjointOperator(this, adjointOperator)
 
   ! Reverse the interior stencil.
   assert(allocated(this%rhsInterior))
-  assert(lbound(this%rhsInterior) == - this%interiorWidth / 2)
-  assert(ubound(this%rhsInterior) == + this%interiorWidth / 2)
+  assert(lbound(this%rhsInterior, 1) == - this%interiorWidth / 2)
+  assert(ubound(this%rhsInterior, 1) == + this%interiorWidth / 2)
   do i = - this%interiorWidth / 2, this%interiorWidth / 2
      adjointOperator%rhsInterior(i) = this%rhsInterior(-i)
   end do

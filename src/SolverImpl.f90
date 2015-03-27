@@ -1,5 +1,144 @@
 #include "config.h"
 
+module SolverImpl
+
+  implicit none
+  public
+
+contains
+
+  subroutine normalizeControlMollifier(region)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_type, only : t_Region
+
+    ! <<< Internal modules >>>
+    use Grid_mod, only : computeInnerProduct, isVariableWithinRange
+    use ErrorHandler, only : gracefulExit
+
+    ! <<< Arguments >>>
+    type(t_Region) :: region
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    SCALAR_TYPE :: temp
+    real(wp) :: mollifierNorm
+    integer :: i, j, k, procRank, ierror
+    logical :: hasNegativeMollifier
+    character(len = STRING_LENGTH) :: str
+    SCALAR_TYPE, allocatable :: F(:,:)
+
+    mollifierNorm = 0.0_wp
+
+    do i = 1, size(region%grids)
+
+       hasNegativeMollifier = .not. isVariableWithinRange(region%grids(i),                   &
+            region%grids(i)%controlMollifier(:,1), temp, i, j, k,                            &
+            minValue = - 2.0_wp * epsilon(0.0_wp))
+       if (hasNegativeMollifier) then
+          write(str, '(A,4(I0.0,A),3(ES11.4,A))') "Control mollifier on grid ",              &
+               region%grids(i)%index, " at (", i, ", ", j, ", ", k, "): ",                   &
+               temp, " is negative!"
+          call gracefulExit(region%grids(i)%comm, str)
+       end if
+
+       allocate(F(region%grids(i)%nGridPoints, 1), source = 1.0_wp)
+       temp = computeInnerProduct(region%grids(i), F, F,                                    &
+            region%grids(i)%controlMollifier(:,1))
+
+       call MPI_Comm_rank(region%grids(i)%comm, procRank, ierror)
+       if (procRank /= 0) temp = 0.0_wp
+
+       mollifierNorm = mollifierNorm + real(temp, wp)
+
+       SAFE_DEALLOCATE(F)
+
+    end do
+
+#ifdef SCALAR_IS_COMPLEX
+    call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                       &
+         MPI_SUM, region%comm, ierror)
+#else
+    call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, SCALAR_TYPE_MPI,                     &
+         MPI_SUM, region%comm, ierror)
+#endif
+
+    do i = 1, size(region%grids)
+       region%grids(i)%controlMollifier = region%grids(i)%controlMollifier / mollifierNorm
+    end do
+
+  end subroutine normalizeControlMollifier
+
+  subroutine normalizeTargetMollifier(region)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_type, only : t_Region
+
+    ! <<< Internal modules >>>
+    use Grid_mod, only : computeInnerProduct, isVariableWithinRange
+    use ErrorHandler, only : gracefulExit
+
+    ! <<< Arguments >>>
+    type(t_Region) :: region
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    SCALAR_TYPE :: temp
+    real(wp) :: mollifierNorm
+    integer :: i, j, k, procRank, ierror
+    logical :: hasNegativeMollifier
+    character(len = STRING_LENGTH) :: str
+    SCALAR_TYPE, allocatable :: F(:,:)
+
+    mollifierNorm = 0.0_wp
+
+    do i = 1, size(region%grids)
+
+       hasNegativeMollifier = .not. isVariableWithinRange(region%grids(i),                   &
+            region%grids(i)%targetMollifier(:,1), temp, i, j, k,                            &
+            minValue = - 2.0_wp * epsilon(0.0_wp))
+       if (hasNegativeMollifier) then
+          write(str, '(A,4(I0.0,A),3(ES11.4,A))') "Target mollifier on grid ",              &
+               region%grids(i)%index, " at (", i, ", ", j, ", ", k, "): ",                   &
+               temp, " is negative!"
+          call gracefulExit(region%grids(i)%comm, str)
+       end if
+
+       allocate(F(region%grids(i)%nGridPoints, 1), source = 1.0_wp)
+       temp = computeInnerProduct(region%grids(i), F, F,                                    &
+            region%grids(i)%targetMollifier(:,1))
+
+       call MPI_Comm_rank(region%grids(i)%comm, procRank, ierror)
+       if (procRank /= 0) temp = 0.0_wp
+
+       mollifierNorm = mollifierNorm + real(temp, wp)
+
+       SAFE_DEALLOCATE(F)
+
+    end do
+
+#ifdef SCALAR_IS_COMPLEX
+    call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                       &
+         MPI_SUM, region%comm, ierror)
+#else
+    call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, SCALAR_TYPE_MPI,                     &
+         MPI_SUM, region%comm, ierror)
+#endif
+
+    do i = 1, size(region%grids)
+       region%grids(i)%targetMollifier = region%grids(i)%targetMollifier / mollifierNorm
+    end do
+
+  end subroutine normalizeTargetMollifier
+
+end module SolverImpl
+
 subroutine initializeSolver(region, restartFilename)
 
   ! <<< Derived types >>>
@@ -8,7 +147,11 @@ subroutine initializeSolver(region, restartFilename)
   use Region_type, only : t_Region
   use SolverOptions_type, only : SOUND_FUNCTIONAL
 
+  ! <<< Private members >>>
+  use SolverImpl, only : normalizeControlMollifier, normalizeTargetMollifier
+
   ! <<< Internal modules >>>
+  use Grid_mod, only : computeInnerProduct
   use CNSHelper, only : computeDependentVariables
   use State_mod, only : makeQuiescent
   use Region_mod, only : loadRegionData
@@ -66,7 +209,7 @@ subroutine initializeSolver(region, restartFilename)
         region%states(i)%adjointVariables = 0.0_wp
      end do
 
-     ! Control mollifier.
+     ! Initialize control mollifier.
      filename = getOption("control_mollifier_file", "")
      if (len_trim(filename) == 0) then
         do i = 1, size(region%grids)
@@ -75,6 +218,7 @@ subroutine initializeSolver(region, restartFilename)
      else
         call loadRegionData(region, QOI_CONTROL_MOLLIFIER, filename)
      end if
+     call normalizeControlMollifier(region)
 
      ! Target mollifier.
      filename = getOption("target_mollifier_file", "")
@@ -85,10 +229,11 @@ subroutine initializeSolver(region, restartFilename)
      else
         call loadRegionData(region, QOI_TARGET_MOLLIFIER, filename)
      end if
+     call normalizeTargetMollifier(region)
 
      select case (region%solverOptions%costFunctionalType)
      case (SOUND_FUNCTIONAL)
-        
+
         ! Mean pressure.
         if (.not. region%simulationFlags%useTargetState) then
            call getRequiredOption("mean_pressure_file", filename)

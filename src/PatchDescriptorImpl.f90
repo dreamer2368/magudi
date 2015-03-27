@@ -137,7 +137,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
      if ((this%normalDirection > 0 .and. .not. extent(1+2*(i-1)) == 1) .or.                  &
           (this%normalDirection < 0 .and.                                                    &
           .not. extent(2+2*(i-1)) == globalGridSizes(i, this%gridIndex))) then
-        write(message, '(2(A,I0.0),A)') "Sponge patch '", trim(this%name), "' on grid ",     &
+        write(message, '(3A,I0.0,A)') "Sponge patch '", trim(this%name), "' on grid ",       &
              this%gridIndex, " is not aligned with a computational boundary!"
         errorCode = 2
         return

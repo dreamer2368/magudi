@@ -91,8 +91,11 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
      if (flag == 0) then
         write(error_unit, '(3A,I0.0,3A)') "AssertionError at ",                              &
              trim(str2), ":", lineNo, ": ", trim(str1), "!"
-        call backtrace
         call MPI_Abort(MPI_COMM_WORLD, -1, ierror)
+#ifdef __GFORTRAN__
+        call backtrace
+#endif
+        call abort
      end if
   end if
 
