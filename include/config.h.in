@@ -19,6 +19,7 @@
   end select
 #else
 #define assert(x) if (.false.) stop
+#define assert_key(x, y) if (.false.) stop
 #endif
 
 #ifdef USE_EXTENDED_PLOT3D

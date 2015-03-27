@@ -21,7 +21,7 @@ program main
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, startTimestep, nTimesteps, reportInterval, saveInterval, ierror
+  integer :: i, timestep, nTimesteps, reportInterval, saveInterval, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
@@ -140,26 +140,27 @@ program main
 
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
      time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
-     startTimestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
-     call solveForward(region, integrator, time, startTimestep, nTimesteps,                  &
+     timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
+     call solveForward(region, integrator, time, timestep, nTimesteps,                       &
           saveInterval, reportInterval, outputPrefix)
   else
 
      ! Baseline forward.
-     time = 0.0_wp
      if (.not. region%simulationFlags%isBaselineAvailable) then
-        call solveForward(region, integrator, time, 0, nTimesteps,                           &
+        time = 0.0_wp
+        timestep = 0
+        call solveForward(region, integrator, time, timestep, nTimesteps,                    &
              saveInterval, reportInterval, outputPrefix)
      else
         write(filename, '(2A,I8.8,A)')                                                       &
              trim(outputPrefix), "-", nTimesteps, ".q"
         call loadRegionData(region, QOI_FORWARD_STATE, filename)
         time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
-        startTimestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
+        timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
      end if
 
      ! Baseline adjoint.
-     call solveAdjoint(region, integrator, time, startTimestep, nTimesteps,                  &
+     call solveAdjoint(region, integrator, time, timestep, nTimesteps,                       &
           saveInterval, reportInterval, outputPrefix)
 
   end if
@@ -177,8 +178,8 @@ program main
 
 contains
 
-  subroutine solveForward(region, integrator, time, startTimestep,                           &
-       nTimesteps, saveInterval, reportInterval, outputPrefix)
+  subroutine solveForward(region, integrator, time, timestep, nTimesteps,                    &
+       saveInterval, reportInterval, outputPrefix)
 
     ! <<< Derived types >>>
     use State_type, only : t_State
@@ -196,42 +197,42 @@ contains
     type(t_Region) :: region
     type(t_RK4Integrator) :: integrator
     real(SCALAR_KIND), intent(inout) :: time
-    integer, intent(in) :: startTimestep, nTimesteps
+    integer, intent(inout) :: timestep
+    integer, intent(in) :: nTimesteps
     integer, intent(in), optional :: saveInterval, reportInterval
     character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     character(len = STRING_LENGTH) :: outputPrefix_, filename, str
-    integer :: i, timestep
+    integer :: i, timestep_
     logical :: verbose
 
-    assert(startTimestep >= 0)
+    assert(timestep >= 0)
 
     outputPrefix_ = PROJECT_NAME
     if (present(outputPrefix)) outputPrefix_ = outputPrefix
 
-    timestep = startTimestep
     write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
     call saveRegionData(region, QOI_FORWARD_STATE, filename)
 
     verbose = .false.
 
-    do timestep = startTimestep + 1, startTimestep + nTimesteps
+    do timestep_ = timestep + 1, timestep + nTimesteps
 
        if (present(reportInterval)) verbose = (reportInterval > 0 .and.                      &
-            mod(timestep, reportInterval) == 0)
+            mod(timestep_, reportInterval) == 0)
 
        do i = 1, 4
-          call substepForward(integrator, region, time, timestep, i)
+          call substepForward(integrator, region, time, timestep_, i)
        end do
 
        if (verbose) then
           if (region%simulationFlags%useConstantCfl) then
-             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,       &
+             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep_,      &
                   ", dt = ", region%states(1)%timeStepSize, ", time = ", time
           else
-             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,       &
+             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep_,      &
                   ", CFL = ", region%states(1)%cfl, ", time = ", time
           end if
           call writeAndFlush(region%comm, output_unit, str)
@@ -240,12 +241,12 @@ contains
 
        if (present(saveInterval)) then
           if (saveInterval > 0) then
-             if (mod(timestep, saveInterval) == 0) then
+             if (mod(timestep_, saveInterval) == 0) then
                 do i = 1, size(region%states)
-                   region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
+                   region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
                    region%states(i)%plot3dAuxiliaryData(4) = time
                 end do
-                write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
+                write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
                 call saveRegionData(region, QOI_FORWARD_STATE, filename)
              end if
           end if
@@ -253,10 +254,12 @@ contains
 
     end do
 
+    timestep = timestep + nTimesteps
+
   end subroutine solveForward
 
-  subroutine solveAdjoint(region, integrator, time, startTimestep,                           &
-       nTimesteps, saveInterval, reportInterval, outputPrefix)
+  subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,                    &
+       saveInterval, reportInterval, outputPrefix)
 
     ! <<< Derived types >>>
     use State_type, only : t_State
@@ -277,52 +280,56 @@ contains
     type(t_Region) :: region
     type(t_RK4Integrator) :: integrator
     real(SCALAR_KIND), intent(inout) :: time
-    integer, intent(in) :: startTimestep, nTimesteps, saveInterval
+    integer, intent(inout) :: timestep
+    integer, intent(in) :: nTimesteps, saveInterval
     integer, intent(in), optional :: reportInterval
     character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
 
     ! <<< Local variables >>>
     character(len = STRING_LENGTH) :: outputPrefix_, filename, str
     type(t_ReverseMigrator) :: reverseMigrator
-    integer :: i, timestep
+    integer :: i, timestep_
     logical :: verbose
+
+    assert(timestep >= nTimesteps)
 
     outputPrefix_ = PROJECT_NAME
     if (present(outputPrefix)) outputPrefix_ = outputPrefix
 
     call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                        &
          getOption("checkpointing_scheme", "uniform checkpointing"),                         &
-         startTimestep, startTimestep + nTimesteps,                                          &
+         timestep - nTimesteps, timestep,                                                    &
          saveInterval, saveInterval * 4)
 
-    timestep = startTimestep
     write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
     call saveRegionData(region, QOI_ADJOINT_STATE, filename)
 
     verbose = .false.
 
-    do timestep = startTimestep - 1, startTimestep - nTimesteps, -1
+    do timestep_ = timestep - 1, timestep - nTimesteps, -1
 
        if (present(reportInterval)) verbose = (reportInterval > 0 .and.                      &
-            mod(timestep, reportInterval) == 0)
+            mod(timestep_, reportInterval) == 0)
 
        do i = 4, 1, -1
           if (.not. region%simulationFlags%steadyStateSimulation) then
              if (i == 1) then
-                call migrateToSubstep(reverseMigrator, region, timestep, 4)
+                call migrateToSubstep(reverseMigrator, region,                               &
+                     integrator, timestep_, 4)
              else
-                call migrateToSubstep(reverseMigrator, region, timestep + 1, i - 1)
+                call migrateToSubstep(reverseMigrator, region,                               &
+                     integrator, timestep_ + 1, i - 1)
              end if
           end if
-          call substepAdjoint(integrator, region, time, timestep, i)
+          call substepAdjoint(integrator, region, time, timestep_, i)
        end do
 
        if (verbose) then
           if (region%simulationFlags%useConstantCfl) then
-             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,       &
+             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep_,      &
                   ", dt = ", region%states(1)%timeStepSize, ", time = ", time
           else
-             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep,       &
+             write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep_,      &
                   ", CFL = ", region%states(1)%cfl, ", time = ", time
           end if
           call writeAndFlush(region%comm, output_unit, str)
@@ -330,13 +337,13 @@ contains
        end if
 
        if (saveInterval > 0) then
-          if (mod(timestep, saveInterval) == 0) then
+          if (mod(timestep_, saveInterval) == 0) then
              do i = 1, size(region%states)
-                region%states(i)%plot3dAuxiliaryData(1) = real(timestep, wp)
+                region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
                 region%states(i)%plot3dAuxiliaryData(4) = time
              end do
              write(filename, '(2A,I8.8,A)')                                                  &
-                  trim(outputPrefix_), "-", timestep, ".adjoint.q"
+                  trim(outputPrefix_), "-", timestep_, ".adjoint.q"
              call saveRegionData(region, QOI_ADJOINT_STATE, filename)
           end if
        end if
@@ -344,6 +351,8 @@ contains
     end do
 
     call cleanupReverseMigrator(reverseMigrator)
+
+    timestep = timestep - nTimesteps
 
   end subroutine solveAdjoint
 

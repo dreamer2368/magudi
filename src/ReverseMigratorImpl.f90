@@ -29,20 +29,14 @@ subroutine setupReverseMigrator(this, region, outputPrefix, algorithm,          
   assert(numIntermediateStates >= 0)
   assert(mod(numIntermediateStates, this%nStages) == 0)
 
+  assert_key(algorithm, ( \
+  'uniform checkpointing' \
+  ))
+
   assert(allocated(region%states))
   assert(size(region%states) > 0)
 
-  assert_key(algorithm, ('uniform checkpointing'))
-
   call cleanupReverseMigrator(this)
-
-  allocate(this%temp_(size(region%states)))
-  do i = 1, size(this%temp_)
-     assert(region%grids(i)%nGridPoints > 0)
-     assert(region%states(i)%nUnknowns > 0)
-     allocate(this%temp_(i)%buffer(region%grids(i)%nGridPoints, &
-          region%states(i)%nUnknowns, numIntermediateStates))
-  end do
 
   this%outputPrefix = outputPrefix
 
@@ -54,6 +48,14 @@ subroutine setupReverseMigrator(this, region, outputPrefix, algorithm,          
   this%endTimestep = endTimestep
   this%saveInterval = saveInterval
   this%numIntermediateStates = numIntermediateStates
+
+  allocate(this%temp_(size(region%states)))
+  do i = 1, size(this%temp_)
+     assert(region%grids(i)%nGridPoints > 0)
+     assert(region%states(i)%nUnknowns > 0)
+     allocate(this%temp_(i)%buffer(region%grids(i)%nGridPoints, &
+          region%states(i)%nUnknowns, numIntermediateStates))
+  end do
 
 end subroutine setupReverseMigrator
 
@@ -77,6 +79,8 @@ subroutine cleanupReverseMigrator(this)
   end if
 
   SAFE_DEALLOCATE(this%temp_)
+
+  this%loadedTimestep = -1
 
 end subroutine cleanupReverseMigrator
 
@@ -113,35 +117,52 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
 
   case (UNIFORM_CHECKPOINTING)
 
-     if (stage == this%nStages .and. mod(timestep, this%saveInterval) == 0) then
+     if (this%loadedTimestep == -1 .or.                                                       &
+          timestep < this%loadedTimestep .or.                                                &
+          timestep > this%loadedTimestep + this%saveInterval .or.                            &
+          (timestep == this%loadedTimestep .and.                                             &
+          stage < this%nStages) .or.                                                         &
+          (timestep == this%loadedTimestep + this%saveInterval .and.                         &
+          stage == this%nStages)) then
 
-        write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
+        if (mod(timestep, this%saveInterval) == 0 .and. stage == this%nStages) then
+           timestep_ = timestep
+        else if (mod(timestep, this%saveInterval) == 0) then
+           timestep_ = timestep - this%saveInterval
+        else
+           timestep_ = timestep - mod(timestep, this%saveInterval)
+        end if
+
+        write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep_, ".q"
         call loadRegionData(region, QOI_FORWARD_STATE, filename)
         time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
+        this%loadedTimestep = timestep_
 
         i = 1
         do j = 1, size(region%states)
            this%temp_(j)%buffer(:,:,i) = region%states(j)%conservedVariables
         end do
 
-        if (timestep /= this%endTimestep) then
-           do timestep_ = timestep + 1, timestep + this%saveInterval
+        if (this%loadedTimestep /= this%endTimestep) then
+           do timestep_ = this%loadedTimestep + 1, this%loadedTimestep + this%saveInterval
               do stage_ = 1, this%nStages
-                 if (timestep_ == timestep + this%saveInterval .and.                         &
+                 if (timestep_ == this%loadedTimestep + this%saveInterval .and.              &
                       stage_ == this%nStages) exit
                  call substepForward(integrator, region, time, timestep_, stage_)
+                 i = i + 1
                  do j = 1, size(region%states)
                     this%temp_(j)%buffer(:,:,i) = region%states(j)%conservedVariables
                  end do
-                 i = i + 1
               end do
            end do
         end if
 
      end if
 
+     i = (timestep - 1 - this%loadedTimestep) * this%nStages + stage + 1
+     assert(i >= 1 .and. i <= this%numIntermediateStates)
      do j = 1, size(region%states)
-        region%states(j)%conservedVariables = this%temp_(j)%buffer(:,:,1)
+        region%states(j)%conservedVariables = this%temp_(j)%buffer(:,:,i)
      end do
 
   end select
