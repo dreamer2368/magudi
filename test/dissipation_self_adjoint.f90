@@ -4,6 +4,7 @@ program dissipation_self_adjoint
 
   use MPI
 
+  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
   use RandomNumber, only : initializeRandomNumberGenerator, random
 
   implicit none
@@ -29,6 +30,8 @@ program dissipation_self_adjoint
   call MPI_Init(ierror)
 
   success = .true.
+
+  call initializeErrorHandler()
 
   do i = 1, 10 !... test multiple times
      do direction = 1, 3
@@ -75,6 +78,8 @@ program dissipation_self_adjoint
 
      end do
   end do
+
+  call cleanupErrorHandler()
 
   call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierror)
   call MPI_Finalize(ierror)

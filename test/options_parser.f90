@@ -5,11 +5,12 @@ program options_parser
   use MPI
 
   use InputHelper
+  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
 
   implicit none
 
-  integer, parameter :: wp = SCALAR_KIND, fileUnit = 11
-  integer :: a, proc, ierror
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: fileUnit, a, proc, ierror
   real(wp) :: b
   logical :: success
 
@@ -17,10 +18,12 @@ program options_parser
 
   success = .true.
 
+  call initializeErrorHandler()
+
   call MPI_Comm_rank(MPI_COMM_WORLD, proc, ierror)
 
   if (proc == 0) then
-     open(unit = fileUnit, file = "/tmp/options.txt", action = 'write', status = 'unknown')
+     open(newunit = fileUnit, file = "/tmp/options.txt", action = 'write', status = 'unknown')
      write(fileUnit, '(A)') "a = 41"
      write(fileUnit, '(A)') "c = -9789"
      write(fileUnit, '(A)') "b1 = 2.0"
@@ -42,6 +45,8 @@ program options_parser
   success = success .and. (abs(b - 2.0_wp) <= 0.0_wp)
   success = success .and. (abs(getOption("b1", -1.0_wp) - 2.0_wp) <= 0.0_wp)
   success = success .and. (abs(getOption("b2", 2.5_wp) - 2.5_wp) <= 0.0_wp)
+
+  call cleanupErrorHandler()
 
   call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierror)
   call MPI_Finalize(ierror)

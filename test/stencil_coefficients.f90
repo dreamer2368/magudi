@@ -4,6 +4,7 @@ program stencil_coefficients
 
   use StencilOperator_type, only : t_StencilOperator
 
+  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
   use StencilOperator_mod, only : setupOperator
 
   implicit none
@@ -36,6 +37,8 @@ program stencil_coefficients
   end interface
 
   success = .true.
+
+  call initializeErrorHandler()
 
   call setupOperator(A, "SBP 1-2 first derivative", success_)
   success = success .and. success_
@@ -82,6 +85,8 @@ program stencil_coefficients
        tolerance = epsilon(0.0_wp) * 20.0_wp)
 
   call cleanupOperator(A)
+
+  call cleanupErrorHandler()
 
   if (.not. success) stop -1
   stop 0

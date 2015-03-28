@@ -6,6 +6,7 @@ program operator_convergence
 
   use StencilOperator_type, only : t_StencilOperator
 
+  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
   use StencilOperator_mod, only : setupOperator, cleanupOperator
 
   implicit none
@@ -84,6 +85,8 @@ program operator_convergence
 
   success = .true.
 
+  call initializeErrorHandler()
+
   call setupOperator(A, "SBP 1-2 first derivative", success_)
   success = success .and. success_
   if (success_) then
@@ -139,6 +142,8 @@ program operator_convergence
 
   call cleanupOperator(A)
 
+  call cleanupErrorHandler()
+  
   call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL,                                  &
        MPI_LAND, MPI_COMM_WORLD, ierror)
   call MPI_Finalize(ierror)

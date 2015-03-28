@@ -3,6 +3,7 @@
 program inviscid_flux_jacobian
 
   use CNSHelper
+  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
   use RandomNumber, only : initializeRandomNumberGenerator, random
 
   implicit none
@@ -33,6 +34,7 @@ program inviscid_flux_jacobian
 
   success = .true.
 
+  call initializeErrorHandler()
   call initializeRandomNumberGenerator()
 
   do nDimensions = 1, 3
@@ -189,6 +191,8 @@ program inviscid_flux_jacobian
      if (.not. success) exit
 
   end do
+
+  call cleanupErrorHandler()
 
   if (.not. success) stop -1
   stop 0

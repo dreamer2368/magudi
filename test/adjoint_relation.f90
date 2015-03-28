@@ -4,6 +4,7 @@ program adjoint_relation
 
   use MPI
 
+  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
   use RandomNumber, only : initializeRandomNumberGenerator, random
 
   implicit none
@@ -29,6 +30,8 @@ program adjoint_relation
   call MPI_Init(ierror)
 
   success = .true.
+
+  call initializeErrorHandler()
 
   do i = 1, 10 !... test multiple times
      do direction = 1, 3
@@ -76,6 +79,8 @@ program adjoint_relation
      end do
   end do
 
+  call cleanupErrorHandler()
+
   call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierror)
   call MPI_Finalize(ierror)
   if (.not. success) stop -1
@@ -109,7 +114,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
   logical :: isPeriodic_(3), success_
   real(wp) :: tolerance_
   integer :: n, offset, nLocal, gridSize(3), cartesianCommunicator,                          &
-       numProcesses(3), proc, nProcs, ierror
+       numProcesses(3), procRank, nProcs, ierror
   type(t_StencilOperator) :: A, adjointOfA
   real(wp), allocatable :: f(:,:), g(:,:)
   SCALAR_TYPE, allocatable :: u(:,:), v(:,:), norm(:,:)
@@ -133,6 +138,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
 
   ! Find the number of processes in the communicator.
   call MPI_Comm_size(MPI_COMM_WORLD, nProcs, ierror)
+  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
   allocate(mpiReduceBuffer(nProcs))
 #endif
@@ -160,7 +166,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
 
   ! Determine the offset and number of points that will be distributed to the current
   ! process.
-  call pigeonhole(n, nProcs, proc, offset, nLocal)
+  call pigeonhole(n, nProcs, procRank, offset, nLocal)
   gridSize = 1; gridSize(direction) = nLocal
 
   ! Allocate process-level data.
