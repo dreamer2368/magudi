@@ -184,7 +184,7 @@ subroutine substepAdjoint(this, region, time, timestep, stage)
      do i = 1, size(region%states)
         this%temp_(i)%buffer1 = region%states(i)%adjointVariables
      end do
-     
+
      region%states(:)%adjointForcingFactor = 1.0_wp
      call computeRhs(region, ADJOINT, time)
      timeStepSize = region%states(1)%timeStepSize

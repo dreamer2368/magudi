@@ -29,6 +29,7 @@ program main
   type(t_Region) :: region
   type(t_RK4Integrator) :: integrator
   real(wp) :: time
+  SCALAR_TYPE :: costFunctional
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -99,6 +100,8 @@ program main
 
   ! Initialize the solver.
   call initializeSolver(region)
+  time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
+  timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
 
   ! Time advancement options.
   nTimesteps = getOption("number_of_timesteps", 1000)
@@ -106,24 +109,20 @@ program main
   saveInterval = getOption("save_interval", 1000)
 
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
-     time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
-     timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
      call solveForward(region, integrator, time, timestep, nTimesteps,                       &
           saveInterval, reportInterval, outputPrefix)
   else
 
      ! Baseline forward.
      if (.not. region%simulationFlags%isBaselineAvailable) then
-        time = 0.0_wp
-        timestep = 0
         call solveForward(region, integrator, time, timestep, nTimesteps,                    &
-             saveInterval, reportInterval, outputPrefix)
+             saveInterval, reportInterval, outputPrefix, costFunctional)
      else
+        timestep = timestep + nTimesteps
         write(filename, '(2A,I8.8,A)')                                                       &
-             trim(outputPrefix), "-", nTimesteps, ".q"
+             trim(outputPrefix), "-", timestep, ".q"
         call loadRegionData(region, QOI_FORWARD_STATE, filename)
         time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
-        timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
      end if
 
      ! Baseline adjoint.

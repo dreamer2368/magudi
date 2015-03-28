@@ -19,9 +19,9 @@ module Solver
   end interface
 
   interface
-     
+
      subroutine solveForward(region, integrator, time, timestep, nTimesteps,                 &
-          saveInterval, reportInterval, outputPrefix)
+          saveInterval, reportInterval, outputPrefix, costFunctional)
 
        use State_type, only : t_State
        use Region_type, only : t_Region
@@ -34,13 +34,14 @@ module Solver
        integer, intent(in) :: nTimesteps
        integer, intent(in), optional :: saveInterval, reportInterval
        character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
+       SCALAR_TYPE, intent(out), optional :: costFunctional
 
      end subroutine solveForward
 
   end interface
 
   interface
-     
+
      subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,                 &
           saveInterval, reportInterval, outputPrefix)
 

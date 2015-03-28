@@ -18,12 +18,12 @@ contains
 
     costFunctionalType = -1
 
-    if (trim(costFunctionalTypeString) == "SOUND") then
-       costFunctionalType = SOUND_FUNCTIONAL
-    else if (trim(costFunctionalTypeString) == "LIFT") then
-       costFunctionalType = LIFT_FUNCTIONAL
-    else if (trim(costFunctionalTypeString) == "DRAG") then
-       costFunctionalType = DRAG_FUNCTIONAL
+    if (trim(costFunctionalTypeString) == "sound") then
+       costFunctionalType = SOUND
+    else if (trim(costFunctionalTypeString) == "lift") then
+       costFunctionalType = LIFT
+    else if (trim(costFunctionalTypeString) == "drag") then
+       costFunctionalType = DRAG
     end if
 
   end subroutine parseCostFunctionalType

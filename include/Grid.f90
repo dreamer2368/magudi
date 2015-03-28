@@ -148,9 +148,22 @@ module Grid_mod
 
   end interface
 
-  interface
+  interface computeInnerProduct
 
-     function computeInnerProduct(this, f, g, weight) result(innerProduct)
+     function computeScalarInnerProduct_(this, f, g, weight) result(innerProduct)
+
+       use Grid_type, only : t_Grid
+
+       type(t_Grid) :: this
+       SCALAR_TYPE, intent(in) :: f(:), g(:)
+
+       SCALAR_TYPE, intent(in), optional :: weight(:)
+
+       SCALAR_TYPE :: innerProduct
+
+     end function computeScalarInnerProduct_
+
+     function computeVectorInnerProduct_(this, f, g, weight) result(innerProduct)
 
        use Grid_type, only : t_Grid
 
@@ -161,9 +174,9 @@ module Grid_mod
 
        SCALAR_TYPE :: innerProduct
 
-     end function computeInnerProduct
+     end function computeVectorInnerProduct_
 
-  end interface
+  end interface computeInnerProduct
 
   interface computeGradient
 
@@ -270,5 +283,26 @@ module Grid_mod
      end subroutine computeSpongeStrengths
 
   end interface
+
+  interface
+
+     function computeQuadratureOnPatches(this, f, patches, patchType)                        &
+          result(quadratureOnPatches)
+
+       use Grid_type, only : t_Grid
+       use Patch_type, only : t_Patch
+
+       type(t_Grid) :: this
+       SCALAR_TYPE, intent(in) :: f(:)
+       type(t_Patch), intent(in), allocatable :: patches(:)
+       integer, intent(in) :: patchType
+
+       SCALAR_TYPE :: quadratureOnPatches
+
+     end function computeQuadratureOnPatches
+
+  end interface
+
+  private :: computeScalarInnerProduct_, computeVectorInnerProduct_
 
 end module Grid_mod

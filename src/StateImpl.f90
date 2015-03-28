@@ -11,7 +11,7 @@ contains
 
     ! <<< Derived types >>>
     use State_type, only : t_State
-    use SolverOptions_type, only : t_SolverOptions, SOUND_FUNCTIONAL
+    use SolverOptions_type, only : t_SolverOptions, SOUND
     use SimulationFlags_type, only : t_SimulationFlags
 
     ! <<< Arguments >>>
@@ -49,7 +49,7 @@ contains
     if (.not. simulationFlags%predictionOnly) then
        allocate(this%adjointVariables(nGridPoints, this%nUnknowns))
        select case (solverOptions%costFunctionalType)
-       case (SOUND_FUNCTIONAL)
+       case (SOUND)
           allocate(this%meanPressure(nGridPoints, 1))
        end select
     end if
@@ -538,6 +538,7 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   call startTiming("computeRhsForward")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+  assert_key(nDimensions, (1, 2, 3))
 
   allocate(fluxes1(grid%nGridPoints, this%nUnknowns, nDimensions))
   allocate(fluxes2(grid%nGridPoints, this%nUnknowns, nDimensions))
@@ -1082,7 +1083,7 @@ subroutine addAdjointForcing(this, grid, patch, solverOptions)
 
   implicit none
 
-  ! <<< Arguments >>>  
+  ! <<< Arguments >>>
   type(t_State) :: this
   type(t_Grid) :: grid
   type(t_Patch) :: patch
@@ -1095,6 +1096,11 @@ subroutine addAdjointForcing(this, grid, patch, solverOptions)
 
   assert(patch%patchType == CONTROL_TARGET)
   assert(patch%gridIndex == grid%index)
+
+  assert_key(solverOptions%costFunctionalType, ( \
+  SOUND, \
+  LIFT,  \
+  DRAG))
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
   assert_key(nDimensions, (1, 2, 3))
@@ -1112,7 +1118,7 @@ subroutine addAdjointForcing(this, grid, patch, solverOptions)
 
            select case (solverOptions%costFunctionalType)
 
-           case (SOUND_FUNCTIONAL)
+           case (SOUND)
               temp = - 2.0_wp * (solverOptions%ratioOfSpecificHeats - 1.0_wp) *              &
                    this%adjointForcingFactor * grid%targetMollifier(gridIndex, 1) *          &
                    (this%pressure(gridIndex, 1) - this%meanPressure(gridIndex, 1))
@@ -1123,7 +1129,7 @@ subroutine addAdjointForcing(this, grid, patch, solverOptions)
                    this%velocity(gridIndex,:) * temp
               this%rightHandSide(gridIndex,nDimensions+2) =                                  &
                    this%rightHandSide(gridIndex,nDimensions+2) + temp
-                   
+
            end select !... solverOptions%costFunctionalType
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)

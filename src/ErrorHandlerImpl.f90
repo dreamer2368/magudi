@@ -34,7 +34,7 @@ subroutine initializeErrorHandler()
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
 
   if (procRank == 0) then
-     call MPI_Win_create(mpiWindowBase, int(4, MPI_ADDRESS_KIND), 4, MPI_INFO_NULL,          &                          
+     call MPI_Win_create(mpiWindowBase, int(4, MPI_ADDRESS_KIND), 4, MPI_INFO_NULL,          &
           MPI_COMM_WORLD, mpiWindow, ierror)
   else
      call MPI_Win_create(0, int(0, MPI_ADDRESS_KIND), 1, MPI_INFO_NULL,                      &

@@ -34,7 +34,7 @@ program jet
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
   if (command_argument_count() == 1) then
      call get_command_argument(1, filename)
-  else     
+  else
      call getRequiredOption("grid_file", filename)
   end if
   call plot3dDetectFormat(MPI_COMM_WORLD, filename,                                          &
@@ -164,7 +164,7 @@ contains
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)
 
     end do
-    
+
   end subroutine jetInitialCondition
 
 end program jet

@@ -26,7 +26,7 @@ module Region_type
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)
-     integer :: comm = MPI_COMM_NULL
+     integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL
      integer, allocatable :: globalGridSizes(:,:), processDistributions(:,:),                &
           gridCommunicators(:), patchCommunicators(:)
 

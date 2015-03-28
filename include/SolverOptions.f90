@@ -6,9 +6,9 @@ module SolverOptions_type
   private
 
   integer, parameter, public ::                                                              &
-       SOUND_FUNCTIONAL = 1,                                                                 &
-       LIFT_FUNCTIONAL  = 2,                                                                 &
-       DRAG_FUNCTIONAL  = 3
+       SOUND = 1,                                                                            &
+       LIFT  = 2,                                                                            &
+       DRAG  = 3
 
   type, public :: t_SolverOptions
 

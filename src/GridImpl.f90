@@ -924,6 +924,8 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
 
   hasNegativeJacobian_ = .not. isVariableWithinRange(this, this%jacobian(:,1), &
        jacobianOutsideRange, i, j, k, minValue = 0.0_wp)
+  call MPI_Allreduce(MPI_IN_PLACE, hasNegativeJacobian_, 1,                                  &
+       MPI_LOGICAL, MPI_LOR, this%comm, ierror)
   if (hasNegativeJacobian_) then
      write(message, '(A,4(I0.0,A),3(ES11.4,A))') "Jacobian on grid ", this%index, " at (",   &
           i, ", ", j, ", ", k, "): ", jacobianOutsideRange, " is non-positive!"
@@ -954,7 +956,58 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
 
 end subroutine updateGrid
 
-function computeInnerProduct(this, f, g, weight) result(innerProduct)
+function computeScalarInnerProduct_(this, f, g, weight) result(innerProduct)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Grid_type, only : t_Grid
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Grid) :: this
+  SCALAR_TYPE, intent(in) :: f(:), g(:)
+  SCALAR_TYPE, intent(in), optional :: weight(:)
+
+  ! <<< Result >>>
+  SCALAR_TYPE :: innerProduct
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: ierror
+
+  assert(this%nGridPoints > 0)
+  assert(size(f) == this%nGridPoints)
+  assert(size(g) == this%nGridPoints)
+#ifdef DEBUG
+  if (present(weight)) assert(size(weight) == this%nGridPoints)
+#endif
+  assert(allocated(this%norm))
+  assert(size(this%norm) == this%nGridPoints)
+
+  innerProduct = 0.0_wp
+
+  if (present(weight)) then
+     innerProduct = innerProduct + sum(f * this%norm(:,1) * g * weight)
+  else
+     innerProduct = innerProduct + sum(f * this%norm(:,1) * g)
+  end if
+
+#ifdef SCALAR_TYPE_IS_binary128_IEEE754
+  assert(allocated(this%mpiReduceBuffer))
+  call MPI_Allgather(innerProduct, 1, SCALAR_TYPE_MPI, this%mpiReduceBuffer,                 &
+       1, SCALAR_TYPE_MPI, this%comm, ierror)
+  innerProduct = sum(this%mpiReduceBuffer)
+#else
+  call MPI_Allreduce(MPI_IN_PLACE, innerProduct, 1, SCALAR_TYPE_MPI,                         &
+       MPI_SUM, this%comm, ierror)
+#endif
+
+end function computeScalarInnerProduct_
+
+function computeVectorInnerProduct_(this, f, g, weight) result(innerProduct)
 
   ! <<< External modules >>>
   use MPI
@@ -976,11 +1029,12 @@ function computeInnerProduct(this, f, g, weight) result(innerProduct)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, ierror
 
-  assert(all(shape(f) > 0))
-  assert(all(shape(g) == shape(f)))
+  assert(this%nGridPoints > 0)
   assert(size(f, 1) == this%nGridPoints)
+  assert(size(g, 1) == this%nGridPoints)
+  assert(size(g, 2) == size(f, 2))
 #ifdef DEBUG
-  if (present(weight)) assert(size(weight) == size(f, 1))
+  if (present(weight)) assert(size(weight) == this%nGridPoints)
 #endif
   assert(allocated(this%norm))
   assert(size(this%norm) == this%nGridPoints)
@@ -1005,7 +1059,7 @@ function computeInnerProduct(this, f, g, weight) result(innerProduct)
        MPI_SUM, this%comm, ierror)
 #endif
 
-end function computeInnerProduct
+end function computeVectorInnerProduct_
 
 subroutine computeGradientOfScalar_(this, f, gradF)
 
@@ -1281,13 +1335,8 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
      call MPI_Allgather(minIndex, 3, MPI_INTEGER, minIndices, 3, MPI_INTEGER,                &
           this%comm, ierror)
   end if
-#ifdef SCALAR_IS_COMPLEX
   call MPI_Allgather(minValue, 1, REAL_TYPE_MPI, minValues,                                  &
        1, REAL_TYPE_MPI, this%comm, ierror)
-#else
-  call MPI_Allgather(minValue, 1, SCALAR_TYPE_MPI, minValues,                                &
-       1, SCALAR_TYPE_MPI, this%comm, ierror)
-#endif
 
 #ifdef SCALAR_IS_COMPLEX
   i = minloc(real(minValues, wp), 1)
@@ -1364,13 +1413,8 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
      call MPI_Allgather(maxIndex, 3, MPI_INTEGER, maxIndices, 3, MPI_INTEGER,                &
           this%comm, ierror)
   end if
-#ifdef SCALAR_IS_COMPLEX
   call MPI_Allgather(maxValue, 1, REAL_TYPE_MPI, maxValues,                                  &
        1, REAL_TYPE_MPI, this%comm, ierror)
-#else
-  call MPI_Allgather(maxValue, 1, SCALAR_TYPE_MPI, maxValues,                                &
-       1, SCALAR_TYPE_MPI, this%comm, ierror)
-#endif
 
 #ifdef SCALAR_IS_COMPLEX
   i = maxloc(real(maxValues, wp), 1)
@@ -1644,3 +1688,76 @@ subroutine computeSpongeStrengths(this, patches)
   end do
 
 end subroutine computeSpongeStrengths
+
+function computeQuadratureOnPatches(this, f, patches, patchType) result(quadratureOnPatches)
+
+  ! <<< Derived types >>>
+  use Grid_type, only : t_Grid
+  use Patch_type, only : t_Patch
+  use PatchDescriptor_type
+
+  ! <<< Public members >>>
+  use Grid_mod, only : computeInnerProduct
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Grid) :: this
+  SCALAR_TYPE, intent(in) :: f(:)
+  type(t_Patch), intent(in), allocatable :: patches(:)
+  integer, intent(in) :: patchType
+
+  ! <<< Result >>>
+  SCALAR_TYPE :: quadratureOnPatches
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, l
+  SCALAR_TYPE, allocatable :: g(:)
+
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
+  assert(all(this%offset >= 0))
+
+  assert(size(f) == this%nGridPoints)
+
+  assert(allocated(this%iblank))
+  assert(size(this%iblank) == this%nGridPoints)
+
+  assert_key(patchType, ( \
+  SPONGE,         \
+  ACTUATOR,       \
+  CONTROL_TARGET, \
+  SOLENOIDAL_EXCITATION))
+
+  allocate(g(this%nGridPoints))
+  g = 0.0_wp
+
+  if (allocated(patches)) then
+     do l = 1, size(patches)
+        if (patches(l)%patchType /= patchType .or. patches(l)%gridIndex /= this%index) cycle
+
+        assert(all(patches(l)%gridLocalSize == this%localSize))
+        assert(all(patches(l)%gridOffset == this%offset))
+
+        do k = patches(l)%offset(3) + 1, patches(l)%offset(3) + patches(l)%patchSize(3)
+           do j = patches(l)%offset(2) + 1, patches(l)%offset(2) + patches(l)%patchSize(2)
+              do i = patches(l)%offset(1) + 1, patches(l)%offset(1) + patches(l)%patchSize(1)
+                 g(i - this%offset(1) + this%localSize(1) * (j - 1 - this%offset(2) +        &
+                      this%localSize(2) * (k - 1 - this%offset(3)))) = 1.0_wp
+              end do
+           end do
+        end do
+
+     end do !... l = 1, size(patches)
+  end if !... allocated(patches)
+
+  where (this%iblank == 0)
+     g = 0.0_wp
+  end where
+
+  quadratureOnPatches = computeInnerProduct(this, f, g)
+
+  SAFE_DEALLOCATE(g)
+
+end function computeQuadratureOnPatches

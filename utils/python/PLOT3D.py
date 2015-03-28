@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import numpy
+import numpy as np
 import struct
 try:
     from progressbar import ProgressBar
@@ -10,12 +10,13 @@ class MultiBlockObject(object):
 
     def __init__(self):
         self._endianness = '='
-        self._scalarType = 'd'
-        self._offsetType = 'i'
+        self._integerType = np.dtype(np.int32)
+        self._scalarType = np.dtype(np.float64)
+        self._offsetType = np.dtype(np.int32)
         self._nGrids = 0
         self._size = []
-        self._offsetBytes = 4
-        self._scalarBytes = 8
+        self._integerTypeStr = '=i'
+        self._offsetTypeStr = '=i'
 
     @property
     def endianness(self):
@@ -27,6 +28,11 @@ class MultiBlockObject(object):
         if value not in allowed_values:
             raise ValueError("'%s' is not a valid endianness indicator (allowed values are: %s)" % (value, ", ".join(map(str, allowed_values))))
         self._endianness = value
+        self._integerType = self._integerType.newbyteorder(self._endianness)
+        self._scalarType = self._scalarType.newbyteorder(self._endianness)
+        self._offsetType = self._offsetType.newbyteorder(self._endianness)
+        self._integerTypeStr = self._endianness + self._integerTypeStr[1:]
+        self._offsetTypeStr = self._endianness + self._offsetTypeStr[1:]
 
     @property
     def scalarType(self):
@@ -34,14 +40,37 @@ class MultiBlockObject(object):
 
     @scalarType.setter
     def scalarType(self, value):
-        allowed_values = ['d', 'f']
+        allowed_values = np.sctypes['float'] + np.sctypes['complex']
         if value not in allowed_values:
             raise ValueError("'%s' is not a valid format string for a scalar type (allowed values are: %s)" % (value, ", ".join(map(str, allowed_values))))
-        self._scalarType = value
-        if value == 'd':
-            self._scalarBytes = 8
-        if value == 'f':
-            self._scalarBytes = 4
+        self._scalarType = np.dtype(value).newbyteorder(self._endianness)
+
+    @property
+    def integerType(self):
+        return self._integerType
+
+    @integerType.setter
+    def integerType(self, value):
+        allowed_values = np.sctypes['int'] + np.sctypes['uint']
+        if value not in allowed_values:
+            raise ValueError("'%s' is not a valid format string for a integer type (allowed values are: %s)" % (value, ", ".join(map(str, allowed_values))))
+        self._integerType = np.dtype(value).newbyteorder(self._endianness)
+        if value == np.uint8:
+            self._integerTypeStr = self._endianness + 'B'
+        elif value == np.uint16:
+            self._integerTypeStr = self._endianness + 'H'
+        elif value == np.uint32:
+            self._integerTypeStr = self._endianness + 'I'
+        elif value == np.uint64:
+            self._integerTypeStr = self._endianness + 'Q'
+        elif value == np.int8:
+            self._integerTypeStr = self._endianness + 'b'
+        elif value == np.int16:
+            self._integerTypeStr = self._endianness + 'h'
+        elif value == np.int32:
+            self._integerTypeStr = self._endianness + 'i'
+        elif value == np.int64:
+            self._integerTypeStr = self._endianness + 'q'
 
     @property
     def offsetType(self):
@@ -49,22 +78,34 @@ class MultiBlockObject(object):
 
     @offsetType.setter
     def offsetType(self, value):
-        allowed_values = ['i', 'q']
+        allowed_values = np.sctypes['uint']
         if value not in allowed_values:
             raise ValueError("'%s' is not a valid format string for an offset type (allowed values are: %s)" % (value, ", ".join(map(str, allowed_values))))
-        self._offsetType = value
-        if value == 'i':
-            self._offsetBytes = 4
-        if value == 'q':
-            self._offsetBytes = 8
+        self._offsetType = np.dtype(value).newbyteorder(self._endianness)
+        if value == np.uint8:
+            self._offsetTypeStr = self._endianness + 'B'
+        elif value == np.uint16:
+            self._offsetTypeStr = self._endianness + 'H'
+        elif value == np.uint32:
+            self._offsetTypeStr = self._endianness + 'I'
+        elif value == np.uint64:
+            self._offsetTypeStr = self._endianness + 'Q'
+        elif value == np.int8:
+            self._offsetTypeStr = self._endianness + 'b'
+        elif value == np.int16:
+            self._offsetTypeStr = self._endianness + 'h'
+        elif value == np.int32:
+            self._offsetTypeStr = self._endianness + 'i'
+        elif value == np.int64:
+            self._offsetTypeStr = self._endianness + 'q'
 
     @property
-    def scalarBytes(self):
-        return self._scalarBytes
+    def offsetTypeStr(self):
+        return self._offsetTypeStr
 
     @property
-    def offsetBytes(self):
-        return self._offsetBytes                
+    def integerTypeStr(self):
+        return self._integerTypeStr
 
     @property
     def nGrids(self):
@@ -108,13 +149,16 @@ class MultiBlockObject(object):
     def GetNumberOfPoints(self):
         number_of_points = 0
         for iGrid in range(0, self._nGrids):
-            number_of_points = number_of_points + numpy.product(self._size[iGrid])
+            number_of_points = number_of_points + np.product(self._size[iGrid])
         return number_of_points
 
     def CopyFrom(self, obj):
-        self.endianness = obj.endianness
-        self.scalarType = obj.scalarType
-        self.offsetType = obj.offsetType
+        self._endianness = obj.endianness
+        self._integerType = obj.integerType
+        self._scalarType = obj.scalarType
+        self._offsetType = obj.offsetType
+        self._integerTypeStr = obj.integerTypeStr
+        self._offsetTypeStr = obj.offsetTypeStr
         if obj.nGrids > 0:
             self.nGrids = obj.nGrids
             for iGrid in range(0, self._nGrids):
@@ -153,43 +197,47 @@ class Grid(MultiBlockObject):
             self._IBLANK = [ None for iGrid in range(0, self.nGrids) ]
         else:
             grid_size = self.GetSize(grid_index)
-            self._X[grid_index] = numpy.zeros(grid_size + [3], dtype = self.endianness + self.scalarType)
-            self._IBLANK[grid_index] = numpy.ones(grid_size, dtype = self.endianness + 'i')
+            self._X[grid_index] = np.zeros(grid_size + [3], dtype = self.scalarType)
+            self._IBLANK[grid_index] = np.ones(grid_size, dtype = self.integerType)
         return None
 
     def Export(self, filename):
         f = open(filename, "wb")
-        record_size = 4
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
-        f.write(struct.pack(self.endianness + 'i', self.nGrids))
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
-        record_size = 12 * self.nGrids
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
+        record_size = self.integerType.itemsize
+        f.write(struct.pack(self.offsetTypeStr, record_size))
+        f.write(struct.pack(self.integerTypeStr, self.nGrids))
+        f.write(struct.pack(self.offsetTypeStr, record_size))
+        record_size = 3 * self.nGrids * self.integerType.itemsize
+        f.write(struct.pack(self.offsetTypeStr, record_size))
         for iGrid in range(0, self.nGrids):
-            f.write(struct.pack(self.endianness + '3i', *self.GetSize(iGrid)))
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            gridSize = np.array(self.GetSize(iGrid), dtype = self.integerType)
+            f.write(gridSize.tostring())
+        f.write(struct.pack(self.offsetTypeStr, record_size))
         for iGrid in range(0, self.nGrids):
-            record_size = (4 + 3 * self.scalarBytes) * numpy.product(self.GetSize(iGrid))
-            f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            record_size = (self.integerType.itemsize + 3 * self.scalarType.itemsize) * np.product(self.GetSize(iGrid))
+            f.write(struct.pack(self.offsetTypeStr, record_size))
             f.write(self._X[iGrid].tostring(order = 'F'))
             f.write(self._IBLANK[iGrid].tostring(order = 'F'))
-            f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            f.write(struct.pack(self.offsetTypeStr, record_size))
         f.close()
         return None
 
     def Import(self, filename):
         f = open(filename, "rb")
-        self.nGrids, = struct.unpack(self.endianness + 'i', f.read(2 * self.offsetBytes + 4)[self.offsetBytes:-self.offsetBytes])
-        f.seek(self.offsetBytes, 1)
+        f.seek(self.offsetType.itemsize)
+        self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
+        f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(0, self.nGrids):
-            self.SetSize(iGrid, struct.unpack(self.endianness + '3i', f.read(12)))
-        f.seek(self.offsetBytes, 1)
+            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
+        f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(0, self.nGrids):
-            f.seek(self.offsetBytes, 1)
-            self._X[iGrid][:,:,:,:] = numpy.reshape(struct.unpack(self.endianness + str(3 * numpy.product(self.GetSize(iGrid))) + self.scalarType, f.read(3 * self.scalarBytes * numpy.product(self.GetSize(iGrid)))), self.GetSize(iGrid) + [3], order = 'F')
+            f.seek(self.offsetType.itemsize, 1)
+            dtype = 3 * np.product(self.GetSize(iGrid)) * self.scalarType
+            self._X[iGrid][:,:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [3], order = 'F')
             if self._hasIBLANK is True:
-                self._IBLANK[iGrid][:,:,:] = numpy.reshape(struct.unpack(self.endianness + str(numpy.product(self.GetSize(iGrid))) + 'i', f.read(4 * numpy.product(self.GetSize(iGrid)))), self.GetSize(iGrid), order = 'F')
-            f.seek(self.offsetBytes, 1)
+                dtype = np.product(self.GetSize(iGrid)) * self.integerType
+                self._IBLANK[iGrid][:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid), order = 'F')
+            f.seek(self.offsetType.itemsize, 1)
         f.close()
         return None
 
@@ -201,9 +249,9 @@ class Grid(MultiBlockObject):
             self.SetSize(iGrid, struct.unpack(self.endianness + '3i', f.read(12)), allocate = False)
         f.seek(self.offsetBytes, 1)
         for iGrid in range(0, self.nGrids):
-            f.seek(2 * self.offsetBytes + 3 * self.scalarBytes * numpy.product(self.GetSize(iGrid)), 1)
+            f.seek(2 * self.offsetBytes + 3 * self.scalarBytes * np.product(self.GetSize(iGrid)), 1)
             if self._hasIBLANK is True:
-                f.seek(4 * numpy.product(self.GetSize(iGrid)), 1)
+                f.seek(4 * np.product(self.GetSize(iGrid)), 1)
         f.close()
         return None
 
@@ -231,9 +279,9 @@ class Grid(MultiBlockObject):
         for iGrid in range(0, number_of_grids):
             f.seek(self.offsetBytes, 1)
             if iGrid != grid_index:
-                f.seek(3 * self.scalarBytes * numpy.product(grid_size[iGrid]), 1)
+                f.seek(3 * self.scalarBytes * np.product(grid_size[iGrid]), 1)
                 if self._hasIBLANK is True:
-                    f.seek(4 * numpy.product(grid_size[iGrid]), 1)
+                    f.seek(4 * np.product(grid_size[iGrid]), 1)
             else:
                 
                 if show_progress is True:
@@ -247,7 +295,7 @@ class Grid(MultiBlockObject):
                             if show_progress is True:
                                 pbar.update(j - start_indices[1] + 1 + (end_indices[1] - start_indices[1] + 1) * (k - start_indices[2] + (end_indices[2] - start_indices[2] + 1) * idim))
                             f.seek(self.scalarBytes * start_indices[0], 1)
-                            self._X[0][:, j - start_indices[1], k - start_indices[2], idim] = numpy.array(struct.unpack(self.endianness + str((end_indices[0] - start_indices[0] + 1)) + self.scalarType, f.read(self.scalarBytes * (end_indices[0] - start_indices[0] + 1))), dtype = self.endianness + self.scalarType)
+                            self._X[0][:, j - start_indices[1], k - start_indices[2], idim] = np.array(struct.unpack(self.endianness + str((end_indices[0] - start_indices[0] + 1)) + self.scalarType, f.read(self.scalarBytes * (end_indices[0] - start_indices[0] + 1))), dtype = self.scalarType.newbyteorder(self.endianness))
                             f.seek(self.scalarBytes * (grid_size[iGrid][0] - (end_indices[0] + 1)), 1)
                         f.seek(self.scalarBytes * grid_size[iGrid][0] * (grid_size[iGrid][1] - (end_indices[1] + 1)), 1)
                     f.seek(self.scalarBytes * grid_size[iGrid][0] * grid_size[iGrid][1] * (grid_size[iGrid][2] - (end_indices[2] + 1)), 1)
@@ -265,7 +313,7 @@ class Grid(MultiBlockObject):
                             if show_progress is True:
                                 pbar.update(j - start_indices[1] + 1 + (end_indices[1] - start_indices[1] + 1) * (k - start_indices[2]))
                             f.seek(4 * start_indices[0], 1)
-                            self._IBLANK[0][:, j - start_indices[1], k - start_indices[2]] = numpy.array(struct.unpack(self.endianness + str((end_indices[0] - start_indices[0] + 1)) + 'i', f.read(4 * (end_indices[0] - start_indices[0] + 1))), dtype = self.endianness + 'i')
+                            self._IBLANK[0][:, j - start_indices[1], k - start_indices[2]] = np.array(struct.unpack(self.endianness + str((end_indices[0] - start_indices[0] + 1)) + 'i', f.read(4 * (end_indices[0] - start_indices[0] + 1))), dtype = np.int32.newbyteorder(self.endianness))
                             f.seek(4 * (grid_size[iGrid][0] - (end_indices[0] + 1)), 1)
                         f.seek(4 * grid_size[iGrid][0] * (grid_size[iGrid][1] - (end_indices[1] + 1)), 1)
                     f.seek(4 * grid_size[iGrid][0] * grid_size[iGrid][1] * (grid_size[iGrid][2] - (end_indices[2] + 1)), 1)
@@ -292,45 +340,48 @@ class Solution(MultiBlockObject):
             self._Q = [ None for iGrid in range(0, self.nGrids) ]
         else:
             grid_size = self.GetSize(grid_index)
-            self._Q[grid_index] = numpy.zeros(grid_size + [5], dtype = self.endianness + self.scalarType)
+            self._Q[grid_index] = np.zeros(grid_size + [5], dtype = self.scalarType)
         return None
 
     def Export(self, filename, Q_header = None):
         f = open(filename, "wb")
-        record_size = 4
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
-        f.write(struct.pack(self.endianness + 'i', self.nGrids))
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
-        record_size = 12 * self.nGrids
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
+        record_size = self.integerType.itemsize
+        f.write(struct.pack(self.offsetTypeStr, record_size))
+        f.write(struct.pack(self.integerTypeStr, self.nGrids))
+        f.write(struct.pack(self.offsetTypeStr, record_size))
+        record_size = 3 * self.nGrids * self.integerType.itemsize
+        f.write(struct.pack(self.offsetTypeStr, record_size))
         for iGrid in range(0, self.nGrids):
-            f.write(struct.pack(self.endianness + '3i', *self.GetSize(iGrid)))
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            gridSize = np.array(self.GetSize(iGrid), dtype = self.integerType)
+            f.write(gridSize.tostring())
+        f.write(struct.pack(self.offsetTypeStr, record_size))
         if Q_header is None:
-            Q_header = numpy.zeros(4, dtype = self.endianness + self.scalarType)        
+            Q_header = np.zeros(4, dtype = self.scalarType)
         for iGrid in range(0, self.nGrids):
-            record_size = 4 * self.scalarBytes
-            f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            record_size = 4 * self.scalarType.itemsize
+            f.write(struct.pack(self.offsetTypeStr, record_size))
             f.write(Q_header.tostring())
-            f.write(struct.pack(self.endianness + self.offsetType, record_size))
-            record_size = 5 * self.scalarBytes * numpy.product(self.GetSize(iGrid))
-            f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            f.write(struct.pack(self.offsetTypeStr, record_size))
+            record_size = 5 * self.scalarType.itemsize * np.product(self.GetSize(iGrid))
+            f.write(struct.pack(self.offsetTypeStr, record_size))
             f.write(self._Q[iGrid].tostring(order = 'F'))
-            f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            f.write(struct.pack(self.offsetTypeStr, record_size))
         f.close()
         return None
 
     def Import(self, filename):
         f = open(filename, "rb")
-        self.nGrids, = struct.unpack(self.endianness + 'i', f.read(2 * self.offsetBytes + 4)[self.offsetBytes:-self.offsetBytes])
-        f.seek(self.offsetBytes, 1)
+        f.seek(self.offsetType.itemsize)
+        self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
+        f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(0, self.nGrids):
-            self.SetSize(iGrid, struct.unpack(self.endianness + '3i', f.read(12)))
-        f.seek(self.offsetBytes, 1)
+            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
+        f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(0, self.nGrids):
-            f.seek(3 * self.offsetBytes + 4 * self.scalarBytes, 1)
-            self._Q[iGrid][:,:,:,:] = numpy.reshape(struct.unpack(self.endianness + str(5 * numpy.product(self.GetSize(iGrid))) + self.scalarType, f.read(5 * self.scalarBytes * numpy.product(self.GetSize(iGrid)))), self.GetSize(iGrid) + [5], order = 'F')
-            f.seek(self.offsetBytes, 1)
+            f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize, 1)
+            dtype = 5 * np.product(self.GetSize(iGrid)) * self.scalarType
+            self._Q[iGrid][:,:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [5], order = 'F')
+            f.seek(self.offsetType.itemsize, 1)
         f.close()
         return None
 
@@ -342,7 +393,7 @@ class Solution(MultiBlockObject):
             self.SetSize(iGrid, struct.unpack(self.endianness + '3i', f.read(12)), allocate = False)
         f.seek(self.offsetBytes, 1)
         for iGrid in range(0, self.nGrids):
-            f.seek(4 * self.offsetBytes + (4 + 5 * numpy.product(self.GetSize(iGrid))) * self.scalarBytes, 1)
+            f.seek(4 * self.offsetBytes + (4 + 5 * np.product(self.GetSize(iGrid))) * self.scalarBytes, 1)
         f.close()
         return None
 
@@ -370,7 +421,7 @@ class Solution(MultiBlockObject):
         for iGrid in range(0, number_of_grids):
             f.seek(3 * self.offsetBytes + 4 * self.scalarBytes, 1)
             if iGrid != grid_index:
-                f.seek(5 * numpy.product(grid_size[iGrid]) * self.scalarBytes, 1)
+                f.seek(5 * np.product(grid_size[iGrid]) * self.scalarBytes, 1)
             else:
                 if show_progress is True:
                     pbar = ProgressBar(maxval = 5 * (end_indices[2] - start_indices[2] + 1) * (end_indices[1] - start_indices[1] + 1))
@@ -383,7 +434,7 @@ class Solution(MultiBlockObject):
                             if show_progress is True:
                                 pbar.update(j - start_indices[1] + 1 + (end_indices[1] - start_indices[1] + 1) * (k - start_indices[2] + (end_indices[2] - start_indices[2] + 1) * l))                            
                             f.seek(self.scalarBytes * start_indices[0], 1)
-                            self._Q[0][:, j - start_indices[1], k - start_indices[2], l] = numpy.array(struct.unpack(self.endianness + str((end_indices[0] - start_indices[0] + 1)) + self.scalarType, f.read(self.scalarBytes * (end_indices[0] - start_indices[0] + 1))), dtype = self.endianness + self.scalarType)
+                            self._Q[0][:, j - start_indices[1], k - start_indices[2], l] = np.array(struct.unpack(self.endianness + str((end_indices[0] - start_indices[0] + 1)) + self.scalarType, f.read(self.scalarBytes * (end_indices[0] - start_indices[0] + 1))), dtype = self.scalarType.newbyteorder(self.endianness))
                             f.seek(self.scalarBytes * (grid_size[iGrid][0] - (end_indices[0] + 1)), 1)
                         f.seek(self.scalarBytes * grid_size[iGrid][0] * (grid_size[iGrid][1] - (end_indices[1] + 1)), 1)
                     f.seek(self.scalarBytes * grid_size[iGrid][0] * grid_size[iGrid][1] * (grid_size[iGrid][2] - (end_indices[2] + 1)), 1)
@@ -422,47 +473,50 @@ class Function(MultiBlockObject):
             self._F = [ None for iGrid in range(0, self.nGrids) ]
         else:
             grid_size = self.GetSize(grid_index)
-            self._F[grid_index] = numpy.zeros(grid_size + [self._nComponents], dtype = self.endianness + self.scalarType)
+            self._F[grid_index] = np.zeros(grid_size + [self._nComponents], dtype = self.scalarType)
         return None
 
-    def Export(self, filename, Q_header = None):
+    def Export(self, filename):
         f = open(filename, "wb")
-        record_size = 4
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
-        f.write(struct.pack(self.endianness + 'i', self.nGrids))
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
-        record_size = 16 * self.nGrids
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
+        record_size = self.integerType.itemsize
+        f.write(struct.pack(self.offsetTypeStr, record_size))
+        f.write(struct.pack(self.integerTypeStr, self.nGrids))
+        f.write(struct.pack(self.offsetTypeStr, record_size))
+        record_size = 4 * self.nGrids * self.integerType.itemsize
+        f.write(struct.pack(self.offsetTypeStr, record_size))
         for iGrid in range(0, self.nGrids):
-            f.write(struct.pack(self.endianness + '3i', *self.GetSize(iGrid)))
-            f.write(struct.pack(self.endianness + 'i', self._nComponents))
-        f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            gridSize = np.array(self.GetSize(iGrid), dtype = self.integerType)
+            f.write(gridSize.tostring())
+            f.write(struct.pack(self.integerTypeStr, self._nComponents))
+        f.write(struct.pack(self.offsetTypeStr, record_size))
         for iGrid in range(0, self.nGrids):
-            record_size = self._nComponents * self.scalarBytes * numpy.product(self.GetSize(iGrid))
-            f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            record_size = self._nComponents * self.scalarType.itemsize * np.product(self.GetSize(iGrid))
+            f.write(struct.pack(self.offsetTypeStr, record_size))
             f.write(self._F[iGrid].tostring(order = 'F'))
-            f.write(struct.pack(self.endianness + self.offsetType, record_size))
+            f.write(struct.pack(self.offsetTypeStr, record_size))
         f.close()
         return None
 
     def Import(self, filename):
         f = open(filename, "rb")
-        self.nGrids, = struct.unpack(self.endianness + 'i', f.read(2 * self.offsetBytes + 4)[self.offsetBytes:-self.offsetBytes])
-        f.seek(self.offsetBytes, 1)
+        f.seek(self.offsetType.itemsize)
+        self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
+        f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(0, self.nGrids):
-            self.SetSize(iGrid, struct.unpack(self.endianness + '3i', f.read(12)), allocate = False)
+            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
             if iGrid == 0:
-                self._nComponents, = struct.unpack(self.endianness + 'i', f.read(4))
+                self._nComponents, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
             else:
-                number_of_components, = struct.unpack(self.endianness + 'i', f.read(4))
+                number_of_components, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
                 if number_of_components != self._nComponents:
-                    raise IOError("%s: Invalid PLOT3D function file: number of components in block %i (= %i) differs from %i" % (filename, iGrid + 1, number_of_components, self._nComponents))
+                    raise IOError("%s: Invalid PLOT3D function file: number of components in block %i (= %i) differs from %i" % (filename, iGrid + 1, number_of_components, self._nComponents))                
             self.Update(iGrid)
-        f.seek(self.offsetBytes, 1)
+        f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(0, self.nGrids):
-            f.seek(self.offsetBytes, 1)
-            self._F[iGrid][:,:,:,:] = numpy.reshape(struct.unpack(self.endianness + str(self._nComponents * numpy.product(self.GetSize(iGrid))) + self.scalarType, f.read(self._nComponents * self.scalarBytes * numpy.product(self.GetSize(iGrid)))), self.GetSize(iGrid) + [self._nComponents], order = 'F')
-            f.seek(self.offsetBytes, 1)
+            f.seek(self.offsetType.itemsize, 1)
+            dtype = self._nComponents * np.product(self.GetSize(iGrid)) * self.scalarType
+            self._F[iGrid][:,:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [self._nComponents], order = 'F')
+            f.seek(self.offsetType.itemsize, 1)
         f.close()
         return None
 
@@ -480,7 +534,7 @@ class Function(MultiBlockObject):
                     raise IOError("%s: Invalid PLOT3D function file: number of components in block %i (= %i) differs from %i" % (filename, iGrid + 1, number_of_components, self._nComponents))
         f.seek(self.offsetBytes, 1)
         for iGrid in range(0, self.nGrids):
-            f.seek(2 * self.offsetBytes + (self._nComponents * numpy.product(self.GetSize(iGrid))) * self.scalarType, 1)
+            f.seek(2 * self.offsetBytes + (self._nComponents * np.product(self.GetSize(iGrid))) * self.scalarType, 1)
         f.close()
         return None
 
@@ -514,7 +568,7 @@ class Function(MultiBlockObject):
         for iGrid in range(0, number_of_grids):
             f.seek(self.offsetBytes, 1)
             if iGrid != grid_index:
-                f.seek(self._nComponents * numpy.product(grid_size[iGrid]) * self.scalarBytes, 1)
+                f.seek(self._nComponents * np.product(grid_size[iGrid]) * self.scalarBytes, 1)
             else:
                 if show_progress is True:
                     pbar = ProgressBar(maxval = self._nComponents * (end_indices[2] - start_indices[2] + 1) * (end_indices[1] - start_indices[1] + 1))
@@ -527,7 +581,7 @@ class Function(MultiBlockObject):
                             if show_progress is True:
                                 pbar.update(j - start_indices[1] + 1 + (end_indices[1] - start_indices[1] + 1) * (k - start_indices[2] + (end_indices[2] - start_indices[2] + 1) * l))
                             f.seek(self.scalarBytes * start_indices[0], 1)
-                            self._F[0][:, j - start_indices[1], k - start_indices[2], l] = numpy.array(struct.unpack(self.endianness + str((end_indices[0] - start_indices[0] + 1)) + self.scalarType, f.read(self.scalarBytes * (end_indices[0] - start_indices[0] + 1))), dtype = self.endianness + self.scalarType)
+                            self._F[0][:, j - start_indices[1], k - start_indices[2], l] = np.array(struct.unpack(self.endianness + str((end_indices[0] - start_indices[0] + 1)) + self.scalarType, f.read(self.scalarBytes * (end_indices[0] - start_indices[0] + 1))), dtype = self.scalarType.newbyteorder(self.endianness))
                             f.seek(self.scalarBytes * (grid_size[iGrid][0] - (end_indices[0] + 1)), 1)
                         f.seek(self.scalarBytes * grid_size[iGrid][0] * (grid_size[iGrid][1] - (end_indices[1] + 1)), 1)
                     f.seek(self.scalarBytes * grid_size[iGrid][0] * grid_size[iGrid][1] * (grid_size[iGrid][2] - (end_indices[2] + 1)), 1)

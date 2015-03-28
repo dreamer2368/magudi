@@ -707,7 +707,6 @@ subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,         
   else
      temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(3)          &
           - 0.5_wp * (velocity_(1) ** 2))
-
   end if
 
   ! Other dependent variables.

@@ -5,6 +5,8 @@ module RK4Integrator_type
   implicit none
   private
 
+  integer, parameter :: wp = SCALAR_KIND
+
   type, private :: t_RK4Temporary
 
      SCALAR_TYPE, allocatable :: buffer1(:,:), buffer2(:,:)
@@ -13,6 +15,9 @@ module RK4Integrator_type
 
   type, public :: t_RK4Integrator
 
+     integer :: nStages = 4
+     real(wp) :: norm(4) =                                                                   &
+          (/ 1.0_wp / 6.0_wp, 1.0_wp / 3.0_wp, 1.0_wp / 3.0_wp, 1.0_wp / 6.0_wp /)
      type(t_RK4Temporary), allocatable :: temp_(:)
 
   end type t_RK4Integrator

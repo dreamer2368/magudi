@@ -433,7 +433,7 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
   assert(size(solvedVariables, 1) == product(this%gridLocalSize))
   assert(size(rightHandSide, 2) > 0)
   assert(size(solvedVariables, 2) == size(rightHandSide, 2))
-  
+
   assert_key(mode, (FORWARD, ADJOINT))
 
   call startTiming("addDamping")
@@ -532,7 +532,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   assert(size(rightHandSide, 2) > 0)
   assert(size(conservedVariables, 2) == size(rightHandSide, 2))
   assert(size(targetState, 2) == size(rightHandSide, 2))
-  
+
   assert_key(mode, (FORWARD, ADJOINT))
 
 #ifdef DEBUG
@@ -601,7 +601,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
            case (FORWARD)
 
               rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                      &
-                   this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &                             
+                   this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &
                    conservedVariables(gridIndex,:) - localTargetState)
 
               if (allocated(viscousFluxPenalty)) then
@@ -661,7 +661,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   integer :: i, j, k, l, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
        metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),                  &
-       inviscidPenalty(:), deltaNormalVelocity(:), deltaInviscidPenalty(:,:),                &                    
+       inviscidPenalty(:), deltaNormalVelocity(:), deltaInviscidPenalty(:,:),                &
        deltaIncomingJacobianOfInviscidFlux(:,:,:)
   SCALAR_TYPE :: normalVelocity
 
@@ -673,7 +673,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   assert(size(conservedVariables, 1) == product(this%gridLocalSize))
   assert(size(rightHandSide, 2) > 0)
   assert(size(conservedVariables, 2) == size(rightHandSide, 2))
-  
+
   assert_key(mode, (FORWARD, ADJOINT))
 
 #ifdef DEBUG
@@ -879,7 +879,7 @@ subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
            this%solenoidalExcitationStrength(patchIndex) =                                   &
                 this%solenoidalExcitation%amplitude *                                        &
                 exp(- this%solenoidalExcitation%gaussianFactor *                             &
-                sum((coordinates(gridIndex,:) -                                              &
+                sum((real(coordinates(gridIndex,:), wp) -                                    &
                 this%solenoidalExcitation%location(1:nDimensions)) ** 2))
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
@@ -937,7 +937,7 @@ subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSid
                 (k - 1 - this%offset(3)))
 
            localStrength = this%solenoidalExcitationStrength(patchIndex)
-           localOrigin(1:nDimensions) = coordinates(gridIndex,:) -                           &
+           localOrigin(1:nDimensions) = real(coordinates(gridIndex,:), wp) -                 &
                 location(1:nDimensions) - speed(1:nDimensions) * time
 
            do l = 1, this%solenoidalExcitation%nModes

@@ -536,7 +536,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   character(len = *), intent(in), optional :: boundaryConditionFilename
 
   ! <<< Local variables >>>
-  integer :: i, j, k, nProcs, nPatches, ierror
+  integer :: i, j, k, nPatches, color, procRank, nProcs, ierror
   character(len = STRING_LENGTH) :: decompositionMapFilename
   type(t_PatchDescriptor) :: p
 
@@ -646,6 +646,16 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
   end if
 
+  ! Create a communicator for master processes of grid-level communicators.
+  assert(MPI_UNDEFINED /= 1)
+  color = MPI_UNDEFINED
+  do i = 1, size(this%grids)
+     call MPI_Comm_rank(this%grids(i)%comm, procRank, ierror)
+     if (procRank == 0) color = 1
+  end do
+  call MPI_Comm_rank(this%comm, procRank, ierror)
+  call MPI_Comm_split(this%comm, color, procRank, this%commGridMasters, ierror)
+
   call endTiming("setupRegion")
 
 end subroutine setupRegion
@@ -692,8 +702,18 @@ subroutine cleanupRegion(this)
   end if
   SAFE_DEALLOCATE(this%patches)
 
+  SAFE_DEALLOCATE(this%patchData)
+  SAFE_DEALLOCATE(this%globalGridSizes)
+  SAFE_DEALLOCATE(this%processDistributions)
+  SAFE_DEALLOCATE(this%gridCommunicators)
+  SAFE_DEALLOCATE(this%patchCommunicators)
+
   if (this%comm /= MPI_COMM_NULL .and. this%comm /= MPI_COMM_WORLD)                          &
        call MPI_Comm_free(this%comm, ierror)
+  this%comm = MPI_COMM_NULL
+
+  if (this%commGridMasters /= MPI_COMM_NULL) call MPI_Comm_free(this%commGridMasters, ierror)
+  this%commGridMasters = MPI_COMM_NULL
 
 end subroutine cleanupRegion
 
@@ -764,12 +784,8 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   end do
 
   if (getFileType(quantityOfInterest) == PLOT3D_SOLUTION_FILE) then
-     auxiliaryData = this%states(1)%plot3dAuxiliaryData
-#ifdef SCALAR_IS_COMPLEX
+     auxiliaryData = real(this%states(1)%plot3dAuxiliaryData, SCALAR_KIND)
      call MPI_Bcast(auxiliaryData, 4, REAL_TYPE_MPI, 0, this%comm, ierror)
-#else
-     call MPI_Bcast(auxiliaryData, 4, SCALAR_TYPE_MPI, 0, this%comm, ierror)
-#endif
      do i = 1, 4
         this%states(:)%plot3dAuxiliaryData(i) = auxiliaryData(i)
      end do
@@ -942,23 +958,13 @@ subroutine computeRhs(this, mode, time)
 
   if (this%simulationFlags%useConstantCfl) then
      timeStepSize = minval(this%states(:)%timeStepSize)
-#ifdef SCALAR_IS_COMPLEX
      call MPI_Allreduce(MPI_IN_PLACE, timeStepSize, 1, REAL_TYPE_MPI,                        &
           MPI_MIN, this%comm, ierror)
-#else
-     call MPI_Allreduce(MPI_IN_PLACE, timeStepSize, 1, SCALAR_TYPE_MPI,                      &
-          MPI_MIN, this%comm, ierror)
-#endif
      this%states(:)%timeStepSize = timeStepSize
   else
      cfl = maxval(this%states(:)%cfl)
-#ifdef SCALAR_IS_COMPLEX
      call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, REAL_TYPE_MPI,                                 &
           MPI_MAX, this%comm, ierror)
-#else
-     call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, SCALAR_TYPE_MPI,                               &
-          MPI_MAX, this%comm, ierror)
-#endif
      this%states(:)%cfl = cfl
   end if
 
@@ -1072,13 +1078,15 @@ subroutine reportGridDiagnostics(this)
            call findMinimum(this%grids(j), this%grids(j)%jacobian(:,1),                      &
                 minimumJacobian, iGlobal, jGlobal, kGlobal)
            write(str, '(4X,A,(SS,ES9.2E2),3(A,I4),A)') "min. Jacobian = ",                   &
-                minimumJacobian, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, ")"
+                real(minimumJacobian, SCALAR_KIND), " at (",                                 &
+                iGlobal, ", ", jGlobal, ", ", kGlobal, ")"
            call writeAndFlush(this%grids(j)%comm, output_unit, str)
 
            call findMaximum(this%grids(j), this%grids(j)%jacobian(:,1),                      &
                 maximumJacobian, iGlobal, jGlobal, kGlobal)
            write(str, '(4X,A,(SS,ES9.2E2),3(A,I4),A)') "max. Jacobian = ",                   &
-                maximumJacobian, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, ")"
+                real(maximumJacobian, SCALAR_KIND), " at (",                                 &
+                iGlobal, ", ", jGlobal, ", ", kGlobal, ")"
            call writeAndFlush(this%grids(j)%comm, output_unit, str)
 
         end if
@@ -1142,11 +1150,7 @@ subroutine reportResiduals(this)
 
   end do
 
-#ifdef SCALAR_IS_COMPLEX
   call MPI_Allreduce(MPI_IN_PLACE, residuals, 3, REAL_TYPE_MPI, MPI_MAX, this%comm, ierror)
-#else
-  call MPI_Allreduce(MPI_IN_PLACE, residuals, 3, SCALAR_TYPE_MPI, MPI_MAX, this%comm, ierror)
-#endif
   write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),                  &
        ", momentum = ", residuals(2), ", energy = ", residuals(3)
   call writeAndFlush(this%comm, output_unit, str)

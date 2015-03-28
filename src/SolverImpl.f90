@@ -14,9 +14,10 @@ contains
 
     ! <<< Derived types >>>
     use Region_type, only : t_Region
+    use PatchDescriptor_type, only : ACTUATOR
 
     ! <<< Internal modules >>>
-    use Grid_mod, only : computeInnerProduct, isVariableWithinRange
+    use Grid_mod, only : computeQuadratureOnPatches
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
@@ -24,47 +25,40 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    SCALAR_TYPE :: temp
     real(wp) :: mollifierNorm
-    integer :: i, j, k, procRank, ierror
+    integer :: i, ierror
     logical :: hasNegativeMollifier
     character(len = STRING_LENGTH) :: str
-    SCALAR_TYPE, allocatable :: F(:,:)
+
+    assert(allocated(region%grids))
 
     mollifierNorm = 0.0_wp
 
     do i = 1, size(region%grids)
 
-       hasNegativeMollifier = .not. isVariableWithinRange(region%grids(i),                   &
-            region%grids(i)%controlMollifier(:,1), temp, i, j, k,                            &
-            minValue = - 2.0_wp * epsilon(0.0_wp))
+       assert(allocated(region%grids(i)%controlMollifier))
+
+       hasNegativeMollifier = any(real(region%grids(i)%controlMollifier(:,1), wp) < 0.0_wp)
+       call MPI_Allreduce(MPI_IN_PLACE, hasNegativeMollifier, 1,                             &
+            MPI_LOGICAL, MPI_LOR, region%grids(i)%comm, ierror)
        if (hasNegativeMollifier) then
-          write(str, '(A,4(I0.0,A),3(ES11.4,A))') "Control mollifier on grid ",              &
-               region%grids(i)%index, " at (", i, ", ", j, ", ", k, "): ",                   &
-               temp, " is negative!"
+          write(str, '(A,I0.0,A)') "Control mollifying support function on grid ",           &
+               region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if
-
-       allocate(F(region%grids(i)%nGridPoints, 1), source = 1.0_wp)
-       temp = computeInnerProduct(region%grids(i), F, F,                                    &
-            region%grids(i)%controlMollifier(:,1))
-
-       call MPI_Comm_rank(region%grids(i)%comm, procRank, ierror)
-       if (procRank /= 0) temp = 0.0_wp
-
-       mollifierNorm = mollifierNorm + real(temp, wp)
-
-       SAFE_DEALLOCATE(F)
-
+       mollifierNorm = mollifierNorm + real(computeQuadratureOnPatches(region%grids(i),      &
+            region%grids(i)%controlMollifier(:,1), region%patches, ACTUATOR), wp)
     end do
 
-#ifdef SCALAR_IS_COMPLEX
-    call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                       &
-         MPI_SUM, region%comm, ierror)
-#else
-    call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, SCALAR_TYPE_MPI,                     &
-         MPI_SUM, region%comm, ierror)
-#endif
+    if (region%commGridMasters /= MPI_COMM_NULL)                                             &
+         call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                   &
+         MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+    end do
+    if (mollifierNorm <= 0.0_wp)                                                             &
+         call gracefulExit(region%comm, "Control mollifying support is trivial!")
 
     do i = 1, size(region%grids)
        region%grids(i)%controlMollifier = region%grids(i)%controlMollifier / mollifierNorm
@@ -79,9 +73,10 @@ contains
 
     ! <<< Derived types >>>
     use Region_type, only : t_Region
+    use PatchDescriptor_type, only : CONTROL_TARGET
 
     ! <<< Internal modules >>>
-    use Grid_mod, only : computeInnerProduct, isVariableWithinRange
+    use Grid_mod, only : computeQuadratureOnPatches
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
@@ -89,53 +84,178 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    SCALAR_TYPE :: temp
     real(wp) :: mollifierNorm
-    integer :: i, j, k, procRank, ierror
+    integer :: i, ierror
     logical :: hasNegativeMollifier
     character(len = STRING_LENGTH) :: str
-    SCALAR_TYPE, allocatable :: F(:,:)
+
+    assert(allocated(region%grids))
 
     mollifierNorm = 0.0_wp
 
     do i = 1, size(region%grids)
 
-       hasNegativeMollifier = .not. isVariableWithinRange(region%grids(i),                   &
-            region%grids(i)%targetMollifier(:,1), temp, i, j, k,                            &
-            minValue = - 2.0_wp * epsilon(0.0_wp))
+       assert(allocated(region%grids(i)%targetMollifier))
+
+       hasNegativeMollifier = any(real(region%grids(i)%targetMollifier(:,1), wp) < 0.0_wp)
+       call MPI_Allreduce(MPI_IN_PLACE, hasNegativeMollifier, 1,                             &
+            MPI_LOGICAL, MPI_LOR, region%grids(i)%comm, ierror)
        if (hasNegativeMollifier) then
-          write(str, '(A,4(I0.0,A),3(ES11.4,A))') "Target mollifier on grid ",              &
-               region%grids(i)%index, " at (", i, ", ", j, ", ", k, "): ",                   &
-               temp, " is negative!"
+          write(str, '(A,I0.0,A)') "Target mollifying support function on grid ",           &
+               region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if
-
-       allocate(F(region%grids(i)%nGridPoints, 1), source = 1.0_wp)
-       temp = computeInnerProduct(region%grids(i), F, F,                                    &
-            region%grids(i)%targetMollifier(:,1))
-
-       call MPI_Comm_rank(region%grids(i)%comm, procRank, ierror)
-       if (procRank /= 0) temp = 0.0_wp
-
-       mollifierNorm = mollifierNorm + real(temp, wp)
-
-       SAFE_DEALLOCATE(F)
-
+       mollifierNorm = mollifierNorm + real(computeQuadratureOnPatches(region%grids(i),      &
+            region%grids(i)%targetMollifier(:,1), region%patches, CONTROL_TARGET), wp)
     end do
 
-#ifdef SCALAR_IS_COMPLEX
-    call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                       &
-         MPI_SUM, region%comm, ierror)
-#else
-    call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, SCALAR_TYPE_MPI,                     &
-         MPI_SUM, region%comm, ierror)
-#endif
+    if (region%commGridMasters /= MPI_COMM_NULL)                                             &
+         call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                   &
+         MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+    end do
+    if (mollifierNorm <= 0.0_wp)                                                             &
+         call gracefulExit(region%comm, "Target mollifying support is trivial!")
 
     do i = 1, size(region%grids)
        region%grids(i)%targetMollifier = region%grids(i)%targetMollifier / mollifierNorm
     end do
 
   end subroutine normalizeTargetMollifier
+
+  function instantaneousCostFunctional(region)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_type, only : t_Region
+    use SolverOptions_type
+
+    ! <<< Internal modules >>>
+    use Grid_mod, only : computeInnerProduct
+
+    ! <<< Arguments >>>
+    type(t_Region) :: region
+
+    ! <<< Result >>>
+    SCALAR_TYPE :: instantaneousCostFunctional
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, ierror
+    SCALAR_TYPE, allocatable :: F(:,:)
+
+    assert(allocated(region%grids))
+    assert(allocated(region%states))
+    assert(size(region%grids) == size(region%states))
+
+    assert_key(region%solverOptions%costFunctionalType, ( \
+    SOUND, \
+    LIFT,  \
+    DRAG))
+
+    instantaneousCostFunctional = 0.0_wp
+
+    do i = 1, size(region%grids)
+
+       assert(region%grids(i)%nGridPoints > 0)
+       assert(allocated(region%grids(i)%targetMollifier))
+       assert(size(region%grids(i)%targetMollifier, 1) == region%grids(i)%nGridPoints)
+       assert(size(region%grids(i)%targetMollifier, 2) == 1)
+
+       select case (region%solverOptions%costFunctionalType)
+
+       case (SOUND)
+
+          assert(allocated(region%states(i)%pressure))
+          assert(size(region%states(i)%pressure, 1) == region%grids(i)%nGridPoints)
+          assert(size(region%states(i)%pressure, 2) == 1)
+
+          assert(allocated(region%states(i)%meanPressure))
+          assert(size(region%states(i)%meanPressure, 1) == region%grids(i)%nGridPoints)
+          assert(size(region%states(i)%meanPressure, 2) == 1)
+
+          allocate(F(region%grids(i)%nGridPoints, 1))
+          F = region%states(i)%pressure - region%states(i)%meanPressure
+          instantaneousCostFunctional = instantaneousCostFunctional +                        &
+               computeInnerProduct(region%grids(i), F, F,                                    &
+               region%grids(i)%targetMollifier(:,1))
+          SAFE_DEALLOCATE(F)
+
+       end select
+
+    end do
+
+    if (region%commGridMasters /= MPI_COMM_NULL)                                             &
+         call MPI_Allreduce(MPI_IN_PLACE, instantaneousCostFunctional, 1,                    &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(instantaneousCostFunctional, 1, SCALAR_TYPE_MPI,                       &
+            0, region%grids(i)%comm, ierror)
+    end do
+
+  end function instantaneousCostFunctional
+
+  subroutine writeLine(comm, filename, line)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Internal modules >>>
+    use ErrorHandler, only : gracefulExit
+
+    ! <<< Arguments >>>
+    integer, intent(in) :: comm
+    character(len = *), intent(in) :: filename, line
+
+    ! <<< Local variables >>>
+    integer :: ostat, procRank, ierror
+    logical, save :: firstCall = .true.
+    integer, parameter :: fileUnit = 51
+    character(len = STRING_LENGTH) :: message
+
+    call MPI_Comm_rank(comm, procRank, ierror)
+
+    if (procRank == 0) then
+
+       if (firstCall) then
+          open(unit = fileUnit, file = trim(filename), action = 'write',                     &
+               status = 'unknown', iostat = ostat)
+       else
+          open(unit = fileUnit, file = trim(filename), action = 'write',                     &
+               status = 'old', position = 'append', iostat = ostat)
+       end if
+
+    end if
+
+    call MPI_Bcast(ostat, 1, MPI_INTEGER, 0, comm, ierror)
+    if (ostat /= 0) then
+       write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
+       call gracefulExit(comm, message)
+    end if
+
+    firstCall = .false.
+
+    if (procRank == 0) then
+       write(fileUnit, '(A)', iostat = ostat) trim(line)
+    end if
+
+    call MPI_Bcast(ostat, 1, MPI_INTEGER, 0, comm, ierror)
+    if (ostat /= 0) then
+       write(message, "(2A)") trim(filename), ": Error writing to file!"
+       call gracefulExit(comm, message)
+    end if
+
+    if (procRank == 0) then
+       flush(fileUnit)
+       close(fileUnit)
+    end if
+
+  end subroutine writeLine
 
 end module SolverImpl
 
@@ -145,7 +265,7 @@ subroutine initializeSolver(region, restartFilename)
   use Grid_type, only : QOI_CONTROL_MOLLIFIER, QOI_TARGET_MOLLIFIER
   use State_type, only : QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_MEAN_PRESSURE
   use Region_type, only : t_Region
-  use SolverOptions_type, only : SOUND_FUNCTIONAL
+  use SolverOptions_type, only : SOUND
 
   ! <<< Private members >>>
   use SolverImpl, only : normalizeControlMollifier, normalizeTargetMollifier
@@ -192,6 +312,7 @@ subroutine initializeSolver(region, restartFilename)
         if (len_trim(filename) == 0) then
            do i = 1, size(region%states) !... initialize from target state.
               region%states(i)%conservedVariables = region%states(i)%targetState
+              region%states(i)%plot3dAuxiliaryData = 0.0_wp
            end do
         else
            call loadRegionData(region, QOI_FORWARD_STATE, filename) !... initialize from file.
@@ -232,7 +353,7 @@ subroutine initializeSolver(region, restartFilename)
      call normalizeTargetMollifier(region)
 
      select case (region%solverOptions%costFunctionalType)
-     case (SOUND_FUNCTIONAL)
+     case (SOUND)
 
         ! Mean pressure.
         if (.not. region%simulationFlags%useTargetState) then
@@ -259,7 +380,7 @@ subroutine initializeSolver(region, restartFilename)
 end subroutine initializeSolver
 
 subroutine solveForward(region, integrator, time, timestep, nTimesteps,                      &
-     saveInterval, reportInterval, outputPrefix)
+     saveInterval, reportInterval, outputPrefix, costFunctional)
 
   ! <<< External modules >>>
   use iso_fortran_env, only : output_unit
@@ -268,6 +389,9 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   use State_type, only : t_State, QOI_FORWARD_STATE
   use Region_type, only : t_Region
   use RK4Integrator_type, only : t_RK4Integrator
+
+  ! <<< Private members >>>
+  use SolverImpl, only : instantaneousCostFunctional, writeLine
 
   ! <<< Internal modules >>>
   use Region_mod, only : saveRegionData, reportResiduals
@@ -284,17 +408,22 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   integer, intent(in) :: nTimesteps
   integer, intent(in), optional :: saveInterval, reportInterval
   character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
+  SCALAR_TYPE, intent(out), optional :: costFunctional
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
-  integer :: i, timestep_
+  integer :: i, timestep_, ierror
   logical :: verbose
+  real(wp) :: cfl, timeStepSize
+  SCALAR_TYPE :: instantaneousCostFunctional_
 
   assert(timestep >= 0)
 
   outputPrefix_ = PROJECT_NAME
   if (present(outputPrefix)) outputPrefix_ = outputPrefix
+
+  if (present(costFunctional)) costFunctional = 0.0_wp
 
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
   call saveRegionData(region, QOI_FORWARD_STATE, filename)
@@ -306,31 +435,54 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
      if (present(reportInterval)) verbose = (reportInterval > 0 .and.                        &
           mod(timestep_, reportInterval) == 0)
 
-     do i = 1, 4
+     do i = 1, integrator%nStages
         call substepForward(integrator, region, time, timestep_, i)
+        if (i == 1) then
+           cfl = region%states(1)%cfl
+           timeStepSize = region%states(1)%timeStepSize
+        end if
+        if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then
+           instantaneousCostFunctional_ = instantaneousCostFunctional(region)
+           costFunctional = costFunctional +                                                 &
+                integrator%norm(i) * timeStepSize * instantaneousCostFunctional_
+        end if
      end do
 
      if (verbose) then
+
         if (region%simulationFlags%useConstantCfl) then
-           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
-                ", dt = ", region%states(1)%timeStepSize, ", time = ", time
+           write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
+                ", dt = ", timeStepSize, ", time = ", time
         else
-           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
-                ", CFL = ", region%states(1)%cfl, ", time = ", time
+           write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
+                ", CFL = ", cfl, ", time = ", time
         end if
+
         call writeAndFlush(region%comm, output_unit, str)
+
         if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
+
+        if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then
+           write(filename, '(2A)') trim(outputPrefix_), ".cost_functional.txt"
+           write(str, '(I8,1X,E13.6,1X,SP,' // SCALAR_FORMAT // ')')                      &
+                timestep_, time, instantaneousCostFunctional_
+           call writeLine(region%comm, filename, str)
+        end if
+
      end if
 
      if (present(saveInterval)) then
         if (saveInterval > 0) then
            if (mod(timestep_, saveInterval) == 0) then
+
               do i = 1, size(region%states)
                  region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
                  region%states(i)%plot3dAuxiliaryData(4) = time
               end do
+
               write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
               call saveRegionData(region, QOI_FORWARD_STATE, filename)
+
            end if
         end if
      end if
@@ -386,7 +538,7 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                          &
        getOption("checkpointing_scheme", "uniform checkpointing"),                           &
        timestep - nTimesteps, timestep,                                                      &
-       saveInterval, saveInterval * 4)
+       saveInterval, saveInterval * integrator%nStages)
 
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
   call saveRegionData(region, QOI_ADJOINT_STATE, filename)
@@ -398,11 +550,11 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
      if (present(reportInterval)) verbose = (reportInterval > 0 .and.                        &
           mod(timestep_, reportInterval) == 0)
 
-     do i = 4, 1, -1
+     do i = integrator%nStages, 1, -1
         if (.not. region%simulationFlags%steadyStateSimulation) then
            if (i == 1) then
               call migrateToSubstep(reverseMigrator, region,                                 &
-                   integrator, timestep_, 4)
+                   integrator, timestep_, integrator%nStages)
            else
               call migrateToSubstep(reverseMigrator, region,                                 &
                    integrator, timestep_ + 1, i - 1)
@@ -413,10 +565,10 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
 
      if (verbose) then
         if (region%simulationFlags%useConstantCfl) then
-           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
+           write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", region%states(1)%timeStepSize, ", time = ", time
         else
-           write(str, '(2A,I8,2(A,D13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
+           write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", CFL = ", region%states(1)%cfl, ", time = ", time
         end if
         call writeAndFlush(region%comm, output_unit, str)
