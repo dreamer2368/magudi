@@ -80,8 +80,6 @@ program main
   do i = 1, size(region%grids)
      call updateGrid(region%grids(i))
      call computeSpongeStrengths(region%grids(i), region%patches)
-     call updatePatches(region%states(i), region%grids(i),                                   &
-          region%patches, region%simulationFlags, region%solverOptions)
   end do
   call MPI_Barrier(region%comm, ierror)
 
@@ -100,13 +98,20 @@ program main
 
   ! Initialize the solver.
   call initializeSolver(region)
-  time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
-  timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
 
   ! Time advancement options.
+  time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
+  timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
   nTimesteps = getOption("number_of_timesteps", 1000)
   reportInterval = getOption("report_interval", 1)
   saveInterval = getOption("save_interval", 1000)
+
+  ! Update patches.
+  do i = 1, size(region%grids)
+     call updatePatches(region%states(i), region%grids(i),                                   &
+          region%patches, region%simulationFlags, region%solverOptions)
+  end do
+  call MPI_Barrier(region%comm, ierror)
 
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
      call solveForward(region, integrator, time, timestep, nTimesteps,                       &

@@ -56,7 +56,7 @@ subroutine cleanupRK4Integrator(this)
 
 end subroutine cleanupRK4Integrator
 
-subroutine substepForward(this, region, time, timestep, stage)
+subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, FORWARD
@@ -71,13 +71,13 @@ subroutine substepForward(this, region, time, timestep, stage)
   type(t_RK4Integrator) :: this
   type(t_Region) :: region
   real(SCALAR_KIND), intent(inout) :: time
+  real(SCALAR_KIND), intent(in) :: timeStepSize
   integer, intent(in) :: timestep, stage
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer, save :: stageLastCall = 0
   integer :: i
-  real(wp), save :: timeStepSize
 
   assert(timestep >= 0)
   assert(stage >= 1 .and. stage <= 4)
@@ -98,7 +98,6 @@ subroutine substepForward(this, region, time, timestep, stage)
      end do
 
      call computeRhs(region, FORWARD, time)
-     timeStepSize = region%states(1)%timeStepSize
 
      do i = 1, size(region%states)
         this%temp_(i)%buffer2 = region%states(i)%conservedVariables +                        &
@@ -144,7 +143,7 @@ subroutine substepForward(this, region, time, timestep, stage)
 
 end subroutine substepForward
 
-subroutine substepAdjoint(this, region, time, timestep, stage)
+subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, ADJOINT
@@ -159,13 +158,13 @@ subroutine substepAdjoint(this, region, time, timestep, stage)
   type(t_RK4Integrator) :: this
   type(t_Region) :: region
   real(SCALAR_KIND), intent(inout) :: time
+  real(SCALAR_KIND), intent(in) :: timeStepSize
   integer, intent(in) :: timestep, stage
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer, save :: stageLastCall = 0
   integer :: i
-  real(wp), save :: timeStepSize
 
   assert(timestep >= 0)
   assert(stage >= 1 .and. stage <= 4)
@@ -187,7 +186,6 @@ subroutine substepAdjoint(this, region, time, timestep, stage)
 
      region%states(:)%adjointForcingFactor = 1.0_wp
      call computeRhs(region, ADJOINT, time)
-     timeStepSize = region%states(1)%timeStepSize
 
      do i = 1, size(region%states)
         this%temp_(i)%buffer2 = region%states(i)%adjointVariables -                          &

@@ -7,7 +7,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeDependentVariables(nDimensions, conservedVariables,                   &
+     pure subroutine computeDependentVariables(nDimensions, conservedVariables,              &
           ratioOfSpecificHeats, specificVolume,                                              &
           velocity, pressure, temperature)
 
@@ -27,9 +27,10 @@ module CNSHelper
 
   interface
 
-     subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio, &
-          ratioOfSpecificHeats, reynoldsNumberInverse, prandtlNumberInverse,                 &
-          dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity)
+     pure subroutine computeTransportVariables(temperature, powerLawExponent,                &
+          bulkViscosityRatio, ratioOfSpecificHeats, reynoldsNumberInverse,                   &
+          prandtlNumberInverse, dynamicViscosity, secondCoefficientOfViscosity,              &
+          thermalDiffusivity)
 
        !> Computes the requested transport coefficient(s) including the dynamic viscosity,
        !> second coefficient of viscosity and the thermal conductivity assuming a power law
@@ -50,7 +51,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeStressTensor(nDimensions, velocityGradient, dynamicViscosity,         &
+     pure subroutine computeStressTensor(nDimensions, velocityGradient, dynamicViscosity,    &
           secondCoefficientOfViscosity, stressTensor)
 
        integer, intent(in) :: nDimensions
@@ -65,7 +66,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeVorticityMagnitudeAndDilatation(nDimensions,                          &
+     pure subroutine computeVorticityMagnitudeAndDilatation(nDimensions,                     &
           velocityGradient, vorticityMagnitude, dilatation)
 
        !> Computes the vorticity magnitude and dilatation from the velocity gradient.
@@ -80,7 +81,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeCartesianInvsicidFluxes(nDimensions, conservedVariables,              &
+     pure subroutine computeCartesianInvsicidFluxes(nDimensions, conservedVariables,         &
           velocity, pressure, inviscidFluxes)
 
        !> Computes the Cartesian form of the inviscid fluxes. `velocity` and `pressure` must
@@ -96,7 +97,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeCartesianViscousFluxes(nDimensions, velocity,                         &
+     pure subroutine computeCartesianViscousFluxes(nDimensions, velocity,                    &
           stressTensor, heatFlux, viscousFluxes)
 
        !> Computes the Cartesian form of the viscous fluxes.
@@ -111,7 +112,7 @@ module CNSHelper
 
   interface
 
-     subroutine transformFluxes(nDimensions, fluxes, metrics,                                &
+     pure subroutine transformFluxes(nDimensions, fluxes, metrics,                           &
           transformedFluxes, isDomainCurvilinear)
 
        !> Transforms fluxes from Cartesian form to contravariant form. If the domain is not
@@ -129,7 +130,7 @@ module CNSHelper
 
   interface
 
-     function computeCfl(nDimensions, iblank, jacobian, metrics,                             &
+     pure function computeCfl(nDimensions, iblank, jacobian, metrics,                        &
           velocity, temperature, timeStepSize, ratioOfSpecificHeats,                         &
           dynamicViscosity, thermalDiffusivity) result(cfl)
 
@@ -148,7 +149,7 @@ module CNSHelper
 
   interface
 
-     function computeTimeStepSize(nDimensions, iblank, jacobian,                             &
+     pure function computeTimeStepSize(nDimensions, iblank, jacobian,                        &
           metrics, velocity, temperature, cfl,                                               &
           ratioOfSpecificHeats, dynamicViscosity,                                            &
           thermalDiffusivity) result(timeStepSize)
@@ -169,7 +170,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,                 &
+     pure subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,            &
           ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,             &
           specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
@@ -187,7 +188,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,                 &
+     pure subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,            &
           ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,             &
           specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
@@ -205,7 +206,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,                 &
+     pure subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,            &
           ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,             &
           specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
@@ -223,7 +224,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics,         &
+     pure subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics,    &
           ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,           &
           deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,      &
           velocity, temperature)
@@ -243,7 +244,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics,         &
+     pure subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics,    &
           ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,           &
           deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,      &
           velocity, temperature)
@@ -263,7 +264,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metrics,         &
+     pure subroutine computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metrics,    &
           ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,           &
           deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,      &
           velocity, temperature)
@@ -283,7 +284,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeFirstPartialViscousJacobian1D(conservedVariables, metrics,            &
+     pure subroutine computeFirstPartialViscousJacobian1D(conservedVariables, metrics,       &
           stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                    &
           firstPartialViscousJacobian, specificVolume, velocity, temperature)
 
@@ -300,7 +301,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeFirstPartialViscousJacobian2D(conservedVariables, metrics,            &
+     pure subroutine computeFirstPartialViscousJacobian2D(conservedVariables, metrics,       &
           stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                    &
           firstPartialViscousJacobian, specificVolume, velocity, temperature)
 
@@ -317,7 +318,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeFirstPartialViscousJacobian3D(conservedVariables, metrics,            &
+     pure subroutine computeFirstPartialViscousJacobian3D(conservedVariables, metrics,       &
           stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                    &
           firstPartialViscousJacobian, specificVolume, velocity, temperature)
 
@@ -334,7 +335,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeSecondPartialViscousJacobian1D(velocity, dynamicViscosity,            &
+     pure subroutine computeSecondPartialViscousJacobian1D(velocity, dynamicViscosity,       &
           secondCoefficientOfViscosity, thermalDiffusivity, jacobian, metrics,               &
           secondPartialViscousJacobian)
 
@@ -348,7 +349,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeSecondPartialViscousJacobian2D(velocity, dynamicViscosity,            &
+     pure subroutine computeSecondPartialViscousJacobian2D(velocity, dynamicViscosity,       &
           secondCoefficientOfViscosity, thermalDiffusivity, jacobian, metricsAlongFirstDir,  &
           metricsAlongSecondDir, secondPartialViscousJacobian)
 
@@ -363,7 +364,7 @@ module CNSHelper
 
   interface
 
-     subroutine computeSecondPartialViscousJacobian3D(velocity, dynamicViscosity,            &
+     pure subroutine computeSecondPartialViscousJacobian3D(velocity, dynamicViscosity,       &
           secondCoefficientOfViscosity, thermalDiffusivity, jacobian, metricsAlongFirstDir,  &
           metricsAlongSecondDir, secondPartialViscousJacobian)
 

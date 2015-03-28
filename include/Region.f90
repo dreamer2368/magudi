@@ -96,6 +96,34 @@ module Region_mod
 
   interface
 
+     function getCfl(this) result(cfl)
+
+       use Region_type, only : t_Region
+
+       type(t_Region) :: this
+
+       real(SCALAR_KIND) :: cfl
+
+     end function getCfl
+
+  end interface
+
+  interface
+
+     function getTimeStepSize(this) result(timeStepSize)
+
+       use Region_type, only : t_Region
+
+       type(t_Region) :: this
+
+       real(SCALAR_KIND) :: timeStepSize
+
+     end function getTimeStepSize
+
+  end interface
+
+  interface
+
      subroutine reportGridDiagnostics(this)
 
        use Region_type, only : t_Region

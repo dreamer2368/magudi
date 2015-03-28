@@ -93,7 +93,8 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
   use ReverseMigrator_type
 
   ! <<< Internal modules >>>
-  use Region_mod, only : loadRegionData
+  use State_mod, only : updateState
+  use Region_mod, only : loadRegionData, getTimeStepSize
   use RK4Integrator_mod, only : substepForward
 
   implicit none
@@ -108,7 +109,7 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, timestep_, stage_
   character(len = STRING_LENGTH) :: filename
-  real(wp) :: time
+  real(wp) :: time, timeStepSize
 
   assert(timestep >= this%startTimestep .and. timestep <= this%endTimestep)
   assert(stage >= 1 .and. stage <= this%nStages)
@@ -144,18 +145,38 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
         end do
 
         if (this%loadedTimestep /= this%endTimestep) then
+
            do timestep_ = this%loadedTimestep + 1, this%loadedTimestep + this%saveInterval
+
+              do j = 1, size(region%states) !... update state
+                 call updateState(region%states(j), region%grids(j),                                  &
+                      region%simulationFlags, region%solverOptions)
+              end do
+              timeStepSize = getTimeStepSize(region)
+
               do stage_ = 1, this%nStages
                  if (timestep_ == this%loadedTimestep + this%saveInterval .and.              &
                       stage_ == this%nStages) exit
-                 call substepForward(integrator, region, time, timestep_, stage_)
+
+                 call substepForward(integrator, region, time,                               &
+                      timeStepSize, timestep_, stage_)
+
+                 if (stage /= this%nStages) then
+                    do j = 1, size(region%states) !... update state
+                       call updateState(region%states(j), region%grids(j),                            &
+                            region%simulationFlags, region%solverOptions)
+                    end do
+                 end if
+
                  i = i + 1
                  do j = 1, size(region%states)
                     this%temp_(j)%buffer(:,:,i) = region%states(j)%conservedVariables
                  end do
               end do
+
            end do
-        end if
+
+        end if !... this%loadedTimestep /= this%endTimestep
 
      end if
 

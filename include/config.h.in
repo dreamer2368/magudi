@@ -18,8 +18,16 @@
                   __FILE__, __LINE__); \
   end select
 #else
-#define assert(x) if (.false.) stop
-#define assert_key(x, y) if (.false.) stop
+#define assert(x) if (.false.) then; end if
+#define assert_key(x, y) if (.false.) then; end if
+#endif
+
+#ifdef DEBUG
+#define PURE_SUBROUTINE subroutine
+#define PURE_FUNCTION function
+#else
+#define PURE_SUBROUTINE pure subroutine
+#define PURE_FUNCTION pure function
 #endif
 
 #ifdef USE_EXTENDED_PLOT3D

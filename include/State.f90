@@ -21,7 +21,7 @@ module State_type
      type(t_AcousticSource), allocatable :: acousticSources(:)
 
      integer :: nUnknowns = 0
-     real(wp) :: timeStepSize, cfl, adjointForcingFactor = 1.0_wp
+     real(wp) :: adjointForcingFactor = 1.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables, targetState,            &
@@ -147,8 +147,7 @@ module State_mod
 
   interface
 
-     subroutine updateState(this, grid, time, simulationFlags, &
-          solverOptions, conservedVariables)
+     subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVariables)
 
        use Grid_type, only : t_Grid
        use State_type, only : t_State
@@ -157,13 +156,52 @@ module State_mod
 
        type(t_State) :: this
        type(t_Grid) :: grid
-       real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
 
        SCALAR_TYPE, intent(in), optional :: conservedVariables(:,:)
 
      end subroutine updateState
+
+  end interface
+
+  interface
+
+     function cfl(this, grid, simulationFlags, solverOptions)
+
+       use Grid_type, only : t_Grid
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
+
+       type(t_State) :: this
+       type(t_Grid) :: grid
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+
+       real(SCALAR_KIND) :: cfl
+
+     end function cfl
+
+  end interface
+
+  interface
+
+     function timeStepSize(this, grid, simulationFlags, solverOptions)
+
+       use Grid_type, only : t_Grid
+       use State_type, only : t_State
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
+
+       type(t_State) :: this
+       type(t_Grid) :: grid
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+
+       real(SCALAR_KIND) :: timeStepSize
+
+     end function timeStepSize
 
   end interface
 

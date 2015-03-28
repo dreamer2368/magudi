@@ -395,7 +395,7 @@ subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVaria
 
 end subroutine makeQuiescent
 
-subroutine updateState(this, grid, time, simulationFlags, solverOptions, conservedVariables)
+subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVariables)
 
   ! <<< External modules >>>
   use MPI
@@ -416,7 +416,6 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
   ! <<< Arguments >>>
   type(t_State) :: this
   type(t_Grid) :: grid
-  real(SCALAR_KIND), intent(in) :: time
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   SCALAR_TYPE, intent(in), optional :: conservedVariables(:,:)
@@ -466,41 +465,141 @@ subroutine updateState(this, grid, time, simulationFlags, solverOptions, conserv
 
   end if
 
-  if (simulationFlags%useConstantCfl) then
-
-     this%cfl = solverOptions%cfl
-
-     if (simulationFlags%viscosityOn) then
-        this%timeStepSize = computeTimeStepSize(nDimensions, grid%iblank,                    &
-             grid%jacobian(:,1), grid%metrics, this%velocity, this%temperature(:,1),         &
-             this%cfl, solverOptions%ratioOfSpecificHeats, this%dynamicViscosity(:,1),       &
-             this%thermalDiffusivity(:,1))
-     else
-        this%timeStepSize = computeTimeStepSize(nDimensions, grid%iblank,                    &
-             grid%jacobian(:,1), grid%metrics, this%velocity, this%temperature(:,1),         &
-             this%cfl, solverOptions%ratioOfSpecificHeats)
-     end if
-
-  else
-
-     this%timeStepSize = solverOptions%timeStepSize
-
-     if (simulationFlags%viscosityOn) then
-        this%cfl = computeCfl(nDimensions, grid%iblank, grid%jacobian(:,1), grid%metrics,    &
-             this%velocity, this%temperature(:,1), this%timeStepSize,                        &
-             solverOptions%ratioOfSpecificHeats, this%dynamicViscosity(:,1),                 &
-             this%thermalDiffusivity(:,1))
-     else
-        this%cfl = computeCfl(nDimensions, grid%iblank, grid%jacobian(:,1), grid%metrics,    &
-             this%velocity, this%temperature(:,1), this%timeStepSize,                        &
-             solverOptions%ratioOfSpecificHeats)
-     end if
-
-  end if
-
   call endTiming("updateState")
 
 end subroutine updateState
+
+function cfl(this, grid, simulationFlags, solverOptions)
+
+  ! <<< Derived types >>>
+  use Grid_type, only : t_Grid
+  use State_type, only : t_State
+  use SolverOptions_type, only : t_SolverOptions
+  use SimulationFlags_type, only : t_SimulationFlags
+
+  ! <<< Internal modules >>>
+  use CNSHelper, only : computeCfl
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_State) :: this
+  type(t_Grid) :: grid
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+
+  ! <<< Result >>>
+  real(SCALAR_KIND) :: cfl
+
+  ! <<< Local variables >>>
+  integer :: nDimensions, ierror
+
+  call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+  assert_key(nDimensions, (1, 2, 3))
+
+  assert(allocated(grid%iblank))
+  assert(size(grid%iblank) > 0)
+  assert(allocated(grid%metrics))
+  assert(all(shape(grid%metrics) > 0))
+  assert(allocated(grid%jacobian))
+  assert(size(grid%jacobian, 1) > 0)
+  assert(size(grid%jacobian, 2) == 1)
+  assert(allocated(this%velocity))
+  assert(all(shape(this%velocity) > 0))
+  assert(allocated(this%temperature))
+  assert(size(this%temperature, 1) > 0)
+  assert(size(this%temperature, 2) == 1)
+
+  if (simulationFlags%useConstantCfl) then
+     cfl = solverOptions%cfl
+  else
+     if (simulationFlags%viscosityOn) then
+
+        assert(allocated(this%dynamicViscosity))
+        assert(size(this%dynamicViscosity, 1) > 0)
+        assert(size(this%dynamicViscosity, 2) == 1)
+        assert(allocated(this%thermalDiffusivity))
+        assert(size(this%thermalDiffusivity, 1) > 0)
+        assert(size(this%thermalDiffusivity, 2) == 1)
+
+        cfl = computeCfl(nDimensions, grid%iblank, grid%jacobian(:,1), grid%metrics,         &
+             this%velocity, this%temperature(:,1), solverOptions%timeStepSize,               &
+             solverOptions%ratioOfSpecificHeats, this%dynamicViscosity(:,1),                 &
+             this%thermalDiffusivity(:,1))
+     else
+        cfl = computeCfl(nDimensions, grid%iblank, grid%jacobian(:,1), grid%metrics,         &
+             this%velocity, this%temperature(:,1), solverOptions%timeStepSize,               &
+             solverOptions%ratioOfSpecificHeats)
+     end if
+  end if
+
+end function cfl
+
+function timeStepSize(this, grid, simulationFlags, solverOptions)
+
+  ! <<< Derived types >>>
+  use Grid_type, only : t_Grid
+  use State_type, only : t_State
+  use SolverOptions_type, only : t_SolverOptions
+  use SimulationFlags_type, only : t_SimulationFlags
+
+  ! <<< Internal modules >>>
+  use CNSHelper, only : computeTimeStepSize
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_State) :: this
+  type(t_Grid) :: grid
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+
+  ! <<< Result >>>
+  real(SCALAR_KIND) :: timeStepSize
+
+  ! <<< Local variables >>>
+  integer :: nDimensions, ierror
+
+  call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+  assert_key(nDimensions, (1, 2, 3))
+
+  assert(allocated(grid%iblank))
+  assert(size(grid%iblank) > 0)
+  assert(allocated(grid%metrics))
+  assert(all(shape(grid%metrics) > 0))
+  assert(allocated(grid%jacobian))
+  assert(size(grid%jacobian, 1) > 0)
+  assert(size(grid%jacobian, 2) == 1)
+  assert(allocated(this%velocity))
+  assert(all(shape(this%velocity) > 0))
+  assert(allocated(this%temperature))
+  assert(size(this%temperature, 1) > 0)
+  assert(size(this%temperature, 2) == 1)
+
+  if (simulationFlags%useConstantCfl) then
+     if (simulationFlags%viscosityOn) then
+
+        assert(allocated(this%dynamicViscosity))
+        assert(size(this%dynamicViscosity, 1) > 0)
+        assert(size(this%dynamicViscosity, 2) == 1)
+        assert(allocated(this%thermalDiffusivity))
+        assert(size(this%thermalDiffusivity, 1) > 0)
+        assert(size(this%thermalDiffusivity, 2) == 1)
+
+        timeStepSize = computeTimeStepSize(nDimensions, grid%iblank, grid%jacobian(:,1),     &
+             grid%metrics, this%velocity, this%temperature(:,1), solverOptions%cfl,          &
+             solverOptions%ratioOfSpecificHeats, this%dynamicViscosity(:,1),                 &
+             this%thermalDiffusivity(:,1))
+     else
+        timeStepSize = computeTimeStepSize(nDimensions, grid%iblank, grid%jacobian(:,1),     &
+             grid%metrics, this%velocity, this%temperature(:,1), solverOptions%cfl,          &
+             solverOptions%ratioOfSpecificHeats)
+     end if
+  else
+     timeStepSize = solverOptions%timeStepSize
+  end if
+
+end function timeStepSize
 
 subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverOptions)
 
@@ -544,8 +643,10 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   allocate(fluxes2(grid%nGridPoints, this%nUnknowns, nDimensions))
 
   ! Compute Cartesian form of inviscid fluxes.
+  call startTiming("computeCartesianInvsicidFluxes")
   call computeCartesianInvsicidFluxes(nDimensions, this%conservedVariables,                  &
        this%velocity, this%pressure(:,1), fluxes1)
+  call endTiming("computeCartesianInvsicidFluxes")
 
   ! Compute Cartesian form of viscous fluxes if viscous terms are included and computed using
   ! repeated first derivatives.
@@ -632,30 +733,44 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer :: i, j, nDimensions, ierror
-  SCALAR_TYPE, allocatable :: gradientOfAdjointVariables(:,:,:), localConservedVariables(:), &
-       localVelocity(:), localMetricsAlongDirection(:), localStressTensor(:),                &
-       localHeatFlux(:), localJacobian1(:,:), localJacobian2(:,:), temp(:,:,:)
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, nDimensions, ierror
+  SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:),                                      &
+       localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
+       localVelocity(:), localMetricsAlongDirection1(:), localMetricsAlongDirection2(:),     &
+       localStressTensor(:), localHeatFlux(:), localAdjointDiffusion(:,:)
 
   call startTiming("computeRhsAdjoint")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+  assert_key(nDimensions, (1, 2, 3))
+
+  allocate(temp1(grid%nGridPoints, this%nUnknowns, nDimensions))
+
+  ! Add dissipation if required.
+  if (simulationFlags%dissipationOn) then
+     do i = 1, nDimensions
+        temp1(:,:,i) = this%adjointVariables
+        call applyOperator(grid%dissipation(i), temp1(:,:,i), grid%localSize)
+     end do
+     this%rightHandSide = this%rightHandSide -                                               &
+          solverOptions%dissipationAmount * sum(temp1, dim = 3) !... update right-hand side.
+  end if
 
   ! Partial derivatives of adjoint variables w.r.t. *computational* coordinates.
-  allocate(gradientOfAdjointVariables(grid%nGridPoints, this%nUnknowns, nDimensions))
   do i = 1, nDimensions
-     gradientOfAdjointVariables(:,:,i) = this%adjointVariables
-     call applyOperator(grid%adjointFirstDerivative(i), gradientOfAdjointVariables(:,:,i),   &
+     temp1(:,:,i) = this%adjointVariables
+     call applyOperator(grid%adjointFirstDerivative(i), temp1(:,:,i),                         &
           grid%localSize)
   end do
 
-  allocate(localJacobian1(nDimensions + 2, nDimensions + 2))
-  allocate(localConservedVariables(nDimensions + 2))
+  allocate(localFluxJacobian1(this%nUnknowns, this%nUnknowns))
+  allocate(localConservedVariables(this%nUnknowns))
   allocate(localVelocity(nDimensions))
-  allocate(localMetricsAlongDirection(nDimensions))
+  allocate(localMetricsAlongDirection1(nDimensions))
 
   if (simulationFlags%viscosityOn) then
-     allocate(localJacobian2(nDimensions + 2, nDimensions + 2))
+     allocate(localFluxJacobian2(this%nUnknowns, this%nUnknowns))
      allocate(localStressTensor(nDimensions ** 2))
      allocate(localHeatFlux(nDimensions))
   end if
@@ -671,82 +786,148 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
 
      do j = 1, nDimensions
 
-        localMetricsAlongDirection = grid%metrics(i,1+nDimensions*(j-1):nDimensions*j)
+        localMetricsAlongDirection1 = grid%metrics(i,1+nDimensions*(j-1):nDimensions*j)
 
         select case (nDimensions)
         case (1)
            call computeJacobianOfInviscidFlux1D(localConservedVariables,                     &
-                localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,              &
-                localJacobian1, specificVolume = this%specificVolume(i,1),                   &
+                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
+                localFluxJacobian1, specificVolume = this%specificVolume(i,1),               &
                 velocity = localVelocity, temperature = this%temperature(i,1))
         case (2)
            call computeJacobianOfInviscidFlux2D(localConservedVariables,                     &
-                localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,              &
-                localJacobian1, specificVolume = this%specificVolume(i,1),                   &
+                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
+                localFluxJacobian1, specificVolume = this%specificVolume(i,1),               &
                 velocity = localVelocity, temperature = this%temperature(i,1))
         case (3)
            call computeJacobianOfInviscidFlux3D(localConservedVariables,                     &
-                localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,              &
-                localJacobian1, specificVolume = this%specificVolume(i,1),                   &
+                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
+                localFluxJacobian1, specificVolume = this%specificVolume(i,1),               &
                 velocity = localVelocity, temperature = this%temperature(i,1))
-        end select
+        end select !... nDimensions
 
         if (simulationFlags%viscosityOn) then
            select case (nDimensions)
            case (1)
               call computeFirstPartialViscousJacobian1D(localConservedVariables,             &
-                   localMetricsAlongDirection, localStressTensor, localHeatFlux,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
                    solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localJacobian2, specificVolume = this%specificVolume(i,1),                &
+                   localFluxJacobian2, specificVolume = this%specificVolume(i,1),            &
                    velocity = localVelocity, temperature = this%temperature(i,1))
            case (2)
               call computeFirstPartialViscousJacobian2D(localConservedVariables,             &
-                   localMetricsAlongDirection, localStressTensor, localHeatFlux,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
                    solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localJacobian2, specificVolume = this%specificVolume(i,1),                &
+                   localFluxJacobian2, specificVolume = this%specificVolume(i,1),            &
                    velocity = localVelocity, temperature = this%temperature(i,1))
            case (3)
               call computeFirstPartialViscousJacobian3D(localConservedVariables,             &
-                   localMetricsAlongDirection, localStressTensor, localHeatFlux,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
                    solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localJacobian2, specificVolume = this%specificVolume(i,1),                &
+                   localFluxJacobian2, specificVolume = this%specificVolume(i,1),            &
                    velocity = localVelocity, temperature = this%temperature(i,1))
            end select
-           localJacobian1 = localJacobian1 - localJacobian2
+           localFluxJacobian1 = localFluxJacobian1 - localFluxJacobian2
         end if
 
         this%rightHandSide(i,:) = this%rightHandSide(i,:) +                                  &
-             matmul(transpose(localJacobian1), gradientOfAdjointVariables(i,:,j))
+             matmul(transpose(localFluxJacobian1), temp1(i,:,j))
 
      end do !... j = 1, nDimensions
 
   end do !... i = 1, grid%nGridPoints
 
+  SAFE_DEALLOCATE(localConservedVariables)
+  SAFE_DEALLOCATE(localFluxJacobian1)
+
   if (simulationFlags%viscosityOn) then
+
      SAFE_DEALLOCATE(localHeatFlux)
      SAFE_DEALLOCATE(localStressTensor)
-     SAFE_DEALLOCATE(localJacobian2)
-  end if
+     SAFE_DEALLOCATE(localFluxJacobian2)
 
-  SAFE_DEALLOCATE(localMetricsAlongDirection)
-  SAFE_DEALLOCATE(localVelocity)
-  SAFE_DEALLOCATE(localConservedVariables)
-  SAFE_DEALLOCATE(localJacobian1)
+     allocate(temp2(grid%nGridPoints, this%nUnknowns - 1))
 
-  SAFE_DEALLOCATE(gradientOfAdjointVariables)
+     allocate(localMetricsAlongDirection2(nDimensions))
+     allocate(localFluxJacobian2(this%nUnknowns - 1, this%nUnknowns - 1))
+     allocate(localAdjointDiffusion(this%nUnknowns - 1, nDimensions))
 
-  ! Add dissipation if required.
-  if (simulationFlags%dissipationOn) then
-     allocate(temp(grid%nGridPoints, this%nUnknowns, nDimensions))
+     do i = 1, grid%nGridPoints
+
+        localVelocity = this%velocity(i,:)
+        localAdjointDiffusion = 0.0_wp
+
+        do j = 1, nDimensions
+
+           localMetricsAlongDirection1 = grid%metrics(i,1+nDimensions*(j-1):nDimensions*j)
+
+           do k = 1, nDimensions
+
+              localMetricsAlongDirection2 = grid%metrics(i,1+nDimensions*(k-1):nDimensions*k)
+
+              select case (nDimensions)
+              case (1)
+                 call computeSecondPartialViscousJacobian1D(localVelocity,                   &
+                      this%dynamicViscosity(i,1), this%secondCoefficientOfViscosity(i,1),    &
+                      this%thermalDiffusivity(i,1), grid%jacobian(i,1),                      &
+                      localMetricsAlongDirection1(1), localFluxJacobian2)
+              case (2)
+                 call computeSecondPartialViscousJacobian2D(localVelocity,                   &
+                      this%dynamicViscosity(i,1), this%secondCoefficientOfViscosity(i,1),    &
+                      this%thermalDiffusivity(i,1), grid%jacobian(i,1),                      &
+                      localMetricsAlongDirection2, localMetricsAlongDirection1,              &
+                      localFluxJacobian2)
+              case (3)
+                 call computeSecondPartialViscousJacobian3D(localVelocity,                   &
+                      this%dynamicViscosity(i,1), this%secondCoefficientOfViscosity(i,1),    &
+                      this%thermalDiffusivity(i,1), grid%jacobian(i,1),                      &
+                      localMetricsAlongDirection2, localMetricsAlongDirection1,              &
+                      localFluxJacobian2)
+              end select !... nDimensions
+
+              localAdjointDiffusion(:,j) = localAdjointDiffusion(:,j) + &
+                   matmul(transpose(localFluxJacobian2), temp1(i,2:this%nUnknowns,k))
+
+           end do !... k = 1, nDimensions
+
+        end do !... j = 1, nDimensions
+
+        do j = 1, nDimensions
+           temp1(i,2:this%nUnknowns,j) = localAdjointDiffusion(:,j)
+        end do
+
+     end do !... i = 1, grid%nGridPoints
+
      do i = 1, nDimensions
-        temp(:,:,i) = this%adjointVariables
-        call applyOperator(grid%dissipation(i), temp(:,:,i), grid%localSize)
+        call applyOperator(grid%adjointFirstDerivative(i),                                   &
+             temp1(:,2:this%nUnknowns,i), grid%localSize)
      end do
-     this%rightHandSide = this%rightHandSide -                                               &
-          solverOptions%dissipationAmount * sum(temp, dim = 3) !... update right-hand side.
-  end if
+     temp2 = sum(temp1(:,2:this%nUnknowns,:), dim = 3)
 
-  SAFE_DEALLOCATE(temp)
+     temp2(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                           &
+          this%specificVolume(:,1) * temp2(:,nDimensions+1)
+     do i = 1, nDimensions
+        temp2(:,i) = this%specificVolume(:,1) * temp2(:,i) -                                 &
+             this%velocity(:,i) * temp2(:,nDimensions+1)
+     end do
+
+     this%rightHandSide(:,2:this%nUnknowns) = this%rightHandSide(:,2:this%nUnknowns) - temp2
+     this%rightHandSide(:,1) = this%rightHandSide(:,1) +                                     &
+          this%specificVolume(:,1) * this%conservedVariables(:,nDimensions+2) *              &
+          temp2(:,nDimensions+1) + sum(this%velocity * temp2(:,1:nDimensions), dim = 2)
+
+     SAFE_DEALLOCATE(temp2)
+
+     SAFE_DEALLOCATE(localAdjointDiffusion)
+     SAFE_DEALLOCATE(localFluxJacobian2)
+     SAFE_DEALLOCATE(localMetricsAlongDirection2)
+
+  end if !... simulationFlags%viscosityOn
+
+  SAFE_DEALLOCATE(localMetricsAlongDirection1)
+  SAFE_DEALLOCATE(localVelocity)
+
+  SAFE_DEALLOCATE(temp1)
 
   call endTiming("computeRhsAdjoint")
 
@@ -1003,7 +1184,6 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
   logical :: flag
   SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:)
@@ -1021,7 +1201,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
      if (flag) then
         allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
-        call updateState(this, grid, 0.0_wp, simulationFlags,                                &
+        call updateState(this, grid, simulationFlags,                                        &
              solverOptions, this%targetState)
         call computeCartesianViscousFluxes(nDimensions, this%velocity,                       &
              this%stressTensor, this%heatFlux, targetViscousFluxes)

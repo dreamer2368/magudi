@@ -920,6 +920,79 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
 end subroutine saveRegionData
 
+function getCfl(this) result(cfl)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Region_type, only : t_Region
+
+  ! <<< Internal modules >>>
+  use State_mod, only : computeCfl => cfl
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Region) :: this
+
+  ! <<< Result >>>
+  real(SCALAR_KIND) :: cfl
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, ierror
+
+  if (this%simulationFlags%useConstantCfl) then
+     cfl = this%solverOptions%cfl
+  else
+     cfl = 0.0_wp
+     do i = 1, size(this%states)
+        cfl = max(cfl, computeCfl(this%states(i), this%grids(i),                             &
+             this%simulationFlags, this%solverOptions))
+     end do
+     call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, REAL_TYPE_MPI, MPI_MAX, this%comm, ierror)
+  end if
+
+end function getCfl
+
+function getTimeStepSize(this) result(timeStepSize)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Region_type, only : t_Region
+
+  ! <<< Internal modules >>>
+  use State_mod, only : computeTimeStepSize => timeStepSize
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_Region) :: this
+
+  ! <<< Result >>>
+  real(SCALAR_KIND) :: timeStepSize
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, ierror
+
+  if (this%simulationFlags%useConstantCfl) then
+     timeStepSize = huge(0.0_wp)
+     do i = 1, size(this%states)
+        timeStepSize = min(timeStepSize, computeTimeStepSize(this%states(i),                 &
+             this%grids(i), this%simulationFlags, this%solverOptions))
+     end do
+     call MPI_Allreduce(MPI_IN_PLACE, timeStepSize, 1, REAL_TYPE_MPI,                        &
+          MPI_MIN, this%comm, ierror)
+  else
+     timeStepSize = this%solverOptions%timeStepSize
+  end if
+
+end function getTimeStepSize
+
 subroutine computeRhs(this, mode, time)
 
   ! <<< External modules >>>
@@ -945,30 +1018,15 @@ subroutine computeRhs(this, mode, time)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, ierror
-  real(wp) :: timeStepSize, cfl
+  integer :: i, j
 
   call startTiming("computeRhs")
 
+  if (this%simulationFlags%enableSolutionLimits) call checkSolutionLimits(this, mode)
+
   do i = 1, size(this%states)
      this%states(i)%rightHandSide = 0.0_wp
-     call updateState(this%states(i), this%grids(i), time,                                   &
-          this%simulationFlags, this%solverOptions)
   end do
-
-  if (this%simulationFlags%useConstantCfl) then
-     timeStepSize = minval(this%states(:)%timeStepSize)
-     call MPI_Allreduce(MPI_IN_PLACE, timeStepSize, 1, REAL_TYPE_MPI,                        &
-          MPI_MIN, this%comm, ierror)
-     this%states(:)%timeStepSize = timeStepSize
-  else
-     cfl = maxval(this%states(:)%cfl)
-     call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, REAL_TYPE_MPI,                                 &
-          MPI_MAX, this%comm, ierror)
-     this%states(:)%cfl = cfl
-  end if
-
-  if (this%simulationFlags%enableSolutionLimits) call checkSolutionLimits(this, mode)
 
   do i = 1, size(this%states)
 

@@ -1,7 +1,8 @@
 #include "config.h"
 
-subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpecificHeats,  &
-     specificVolume, velocity, pressure, temperature)
+PURE_SUBROUTINE computeDependentVariables(nDimensions, conservedVariables,                   &
+     ratioOfSpecificHeats, specificVolume,                                                   &
+     velocity, pressure, temperature)
 
   implicit none
 
@@ -85,7 +86,7 @@ subroutine computeDependentVariables(nDimensions, conservedVariables, ratioOfSpe
 
 end subroutine computeDependentVariables
 
-subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio,      &
+PURE_SUBROUTINE computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio, &
      ratioOfSpecificHeats, reynoldsNumberInverse, prandtlNumberInverse, dynamicViscosity,    &
      secondCoefficientOfViscosity, thermalDiffusivity)
 
@@ -119,7 +120,7 @@ subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosit
      if (present(secondCoefficientOfViscosity)) then
         assert(size(secondCoefficientOfViscosity) == size(temperature))
         assert(present(bulkViscosityRatio))
-        assert(bulkViscosityRatio > 0.0_wp)
+        assert(bulkViscosityRatio >= 0.0_wp)
         secondCoefficientOfViscosity =                                                       &
              (bulkViscosityRatio - 2.0_wp / 3.0_wp) * reynoldsNumberInverse
      end if
@@ -175,7 +176,7 @@ subroutine computeTransportVariables(temperature, powerLawExponent, bulkViscosit
 
 end subroutine computeTransportVariables
 
-subroutine computeStressTensor(nDimensions, velocityGradient, dynamicViscosity,              &
+PURE_SUBROUTINE computeStressTensor(nDimensions, velocityGradient, dynamicViscosity,         &
      secondCoefficientOfViscosity, stressTensor)
 
   implicit none
@@ -282,7 +283,7 @@ subroutine computeStressTensor(nDimensions, velocityGradient, dynamicViscosity, 
 
 end subroutine computeStressTensor
 
-subroutine computeVorticityMagnitudeAndDilatation(nDimensions, velocityGradient,             &
+PURE_SUBROUTINE computeVorticityMagnitudeAndDilatation(nDimensions, velocityGradient,        &
      vorticityMagnitude, dilatation)
 
   implicit none
@@ -337,7 +338,7 @@ subroutine computeVorticityMagnitudeAndDilatation(nDimensions, velocityGradient,
 
 end subroutine computeVorticityMagnitudeAndDilatation
 
-subroutine computeCartesianInvsicidFluxes(nDimensions, conservedVariables,                   &
+PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, conservedVariables,              &
      velocity, pressure, inviscidFluxes)
 
   implicit none
@@ -395,7 +396,7 @@ subroutine computeCartesianInvsicidFluxes(nDimensions, conservedVariables,      
 
 end subroutine computeCartesianInvsicidFluxes
 
-subroutine computeCartesianViscousFluxes(nDimensions, velocity,                              &
+PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, velocity,                         &
      stressTensor, heatFlux, viscousFluxes)
 
   implicit none
@@ -465,7 +466,7 @@ subroutine computeCartesianViscousFluxes(nDimensions, velocity,                 
 
 end subroutine computeCartesianViscousFluxes
 
-subroutine transformFluxes(nDimensions, fluxes, metrics,                                     &
+PURE_SUBROUTINE transformFluxes(nDimensions, fluxes, metrics,                                &
      transformedFluxes, isDomainCurvilinear)
 
   implicit none
@@ -535,7 +536,7 @@ subroutine transformFluxes(nDimensions, fluxes, metrics,                        
 
 end subroutine transformFluxes
 
-function computeCfl(nDimensions, iblank, jacobian, metrics, velocity, temperature,           &
+PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, temperature,      &
      timeStepSize, ratioOfSpecificHeats, dynamicViscosity,                                   &
      thermalDiffusivity) result(cfl)
 
@@ -602,8 +603,9 @@ function computeCfl(nDimensions, iblank, jacobian, metrics, velocity, temperatur
 
 end function computeCfl
 
-function computeTimeStepSize(nDimensions, iblank, jacobian, metrics, velocity, temperature,  &
-     cfl, ratioOfSpecificHeats, dynamicViscosity, thermalDiffusivity) result(timeStepSize)
+PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, velocity,          &
+     temperature, cfl, ratioOfSpecificHeats, dynamicViscosity, thermalDiffusivity)           &
+     result(timeStepSize)
 
   implicit none
 
@@ -668,7 +670,7 @@ function computeTimeStepSize(nDimensions, iblank, jacobian, metrics, velocity, t
 
 end function computeTimeStepSize
 
-subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,                      &
+PURE_SUBROUTINE computeJacobianOfInviscidFlux1D(conservedVariables, metrics,                 &
      ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,                  &
      specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
@@ -782,7 +784,7 @@ subroutine computeJacobianOfInviscidFlux1D(conservedVariables, metrics,         
 
 end subroutine computeJacobianOfInviscidFlux1D
 
-subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,                      &
+PURE_SUBROUTINE computeJacobianOfInviscidFlux2D(conservedVariables, metrics,                 &
      ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables, specificVolume,  &
      velocity, temperature, deltaJacobianOfInviscidFlux)
 
@@ -934,7 +936,7 @@ subroutine computeJacobianOfInviscidFlux2D(conservedVariables, metrics,         
 
 end subroutine computeJacobianOfInviscidFlux2D
 
-subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,                      &
+PURE_SUBROUTINE computeJacobianOfInviscidFlux3D(conservedVariables, metrics,                 &
      ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,                  &
      specificVolume, velocity, temperature, deltaJacobianOfInviscidFlux)
 
@@ -1130,7 +1132,7 @@ subroutine computeJacobianOfInviscidFlux3D(conservedVariables, metrics,         
 
 end subroutine computeJacobianOfInviscidFlux3D
 
-subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics,              &
+PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics,         &
      ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,                &
      deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,           &
      velocity, temperature)
@@ -1354,7 +1356,7 @@ subroutine computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metrics, 
 
 end subroutine computeIncomingJacobianOfInviscidFlux1D
 
-subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics,              &
+PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics,         &
      ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,                &
      deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,           &
      velocity, temperature)
@@ -1639,7 +1641,7 @@ subroutine computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metrics, 
 
 end subroutine computeIncomingJacobianOfInviscidFlux2D
 
-subroutine computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metrics,              &
+PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metrics,         &
      ratioOfSpecificHeats, incomingDirection, incomingJacobianOfInviscidFlux,                &
      deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,           &
      velocity, temperature)
@@ -2031,9 +2033,10 @@ subroutine computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metrics, 
 
 end subroutine computeIncomingJacobianOfInviscidFlux3D
 
-subroutine computeFirstPartialViscousJacobian1D(conservedVariables, metrics, stressTensor,   &
-     heatFlux, powerLawExponent, ratioOfSpecificHeats, firstPartialViscousJacobian,          &
-     specificVolume, velocity, temperature)
+PURE_SUBROUTINE computeFirstPartialViscousJacobian1D(conservedVariables, metrics,            &
+     stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                         &
+     firstPartialViscousJacobian, specificVolume,                                            &
+     velocity, temperature)
 
   implicit none
 
@@ -2098,9 +2101,10 @@ subroutine computeFirstPartialViscousJacobian1D(conservedVariables, metrics, str
 
 end subroutine computeFirstPartialViscousJacobian1D
 
-subroutine computeFirstPartialViscousJacobian2D(conservedVariables, metrics, stressTensor,   &
-     heatFlux, powerLawExponent, ratioOfSpecificHeats, firstPartialViscousJacobian,          &
-     specificVolume, velocity, temperature)
+PURE_SUBROUTINE computeFirstPartialViscousJacobian2D(conservedVariables, metrics,            &
+     stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                         &
+     firstPartialViscousJacobian, specificVolume,                                            &
+     velocity, temperature)
 
   implicit none
 
@@ -2183,9 +2187,10 @@ subroutine computeFirstPartialViscousJacobian2D(conservedVariables, metrics, str
 
 end subroutine computeFirstPartialViscousJacobian2D
 
-subroutine computeFirstPartialViscousJacobian3D(conservedVariables, metrics, stressTensor,   &
-     heatFlux, powerLawExponent, ratioOfSpecificHeats, firstPartialViscousJacobian,          &
-     specificVolume, velocity, temperature)
+PURE_SUBROUTINE computeFirstPartialViscousJacobian3D(conservedVariables, metrics,            &
+     stressTensor, heatFlux, powerLawExponent, ratioOfSpecificHeats,                         &
+     firstPartialViscousJacobian, specificVolume,                                            &
+     velocity, temperature)
 
   implicit none
 
@@ -2286,7 +2291,7 @@ subroutine computeFirstPartialViscousJacobian3D(conservedVariables, metrics, str
 
 end subroutine computeFirstPartialViscousJacobian3D
 
-subroutine computeSecondPartialViscousJacobian1D(velocity, dynamicViscosity,                 &
+PURE_SUBROUTINE computeSecondPartialViscousJacobian1D(velocity, dynamicViscosity,            &
      secondCoefficientOfViscosity, thermalDiffusivity, jacobian, metrics,                    &
      secondPartialViscousJacobian)
 
@@ -2320,7 +2325,7 @@ subroutine computeSecondPartialViscousJacobian1D(velocity, dynamicViscosity,    
 
 end subroutine computeSecondPartialViscousJacobian1D
 
-subroutine computeSecondPartialViscousJacobian2D(velocity, dynamicViscosity,                 &
+PURE_SUBROUTINE computeSecondPartialViscousJacobian2D(velocity, dynamicViscosity,            &
      secondCoefficientOfViscosity, thermalDiffusivity, jacobian, metricsAlongFirstDir,       &
      metricsAlongSecondDir, secondPartialViscousJacobian)
 
@@ -2371,7 +2376,7 @@ subroutine computeSecondPartialViscousJacobian2D(velocity, dynamicViscosity,    
 
 end subroutine computeSecondPartialViscousJacobian2D
 
-subroutine computeSecondPartialViscousJacobian3D(velocity, dynamicViscosity,                 &
+PURE_SUBROUTINE computeSecondPartialViscousJacobian3D(velocity, dynamicViscosity,            &
      secondCoefficientOfViscosity, thermalDiffusivity, jacobian, metricsAlongFirstDir,       &
      metricsAlongSecondDir, secondPartialViscousJacobian)
 

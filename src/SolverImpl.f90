@@ -394,7 +394,8 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   use SolverImpl, only : instantaneousCostFunctional, writeLine
 
   ! <<< Internal modules >>>
-  use Region_mod, only : saveRegionData, reportResiduals
+  use State_mod, only : updateState
+  use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
   use ErrorHandler, only : writeAndFlush
   use RK4Integrator_mod, only : substepForward
 
@@ -413,9 +414,9 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
-  integer :: i, timestep_, ierror
+  integer :: i, j, timestep_
   logical :: verbose
-  real(wp) :: cfl, timeStepSize
+  real(wp) :: timeStepSize, cfl
   SCALAR_TYPE :: instantaneousCostFunctional_
 
   assert(timestep >= 0)
@@ -435,17 +436,29 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
      if (present(reportInterval)) verbose = (reportInterval > 0 .and.                        &
           mod(timestep_, reportInterval) == 0)
 
+     do j = 1, size(region%states) !... update state
+        call updateState(region%states(j), region%grids(j),                                  &
+             region%simulationFlags, region%solverOptions)
+     end do
+     timeStepSize = getTimeStepSize(region)
+
      do i = 1, integrator%nStages
-        call substepForward(integrator, region, time, timestep_, i)
-        if (i == 1) then
-           cfl = region%states(1)%cfl
-           timeStepSize = region%states(1)%timeStepSize
+
+        call substepForward(integrator, region, time, timeStepSize, timestep_, i)
+
+        if (i /= integrator%nStages) then
+           do j = 1, size(region%states) !... update state
+              call updateState(region%states(j), region%grids(j),                            &
+                   region%simulationFlags, region%solverOptions)
+           end do
         end if
+
         if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then
            instantaneousCostFunctional_ = instantaneousCostFunctional(region)
            costFunctional = costFunctional +                                                 &
                 integrator%norm(i) * timeStepSize * instantaneousCostFunctional_
         end if
+
      end do
 
      if (verbose) then
@@ -454,6 +467,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", timeStepSize, ", time = ", time
         else
+           cfl = getCfl(region)
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", CFL = ", cfl, ", time = ", time
         end if
@@ -506,7 +520,8 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   use ReverseMigrator_type, only : t_ReverseMigrator
 
   ! <<< Internal modules >>>
-  use Region_mod, only : saveRegionData, reportResiduals
+  use State_mod, only : updateState
+  use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
   use InputHelper, only : getOption
   use ErrorHandler, only : writeAndFlush
   use RK4Integrator_mod, only : substepAdjoint
@@ -527,8 +542,9 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
   type(t_ReverseMigrator) :: reverseMigrator
-  integer :: i, timestep_
+  integer :: i, j, timestep_
   logical :: verbose
+  real(wp) :: timeStepSize, cfl
 
   assert(timestep >= nTimesteps)
 
@@ -550,7 +566,17 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
      if (present(reportInterval)) verbose = (reportInterval > 0 .and.                        &
           mod(timestep_, reportInterval) == 0)
 
+     if (region%simulationFlags%useConstantCfl) then
+        call migrateToSubstep(reverseMigrator, region, integrator, timestep_, 1)
+        do j = 1, size(region%states) !... update state
+           call updateState(region%states(j), region%grids(j),                               &
+                region%simulationFlags, region%solverOptions)
+        end do
+     end if
+     timeStepSize = getTimeStepSize(region)
+
      do i = integrator%nStages, 1, -1
+
         if (.not. region%simulationFlags%steadyStateSimulation) then
            if (i == 1) then
               call migrateToSubstep(reverseMigrator, region,                                 &
@@ -560,16 +586,24 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
                    integrator, timestep_ + 1, i - 1)
            end if
         end if
-        call substepAdjoint(integrator, region, time, timestep_, i)
+
+        do j = 1, size(region%states) !... update state
+           call updateState(region%states(j), region%grids(j),                               &
+                region%simulationFlags, region%solverOptions)
+        end do
+
+        call substepAdjoint(integrator, region, time, timeStepSize, timestep_, i)
+
      end do
 
      if (verbose) then
         if (region%simulationFlags%useConstantCfl) then
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
-                ", dt = ", region%states(1)%timeStepSize, ", time = ", time
+                ", dt = ", timeStepSize, ", time = ", time
         else
+           cfl = getCfl(region)
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
-                ", CFL = ", region%states(1)%cfl, ", time = ", time
+                ", CFL = ", cfl, ", time = ", time
         end if
         call writeAndFlush(region%comm, output_unit, str)
         if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)

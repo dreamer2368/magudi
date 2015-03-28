@@ -57,7 +57,7 @@ module RK4Integrator_mod
 
   interface
 
-     subroutine substepForward(this, region, time, timestep, stage)
+     subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
 
        use Region_type, only : t_Region
        use RK4Integrator_type, only : t_RK4Integrator
@@ -65,6 +65,7 @@ module RK4Integrator_mod
        type(t_RK4Integrator) :: this
        type(t_Region) :: region
        real(SCALAR_KIND), intent(inout) :: time
+       real(SCALAR_KIND), intent(in) :: timeStepSize
        integer, intent(in) :: timestep, stage
 
      end subroutine substepForward
@@ -73,7 +74,7 @@ module RK4Integrator_mod
 
   interface
 
-     subroutine substepAdjoint(this, region, time, timestep, stage)
+     subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
 
        use Region_type, only : t_Region
        use RK4Integrator_type, only : t_RK4Integrator
@@ -81,6 +82,7 @@ module RK4Integrator_mod
        type(t_RK4Integrator) :: this
        type(t_Region) :: region
        real(SCALAR_KIND), intent(inout) :: time
+       real(SCALAR_KIND), intent(in) :: timeStepSize
        integer, intent(in) :: timestep, stage
 
      end subroutine substepAdjoint
