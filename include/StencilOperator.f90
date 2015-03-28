@@ -84,7 +84,8 @@ module StencilOperator_mod
 
        use StencilOperator_type
 
-       type(t_StencilOperator) :: this, adjointOperator
+       type(t_StencilOperator), intent(in) :: this
+       type(t_StencilOperator) :: adjointOperator
 
      end subroutine getAdjointOperator
 
@@ -98,7 +99,7 @@ module StencilOperator_mod
 
        use StencilOperator_type
 
-       type(t_StencilOperator) :: this
+       type(t_StencilOperator), intent(in) :: this
        SCALAR_TYPE, intent(inout) :: x(:,:)
        integer, intent(in) :: gridSize(3)
 
@@ -108,7 +109,7 @@ module StencilOperator_mod
 
   interface
 
-     subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
+     pure subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
 
        !> Applies a stencil operator to a real/complex semidiscrete vector at interior points
        !> only. This is equivalent to calling `applyOperator` if the direction is
@@ -116,7 +117,7 @@ module StencilOperator_mod
 
        use StencilOperator_type
 
-       type(t_StencilOperator) :: this
+       type(t_StencilOperator), intent(in) :: this
        SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
        SCALAR_TYPE, intent(inout) :: x(:,:)
        integer, intent(in) :: gridSize(3)
@@ -127,14 +128,14 @@ module StencilOperator_mod
 
   interface
 
-     subroutine applyOperatorNorm(this, x, gridSize)
+     pure subroutine applyOperatorNorm(this, x, gridSize)
 
        use StencilOperator_type
 
        !> Multiplies a real/complex semidiscrete vector by the diagonal norm matrix in the
        !> direction along which the stencil operator is applied.
 
-       type(t_StencilOperator) :: this
+       type(t_StencilOperator), intent(in) :: this
        SCALAR_TYPE, intent(inout) :: x(:,:)
        integer, intent(in) :: gridSize(3)
 
@@ -144,14 +145,14 @@ module StencilOperator_mod
 
   interface
 
-     subroutine applyOperatorNormInverse(this, x, gridSize)
+     pure subroutine applyOperatorNormInverse(this, x, gridSize)
 
        use StencilOperator_type
 
        !> Multiplies a real/complex semidiscrete vector by the inverse of the diagonal norm
        !> matrix in the direction along which the stencil operator is applied.
 
-       type(t_StencilOperator) :: this
+       type(t_StencilOperator), intent(in) :: this
        SCALAR_TYPE, intent(inout) :: x(:,:)
        integer, intent(in) :: gridSize(3)
 

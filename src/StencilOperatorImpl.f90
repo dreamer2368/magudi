@@ -34,7 +34,7 @@ contains
     use MPIHelper, only : fillGhostPoints
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -45,15 +45,9 @@ contains
     allocate(xWithGhostPoints(gridSize(1) + sum(this%nGhost),                                &
          gridSize(2), gridSize(3), size(x, 2)))
 
-    do l = 1, size(x, 2)
-       do k = 1, gridSize(3)
-          do j = 1, gridSize(2)
-             do i = 1, gridSize(1)
-                xWithGhostPoints(i + this%nGhost(1), j, k, l) =                              &
-                     x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
-             end do
-          end do
-       end do
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       xWithGhostPoints(i + this%nGhost(1), j, k, l) =                                       &
+            x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
     end do
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
@@ -107,7 +101,7 @@ contains
     use MPIHelper, only : fillGhostPoints
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -118,15 +112,9 @@ contains
     allocate(xWithGhostPoints(gridSize(1), gridSize(2) +                                     &
          sum(this%nGhost), gridSize(3), size(x, 2)))
 
-    do l = 1, size(x, 2)
-       do k = 1, gridSize(3)
-          do j = 1, gridSize(2)
-             do i = 1, gridSize(1)
-                xWithGhostPoints(i, j + this%nGhost(1), k, l) =                              &
-                     x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
-             end do
-          end do
-       end do
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       xWithGhostPoints(i, j + this%nGhost(1), k, l) =                                       &
+            x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
     end do
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
@@ -180,7 +168,7 @@ contains
     use MPIHelper, only : fillGhostPoints
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -191,15 +179,9 @@ contains
     allocate(xWithGhostPoints(gridSize(1), gridSize(2),                                      &
          gridSize(3) + sum(this%nGhost), size(x, 2)))
 
-    do l = 1, size(x, 2)
-       do k = 1, gridSize(3)
-          do j = 1, gridSize(2)
-             do i = 1, gridSize(1)
-                xWithGhostPoints(i, j, k + this%nGhost(1), l) =                              &
-                     x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
-             end do
-          end do
-       end do
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       xWithGhostPoints(i, j, k + this%nGhost(1), l) =                                       &
+            x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
     end do
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
@@ -244,13 +226,13 @@ contains
 
   end subroutine applyOperator_3
 
-  subroutine applyOperatorAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
+  PURE_SUBROUTINE applyOperatorAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_stencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
     SCALAR_TYPE, intent(out) :: x(:,:)
     integer, intent(in) :: gridSize(3)
@@ -299,13 +281,13 @@ contains
 
   end subroutine applyOperatorAtInteriorPoints_1
 
-  subroutine applyOperatorAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
+  PURE_SUBROUTINE applyOperatorAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_stencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
     SCALAR_TYPE, intent(out) :: x(:,:)
     integer, intent(in) :: gridSize(3)
@@ -354,13 +336,13 @@ contains
 
   end subroutine applyOperatorAtInteriorPoints_2
 
-  subroutine applyOperatorAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
+  PURE_SUBROUTINE applyOperatorAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_stencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
     SCALAR_TYPE, intent(out) :: x(:,:)
     integer, intent(in) :: gridSize(3)
@@ -409,13 +391,13 @@ contains
 
   end subroutine applyOperatorAtInteriorPoints_3
 
-  subroutine applyOperatorNorm_1(this, x, gridSize)
+  PURE_SUBROUTINE applyOperatorNorm_1(this, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -454,13 +436,13 @@ contains
 
   end subroutine applyOperatorNorm_1
 
-  subroutine applyOperatorNorm_2(this, x, gridSize)
+  PURE_SUBROUTINE applyOperatorNorm_2(this, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -499,13 +481,13 @@ contains
 
   end subroutine applyOperatorNorm_2
 
-  subroutine applyOperatorNorm_3(this, x, gridSize)
+  PURE_SUBROUTINE applyOperatorNorm_3(this, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -544,13 +526,13 @@ contains
 
   end subroutine applyOperatorNorm_3
 
-  subroutine applyOperatorNormInverse_1(this, x, gridSize)
+  PURE_SUBROUTINE applyOperatorNormInverse_1(this, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -590,13 +572,13 @@ contains
 
   end subroutine applyOperatorNormInverse_1
 
-  subroutine applyOperatorNormInverse_2(this, x, gridSize)
+  PURE_SUBROUTINE applyOperatorNormInverse_2(this, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -635,13 +617,13 @@ contains
 
   end subroutine applyOperatorNormInverse_2
 
-  subroutine applyOperatorNormInverse_3(this, x, gridSize)
+  PURE_SUBROUTINE applyOperatorNormInverse_3(this, x, gridSize)
 
     ! <<< Derived types >>>
     use StencilOperator_type
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    type(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -1526,7 +1508,8 @@ subroutine getAdjointOperator(this, adjointOperator)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator) :: this, adjointOperator
+  type(t_StencilOperator), intent(in) :: this
+  type(t_StencilOperator) :: adjointOperator
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -1536,6 +1519,8 @@ subroutine getAdjointOperator(this, adjointOperator)
   assert(this%interiorWidth > 0)
   assert(this%boundaryWidth > 0)
   assert(this%boundaryDepth > 0)
+
+call cleanupOperator(adjointOperator)
 
   ! Copy basic information.
   adjointOperator%symmetryType = this%symmetryType
@@ -1613,7 +1598,7 @@ subroutine applyOperator(this, x, gridSize)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator) :: this
+  type(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
 
@@ -1637,7 +1622,7 @@ subroutine applyOperator(this, x, gridSize)
 
 end subroutine applyOperator
 
-subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
+PURE_SUBROUTINE applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
 
   ! <<< Derived types >>>
   use StencilOperator_type
@@ -1647,18 +1632,13 @@ subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
                                   applyOperatorAtInteriorPoints_2,                           &
                                   applyOperatorAtInteriorPoints_3
 
-  ! <<< Internal modules >>>
-  use MPITimingsHelper, only : startTiming, endTiming
-
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator) :: this
+  type(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
   SCALAR_TYPE, intent(out) :: x(:,:)
   integer, intent(in) :: gridSize(3)
-
-  call startTiming("applyOperatorAtInteriorPoints")
 
   assert(size(x, 2) > 0)
   assert(size(xWithGhostPoints, 4) == size(x, 2))
@@ -1684,11 +1664,9 @@ subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
      call applyOperatorAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
   end select
 
-  call endTiming("applyOperatorAtInteriorPoints")
-
 end subroutine applyOperatorAtInteriorPoints
 
-subroutine applyOperatorNorm(this, x, gridSize)
+PURE_SUBROUTINE applyOperatorNorm(this, x, gridSize)
 
   ! <<< Derived types >>>
   use StencilOperator_type
@@ -1701,7 +1679,7 @@ subroutine applyOperatorNorm(this, x, gridSize)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator) :: this
+  type(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
 
@@ -1721,7 +1699,7 @@ subroutine applyOperatorNorm(this, x, gridSize)
 
 end subroutine applyOperatorNorm
 
-subroutine applyOperatorNormInverse(this, x, gridSize)
+PURE_SUBROUTINE applyOperatorNormInverse(this, x, gridSize)
 
   ! <<< Derived types >>>
   use StencilOperator_type
@@ -1734,7 +1712,7 @@ subroutine applyOperatorNormInverse(this, x, gridSize)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator) :: this
+  type(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
 

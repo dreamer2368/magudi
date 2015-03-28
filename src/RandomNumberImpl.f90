@@ -9,14 +9,14 @@ contains
 
   function lcg(s)
 
+    ! <<< External modules >>>
+    use, intrinsic :: iso_fortran_env, only : int64
+
     ! <<< Arguments >>>
     integer(selected_int_kind(16)) :: s
 
     ! <<< Result >>>
     integer :: lcg
-
-    ! <<< Local variables >>>
-    integer, parameter :: int64 = selected_int_kind(16)
 
     if (s == 0) then
        s = 104729
@@ -33,14 +33,16 @@ end module RandomNumberImpl
 
 subroutine initializeRandomNumberGenerator()
 
+  ! <<< External modules >>>
+  use, intrinsic :: iso_fortran_env, only : int64
+
   ! <<< Private members >>>
   use RandomNumberImpl, only : lcg
 
   implicit none
 
   ! <<< Local variables >>>
-  integer, parameter :: int64 = selected_int_kind(16), fileUnit = 11
-  integer :: n, istat, i, dateTime(8)
+  integer :: fileUnit, n, istat, i, dateTime(8)
   integer, dimension(:), allocatable :: seed1, seed2
   integer(int64) :: t
 
@@ -63,7 +65,7 @@ subroutine initializeRandomNumberGenerator()
      seed1(i) = lcg(t)
   end do
 
-  open(unit = fileUnit, file = "/dev/urandom", access = "stream",                           &
+  open(newunit = fileUnit, file = "/dev/urandom", access = "stream",                         &
        form = "unformatted", action = "read", status = "old", iostat = istat)
   if (istat == 0) then
      read(fileUnit) seed2

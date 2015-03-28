@@ -643,10 +643,8 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   allocate(fluxes2(grid%nGridPoints, this%nUnknowns, nDimensions))
 
   ! Compute Cartesian form of inviscid fluxes.
-  call startTiming("computeCartesianInvsicidFluxes")
   call computeCartesianInvsicidFluxes(nDimensions, this%conservedVariables,                  &
        this%velocity, this%pressure(:,1), fluxes1)
-  call endTiming("computeCartesianInvsicidFluxes")
 
   ! Compute Cartesian form of viscous fluxes if viscous terms are included and computed using
   ! repeated first derivatives.

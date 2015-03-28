@@ -2,10 +2,10 @@
 
 module MPITimingsHelperImpl
 
+  use, intrinsic :: iso_fortran_env, only : real64
+
   implicit none
   private
-
-  integer, parameter, private :: real64 = selected_real_kind(15)
 
   type, public :: t_MPITimer
      character(len = STRING_LENGTH) :: name
@@ -260,6 +260,7 @@ subroutine endTiming(name)
 
   ! <<< External modules >>>
   use MPI
+  use, intrinsic :: iso_fortran_env, only : real64
 
   ! <<< Private members >>>
   use MPITimingsHelperImpl, only : t_MPITimer, timings
@@ -270,7 +271,6 @@ subroutine endTiming(name)
   character(len = *), intent(in) :: name
 
   ! <<< Local variables >>>
-  integer, parameter :: real64 = selected_real_kind(15)
   type(t_MPITimer), pointer :: current => null()
 
   current => timings
@@ -294,7 +294,7 @@ subroutine reportTimings(comm, outputUnit)
 
   ! <<< External modules >>>
   use MPI
-  use, intrinsic :: iso_fortran_env, only : output_unit
+  use, intrinsic :: iso_fortran_env, only : output_unit, real64
 
   ! <<< Private members >>>
   use MPITimingsHelperImpl
@@ -305,7 +305,6 @@ subroutine reportTimings(comm, outputUnit)
   integer, intent(in), optional :: comm, outputUnit
 
   ! <<< Local variables >>>
-  integer, parameter :: real64 = selected_real_kind(15)
   integer :: i, j, comm_, outputUnit_, nTimings, procRank, nProcs, ierror
   real(kind = real64) :: programTotalTime
   type(t_MPITimer), allocatable :: timingsArray(:)

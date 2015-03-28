@@ -213,9 +213,8 @@ contains
     character(len = *), intent(in) :: filename, line
 
     ! <<< Local variables >>>
-    integer :: ostat, procRank, ierror
+    integer :: fileUnit, ostat, procRank, ierror
     logical, save :: firstCall = .true.
-    integer, parameter :: fileUnit = 51
     character(len = STRING_LENGTH) :: message
 
     call MPI_Comm_rank(comm, procRank, ierror)
@@ -223,10 +222,10 @@ contains
     if (procRank == 0) then
 
        if (firstCall) then
-          open(unit = fileUnit, file = trim(filename), action = 'write',                     &
+          open(newunit = fileUnit, file = trim(filename), action = 'write',                  &
                status = 'unknown', iostat = ostat)
        else
-          open(unit = fileUnit, file = trim(filename), action = 'write',                     &
+          open(newunit = fileUnit, file = trim(filename), action = 'write',                  &
                status = 'old', position = 'append', iostat = ostat)
        end if
 

@@ -24,10 +24,10 @@ module State_type
      real(wp) :: adjointForcingFactor = 1.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
-     SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables, targetState,            &
-          adjointVariables, rightHandSide, specificVolume, velocity, pressure, temperature,  &
-          dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,                &
-          velocityGradient, stressTensor, heatFlux, meanPressure
+     SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
+          specificVolume, velocity, velocityGradient, stressTensor, pressure, temperature,   &
+          heatFlux, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,      &
+          meanPressure, targetState, adjointVariables
 
   end type t_State
 

@@ -25,8 +25,7 @@ contains
     character(len = *), intent(in) :: filename
 
     ! <<< Local variables >>>
-    integer, parameter :: fileUnit = 31
-    integer :: i, proc, nProcs, lineNo, gridIndex, numProcsInGrid(3), istat, ierror
+    integer :: i, fileUnit, proc, nProcs, lineNo, gridIndex, numProcsInGrid(3), istat, ierror
     character(len = STRING_LENGTH) :: line, message
     character(len = 1), parameter :: commentMarker = '#'
 
@@ -38,7 +37,7 @@ contains
 
     ! Check if file exists.
     if (proc == 0) then
-       open(unit = fileUnit, file = trim(filename), action = 'read', status = 'old',         &
+       open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old',      &
             iostat = istat)
     end if
     call MPI_Bcast(istat, 1, MPI_INTEGER, 0, this%comm, ierror)
@@ -50,7 +49,7 @@ contains
     ! Only the root process reads the file.
     if (proc == 0) then
        i = 0; lineNo = 0; istat = 0
-       open(unit = fileUnit, file = trim(filename), action = 'read', status = 'old')
+       open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old')
        do
 
           read(fileUnit, '(A)', iostat = istat) line
@@ -189,8 +188,7 @@ contains
     character(len = *), intent(in) :: filename
 
     ! <<< Local variables >>>
-    integer, parameter :: fileUnit = 41
-    integer :: i, proc, nPatches, lineNo, istat, ierror
+    integer :: i, fileUnit, proc, nPatches, lineNo, istat, ierror
     character(len = STRING_LENGTH) :: line, str, message
     character(len = 1), parameter :: commentMarker = '#'
     integer, allocatable :: tempBuffer(:,:)
@@ -199,7 +197,7 @@ contains
 
     ! Check if file exists.
     if (proc == 0) then
-       open(unit = fileUnit, file = trim(filename), action = 'read', status = 'old',         &
+       open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old',      &
             iostat = istat)
     end if
     call MPI_Bcast(istat, 1, MPI_INTEGER, 0, this%comm, ierror)
@@ -248,7 +246,7 @@ contains
     ! Again, only the root process reads the file.
     if (proc == 0) then
        i = 0; lineNo = 0; istat = 0
-       open(unit = fileUnit, file = trim(filename), action = 'read', status = 'old')
+       open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old')
        do !... read again to fill patch information.
 
           read(fileUnit, '(A)', iostat = istat) line

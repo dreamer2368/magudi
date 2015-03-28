@@ -5,6 +5,7 @@ subroutine setupSolenoidalExcitation(this, comm, nModes, location, &
 
   ! <<< External modules >>>
   use MPI
+  use, intrinsic :: iso_fortran_env, only : real64
 
   ! <<< Derived types >>>
   use SolenoidalExcitation_type
@@ -25,7 +26,7 @@ subroutine setupSolenoidalExcitation(this, comm, nModes, location, &
   integer, intent(in), optional :: seed
 
   ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND, real64 = selected_real_kind(15)
+  integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_real64 * atan(1.0_real64)
   integer :: i, n, ierror
   integer, allocatable :: seed_(:)

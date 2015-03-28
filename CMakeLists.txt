@@ -50,7 +50,7 @@ execute_process(COMMAND mpif90 -show COMMAND sed "s/^\\([^[:space:]]*\\).*/\\1/g
 execute_process(COMMAND basename ${CMAKE_Fortran_COMPILER_PATH} OUTPUT_VARIABLE CMAKE_Fortran_COMPILER_NAME OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 if(CMAKE_Fortran_COMPILER_NAME STREQUAL "gfortran")
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-form -fmodule-private -fimplicit-none -cpp -pedantic-errors -std=f2003")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-form -fmodule-private -fimplicit-none -cpp -pedantic-errors -std=f2008")
   set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -fbacktrace -Wall -Wextra -Waliasing -ffree-line-length-none -fall-intrinsics -fcheck=all -g")
   set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftree-vectorize -ffast-math -funroll-loops")
 elseif(CMAKE_Fortran_COMPILER_NAME STREQUAL "ifort")

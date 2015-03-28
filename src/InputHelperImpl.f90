@@ -141,8 +141,7 @@ subroutine parseInputFile(filename, commentMarker, separator)
 
   ! <<< Local variables >>>
   character(len = 1) :: commentMarker_, separator_
-  integer, parameter :: fileUnit = 21
-  integer :: i, procRank, dictSize, lineNo, istat, ierror
+  integer :: i, fileUnit, procRank, dictSize, lineNo, istat, ierror
   character(len = STRING_LENGTH) :: line, message
 
   assert(len_trim(filename) > 0)
@@ -157,7 +156,7 @@ subroutine parseInputFile(filename, commentMarker, separator)
 
   ! Check if file exists.
   if (procRank == 0) then
-     open(unit = fileUnit, file = trim(filename), action = 'read', &
+     open(newunit = fileUnit, file = trim(filename), action = 'read',                        &
           status = 'old', iostat = istat)
   end if
   call MPI_Bcast(istat, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
@@ -197,7 +196,7 @@ subroutine parseInputFile(filename, commentMarker, separator)
   ! Again, only the root process reads the input file.
   if (procRank == 0) then
      i = 0 ; lineNo = 0 ; istat = 0
-     open(unit = fileUnit, file = trim(filename), action = 'read', status = 'old')
+     open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old')
      do !... read again to fill input dictionary.
 
         read(fileUnit, '(A)', iostat = istat) line
