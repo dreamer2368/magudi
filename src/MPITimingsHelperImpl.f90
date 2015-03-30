@@ -294,7 +294,7 @@ subroutine reportTimings(comm, outputUnit)
 
   ! <<< External modules >>>
   use MPI
-  use, intrinsic :: iso_fortran_env, only : output_unit, real64
+  use, intrinsic :: iso_fortran_env, only : output_unit, int64, real64
 
   ! <<< Private members >>>
   use MPITimingsHelperImpl
@@ -399,7 +399,7 @@ subroutine reportTimings(comm, outputUnit)
            write(outputUnit_, '(A25,5X,F6.2,2X,I13,2X,F13.4,2X,ES12.4)')                     &
                 trim(timingsArray(i)%name),                                                  &
                 timingsArray(i)%accumulatedTime / programTotalTime * 100.0_real64,           &
-                nint(timingsArray(i)%numCalls), timingsArray(i)%accumulatedTime,             &
+                nint(timingsArray(i)%numCalls, int64), timingsArray(i)%accumulatedTime,      &
                 timingsArray(i)%accumulatedTime / timingsArray(i)%numCalls
         end do
 
