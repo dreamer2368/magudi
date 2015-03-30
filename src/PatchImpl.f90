@@ -514,7 +514,7 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
   use Region_type, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
-  use CNSHelper
+  use CNSHelper_mod
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
@@ -655,7 +655,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   use PatchDescriptor_type, only : SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL
 
   ! <<< Internal modules >>>
-  use CNSHelper
+  use CNSHelper_mod
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none

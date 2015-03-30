@@ -78,7 +78,6 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
   use SolverOptions_mod, only : initializeSolverOptions
-  use AcousticSource_mod, only : setupAcousticSource
   use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
@@ -133,7 +132,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
         temp(1) = getOption(trim(key) // "x", 0.0_wp)
         temp(2) = getOption(trim(key) // "y", 0.0_wp)
         temp(3) = getOption(trim(key) // "z", 0.0_wp)
-        call setupAcousticSource(this%acousticSources(i), temp,                              &
+        call this%acousticSources(i)%setup(temp,                                             &     
              getOption(trim(key) // "amplitude", 1.0_wp),                                    &
              getOption(trim(key) // "frequency", 1.0_wp),                                    &
              getOption(trim(key) // "radius", 1.0_wp),                                       &
@@ -238,8 +237,8 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
 
   ! <<< Internal modules >>>
   use Grid_mod, only : computeGradient
-  use CNSHelper, only : computeVorticityMagnitudeAndDilatation
   use PLOT3DHelper
+  use CNSHelper_mod, only : computeVorticityMagnitudeAndDilatation
 
   implicit none
 
@@ -408,7 +407,7 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
 
   ! <<< Internal modules >>>
   use Grid_mod
-  use CNSHelper
+  use CNSHelper_mod
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
@@ -478,7 +477,7 @@ function cfl(this, grid, simulationFlags, solverOptions)
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use CNSHelper, only : computeCfl
+  use CNSHelper_mod, only : computeCfl
 
   implicit none
 
@@ -544,7 +543,7 @@ function timeStepSize(this, grid, simulationFlags, solverOptions)
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use CNSHelper, only : computeTimeStepSize
+  use CNSHelper_mod, only : computeTimeStepSize
 
   implicit none
 
@@ -615,8 +614,8 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use CNSHelper
   use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use CNSHelper_mod
   use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
@@ -715,8 +714,8 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use CNSHelper
   use Patch_mod, only : addFarFieldPenalty, addWallPenalty
+  use CNSHelper_mod
   use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
@@ -946,8 +945,8 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use CNSHelper
   use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use CNSHelper_mod
   use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
@@ -1005,8 +1004,8 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use CNSHelper
   use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use CNSHelper_mod
   use MPITimingsHelper, only : startTiming, endTiming
   use StencilOperator_mod, only : applyOperator
 
@@ -1062,7 +1061,6 @@ subroutine addSourcesForward(this, grid, patches, time)
   ! <<< Internal modules >>>
   use Patch_mod, only : addDamping, addSolenoidalExcitation
   use MPITimingsHelper, only : startTiming, endTiming
-  use AcousticSource_mod, only : addAcousticSource
 
   implicit none
 
@@ -1079,7 +1077,7 @@ subroutine addSourcesForward(this, grid, patches, time)
 
   if (allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
-        call addAcousticSource(this%acousticSources(i), time, grid%coordinates,              &
+        call this%acousticSources(i)%add(time, grid%coordinates,                             &
              grid%iblank, this%rightHandSide)
      end do
   end if
@@ -1166,11 +1164,10 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : computeNormalizedCurveLengths
-  use CNSHelper, only : computeCartesianViscousFluxes, computeDependentVariables
   use State_mod, only : updateState
   use Patch_mod, only : collectAtPatch, updateSolenoidalExcitationStrength
+  use CNSHelper_mod, only : computeCartesianViscousFluxes, computeDependentVariables
   use MPITimingsHelper, only : startTiming, endTiming
-  use AcousticSource_mod, only : addAcousticSource
 
   implicit none
 

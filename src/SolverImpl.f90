@@ -271,10 +271,10 @@ subroutine initializeSolver(region, restartFilename)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : computeInnerProduct
-  use CNSHelper, only : computeDependentVariables
   use State_mod, only : makeQuiescent
   use Region_mod, only : loadRegionData
   use InputHelper, only : getOption, getRequiredOption
+  use CNSHelper_mod, only : computeDependentVariables
 
   implicit none
 

@@ -1,6 +1,6 @@
 #include "config.h"
 
-module CNSHelper
+module CNSHelper_mod
 
   implicit none
   public
@@ -377,4 +377,4 @@ module CNSHelper
 
   end interface
 
-end module CNSHelper
+end module CNSHelper_mod

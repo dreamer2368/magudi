@@ -2,7 +2,7 @@
 
 module State_type
 
-  use AcousticSource_type, only : t_AcousticSource
+  use AcousticSource_mod, only : AcousticSource
 
   implicit none
   private
@@ -18,7 +18,7 @@ module State_type
 
   type, public :: t_State
 
-     type(t_AcousticSource), allocatable :: acousticSources(:)
+     type(AcousticSource), allocatable :: acousticSources(:)
 
      integer :: nUnknowns = 0
      real(wp) :: adjointForcingFactor = 1.0_wp
