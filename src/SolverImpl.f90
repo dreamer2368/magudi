@@ -45,7 +45,8 @@ contains
                region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if
-       mollifierNorm = mollifierNorm + real(region%grids(i)%computeQuadratureOnPatches( \
+       mollifierNorm = mollifierNorm +                                                       &
+            real(region%grids(i)%computeQuadratureOnPatches(                                 &
        region%grids(i)%controlMollifier(:,1), region%patches, ACTUATOR), wp)
     end do
 
@@ -103,7 +104,8 @@ contains
                region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if
-       mollifierNorm = mollifierNorm + real(region%grids(i)%computeQuadratureOnPatches( \
+       mollifierNorm = mollifierNorm +                                                       &
+            real(region%grids(i)%computeQuadratureOnPatches(                                 &
        region%grids(i)%targetMollifier(:,1), region%patches, CONTROL_TARGET), wp)
     end do
 
@@ -382,7 +384,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   ! <<< Derived types >>>
   use State_type, only : t_State, QOI_FORWARD_STATE
   use Region_type, only : t_Region
-  use RK4Integrator_type, only : t_RK4Integrator
+  use TimeIntegrator_mod, only : t_TimeIntegrator
 
   ! <<< Private members >>>
   use SolverImpl, only : instantaneousCostFunctional, writeLine
@@ -392,13 +394,12 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
-  use RK4Integrator_mod, only : substepForward
 
   implicit none
 
   ! <<< Arguments >>>
   type(t_Region) :: region
-  type(t_RK4Integrator) :: integrator
+  class(t_TimeIntegrator) :: integrator
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps
@@ -441,7 +442,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
 
      do i = 1, integrator%nStages
 
-        call substepForward(integrator, region, time, timeStepSize, timestep_, i)
+        call integrator%substepForward(region, time, timeStepSize, timestep_, i)
 
         if (i /= integrator%nStages) then
            do j = 1, size(region%states) !... update state
@@ -515,7 +516,7 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   ! <<< Derived types >>>
   use State_type, only : t_State, QOI_ADJOINT_STATE
   use Region_type, only : t_Region
-  use RK4Integrator_type, only : t_RK4Integrator
+  use TimeIntegrator_mod, only : t_TimeIntegrator
   use ReverseMigrator_type, only : t_ReverseMigrator
 
   ! <<< Internal modules >>>
@@ -524,14 +525,13 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   use InputHelper, only : getOption
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
-  use RK4Integrator_mod, only : substepAdjoint
   use ReverseMigrator_mod
 
   implicit none
 
   ! <<< Arguments >>>
   type(t_Region) :: region
-  type(t_RK4Integrator) :: integrator
+  class(t_TimeIntegrator) :: integrator
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps, saveInterval
@@ -594,7 +594,7 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
                 region%simulationFlags, region%solverOptions)
         end do
 
-        call substepAdjoint(integrator, region, time, timeStepSize, timestep_, i)
+        call integrator%substepAdjoint(region, time, timeStepSize, timestep_, i)
 
      end do
 

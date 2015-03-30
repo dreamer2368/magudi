@@ -65,12 +65,12 @@ module ReverseMigrator_mod
      subroutine migrateToSubstep(this, region, integrator, timestep, stage)
 
        use Region_type, only : t_Region
-       use RK4Integrator_type, only : t_RK4Integrator
+       use TimeIntegrator_mod, only : t_TimeIntegrator
        use ReverseMigrator_type, only : t_ReverseMigrator
 
        type(t_ReverseMigrator) :: this
        type(t_Region) :: region
-       type(t_RK4Integrator) :: integrator
+       class(t_TimeIntegrator) :: integrator
        integer, intent(in) :: timestep, stage
 
      end subroutine migrateToSubstep

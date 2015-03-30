@@ -9,7 +9,7 @@ program main
 
   use State_type
   use Region_type
-  use RK4Integrator_type
+  use RK4Integrator_mod
 
   use Solver, only : initializeSolver, solveForward, solveAdjoint
   use State_mod, only : updatePatches, makeQuiescent
@@ -72,14 +72,14 @@ program main
 
   ! Setup spatial discretization.
   do i = 1, size(region%grids)
-     call setupSpatialDiscretization(region%grids(i))
+     call region%grids(i)%setupSpatialDiscretization()
   end do
   call MPI_Barrier(region%comm, ierror)
 
   ! Update the grids by computing the Jacobian, metrics, and norm.
   do i = 1, size(region%grids)
-     call updateGrid(region%grids(i))
-     call computeSpongeStrengths(region%grids(i), region%patches)
+     call region%grids(i)%update()
+     call region%grids(i)%computeSpongeStrengths(region%patches)
   end do
   call MPI_Barrier(region%comm, ierror)
 
@@ -94,7 +94,7 @@ program main
   call saveRegionData(region, QOI_METRICS, filename)
 
   ! Setup the RK4 integrator.
-  call setupRK4Integrator(integrator, region)
+  call integrator%setup(region)
 
   ! Initialize the solver.
   call initializeSolver(region)
@@ -136,7 +136,7 @@ program main
 
   end if
 
-  call cleanupRK4Integrator(integrator)
+  call integrator%cleanup()
   call cleanupRegion(region)
 
   call endTiming("total")

@@ -25,10 +25,10 @@ module Solver
 
        use State_type, only : t_State
        use Region_type, only : t_Region
-       use RK4Integrator_type, only : t_RK4Integrator
+       use RK4Integrator_mod, only : t_RK4Integrator
 
        type(t_Region) :: region
-       type(t_RK4Integrator) :: integrator
+       class(t_RK4Integrator) :: integrator
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps
@@ -47,10 +47,10 @@ module Solver
 
        use State_type, only : t_State
        use Region_type, only : t_Region
-       use RK4Integrator_type, only : t_RK4Integrator
+       use RK4Integrator_mod, only : t_RK4Integrator
 
        type(t_Region) :: region
-       type(t_RK4Integrator) :: integrator
+       class(t_RK4Integrator) :: integrator
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps, saveInterval

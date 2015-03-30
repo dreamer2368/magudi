@@ -89,20 +89,19 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
   ! <<< Derived types >>>
   use State_type, only : QOI_FORWARD_STATE
   use Region_type, only : t_Region
-  use RK4Integrator_type, only : t_RK4Integrator
+  use TimeIntegrator_mod, only : t_TimeIntegrator
   use ReverseMigrator_type
 
   ! <<< Internal modules >>>
   use State_mod, only : updateState
   use Region_mod, only : loadRegionData, getTimeStepSize
-  use RK4Integrator_mod, only : substepForward
 
   implicit none
 
   ! <<< Arguments >>>
   type(t_ReverseMigrator) :: this
   type(t_Region) :: region
-  type(t_RK4Integrator) :: integrator
+  class(t_TimeIntegrator) :: integrator
   integer, intent(in) :: timestep, stage
 
   ! <<< Local variables >>>
@@ -158,7 +157,7 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
                  if (timestep_ == this%loadedTimestep + this%saveInterval .and.              &
                       stage_ == this%nStages) exit
 
-                 call substepForward(integrator, region, time,                               &
+                 call integrator%substepForward(region, time,                                &
                       timeStepSize, timestep_, stage_)
 
                  if (stage /= this%nStages) then

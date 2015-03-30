@@ -4,24 +4,26 @@ subroutine setupRK4Integrator(this, region)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region
-  use RK4Integrator_type, only : t_RK4Integrator
-
-  ! <<< Public members >>>
-  use RK4Integrator_mod, only : cleanupRK4Integrator
+  use RK4Integrator_mod, only : t_RK4Integrator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_RK4Integrator) :: this
-  type(t_Region), intent(in) :: region
+  class(t_RK4Integrator) :: this
+  class(t_Region), intent(in) :: region
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i
-
-  call cleanupRK4Integrator(this)
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
+
+  call this%cleanup()
+
+  this%nStages = 4
+  call this%setup_()
+  this%norm = (/ 1.0_wp / 6.0_wp, 1.0_wp / 3.0_wp, 1.0_wp / 3.0_wp, 1.0_wp / 6.0_wp /)
 
   allocate(this%temp_(size(region%states)))
   do i = 1, size(this%temp_)
@@ -36,15 +38,17 @@ end subroutine setupRK4Integrator
 subroutine cleanupRK4Integrator(this)
 
   ! <<< Derived types >>>
-  use RK4Integrator_type, only : t_RK4Integrator
+  use RK4Integrator_mod, only : t_RK4Integrator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_RK4Integrator) :: this
+  class(t_RK4Integrator) :: this
 
   ! <<< Local variables >>>
   integer :: i
+
+  call this%cleanup_()
 
   if (allocated(this%temp_)) then
      do i = 1, size(this%temp_)
@@ -60,7 +64,7 @@ subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, FORWARD
-  use RK4Integrator_type, only : t_RK4Integrator
+  use RK4Integrator_mod, only : t_RK4Integrator
 
   ! <<< Internal modules >>>
   use Region_mod, only : computeRhs
@@ -69,8 +73,8 @@ subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_RK4Integrator) :: this
-  type(t_Region) :: region
+  class(t_RK4Integrator) :: this
+  class(t_Region) :: region
   real(SCALAR_KIND), intent(inout) :: time
   real(SCALAR_KIND), intent(in) :: timeStepSize
   integer, intent(in) :: timestep, stage
@@ -153,7 +157,7 @@ subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, ADJOINT
-  use RK4Integrator_type, only : t_RK4Integrator
+  use RK4Integrator_mod, only : t_RK4Integrator
 
   ! <<< Internal modules >>>
   use Region_mod, only : computeRhs
@@ -162,8 +166,8 @@ subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_RK4Integrator) :: this
-  type(t_Region) :: region
+  class(t_RK4Integrator) :: this
+  class(t_Region) :: region
   real(SCALAR_KIND), intent(inout) :: time
   real(SCALAR_KIND), intent(in) :: timeStepSize
   integer, intent(in) :: timestep, stage
