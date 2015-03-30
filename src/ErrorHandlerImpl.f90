@@ -89,10 +89,14 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
   str2 = adjustl(str2)
 
   if (.not. condition) then
+#ifdef DEBUG
      call MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, mpiWindow, ierror)
      call MPI_Fetch_and_op(one, flag, MPI_INTEGER, 0, int(0, MPI_ADDRESS_KIND),              &
           MPI_SUM, mpiWindow, ierror)
      call MPI_Win_unlock(0, mpiWindow, ierror)
+#else
+     flag = 0
+#endif
      if (flag == 0) then
         write(error_unit, '(3A,I0.0,3A)') "AssertionError at ",                              &
              trim(str2), ":", lineNo, ": ", trim(str1), "!"

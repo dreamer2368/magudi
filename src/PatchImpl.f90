@@ -44,6 +44,9 @@ contains
        allocate(this%interfaceDataBuffer1(this%nPatchPoints, 2 * nUnknowns - 1))
        allocate(this%interfaceDataBuffer2(this%nPatchPoints, 2 * nUnknowns - 1))
 
+    case (SAT_ISOTHERMAL_WALL)
+       allocate(this%wallTemperature(this%nPatchPoints))
+
     case (SPONGE)
        allocate(this%spongeStrength(this%nPatchPoints), source = 0.0_wp)
 
@@ -74,7 +77,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   use PatchImpl, only : allocateData
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption
+  use InputHelper, only : getOption, getRequiredOption
   use SolenoidalExcitation_mod, only : setupSolenoidalExcitation
 
   implicit none
@@ -90,6 +93,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   integer, parameter :: wp = SCALAR_KIND
   real(SCALAR_KIND) :: solenoidalExcitationOrigin(3), solenoidalExcitationSpeed(3)
   character(len = STRING_LENGTH) :: key
+  SCALAR_TYPE :: wallTemperature
 
   assert(index > 0)
   assert_key(nDimensions, (1, 2, 3))
@@ -239,6 +243,12 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
   if (this%nPatchPoints > 0) call allocateData(this, nDimensions, nUnknowns, simulationFlags)
 
+  if (this%patchType == SAT_ISOTHERMAL_WALL .and.                                            &
+       .not. simulationFlags%useTargetState) then
+     call getRequiredOption(trim(key) // "temperature", wallTemperature)
+     this%wallTemperature = wallTemperature
+  end if
+
 end subroutine setupPatch
 
 subroutine cleanupPatch(this)
@@ -265,6 +275,8 @@ subroutine cleanupPatch(this)
 
   SAFE_DEALLOCATE(this%viscousFluxes)
   SAFE_DEALLOCATE(this%targetViscousFluxes)
+  SAFE_DEALLOCATE(this%wallTemperature)
+  SAFE_DEALLOCATE(this%adjointSource)
   SAFE_DEALLOCATE(this%metrics)
   SAFE_DEALLOCATE(this%spongeStrength)
   SAFE_DEALLOCATE(this%gradient)
@@ -640,6 +652,7 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   ! <<< Derived types >>>
   use Patch_type, only : t_Patch
   use Region_type, only : FORWARD, ADJOINT
+  use PatchDescriptor_type, only : SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -661,8 +674,8 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
   integer :: i, j, k, l, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
        metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),                  &
-       inviscidPenalty(:), deltaNormalVelocity(:), deltaInviscidPenalty(:,:),                &
-       deltaIncomingJacobianOfInviscidFlux(:,:,:)
+       inviscidPenalty(:), viscousPenalty(:), deltaNormalVelocity(:),                        &
+       deltaInviscidPenalty(:,:), deltaIncomingJacobianOfInviscidFlux(:,:,:)
   SCALAR_TYPE :: normalVelocity
 
   assert(all(this%gridLocalSize > 0))
@@ -705,6 +718,11 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
      allocate(deltaIncomingJacobianOfInviscidFlux(nUnknowns, nUnknowns, nUnknowns))
   end if
 
+  select case (this%patchType)
+  case (SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
+     allocate(viscousPenalty(nUnknowns - 1))
+  end select
+
   do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
         do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
@@ -728,6 +746,14 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
                 sqrt(sum(metricsAlongNormalDirection ** 2))
            inviscidPenalty(nDimensions+2) =                                                  &
                 0.5_wp * localConservedVariables(1) * normalVelocity ** 2
+
+           select case (this%patchType)
+           case (SAT_ISOTHERMAL_WALL)
+              viscousPenalty(1:nDimensions+1) = localConservedVariables(2:nDimensions+2)
+              viscousPenalty(nDimensions+1) = viscousPenalty(nDimensions+1) -                &
+                   localConservedVariables(1) *                                              &
+                   this%wallTemperature(patchIndex) / ratioOfSpecificHeats
+           end select
 
            select case (mode)
 
@@ -788,9 +814,17 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
            select case (mode)
 
            case (FORWARD)
+
               rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) -                      &
                    this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &
                    inviscidPenalty)
+
+              select case (this%patchType)
+              case (SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
+                 rightHandSide(gridIndex,2:nUnknowns-1) =                                    &
+                      rightHandSide(gridIndex,2:nUnknowns-1) -                               &
+                      this%viscousPenaltyAmount * viscousPenalty
+              end select
 
            case (ADJOINT)
 
@@ -802,33 +836,13 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
                       matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)))
               end do
 
-              if (this%isLiftMeasured .or. this%isDragMeasured) then
-                 this%adjointSource(patchIndex,1) =                                          &
-                      0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                             &
-                      sum(localConservedVariables(2:nDimensions+1) ** 2) /                   &
-                      localConservedVariables(1) ** 2
-                 this%adjointSource(patchIndex,2:nDimensions+1) =                            &
-                      - (ratioOfSpecificHeats - 1.0_wp) *                                    &
-                      localConservedVariables(2:nDimensions+1) / localConservedVariables(1)
-                 this%adjointSource(patchIndex,nDimensions+2) =                              &
-                      ratioOfSpecificHeats - 1.0_wp
-              end if
-
-              if (this%isLiftMeasured) then
-                 this%adjointSource(patchIndex,:) =                                          &
-                   this%adjointSource(patchIndex,:) *                                        &
-                   dot_product(this%liftDirection(1:nDimensions),                            &
-                   metricsAlongNormalDirection)
-                 rightHandSide(gridIndex,:) = rightHandSide(gridIndex,:) +                   &
-                      this%adjointSource(patchIndex,:)
-              end if
-
            end select
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
   end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
 
+  SAFE_DEALLOCATE(viscousPenalty)
   SAFE_DEALLOCATE(deltaIncomingJacobianOfInviscidFlux)
   SAFE_DEALLOCATE(deltaInviscidPenalty)
   SAFE_DEALLOCATE(deltaNormalVelocity)

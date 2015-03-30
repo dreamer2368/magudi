@@ -26,7 +26,7 @@ module Patch_type
      ! Wall patch variables.
      logical :: isLiftMeasured, isDragMeasured
      real(SCALAR_KIND) :: liftDirection(3), dragDirection(3)
-     SCALAR_TYPE, allocatable :: adjointSource(:,:)
+     SCALAR_TYPE, allocatable :: adjointSource(:,:), wallTemperature(:)
 
      ! Block interface patch variables.
      integer :: indexOfConformingPatch, commOfConformingPatch = MPI_COMM_NULL

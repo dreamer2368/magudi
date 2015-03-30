@@ -64,6 +64,7 @@ subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Internal modules >>>
   use Region_mod, only : computeRhs
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -87,6 +88,9 @@ subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
      assert(stage == stageLastCall + 1 .or. (stageLastCall == 4 .and. stage == 1))
   end if
 #endif
+
+  call startTiming("substepForward")
+
   stageLastCall = stage
 
   select case (stage)
@@ -141,6 +145,8 @@ subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
 
   end select
 
+  call endTiming("substepForward")
+
 end subroutine substepForward
 
 subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
@@ -151,6 +157,7 @@ subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Internal modules >>>
   use Region_mod, only : computeRhs
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -174,6 +181,9 @@ subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
      assert(stage == stageLastCall - 1 .or. (stageLastCall == 1 .and. stage == 4))
   end if
 #endif
+
+  call startTiming("substepAdjoint")
+
   stageLastCall = stage
 
   select case (stage)
@@ -231,5 +241,7 @@ subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
      end do
 
   end select
+
+  call endTiming("substepAdjoint")
 
 end subroutine substepAdjoint

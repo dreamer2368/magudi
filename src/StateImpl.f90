@@ -978,7 +978,7 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
                 nDimensions, solverOptions%ratioOfSpecificHeats,                             &
                 this%conservedVariables, this%targetState)
 
-        case (SAT_SLIP_WALL) !... impenetrable wall (for inviscid flow).
+        case (SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
            call addWallPenalty(patches(i), FORWARD, this%rightHandSide, grid%iblank,         &
                 nDimensions, solverOptions%ratioOfSpecificHeats, this%conservedVariables)
 
@@ -1166,7 +1166,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
   ! <<< Internal modules >>>
   use Grid_mod, only : computeNormalizedCurveLengths
-  use CNSHelper, only : computeCartesianViscousFluxes
+  use CNSHelper, only : computeCartesianViscousFluxes, computeDependentVariables
   use State_mod, only : updateState
   use Patch_mod, only : collectAtPatch, updateSolenoidalExcitationStrength
   use MPITimingsHelper, only : startTiming, endTiming
@@ -1184,13 +1184,34 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   ! <<< Local variables >>>
   integer :: i, nDimensions, ierror
   logical :: flag
-  SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:)
+  SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:), targetTemperature(:)
 
   call startTiming("updatePatches")
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
   if (simulationFlags%viscosityOn) then
+
+     flag = .false.
+     if (allocated(patches)) flag = any(patches(:)%gridIndex == grid%index .and.             &
+          patches(:)%patchType == SAT_ISOTHERMAL_WALL)
+     call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
+
+     if (flag) then
+        allocate(targetTemperature(grid%nGridPoints))
+        call computeDependentVariables(nDimensions, this%targetState,                        &
+             solverOptions%ratioOfSpecificHeats, temperature = targetTemperature)
+     end if
+
+     if (allocated(patches)) then
+        do i = 1, size(patches)
+           if (patches(i)%gridIndex /= grid%index .or.                                       &
+                patches(i)%patchType /= SAT_ISOTHERMAL_WALL) cycle
+           call collectAtPatch(patches(i), targetTemperature, patches(i)%wallTemperature)
+        end do
+     end if
+
+     SAFE_DEALLOCATE(targetTemperature)
 
      flag = .false.
      if (allocated(patches)) flag = any(patches(:)%gridIndex == grid%index .and.             &
@@ -1227,11 +1248,16 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
         case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL,                             &
               SAT_ADIABATIC_WALL, SAT_BLOCK_INTERFACE)
+
            call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
            patches(i)%inviscidPenaltyAmount = patches(i)%inviscidPenaltyAmount /             &
                 grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
-           patches(i)%viscousPenaltyAmount = patches(i)%viscousPenaltyAmount /               &
-                grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
+
+           if (simulationFlags%viscosityOn) then
+              patches(i)%viscousPenaltyAmount = patches(i)%viscousPenaltyAmount /            &
+                   grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1) *   &
+                   solverOptions%reynoldsNumberInverse
+           end if
 
         case (SOLENOIDAL_EXCITATION)
            call updateSolenoidalExcitationStrength(patches(i), grid%coordinates, grid%iblank)
@@ -1242,6 +1268,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   end if
 
   SAFE_DEALLOCATE(targetViscousFluxes)
+  SAFE_DEALLOCATE(targetTemperature)
 
   call endTiming("updatePatches")
 

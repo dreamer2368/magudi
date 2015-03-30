@@ -396,6 +396,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   use State_mod, only : updateState
   use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
   use ErrorHandler, only : writeAndFlush
+  use MPITimingsHelper, only : startTiming, endTiming
   use RK4Integrator_mod, only : substepForward
 
   implicit none
@@ -419,6 +420,8 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   SCALAR_TYPE :: instantaneousCostFunctional_
 
   assert(timestep >= 0)
+
+  call startTiming("solveForward")
 
   outputPrefix_ = PROJECT_NAME
   if (present(outputPrefix)) outputPrefix_ = outputPrefix
@@ -504,6 +507,8 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
 
   timestep = timestep + nTimesteps
 
+  call endTiming("solveForward")
+
 end subroutine solveForward
 
 subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,                      &
@@ -523,6 +528,7 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
   use InputHelper, only : getOption
   use ErrorHandler, only : writeAndFlush
+  use MPITimingsHelper, only : startTiming, endTiming
   use RK4Integrator_mod, only : substepAdjoint
   use ReverseMigrator_mod
 
@@ -546,6 +552,8 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   real(wp) :: timeStepSize, cfl
 
   assert(timestep >= nTimesteps)
+
+  call startTiming("solveAdjoint")
 
   outputPrefix_ = PROJECT_NAME
   if (present(outputPrefix)) outputPrefix_ = outputPrefix
@@ -625,5 +633,7 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   call cleanupReverseMigrator(reverseMigrator)
 
   timestep = timestep - nTimesteps
+
+  call endTiming("solveAdjoint")
 
 end subroutine solveAdjoint
