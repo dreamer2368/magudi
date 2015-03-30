@@ -113,6 +113,9 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
   ! <<< External modules >>>
   use MPI
 
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
   implicit none
 
   ! <<< Arguments >>>
@@ -133,6 +136,8 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
        sentToNextProcess(:,:,:)
 
   assert(all(shape(arrayWithGhostPoints) > 0))
+
+  call startTiming("fillGhostPoints")
 
   ! Get number of dimensions from communicator.
   call MPI_Cartdim_get(cartesianCommunicator, nDimensions, ierror)
@@ -374,6 +379,8 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
   SAFE_DEALLOCATE(sentToNextProcess)
   SAFE_DEALLOCATE(receivedFromPreviousProcess)
   SAFE_DEALLOCATE(receivedFromNextProcess)
+
+  call endTiming("fillGhostPoints")
 
 end subroutine fillGhostPoints
 

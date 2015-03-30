@@ -323,6 +323,10 @@ class Grid(MultiBlockObject):
 
         return None
 
+    def CopyFrom(self, obj):
+        super(Grid, self).CopyFrom(obj)
+        self._hasIBLANK = obj._hasIBLANK
+
 class Solution(MultiBlockObject):
 
     def __init__(self):
