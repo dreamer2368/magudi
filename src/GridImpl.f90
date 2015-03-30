@@ -600,7 +600,7 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
      ! First derivative operators.
      val = "null matrix"
      if (this%globalSize(i) > 1) then
-        val = getOption("defaults/first_derivative_scheme", "SBP 3-6")
+        val = getOption("defaults/first_derivative_scheme", "SBP 4-8")
         val = getOption(trim(key) // "first_derivative_scheme", trim(val))
      end if
      call setupOperator(this%firstDerivative(i), trim(val) // " first derivative", success_)
@@ -617,7 +617,7 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
      if (allocated(this%secondDerivative)) then
         val = "null matrix"
         if (this%globalSize(i) > 1) then
-           val = getOption("defaults/second_derivative_scheme", "SBP 3-6")
+           val = getOption("defaults/second_derivative_scheme", "SBP 4-8")
            val = getOption(trim(key) // "second_derivative_scheme", trim(val))
         end if
         call setupOperator(this%secondDerivative(i), trim(val) //                            &
@@ -636,7 +636,7 @@ subroutine setupSpatialDiscretization(this, success, errorMessage)
      if (allocated(this%dissipation)) then
         val = "null matrix"
         if (this%globalSize(i) > 1) then
-           val = getOption("defaults/artificial_dissipation_scheme", "SBP 3-6")
+           val = getOption("defaults/artificial_dissipation_scheme", "SBP 4-8")
            val = getOption(trim(key) // "artificial_dissipation_scheme", trim(val))
         end if
         call setupOperator(this%dissipation(i), trim(val) // " dissipation", success_)
