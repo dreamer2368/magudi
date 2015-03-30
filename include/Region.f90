@@ -5,7 +5,7 @@ module Region_type
   use MPI, only : MPI_COMM_NULL
 
   use Grid_mod, only : t_Grid
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use Patch_type, only : t_Patch
   use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type, only : t_PatchDescriptor
@@ -22,7 +22,7 @@ module Region_type
 
      type(t_Grid), allocatable :: grids(:)
      type(t_State), allocatable :: states(:)
-     type(t_Patch), allocatable :: patches(:)
+     class(t_Patch), allocatable :: patches(:)
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)

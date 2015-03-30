@@ -424,8 +424,11 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use State_type, only : t_State, QOI_FORWARD_STATE
+    use State_mod, only : t_State
     use Region_type, only : t_Region, FORWARD
+
+    ! <<< Enumerations >>>
+    use State_enum, only : QOI_FORWARD_STATE
 
     ! <<< Public members >>>
     use Region_mod, only : saveRegionData
@@ -518,7 +521,6 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
   ! <<< Internal modules >>>
   use Patch_mod, only : setupPatch, updatePatchConnectivity
-  use State_mod, only : setupState
   use InputHelper, only : getRequiredOption
   use SolverOptions_mod, only : initializeSolverOptions
   use SimulationFlags_mod, only : initializeSimulationFlags
@@ -587,7 +589,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
   allocate(this%states(size(this%grids)))
   do i = 1, size(this%states)
-     call setupState(this%states(i), this%grids(i), this%simulationFlags, this%solverOptions)
+     call this%states(i)%setup(this%grids(i), this%simulationFlags, this%solverOptions)
   end do
   call MPI_Barrier(this%comm, ierror)
 
@@ -604,7 +606,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
      if (allocated(this%patchCommunicators))                                                 &
           nPatches = count(this%patchCommunicators /= MPI_COMM_NULL)
      if (nPatches > 0) then
-        allocate(this%patches(nPatches))
+       allocate(this%patches(nPatches))
         this%patches%index = 0
      end if
 
@@ -664,7 +666,6 @@ subroutine cleanupRegion(this)
 
   ! <<< Internal modules >>>
   use Patch_mod, only : cleanupPatch
-  use State_mod, only : cleanupState
 
   implicit none
 
@@ -683,7 +684,7 @@ subroutine cleanupRegion(this)
 
   if (allocated(this%states)) then
      do i = 1, size(this%states)
-        call cleanupState(this%states(i))
+        call this%states(i)%cleanup()
      end do
   end if
   SAFE_DEALLOCATE(this%states)
@@ -724,7 +725,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   use Grid_enum
 
   ! <<< Internal modules >>>
-  use State_mod, only : loadStateData, getFileType
+  use State_mod, only : getFileType
   use ErrorHandler, only : gracefulExit, writeAndFlush
   use PLOT3DHelper
   use MPITimingsHelper, only : startTiming, endTiming
@@ -762,8 +763,8 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
               call this%grids(j)%loadData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default
-              call loadStateData(this%states(j), this%grids(j),                              &
-                   quantityOfInterest, trim(filename), offset, success)
+              call this%states(j)%loadData(this%grids(j), quantityOfInterest,                &
+                   trim(filename), offset, success)
            end select
 
            exit
@@ -820,7 +821,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   use Grid_enum
 
   ! <<< Internal modules >>>
-  use State_mod, only : saveStateData, getFileType, getNumberOfScalars
+  use State_mod, only : getFileType, getNumberOfScalars
   use ErrorHandler, only : writeAndFlush
   use PLOT3DHelper
   use MPITimingsHelper, only : startTiming, endTiming
@@ -858,7 +859,8 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
      fileType = getFileType(quantityOfInterest)
      if (fileType == PLOT3D_FUNCTION_FILE) then
         call plot3dWriteSkeleton(this%comm, trim(filename), fileType, this%globalGridSizes,  &
-             success, getNumberOfScalars(quantityOfInterest, size(this%globalGridSizes, 1)))
+             success, getNumberOfScalars(quantityOfInterest,                                 &
+             size(this%globalGridSizes, 1)))
      else
         call plot3dWriteSkeleton(this%comm, trim(filename), fileType,                        &
              this%globalGridSizes, success)
@@ -879,8 +881,8 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
               call this%grids(j)%saveData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default
-              call saveStateData(this%states(j), this%grids(j),                              &
-                   quantityOfInterest, trim(filename), offset, success)
+              call this%states(j)%saveData(this%grids(j), quantityOfInterest,                &
+                   trim(filename), offset, success)
            end select
 
            exit
@@ -923,9 +925,6 @@ function getCfl(this) result(cfl)
   ! <<< Derived types >>>
   use Region_type, only : t_Region
 
-  ! <<< Internal modules >>>
-  use State_mod, only : computeCfl => cfl
-
   implicit none
 
   ! <<< Arguments >>>
@@ -943,7 +942,7 @@ function getCfl(this) result(cfl)
   else
      cfl = 0.0_wp
      do i = 1, size(this%states)
-        cfl = max(cfl, computeCfl(this%states(i), this%grids(i),                             &
+        cfl = max(cfl, this%states(i)%computeCfl(this%grids(i),                             &
              this%simulationFlags, this%solverOptions))
      end do
      call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, REAL_TYPE_MPI, MPI_MAX, this%comm, ierror)
@@ -958,9 +957,6 @@ function getTimeStepSize(this) result(timeStepSize)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region
-
-  ! <<< Internal modules >>>
-  use State_mod, only : computeTimeStepSize => timeStepSize
 
   implicit none
 
@@ -977,8 +973,9 @@ function getTimeStepSize(this) result(timeStepSize)
   if (this%simulationFlags%useConstantCfl) then
      timeStepSize = huge(0.0_wp)
      do i = 1, size(this%states)
-        timeStepSize = min(timeStepSize, computeTimeStepSize(this%states(i),                 &
-             this%grids(i), this%simulationFlags, this%solverOptions))
+        timeStepSize = min(timeStepSize,                                                     &
+             this%states(i)%computeTimeStepSize(this%grids(i),                               &
+             this%simulationFlags, this%solverOptions))
      end do
      call MPI_Allreduce(MPI_IN_PLACE, timeStepSize, 1, REAL_TYPE_MPI,                        &
           MPI_MIN, this%comm, ierror)
@@ -1001,7 +998,6 @@ subroutine computeRhs(this, mode, time)
   use RegionImpl, only : checkSolutionLimits
 
   ! <<< Internal modules >>>
-  use State_mod
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
@@ -1028,10 +1024,10 @@ subroutine computeRhs(this, mode, time)
      ! Semi-discrete right-hand-side operator.
      select case (mode)
      case (FORWARD)
-        call computeRhsForward(this%states(i), this%grids(i), this%patches, time,            &
+        call this%states(i)%computeRhsForward(this%grids(i), this%patches, time,             &
              this%simulationFlags, this%solverOptions)
      case (ADJOINT)
-        call computeRhsAdjoint(this%states(i), this%grids(i), this%patches, time,            &
+        call this%states(i)%computeRhsAdjoint(this%grids(i), this%patches, time,             &
              this%simulationFlags, this%solverOptions)
      end select
 
@@ -1042,10 +1038,10 @@ subroutine computeRhs(this, mode, time)
      ! SAT penalties.
      select case (mode)
      case (FORWARD)
-        call addPenaltiesForward(this%states(i), this%grids(i), this%patches, time,          &
+        call this%states(i)%addPenaltiesForward(this%grids(i), this%patches, time,           &
              this%simulationFlags, this%solverOptions)
      case (ADJOINT)
-        call addPenaltiesAdjoint(this%states(i), this%grids(i), this%patches, time,          &
+        call this%states(i)%addPenaltiesAdjoint(this%grids(i), this%patches, time,           &
              this%simulationFlags, this%solverOptions)
      end select
 
@@ -1060,14 +1056,14 @@ subroutine computeRhs(this, mode, time)
      ! Source terms.
      select case (mode)
      case (FORWARD)
-        call addSourcesForward(this%states(i), this%grids(i), this%patches, time)
+        call this%states(i)%addSourcesForward(this%grids(i), this%patches, time)
      case (ADJOINT)
-        call addSourcesAdjoint(this%states(i), this%grids(i), this%patches, time)
+        call this%states(i)%addSourcesAdjoint(this%grids(i), this%patches, time)
         if (allocated(this%patches)) then
            do j = 1, size(this%patches)
               if (this%patches(j)%gridIndex /= this%grids(i)%index .or.                      &
                    this%patches(j)%patchType /= CONTROL_TARGET) cycle
-              call addAdjointForcing(this%states(i), this%grids(i),                          &
+              call this%states(i)%addAdjointForcing(this%grids(i),                           &
                    this%patches(j), this%solverOptions)
            end do
         end if

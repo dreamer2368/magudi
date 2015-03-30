@@ -87,13 +87,14 @@ end subroutine cleanupReverseMigrator
 subroutine migrateToSubstep(this, region, integrator, timestep, stage)
 
   ! <<< Derived types >>>
-  use State_type, only : QOI_FORWARD_STATE
   use Region_type, only : t_Region
   use TimeIntegrator_mod, only : t_TimeIntegrator
   use ReverseMigrator_type
 
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_FORWARD_STATE
+
   ! <<< Internal modules >>>
-  use State_mod, only : updateState
   use Region_mod, only : loadRegionData, getTimeStepSize
 
   implicit none
@@ -148,8 +149,8 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
            do timestep_ = this%loadedTimestep + 1, this%loadedTimestep + this%saveInterval
 
               do j = 1, size(region%states) !... update state
-                 call updateState(region%states(j), region%grids(j),                                  &
-                      region%simulationFlags, region%solverOptions)
+                 call region%states(j)%update(region%grids(j), region%simulationFlags,       &
+                      region%solverOptions)
               end do
               timeStepSize = getTimeStepSize(region)
 
@@ -162,8 +163,8 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
 
                  if (stage /= this%nStages) then
                     do j = 1, size(region%states) !... update state
-                       call updateState(region%states(j), region%grids(j),                            &
-                            region%simulationFlags, region%solverOptions)
+                       call region%states(j)%update(region%grids(j), region%simulationFlags, &
+                            region%solverOptions)
                     end do
                  end if
 

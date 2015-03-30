@@ -5,14 +5,13 @@ program main
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
 
-  use Grid_enum
-
-  use State_type
   use Region_type
-  use RK4Integrator_mod
+  use RK4Integrator_mod, only : t_RK4Integrator
+
+  use Grid_enum
+  use State_enum
 
   use Solver, only : initializeSolver, solveForward, solveAdjoint
-  use State_mod, only : updatePatches, makeQuiescent
   use Region_mod
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler
@@ -108,8 +107,8 @@ program main
 
   ! Update patches.
   do i = 1, size(region%grids)
-     call updatePatches(region%states(i), region%grids(i),                                   &
-          region%patches, region%simulationFlags, region%solverOptions)
+     call region%states(i)%updatePatches(region%grids(i), region%patches,                    &
+          region%simulationFlags, region%solverOptions)
   end do
   call MPI_Barrier(region%comm, ierror)
 
