@@ -4,7 +4,7 @@ module Region_type
 
   use MPI, only : MPI_COMM_NULL
 
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use State_type, only : t_State
   use Patch_type, only : t_Patch
   use SolverOptions_type, only : t_SolverOptions

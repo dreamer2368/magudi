@@ -5,15 +5,19 @@ module StencilOperatorImpl
   implicit none
   public
 
+  integer, parameter, public ::                                                              &
+       SYMMETRIC      = 0,                                                                   &
+       SKEW_SYMMETRIC = 1
+
 contains
 
   subroutine allocateData(this)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator) :: this
+    class(t_StencilOperator) :: this
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -28,13 +32,13 @@ contains
   subroutine applyOperator_1(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Internal modules >>>
     use MPIHelper, only : fillGhostPoints
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -95,13 +99,13 @@ contains
   subroutine applyOperator_2(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Internal modules >>>
     use MPIHelper, only : fillGhostPoints
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -162,13 +166,13 @@ contains
   subroutine applyOperator_3(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Internal modules >>>
     use MPIHelper, only : fillGhostPoints
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -229,10 +233,10 @@ contains
   PURE_SUBROUTINE applyOperatorAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
     SCALAR_TYPE, intent(out) :: x(:,:)
     integer, intent(in) :: gridSize(3)
@@ -270,10 +274,10 @@ contains
   PURE_SUBROUTINE applyOperatorAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
     SCALAR_TYPE, intent(out) :: x(:,:)
     integer, intent(in) :: gridSize(3)
@@ -311,10 +315,10 @@ contains
   PURE_SUBROUTINE applyOperatorAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
     SCALAR_TYPE, intent(out) :: x(:,:)
     integer, intent(in) :: gridSize(3)
@@ -352,10 +356,10 @@ contains
   PURE_SUBROUTINE applyOperatorNorm_1(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -397,10 +401,10 @@ contains
   PURE_SUBROUTINE applyOperatorNorm_2(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -442,10 +446,10 @@ contains
   PURE_SUBROUTINE applyOperatorNorm_3(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -487,10 +491,10 @@ contains
   PURE_SUBROUTINE applyOperatorNormInverse_1(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -533,10 +537,10 @@ contains
   PURE_SUBROUTINE applyOperatorNormInverse_2(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -578,10 +582,10 @@ contains
   PURE_SUBROUTINE applyOperatorNormInverse_3(this, x, gridSize)
 
     ! <<< Derived types >>>
-    use StencilOperator_type
+    use StencilOperator_mod, only : t_StencilOperator
 
     ! <<< Arguments >>>
-    type(t_StencilOperator), intent(in) :: this
+    class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
@@ -622,23 +626,19 @@ contains
 
 end module StencilOperatorImpl
 
-subroutine setupOperator(this, identifier, success)
+subroutine setupOperator(this, identifier)
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
-  use StencilOperatorImpl, only : allocateData
-
-  ! <<< Public members >>>
-  use StencilOperator_mod, only : cleanupOperator
+  use StencilOperatorImpl, only : SYMMETRIC, SKEW_SYMMETRIC, allocateData
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator) :: this
+  class(t_StencilOperator) :: this
   character(len = *), intent(in) :: identifier
-  logical, intent(out), optional :: success
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -659,8 +659,7 @@ subroutine setupOperator(this, identifier, success)
   'SBP 4-8 dissipation',       \
   'null matrix'))
 
-  call cleanupOperator(this)
-  if (present(success)) success = .true.
+  call this%cleanup()
 
   if (trim(identifier) == "SBP 1-2 first derivative") then
 
@@ -1353,10 +1352,6 @@ subroutine setupOperator(this, identifier, success)
      this%rhsInterior(0:0) = 0.0_wp
      this%rhsBoundary1 = 0.0_wp
 
-  else
-
-     if (present(success)) success = .false.
-
   end if
 
   ! Fill the right-boundary coefficients.
@@ -1379,12 +1374,12 @@ subroutine updateOperator(this, cartesianCommunicator, direction, isPeriodicityO
   use MPI
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_mod, only : t_StencilOperator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator) :: this
+  class(t_StencilOperator) :: this
   integer, intent(in) :: cartesianCommunicator, direction
   logical, intent(in), optional :: isPeriodicityOverlapping
 
@@ -1439,12 +1434,12 @@ end subroutine updateOperator
 subroutine cleanupOperator(this)
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_mod, only : t_StencilOperator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator) :: this
+  class(t_StencilOperator) :: this
 
   SAFE_DEALLOCATE(this%rhsInterior)
   SAFE_DEALLOCATE(this%rhsBoundary1)
@@ -1458,16 +1453,16 @@ subroutine getAdjointOperator(this, adjointOperator)
   ! Sets up the adjoint of a stencil operator.
 
   ! <<< Derived types >>>
-  use StencilOperator_type
-
+  use StencilOperator_mod, only : t_StencilOperator
+  
   ! <<< Private members >>>
-  use StencilOperatorImpl, only : allocateData
+  use StencilOperatorImpl, only : SYMMETRIC, SKEW_SYMMETRIC, allocateData
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator), intent(in) :: this
-  type(t_StencilOperator) :: adjointOperator
+  class(t_StencilOperator), intent(in) :: this
+  class(t_StencilOperator) :: adjointOperator
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -1478,7 +1473,7 @@ subroutine getAdjointOperator(this, adjointOperator)
   assert(this%boundaryWidth > 0)
   assert(this%boundaryDepth > 0)
 
-call cleanupOperator(adjointOperator)
+call adjointOperator%cleanup()
 
   ! Copy basic information.
   adjointOperator%symmetryType = this%symmetryType
@@ -1545,7 +1540,7 @@ end subroutine getAdjointOperator
 subroutine applyOperator(this, x, gridSize)
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
   use StencilOperatorImpl, only : applyOperator_1, applyOperator_2, applyOperator_3
@@ -1556,7 +1551,7 @@ subroutine applyOperator(this, x, gridSize)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator), intent(in) :: this
+  class(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
 
@@ -1583,7 +1578,7 @@ end subroutine applyOperator
 PURE_SUBROUTINE applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
   use StencilOperatorImpl, only : applyOperatorAtInteriorPoints_1,                           &
@@ -1593,7 +1588,7 @@ PURE_SUBROUTINE applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSiz
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator), intent(in) :: this
+  class(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(in) :: xWithGhostPoints(:,:,:,:)
   SCALAR_TYPE, intent(out) :: x(:,:)
   integer, intent(in) :: gridSize(3)
@@ -1627,7 +1622,7 @@ end subroutine applyOperatorAtInteriorPoints
 PURE_SUBROUTINE applyOperatorNorm(this, x, gridSize)
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
   use StencilOperatorImpl, only : applyOperatorNorm_1,                                       &
@@ -1637,7 +1632,7 @@ PURE_SUBROUTINE applyOperatorNorm(this, x, gridSize)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator), intent(in) :: this
+  class(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
 
@@ -1660,7 +1655,7 @@ end subroutine applyOperatorNorm
 PURE_SUBROUTINE applyOperatorNormInverse(this, x, gridSize)
 
   ! <<< Derived types >>>
-  use StencilOperator_type
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
   use StencilOperatorImpl, only : applyOperatorNormInverse_1,                                &
@@ -1670,7 +1665,7 @@ PURE_SUBROUTINE applyOperatorNormInverse(this, x, gridSize)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_StencilOperator), intent(in) :: this
+  class(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(inout) :: x(:,:)
   integer, intent(in) :: gridSize(3)
 

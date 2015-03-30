@@ -94,13 +94,11 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
   use MPI
 
   ! <<< Derived types >>>
-  use StencilOperator_type, only : t_StencilOperator
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
   use RandomNumber, only : initializeRandomNumberGenerator, random
-  use StencilOperator_mod, only : setupOperator, updateOperator,                             &
-       getAdjointOperator, applyOperator, applyOperatorNorm, cleanupOperator
 
   ! <<< Arguments >>>
   character(len = *), intent(in) :: identifier
@@ -111,7 +109,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  logical :: isPeriodic_(3), success_
+  logical :: isPeriodic_(3)
   real(wp) :: tolerance_
   integer :: n, offset, nLocal, gridSize(3), cartesianCommunicator,                          &
        numProcesses(3), procRank, nProcs, ierror
@@ -151,14 +149,10 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
        .true., cartesianCommunicator, ierror)
 
   ! Update the operators.
-  call setupOperator(A, identifier, success_)
-  if (.not. success_) then
-     success = .false.
-     return
-  end if
-  call updateOperator(A, cartesianCommunicator, direction)
-  call getAdjointOperator(A, adjointOfA)
-  call updateOperator(adjointOfA, cartesianCommunicator, direction)
+  call A%setup(identifier)
+  call A%update(cartesianCommunicator, direction)
+  call A%getAdjoint(adjointOfA)
+  call adjointOfA%update(cartesianCommunicator, direction)
 
   ! Decide the size of arrays to be used for the test.
   n = random(nProcs * adjointOfA%boundaryDepth, 2 ** 16)
@@ -174,7 +168,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
 
   ! Setup the norm.
   norm = 1.0_wp
-  call applyOperatorNorm(A, norm, gridSize)
+  call A%applyNorm(norm, gridSize)
 
   ! Initialize `f` and `g` to random values.
   call random_number(f)
@@ -182,7 +176,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
 
   u = f
   v = g
-  call applyOperator(A, u, gridSize)
+  call A%apply(u, gridSize)
   leftHandSide = sum(u * norm * v)
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
   call MPI_Allgather(leftHandSide, 1, SCALAR_TYPE_MPI, mpiReduceBuffer,                      &
@@ -195,7 +189,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
 
   u = f
   v = g
-  call applyOperator(adjointOfA, v, gridSize)
+  call adjointOfA%apply(v, gridSize)
   rightHandSide = sum(u * norm * v)
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
   call MPI_Allgather(rightHandSide, 1, SCALAR_TYPE_MPI, mpiReduceBuffer,                     &
@@ -214,7 +208,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
   SAFE_DEALLOCATE(v)
   SAFE_DEALLOCATE(norm)
 
-  call cleanupOperator(A)
-  call cleanupOperator(adjointOfA)
+  call A%cleanup()
+  call adjointOfA%cleanup()
 
 end subroutine testAdjointRelation

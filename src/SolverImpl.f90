@@ -17,7 +17,6 @@ contains
     use PatchDescriptor_type, only : ACTUATOR
 
     ! <<< Internal modules >>>
-    use Grid_mod, only : computeQuadratureOnPatches
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
@@ -46,8 +45,8 @@ contains
                region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if
-       mollifierNorm = mollifierNorm + real(computeQuadratureOnPatches(region%grids(i),      &
-            region%grids(i)%controlMollifier(:,1), region%patches, ACTUATOR), wp)
+       mollifierNorm = mollifierNorm + real(region%grids(i)%computeQuadratureOnPatches( \
+       region%grids(i)%controlMollifier(:,1), region%patches, ACTUATOR), wp)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                             &
@@ -76,7 +75,6 @@ contains
     use PatchDescriptor_type, only : CONTROL_TARGET
 
     ! <<< Internal modules >>>
-    use Grid_mod, only : computeQuadratureOnPatches
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
@@ -105,8 +103,8 @@ contains
                region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if
-       mollifierNorm = mollifierNorm + real(computeQuadratureOnPatches(region%grids(i),      &
-            region%grids(i)%targetMollifier(:,1), region%patches, CONTROL_TARGET), wp)
+       mollifierNorm = mollifierNorm + real(region%grids(i)%computeQuadratureOnPatches( \
+       region%grids(i)%targetMollifier(:,1), region%patches, CONTROL_TARGET), wp)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                             &
@@ -133,9 +131,6 @@ contains
     ! <<< Derived types >>>
     use Region_type, only : t_Region
     use SolverOptions_type
-
-    ! <<< Internal modules >>>
-    use Grid_mod, only : computeInnerProduct
 
     ! <<< Arguments >>>
     type(t_Region) :: region
@@ -181,8 +176,7 @@ contains
           allocate(F(region%grids(i)%nGridPoints, 1))
           F = region%states(i)%pressure - region%states(i)%meanPressure
           instantaneousCostFunctional = instantaneousCostFunctional +                        &
-               computeInnerProduct(region%grids(i), F, F,                                    &
-               region%grids(i)%targetMollifier(:,1))
+               region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
           SAFE_DEALLOCATE(F)
 
        end select
@@ -261,20 +255,21 @@ end module SolverImpl
 subroutine initializeSolver(region, restartFilename)
 
   ! <<< Derived types >>>
-  use Grid_type, only : QOI_CONTROL_MOLLIFIER, QOI_TARGET_MOLLIFIER
   use State_type, only : QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_MEAN_PRESSURE
   use Region_type, only : t_Region
   use SolverOptions_type, only : SOUND
+
+  ! <<< Enumerations >>>
+  use Grid_enum
 
   ! <<< Private members >>>
   use SolverImpl, only : normalizeControlMollifier, normalizeTargetMollifier
 
   ! <<< Internal modules >>>
-  use Grid_mod, only : computeInnerProduct
+  use CNSHelper, only : computeDependentVariables
   use State_mod, only : makeQuiescent
   use Region_mod, only : loadRegionData
   use InputHelper, only : getOption, getRequiredOption
-  use CNSHelper_mod, only : computeDependentVariables
 
   implicit none
 

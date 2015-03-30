@@ -431,7 +431,6 @@ contains
     use Region_mod, only : saveRegionData
 
     ! <<< Internal modules >>>
-    use Grid_mod, only : isVariableWithinRange
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
@@ -448,9 +447,8 @@ contains
 
     do i = 1, size(this%states)
 
-       if (.not. isVariableWithinRange(this%grids(i),                                        &
-            this%states(i)%conservedVariables(:,1), fOutsideRange,                           &
-            iGlobal, jGlobal, kGlobal,                                                       &
+       if (.not. this%grids(i)%isVariableWithinRange(this%states(i)%conservedVariables(:,1), &
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &               
             minValue = this%solverOptions%densityRange(1),                                   &
             maxValue = this%solverOptions%densityRange(2))) then
           write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Density on grid ",              &
@@ -462,8 +460,8 @@ contains
           exit
        end if
 
-       if (.not. isVariableWithinRange(this%grids(i),                                        &
-            this%states(i)%temperature(:,1), fOutsideRange, iGlobal, jGlobal, kGlobal,       &
+       if (.not. this%grids(i)%isVariableWithinRange(this%states(i)%temperature(:,1),        &
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &
             minValue = this%solverOptions%temperatureRange(1),                               &
             maxValue = this%solverOptions%temperatureRange(2))) then
           write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Temperature on grid ",          &
@@ -519,7 +517,6 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Internal modules >>>
-  use Grid_mod, only : setupGrid
   use Patch_mod, only : setupPatch, updatePatchConnectivity
   use State_mod, only : setupState
   use InputHelper, only : getRequiredOption
@@ -578,9 +575,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
      do j = 1, size(this%grids)
         if (this%grids(j)%index /= 0) cycle
         if (this%gridCommunicators(i) /= MPI_COMM_NULL) then
-           call setupGrid(this%grids(j), i, this%globalGridSizes(:,i),                       &
-                this%gridCommunicators(i), this%processDistributions(:,i),                   &
-                simulationFlags = this%simulationFlags)
+           call this%grids(j)%setup(i, this%globalGridSizes(:,i), this%gridCommunicators(i), &
+                this%processDistributions(:,i), simulationFlags = this%simulationFlags)
            exit
         end if
      end do
@@ -667,7 +663,6 @@ subroutine cleanupRegion(this)
   use Region_type, only : t_Region
 
   ! <<< Internal modules >>>
-  use Grid_mod, only : cleanupGrid
   use Patch_mod, only : cleanupPatch
   use State_mod, only : cleanupState
 
@@ -681,7 +676,7 @@ subroutine cleanupRegion(this)
 
   if (allocated(this%grids)) then
      do i = 1, size(this%grids)
-        call cleanupGrid(this%grids(i))
+        call this%grids(i)%cleanup()
      end do
   end if
   SAFE_DEALLOCATE(this%grids)
@@ -722,12 +717,13 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
-  use Grid_type
   use Region_type, only : t_Region
   use PLOT3DDescriptor_type, only : t_PLOT3DDescriptor, PLOT3D_SOLUTION_FILE
 
+  ! <<< Enumerations >>>
+  use Grid_enum
+
   ! <<< Internal modules >>>
-  use Grid_mod, only : loadGridData
   use State_mod, only : loadStateData, getFileType
   use ErrorHandler, only : gracefulExit, writeAndFlush
   use PLOT3DHelper
@@ -763,7 +759,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
            select case(quantityOfInterest)
            case (QOI_GRID, QOI_JACOBIAN, QOI_METRICS, QOI_TARGET_MOLLIFIER,                  &
                 QOI_CONTROL_MOLLIFIER)
-              call loadGridData(this%grids(j), quantityOfInterest,                           &
+              call this%grids(j)%loadData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default
               call loadStateData(this%states(j), this%grids(j),                              &
@@ -817,12 +813,13 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
-  use Grid_type
   use Region_type, only : t_Region
   use PLOT3DDescriptor_type, only : t_PLOT3DDescriptor, PLOT3D_GRID_FILE, PLOT3D_FUNCTION_FILE
 
+  ! <<< Enumerations >>>
+  use Grid_enum
+
   ! <<< Internal modules >>>
-  use Grid_mod, only : saveGridData
   use State_mod, only : saveStateData, getFileType, getNumberOfScalars
   use ErrorHandler, only : writeAndFlush
   use PLOT3DHelper
@@ -879,7 +876,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
            select case(quantityOfInterest)
            case (QOI_GRID, QOI_JACOBIAN, QOI_METRICS, QOI_TARGET_MOLLIFIER,                  &
                 QOI_CONTROL_MOLLIFIER)
-              call saveGridData(this%grids(j), quantityOfInterest,                           &
+              call this%grids(j)%saveData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default
               call saveStateData(this%states(j), this%grids(j),                              &
@@ -1099,7 +1096,6 @@ subroutine reportGridDiagnostics(this)
   use Region_type, only : t_Region
 
   ! <<< Internal modules >>>
-  use Grid_mod, only : findMinimum, findMaximum
   use ErrorHandler, only : writeAndFlush
 
   implicit none
@@ -1131,14 +1127,14 @@ subroutine reportGridDiagnostics(this)
                 this%grids(j)%globalSize(3), " points"
            call writeAndFlush(this%grids(j)%comm, output_unit, str)
 
-           call findMinimum(this%grids(j), this%grids(j)%jacobian(:,1),                      &
+           call this%grids(j)%findMinimum(this%grids(j)%jacobian(:,1),                       &
                 minimumJacobian, iGlobal, jGlobal, kGlobal)
            write(str, '(4X,A,(SS,ES9.2E2),3(A,I4),A)') "min. Jacobian = ",                   &
                 real(minimumJacobian, SCALAR_KIND), " at (",                                 &
                 iGlobal, ", ", jGlobal, ", ", kGlobal, ")"
            call writeAndFlush(this%grids(j)%comm, output_unit, str)
 
-           call findMaximum(this%grids(j), this%grids(j)%jacobian(:,1),                      &
+           call this%grids(j)%findMaximum(this%grids(j)%jacobian(:,1),                       &
                 maximumJacobian, iGlobal, jGlobal, kGlobal)
            write(str, '(4X,A,(SS,ES9.2E2),3(A,I4),A)') "max. Jacobian = ",                   &
                 real(maximumJacobian, SCALAR_KIND), " at (",                                 &
@@ -1165,7 +1161,6 @@ subroutine reportResiduals(this)
   use Region_type, only : t_Region
 
   ! <<< Internal modules >>>
-  use Grid_mod, only : findMaximum
   use ErrorHandler, only : writeAndFlush
 
   implicit none
@@ -1188,18 +1183,18 @@ subroutine reportResiduals(this)
      allocate(f(size(this%states(i)%rightHandSide, 1)))
 
      f = abs(this%states(i)%rightHandSide(:,1))
-     call findMaximum(this%grids(i), f, fMax)
+     call this%grids(i)%findMaximum(f, fMax)
      residuals(1) = real(fMax, wp)
 
      residuals(2) = 0.0_wp
      do j = 1, nDimensions
         f = abs(this%states(i)%rightHandSide(:,j+1))
-        call findMaximum(this%grids(i), f, fMax)
+        call this%grids(i)%findMaximum(f, fMax)
         residuals(2) = max(residuals(2), real(fMax, wp))
      end do
 
      f = abs(this%states(i)%rightHandSide(:,nDimensions+2))
-     call findMaximum(this%grids(i), f, fMax)
+     call this%grids(i)%findMaximum(f, fMax)
      residuals(3) = real(fMax, wp)
 
      SAFE_DEALLOCATE(f)

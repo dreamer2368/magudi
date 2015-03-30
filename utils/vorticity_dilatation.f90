@@ -5,11 +5,10 @@ program vorticity_dilatation
   use MPI
   use, intrinsic :: iso_fortran_env
 
-  use Grid_type
+  use Grid_enum
   use State_type
   use Region_type
 
-  use Grid_mod, only : setupSpatialDiscretization, updateGrid
   use CNSHelper, only : computeDependentVariables
   use Region_mod, only : setupRegion, loadRegionData, saveRegionData
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
@@ -43,13 +42,13 @@ program vorticity_dilatation
 
      ! Setup spatial discretization.
      do i = 1, size(region%grids)
-        call setupSpatialDiscretization(region%grids(i))
+        call region%grids(i)%setupSpatialDiscretization()
      end do
      call MPI_Barrier(region%comm, ierror)
 
      ! Compute normalized metrics, norm matrix and Jacobian.
      do i = 1, size(region%grids)
-        call updateGrid(region%grids(i))
+        call region%grids(i)%update()
      end do
      call MPI_Barrier(MPI_COMM_WORLD, ierror)
 

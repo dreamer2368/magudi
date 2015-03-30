@@ -1,32 +1,34 @@
 #include "config.h"
 
-module Grid_type
-
-  use MPI, only : MPI_COMM_NULL, MPI_DATATYPE_NULL
-
-  use StencilOperator_type, only : t_StencilOperator
+module Grid_enum
 
   implicit none
-  private
+  public
 
-  integer, parameter, public ::                                                              &
-       NONE    = 0,                                                                          &
-       PLANE   = 1,                                                                          &
-       OVERLAP = 2
-
-  integer, parameter, public ::                                                              &
+  integer, parameter ::                                                                      &
        QOI_GRID              =  0,                                                           &
        QOI_METRICS           =  1,                                                           &
        QOI_JACOBIAN          =  2,                                                           &
        QOI_TARGET_MOLLIFIER  =  3,                                                           &
        QOI_CONTROL_MOLLIFIER =  4
 
+end module Grid_enum
+
+module Grid_mod
+
+  use MPI, only : MPI_COMM_NULL, MPI_DATATYPE_NULL
+
+  use StencilOperator_mod, only : t_StencilOperator
+
+  implicit none
+  private
+
   type, public :: t_Grid
 
-     type(t_StencilOperator), allocatable :: firstDerivative(:),                             &
-          secondDerivative(:), dissipation(:), adjointFirstDerivative(:)
+     type(t_StencilOperator), allocatable :: firstDerivative(:), secondDerivative(:),        &
+          dissipation(:), adjointFirstDerivative(:)
 
-     integer, dimension(:), allocatable :: IBLANK
+     integer, dimension(:), allocatable :: iblank
      SCALAR_TYPE, dimension(:,:), allocatable :: coordinates, jacobian, metrics, norm,       &
           controlMollifier, targetMollifier
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
@@ -40,24 +42,37 @@ module Grid_type
      logical :: isCurvilinear
      real(SCALAR_KIND) :: periodicLength(3)
 
+   contains
+     
+     procedure, pass :: setup => setupGrid
+     procedure, pass :: cleanup => cleanupGrid
+     procedure, pass :: loadData => loadGridData
+     procedure, pass :: saveData => saveGridData
+     procedure, pass :: setupSpatialDiscretization
+     procedure, pass :: update => updateGrid
+     generic :: computeInnerProduct => computeScalarInnerProduct, computeVectorInnerProduct
+     generic :: computeGradient => computeGradientOfScalar, computeGradientOfVector
+     procedure, pass :: findMinimum
+     procedure, pass :: findMaximum
+     procedure, pass :: isVariableWithinRange
+     procedure, pass :: computeSpongeStrengths
+     procedure, pass :: computeQuadratureOnPatches
+
+     procedure, private, pass :: computeScalarInnerProduct, computeVectorInnerProduct
+     procedure, private, pass :: computeGradientOfScalar, computeGradientOfVector
+
   end type t_Grid
-
-end module Grid_type
-
-module Grid_mod
-
-  implicit none
-  public
 
   interface
 
      subroutine setupGrid(this, index, globalGridSize, comm, processDistribution,            &
           periodicityType, periodicLength, simulationFlags)
 
-       use Grid_type, only : t_Grid
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_Grid) :: this
+       import :: t_Grid
+
+       class(t_Grid) :: this
        integer, intent(in) :: index, globalGridSize(:)
 
        integer, intent(in), optional :: comm, processDistribution(:), periodicityType(:)
@@ -73,9 +88,9 @@ module Grid_mod
 
      subroutine cleanupGrid(this)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
 
      end subroutine cleanupGrid
 
@@ -86,9 +101,10 @@ module Grid_mod
      subroutine loadGridData(this, quantityOfInterest, filename, offsetInBytes, success)
 
        use MPI, only : MPI_OFFSET_KIND
-       use Grid_type, only : t_Grid
 
-       type(t_Grid) :: this
+       import :: t_Grid
+
+       class(t_Grid) :: this
        integer, intent(in) :: quantityOfInterest
        character(len = *), intent(in) :: filename
        integer(kind = MPI_OFFSET_KIND), intent(inout) :: offsetInBytes
@@ -103,9 +119,10 @@ module Grid_mod
      subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, success)
 
        use MPI, only : MPI_OFFSET_KIND
-       use Grid_type, only : t_Grid
 
-       type(t_Grid) :: this
+       import :: t_Grid
+
+       class(t_Grid) :: this
        integer, intent(in) :: quantityOfInterest
        character(len = *), intent(in) :: filename
        integer(kind = MPI_OFFSET_KIND), intent(inout) :: offsetInBytes
@@ -117,14 +134,11 @@ module Grid_mod
 
   interface
 
-     subroutine setupSpatialDiscretization(this, success, errorMessage)
+     subroutine setupSpatialDiscretization(this)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
-
-       logical, intent(out), optional :: success
-       character(len = STRING_LENGTH), intent(out), optional :: errorMessage
+       class(t_Grid) :: this
 
      end subroutine setupSpatialDiscretization
 
@@ -137,9 +151,9 @@ module Grid_mod
        !> Updates the Jacobian, norm and normalized metrics. Generally called if the
        !> derivative schemes or the grid coordinates have changed.
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
 
        logical, intent(out), optional :: hasNegativeJacobian
        character(len = STRING_LENGTH), intent(out), optional :: errorMessage
@@ -150,55 +164,55 @@ module Grid_mod
 
   interface computeInnerProduct
 
-     function computeScalarInnerProduct_(this, f, g, weight) result(innerProduct)
+     function computeScalarInnerProduct(this, f, g, weight) result(innerProduct)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:), g(:)
 
        SCALAR_TYPE, intent(in), optional :: weight(:)
 
        SCALAR_TYPE :: innerProduct
 
-     end function computeScalarInnerProduct_
+     end function computeScalarInnerProduct
 
-     function computeVectorInnerProduct_(this, f, g, weight) result(innerProduct)
+     function computeVectorInnerProduct(this, f, g, weight) result(innerProduct)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:,:), g(:,:)
 
        SCALAR_TYPE, intent(in), optional :: weight(:)
 
        SCALAR_TYPE :: innerProduct
 
-     end function computeVectorInnerProduct_
+     end function computeVectorInnerProduct
 
   end interface computeInnerProduct
 
   interface computeGradient
 
-     subroutine computeGradientOfScalar_(this, f, gradF)
+     subroutine computeGradientOfScalar(this, f, gradF)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
        SCALAR_TYPE, intent(out) :: gradF(:,:)
 
-     end subroutine computeGradientOfScalar_
+     end subroutine computeGradientOfScalar
 
-     subroutine computeGradientOfVector_(this, f, gradF)
+     subroutine computeGradientOfVector(this, f, gradF)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:,:)
        SCALAR_TYPE, intent(out) :: gradF(:,:)
 
-     end subroutine computeGradientOfVector_
+     end subroutine computeGradientOfVector
 
   end interface computeGradient
 
@@ -206,9 +220,9 @@ module Grid_mod
 
      subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
        SCALAR_TYPE, intent(out) :: fMin
        integer, intent(out), optional :: iMin, jMin, kMin
@@ -221,9 +235,9 @@ module Grid_mod
 
      subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
        SCALAR_TYPE, intent(out) :: fMax
        integer, intent(out), optional :: iMax, jMax, kMax
@@ -237,9 +251,9 @@ module Grid_mod
      function isVariableWithinRange(this, f, fOutsideRange,                                  &
           iOutOfRange, jOutOfRange, kOutOfRange, minValue, maxValue)
 
-       use Grid_type, only : t_Grid
+       import :: t_Grid
 
-       type(t_Grid) :: this
+       class(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
        SCALAR_TYPE, intent(out) :: fOutsideRange
        integer, intent(out) :: iOutOfRange, jOutOfRange, kOutOfRange
@@ -254,30 +268,13 @@ module Grid_mod
 
   interface
 
-     subroutine computeNormalizedCurveLengths(this, direction, indexAtUnitCurveLength,       &
-          normalizedCurveLengths, reverseDirection, coordinateDerivatives)
-
-       use Grid_type, only : t_Grid
-
-       type(t_Grid), intent(in) :: this
-       integer, intent(in) :: direction, indexAtUnitCurveLength
-       real(SCALAR_KIND), intent(out) :: normalizedCurveLengths(:)
-
-       logical, intent(in), optional :: reverseDirection
-       SCALAR_TYPE, intent(in), optional :: coordinateDerivatives(:,:)
-
-     end subroutine computeNormalizedCurveLengths
-
-  end interface
-
-  interface
-
      subroutine computeSpongeStrengths(this, patches)
 
-       use Grid_type, only : t_Grid
        use Patch_type, only : t_Patch
 
-       type(t_Grid) :: this
+       import :: t_Grid
+
+       class(t_Grid) :: this
        type(t_Patch), allocatable :: patches(:)
 
      end subroutine computeSpongeStrengths
@@ -289,10 +286,11 @@ module Grid_mod
      function computeQuadratureOnPatches(this, f, patches, patchType)                        &
           result(quadratureOnPatches)
 
-       use Grid_type, only : t_Grid
        use Patch_type, only : t_Patch
 
-       type(t_Grid) :: this
+       import :: t_Grid
+
+       class(t_Grid) :: this
        SCALAR_TYPE, intent(in) :: f(:)
        type(t_Patch), intent(in), allocatable :: patches(:)
        integer, intent(in) :: patchType
@@ -302,7 +300,5 @@ module Grid_mod
      end function computeQuadratureOnPatches
 
   end interface
-
-  private :: computeScalarInnerProduct_, computeVectorInnerProduct_
 
 end module Grid_mod

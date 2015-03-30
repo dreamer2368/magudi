@@ -5,13 +5,13 @@ program main
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
 
-  use Grid_type
+  use Grid_enum
+
   use State_type
   use Region_type
   use RK4Integrator_type
 
   use Solver, only : initializeSolver, solveForward, solveAdjoint
-  use Grid_mod, only : setupSpatialDiscretization, updateGrid, computeSpongeStrengths
   use State_mod, only : updatePatches, makeQuiescent
   use Region_mod
   use InputHelper, only : parseInputFile, getOption, getRequiredOption

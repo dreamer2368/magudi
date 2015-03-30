@@ -3,12 +3,12 @@
 subroutine setupAcousticSource(this, location, amplitude, frequency, radius, phase)
 
   ! <<< Derived types >>>
-  use AcousticSource_mod, only : AcousticSource
+  use AcousticSource_mod, only : t_AcousticSource
 
   implicit none
 
   ! <<< Arguments >>>
-  class(AcousticSource) :: this
+  class(t_AcousticSource) :: this
   real(SCALAR_KIND), intent(in) :: location(:), amplitude, frequency, radius
   real(SCALAR_KIND), intent(in), optional :: phase
 
@@ -34,12 +34,12 @@ end subroutine setupAcousticSource
 subroutine addAcousticSource(this, time, coordinates, iblank, rightHandSide)
 
   ! <<< Derived types >>>
-  use AcousticSource_mod, only : AcousticSource
+  use AcousticSource_mod, only : t_AcousticSource
 
   implicit none
 
   ! <<< Arguments >>>
-  type(AcousticSource) :: this
+  type(t_AcousticSource) :: this
   real(SCALAR_KIND), intent(in) :: time
   SCALAR_TYPE, intent(in) :: coordinates(:,:)
   integer, intent(in) :: iblank(:)
