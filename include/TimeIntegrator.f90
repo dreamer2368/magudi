@@ -12,8 +12,11 @@ module TimeIntegrator_mod
 
    contains
 
-     procedure, non_overridable, pass :: setup_ => setupTimeIntegrator
-     procedure, non_overridable, pass :: cleanup_ => cleanupTimeIntegrator
+     procedure, non_overridable, pass :: setupBase => setupTimeIntegrator
+     procedure, non_overridable, pass :: cleanupBase => cleanupTimeIntegrator
+
+     procedure(setup), pass, deferred :: setup
+     procedure(cleanup), pass, deferred :: cleanup
      procedure(subStepForward), pass, deferred :: subStepForward
      procedure(subStepAdjoint), pass, deferred :: subStepAdjoint
 
@@ -40,6 +43,33 @@ module TimeIntegrator_mod
        class(t_TimeIntegrator) :: this
 
      end subroutine cleanupTimeIntegrator
+
+  end interface
+
+  abstract interface
+
+     subroutine setup(this, region)
+
+       use Region_type, only : t_Region
+
+       import :: t_TimeIntegrator
+
+       class(t_TimeIntegrator) :: this
+       class(t_Region), intent(in) :: region
+
+     end subroutine setup
+
+  end interface
+
+  abstract interface
+
+     subroutine cleanup(this)
+
+       import :: t_TimeIntegrator
+
+       class(t_TimeIntegrator) :: this
+
+     end subroutine cleanup
 
   end interface
 

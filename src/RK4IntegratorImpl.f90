@@ -22,7 +22,7 @@ subroutine setupRK4Integrator(this, region)
   call this%cleanup()
 
   this%nStages = 4
-  call this%setup_()
+  call this%setupBase()
   this%norm = (/ 1.0_wp / 6.0_wp, 1.0_wp / 3.0_wp, 1.0_wp / 3.0_wp, 1.0_wp / 6.0_wp /)
 
   allocate(this%temp_(size(region%states)))
@@ -48,7 +48,7 @@ subroutine cleanupRK4Integrator(this)
   ! <<< Local variables >>>
   integer :: i
 
-  call this%cleanup_()
+  call this%cleanupBase()
 
   if (allocated(this%temp_)) then
      do i = 1, size(this%temp_)
@@ -60,7 +60,7 @@ subroutine cleanupRK4Integrator(this)
 
 end subroutine cleanupRK4Integrator
 
-subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
+subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, FORWARD
@@ -151,9 +151,9 @@ subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
 
   call endTiming("substepForward")
 
-end subroutine substepForward
+end subroutine substepForwardRK4
 
-subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
+subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_type, only : t_Region, ADJOINT
@@ -248,4 +248,4 @@ subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
 
   call endTiming("substepAdjoint")
 
-end subroutine substepAdjoint
+end subroutine substepAdjointRK4

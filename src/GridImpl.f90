@@ -1512,7 +1512,8 @@ subroutine computeSpongeStrengths(this, patches)
         do l = 1, size(patches)
            if (patches(l)%gridIndex /= this%index .or.                                       &
                 patches(l)%patchType /= SPONGE .or.                                          &
-                abs(patches(l)%normalDirection) /= direction) cycle
+                abs(patches(l)%normalDirection) /= direction .or.                            &
+                patches(l)%nPatchPoints <= 0) cycle
            select case (direction)
 
            case (1)

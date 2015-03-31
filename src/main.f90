@@ -6,7 +6,7 @@ program main
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   use Region_type
-  use RK4Integrator_mod, only : t_RK4Integrator
+  use TimeIntegrator_mod, only : t_TimeIntegrator
 
   use Grid_enum
   use State_enum
@@ -17,6 +17,7 @@ program main
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
+  use TimeIntegrator_factory, only : createTimeIntegrator
 
   implicit none
 
@@ -26,7 +27,7 @@ program main
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
-  type(t_RK4Integrator) :: integrator
+  class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   real(wp) :: time
   SCALAR_TYPE :: costFunctional
 
@@ -93,7 +94,8 @@ program main
   call saveRegionData(region, QOI_METRICS, filename)
 
   ! Setup the RK4 integrator.
-  call integrator%setup(region)
+  call createTimeIntegrator(timeIntegrator, getOption("time_integration_scheme", "RK4"))
+  call timeIntegrator%setup(region)
 
   ! Initialize the solver.
   call initializeSolver(region)
@@ -113,13 +115,13 @@ program main
   call MPI_Barrier(region%comm, ierror)
 
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
-     call solveForward(region, integrator, time, timestep, nTimesteps,                       &
+     call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                   &    
           saveInterval, reportInterval, outputPrefix)
   else
 
      ! Baseline forward.
      if (.not. region%simulationFlags%isBaselineAvailable) then
-        call solveForward(region, integrator, time, timestep, nTimesteps,                    &
+        call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                &    
              saveInterval, reportInterval, outputPrefix, costFunctional)
      else
         timestep = timestep + nTimesteps
@@ -130,12 +132,12 @@ program main
      end if
 
      ! Baseline adjoint.
-     call solveAdjoint(region, integrator, time, timestep, nTimesteps,                       &
+     call solveAdjoint(region, timeIntegrator, time, timestep, nTimesteps,                   &    
           saveInterval, reportInterval, outputPrefix)
 
   end if
 
-  call integrator%cleanup()
+  call timeIntegrator%cleanup()
   call cleanupRegion(region)
 
   call endTiming("total")

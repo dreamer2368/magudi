@@ -246,7 +246,7 @@ module State_mod
 
        class(t_State) :: this
        class(t_Grid) :: grid
-       class(t_Patch), allocatable :: patches(:)
+       type(t_Patch), allocatable :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
@@ -268,7 +268,7 @@ module State_mod
 
        class(t_State) :: this
        class(t_Grid) :: grid
-       class(t_Patch), allocatable :: patches(:)
+       type(t_Patch), allocatable :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
@@ -290,7 +290,7 @@ module State_mod
 
        class(t_State) :: this
        class(t_Grid) :: grid
-       class(t_Patch), allocatable :: patches(:)
+       type(t_Patch), allocatable :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
@@ -312,7 +312,7 @@ module State_mod
 
        class(t_State) :: this
        class(t_Grid) :: grid
-       class(t_Patch), allocatable :: patches(:)
+       type(t_Patch), allocatable :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
@@ -332,7 +332,7 @@ module State_mod
 
        class(t_State) :: this
        class(t_Grid) :: grid
-       class(t_Patch), allocatable, intent(in) :: patches(:)
+       type(t_Patch), allocatable, intent(in) :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
 
      end subroutine addSourcesForward
@@ -350,7 +350,7 @@ module State_mod
 
        class(t_State) :: this
        class(t_Grid) :: grid
-       class(t_Patch), allocatable, intent(in) :: patches(:)
+       type(t_Patch), allocatable, intent(in) :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
 
      end subroutine addSourcesAdjoint
@@ -370,7 +370,7 @@ module State_mod
 
        class(t_State) :: this
        class(t_Grid) :: grid
-       class(t_Patch), allocatable :: patches(:)
+       type(t_Patch), allocatable :: patches(:)
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
 

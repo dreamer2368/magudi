@@ -22,7 +22,7 @@ module Region_type
 
      type(t_Grid), allocatable :: grids(:)
      type(t_State), allocatable :: states(:)
-     class(t_Patch), allocatable :: patches(:)
+     type(t_Patch), allocatable :: patches(:)
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)

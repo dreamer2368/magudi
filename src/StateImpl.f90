@@ -1280,7 +1280,7 @@ subroutine addAdjointForcing(this, grid, patch, solverOptions)
   ! <<< Arguments >>>
   class(t_State) :: this
   class(t_Grid) :: grid
-  type(t_Patch) :: patch
+  class(t_Patch) :: patch
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
