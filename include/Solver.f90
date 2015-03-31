@@ -23,12 +23,12 @@ module Solver
      subroutine solveForward(region, integrator, time, timestep, nTimesteps,                 &
           saveInterval, reportInterval, outputPrefix, costFunctional)
 
-       use State_type, only : t_State
+       use State_mod, only : t_State
        use Region_type, only : t_Region
-       use RK4Integrator_mod, only : t_RK4Integrator
+       use TimeIntegrator_mod, only : t_TimeIntegrator
 
        type(t_Region) :: region
-       class(t_RK4Integrator) :: integrator
+       class(t_TimeIntegrator) :: integrator
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps
@@ -45,12 +45,12 @@ module Solver
      subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,                 &
           saveInterval, reportInterval, outputPrefix)
 
-       use State_type, only : t_State
+       use State_mod, only : t_State
        use Region_type, only : t_Region
-       use RK4Integrator_mod, only : t_RK4Integrator
+       use TimeIntegrator_mod, only : t_TimeIntegrator
 
        type(t_Region) :: region
-       class(t_RK4Integrator) :: integrator
+       class(t_TimeIntegrator) :: integrator
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps, saveInterval

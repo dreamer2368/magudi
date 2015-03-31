@@ -6,12 +6,12 @@ program jet
   use, intrinsic :: iso_fortran_env
 
   use Grid_enum
-  use State_type
+  use State_enum
   use Region_type
 
   use Region_mod
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
-  use ErrorHandler, only : writeAndFlush
+  use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none
@@ -100,7 +100,7 @@ contains
 
     ! <<< Derived types >>>
     use Grid_mod, only : t_Grid
-    use State_type
+    use State_mod, only : t_State
 
     ! <<< Internal modules >>>
     use InputHelper, only : getOption

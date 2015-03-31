@@ -822,7 +822,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   ! <<< Internal modules >>>
   use State_mod, only : getFileType, getNumberOfScalars
-  use ErrorHandler, only : writeAndFlush
+  use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper
   use MPITimingsHelper, only : startTiming, endTiming
 

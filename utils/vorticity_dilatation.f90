@@ -6,13 +6,13 @@ program vorticity_dilatation
   use, intrinsic :: iso_fortran_env
 
   use Grid_enum
-  use State_type
+  use State_enum
   use Region_type
 
   use CNSHelper, only : computeDependentVariables
-  use Region_mod, only : setupRegion, loadRegionData, saveRegionData
+  use Region_mod, only : setupRegion, cleanupRegion, loadRegionData, saveRegionData
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
-  use ErrorHandler, only : writeAndFlush
+  use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
 
   implicit none

@@ -273,6 +273,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
   use InputHelper, only : getOption, getRequiredOption
+  use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
 
