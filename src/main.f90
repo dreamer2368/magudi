@@ -22,7 +22,7 @@ program main
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, timestep, nTimesteps, reportInterval, saveInterval, ierror
+  integer :: i, timestep, nTimesteps, saveInterval, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
@@ -109,7 +109,6 @@ program main
   time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
   timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
   nTimesteps = getOption("number_of_timesteps", 1000)
-  reportInterval = getOption("report_interval", 1)
   saveInterval = getOption("save_interval", 1000)
 
   ! Update patches.
@@ -121,13 +120,13 @@ program main
 
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
      call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                   &    
-          saveInterval, reportInterval, outputPrefix)
+          saveInterval, outputPrefix)
   else
 
      ! Baseline forward.
      if (.not. region%simulationFlags%isBaselineAvailable) then
-        call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                &    
-             saveInterval, reportInterval, outputPrefix, costFunctional)
+        call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                &
+             saveInterval, outputPrefix, costFunctional)
      else
         timestep = timestep + nTimesteps
         write(filename, '(2A,I8.8,A)')                                                       &
@@ -137,8 +136,8 @@ program main
      end if
 
      ! Baseline adjoint.
-     call solveAdjoint(region, timeIntegrator, time, timestep, nTimesteps,                   &    
-          saveInterval, reportInterval, outputPrefix)
+     call solveAdjoint(region, timeIntegrator, time, timestep,                               &
+          nTimesteps, saveInterval, outputPrefix)
 
   end if
 

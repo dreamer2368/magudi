@@ -21,7 +21,7 @@ module Solver
   interface
 
      subroutine solveForward(region, integrator, time, timestep, nTimesteps,                 &
-          saveInterval, reportInterval, outputPrefix, costFunctional)
+          saveInterval, outputPrefix, costFunctional)
 
        use State_mod, only : t_State
        use Region_type, only : t_Region
@@ -32,7 +32,7 @@ module Solver
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps
-       integer, intent(in), optional :: saveInterval, reportInterval
+       integer, intent(in), optional :: saveInterval
        character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
        SCALAR_TYPE, intent(out), optional :: costFunctional
 
@@ -42,8 +42,8 @@ module Solver
 
   interface
 
-     subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,                 &
-          saveInterval, reportInterval, outputPrefix)
+     subroutine solveAdjoint(region, integrator, time, timestep,                             &
+          nTimesteps, saveInterval, outputPrefix)
 
        use State_mod, only : t_State
        use Region_type, only : t_Region
@@ -54,7 +54,6 @@ module Solver
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps, saveInterval
-       integer, intent(in), optional :: reportInterval
        character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
 
      end subroutine solveAdjoint

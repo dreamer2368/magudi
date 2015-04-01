@@ -1147,7 +1147,7 @@ subroutine reportGridDiagnostics(this)
 
 end subroutine reportGridDiagnostics
 
-subroutine reportResiduals(this)
+subroutine computeResiduals(this, residuals)
 
   ! <<< External modules >>>
   use MPI
@@ -1156,25 +1156,22 @@ subroutine reportResiduals(this)
   ! <<< Derived types >>>
   use Region_type, only : t_Region
 
-  ! <<< Internal modules >>>
-  use ErrorHandler, only : writeAndFlush
-
   implicit none
 
   ! <<< Arguments >>>
   type(t_Region) :: this
+  real(SCALAR_KIND), intent(out) :: residuals(3)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions, ierror
   SCALAR_TYPE, allocatable :: f(:)
   SCALAR_TYPE :: fMax
-  real(wp) :: residuals(3)
-  character(len = STRING_LENGTH) :: str
 
   do i = 1, size(this%states)
 
      call MPI_Cartdim_get(this%grids(i)%comm, nDimensions, ierror)
+     assert_key(nDimensions, (1, 2, 3))
 
      allocate(f(size(this%states(i)%rightHandSide, 1)))
 
@@ -1198,8 +1195,5 @@ subroutine reportResiduals(this)
   end do
 
   call MPI_Allreduce(MPI_IN_PLACE, residuals, 3, REAL_TYPE_MPI, MPI_MAX, this%comm, ierror)
-  write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),                  &
-       ", momentum = ", residuals(2), ", energy = ", residuals(3)
-  call writeAndFlush(this%comm, output_unit, str)
 
-end subroutine reportResiduals
+end subroutine computeResiduals

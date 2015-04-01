@@ -26,58 +26,58 @@ program vorticity_dilatation
   ! Initialize MPI.
   call MPI_Init(ierror)
 
-  if (command_argument_count() == 2) then
+  ! Parse options from the input file.
+  filename = "vorticity_dilatation.inp"
+  call parseInputFile(filename)
 
-     ! Setup the region and load the grid file.
+  ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
+  ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
+  if (command_argument_count() >= 1) then
      call get_command_argument(1, filename)
-     call plot3dDetectFormat(MPI_COMM_WORLD, filename, success,                              &
-          globalGridSizes = globalGridSizes)
-     if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
-     call setupRegion(region, MPI_COMM_WORLD, globalGridSizes)
-     call loadRegionData(region, QOI_GRID, filename)
-
-     ! Load the solution file.
-     call get_command_argument(2, filename)
-     call loadRegionData(region, QOI_FORWARD_STATE, filename)
-
-     ! Setup spatial discretization.
-     do i = 1, size(region%grids)
-        call region%grids(i)%setupSpatialDiscretization()
-     end do
-     call MPI_Barrier(region%comm, ierror)
-
-     ! Compute normalized metrics, norm matrix and Jacobian.
-     do i = 1, size(region%grids)
-        call region%grids(i)%update()
-     end do
-     call MPI_Barrier(MPI_COMM_WORLD, ierror)
-
-     ! Compute velocity
-     do i = 1, size(region%grids)
-        call computeDependentVariables(size(globalGridSizes, 1),                             &
-             region%states(i)%conservedVariables, velocity = region%states(i)%velocity)
-     end do
-
-     ! Save vorticity and dilatation
-     i = len_trim(filename)
-     if (filename(i-1:i) == ".q") then
-        filename = filename(:i-2) // ".vorticity_dilatation.f"
-     else
-        filename = PROJECT_NAME // ".vorticity_dilatation.f"
-     end if
-     call saveRegionData(region, QOI_VORTICITY_DILATATION, filename)
-
-     ! Cleanup.
-     call cleanupRegion(region)
-
   else
-
-     call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
-     call get_command_argument(0, programName)
-     write(message, '(3A)') "Usage: ", trim(programName), " <grid file> <solution file>"
-     call writeAndFlush(MPI_COMM_WORLD, error_unit, message)
-
+     call getRequiredOption("grid_file", filename)
   end if
+  call plot3dDetectFormat(MPI_COMM_WORLD, filename,                                          &
+       success, globalGridSizes = globalGridSizes)
+  if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
+
+  ! Load the solution file.
+  if (command_argument_count() >= 2) then
+     call get_command_argument(2, filename)
+  else
+     call getRequiredOption("solution_file", filename)
+  end if
+  call loadRegionData(region, QOI_FORWARD_STATE, filename)
+
+  ! Setup spatial discretization.
+  do i = 1, size(region%grids)
+     call region%grids(i)%setupSpatialDiscretization()
+  end do
+  call MPI_Barrier(region%comm, ierror)
+
+  ! Compute normalized metrics, norm matrix and Jacobian.
+  do i = 1, size(region%grids)
+     call region%grids(i)%update()
+  end do
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
+  ! Compute velocity
+  do i = 1, size(region%grids)
+     call computeDependentVariables(size(globalGridSizes, 1),                                &
+          region%states(i)%conservedVariables, velocity = region%states(i)%velocity)
+  end do
+
+  ! Save vorticity and dilatation
+  i = len_trim(filename)
+  if (filename(i-1:i) == ".q") then
+     filename = filename(:i-2) // ".vorticity_dilatation.f"
+  else
+     filename = PROJECT_NAME // ".vorticity_dilatation.f"
+  end if
+  call saveRegionData(region, QOI_VORTICITY_DILATATION, filename)
+
+  ! Cleanup.
+  call cleanupRegion(region)
 
   ! Finalize MPI.
   call MPI_Finalize(ierror)

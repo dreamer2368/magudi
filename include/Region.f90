@@ -150,13 +150,14 @@ module Region_mod
 
   interface
 
-     subroutine reportResiduals(this)
+     subroutine computeResiduals(this, residuals)
 
        use Region_type, only : t_Region
 
        type(t_Region) :: this
+       real(SCALAR_KIND), intent(out) :: residuals(3)
 
-     end subroutine reportResiduals
+     end subroutine computeResiduals
 
   end interface
 

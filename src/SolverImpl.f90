@@ -375,7 +375,7 @@ subroutine initializeSolver(region, restartFilename)
 end subroutine initializeSolver
 
 subroutine solveForward(region, integrator, time, timestep, nTimesteps,                      &
-     saveInterval, reportInterval, outputPrefix, costFunctional)
+     saveInterval, outputPrefix, costFunctional)
 
   ! <<< External modules >>>
   use iso_fortran_env, only : output_unit
@@ -392,7 +392,8 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   use SolverImpl, only : instantaneousCostFunctional, writeLine
 
   ! <<< Internal modules >>>
-  use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
+  use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, computeResiduals
+  use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
 
@@ -404,16 +405,16 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps
-  integer, intent(in), optional :: saveInterval, reportInterval
+  integer, intent(in), optional :: saveInterval
   character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
   SCALAR_TYPE, intent(out), optional :: costFunctional
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
-  integer :: i, j, timestep_
+  integer :: i, j, timestep_, reportInterval, residualInterval
   logical :: verbose
-  real(wp) :: timeStepSize, cfl
+  real(wp) :: timeStepSize, cfl, residuals(3)
   SCALAR_TYPE :: instantaneousCostFunctional_
 
   assert(timestep >= 0)
@@ -429,11 +430,18 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   call saveRegionData(region, QOI_FORWARD_STATE, filename)
 
   verbose = .false.
+  residualInterval = getOption("check_residuals_interval", -1)
+  if (residualInterval == -1) then
+     call getRequiredOption("report_interval", reportInterval)
+     residualInterval = reportInterval
+     if (residualInterval < 0) residualInterval = max(1, nint(1e-3_wp * real(nTimesteps, wp)))
+  else
+     reportInterval = getOption("report_interval", 1)
+  end if
 
   do timestep_ = timestep + 1, timestep + nTimesteps
 
-     if (present(reportInterval)) verbose = (reportInterval > 0 .and.                        &
-          mod(timestep_, reportInterval) == 0)
+     verbose = (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0)
 
      do j = 1, size(region%states) !... update state
         call region%states(j)%update(region%grids(j), region%simulationFlags,                &
@@ -461,7 +469,6 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
      end do
 
      if (verbose) then
-
         if (region%simulationFlags%useConstantCfl) then
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", timeStepSize, ", time = ", time
@@ -470,18 +477,22 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", CFL = ", cfl, ", time = ", time
         end if
-
         call writeAndFlush(region%comm, output_unit, str)
+     end if
 
-        if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
-
-        if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then
-           write(filename, '(2A)') trim(outputPrefix_), ".cost_functional.txt"
-           write(str, '(I8,1X,E13.6,1X,SP,' // SCALAR_FORMAT // ')')                      &
-                timestep_, time, instantaneousCostFunctional_
-           call writeLine(region%comm, filename, str)
+     if (region%simulationFlags%steadyStateSimulation .and.                                  &
+          mod(timestep_, residualInterval) == 0) then
+        call computeResiduals(region, residuals)
+        write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &      
+             ", momentum = ", residuals(2), ", energy = ", residuals(3)
+        call writeAndFlush(region%comm, output_unit, str)
+        if (all(residuals < region%solverOptions%convergenceTolerance)) then
+           call writeAndFlush(region%comm, output_unit, "Solution has converged!")
+           call saveRegionData(region, QOI_FORWARD_STATE,                                    &
+                trim(outputPrefix_) // ".steady_state.q")
+           timestep = timestep_
+           exit
         end if
-
      end if
 
      if (present(saveInterval)) then
@@ -500,16 +511,16 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
         end if
      end if
 
-  end do
+     if (timestep_ == timestep + nTimesteps) timestep = timestep_
 
-  timestep = timestep + nTimesteps
+  end do
 
   call endTiming("solveForward")
 
 end subroutine solveForward
 
-subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,                      &
-     saveInterval, reportInterval, outputPrefix)
+subroutine solveAdjoint(region, integrator, time, timestep,                                  &
+     nTimesteps, saveInterval, outputPrefix)
 
   ! <<< External modules >>>
   use iso_fortran_env, only : output_unit
@@ -524,8 +535,8 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   use State_enum, only : QOI_ADJOINT_STATE
 
   ! <<< Internal modules >>>
-  use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
-  use InputHelper, only : getOption
+  use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, computeResiduals
+  use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
   use ReverseMigrator_mod
@@ -538,16 +549,15 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps, saveInterval
-  integer, intent(in), optional :: reportInterval
   character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
   type(t_ReverseMigrator) :: reverseMigrator
-  integer :: i, j, timestep_
+  integer :: i, j, timestep_, reportInterval, residualInterval
   logical :: verbose
-  real(wp) :: timeStepSize, cfl
+  real(wp) :: timeStepSize, cfl, residuals(3)
 
   assert(timestep >= nTimesteps)
 
@@ -565,11 +575,18 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   call saveRegionData(region, QOI_ADJOINT_STATE, filename)
 
   verbose = .false.
+  residualInterval = getOption("check_residuals_interval", -1)
+  if (residualInterval == -1) then
+     call getRequiredOption("report_interval", reportInterval)
+     residualInterval = reportInterval
+     if (residualInterval < 0) residualInterval = max(1, nint(1e-3_wp * real(nTimesteps, wp)))
+  else
+     reportInterval = getOption("report_interval", 1)
+  end if
 
   do timestep_ = timestep - 1, timestep - nTimesteps, -1
 
-     if (present(reportInterval)) verbose = (reportInterval > 0 .and.                        &
-          mod(timestep_, reportInterval) == 0)
+     verbose = (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0)
 
      if (region%simulationFlags%useConstantCfl) then
         call migrateToSubstep(reverseMigrator, region, integrator, timestep_, 1)
@@ -611,7 +628,21 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
                 ", CFL = ", cfl, ", time = ", time
         end if
         call writeAndFlush(region%comm, output_unit, str)
-        if (region%simulationFlags%steadyStateSimulation) call reportResiduals(region)
+     end if
+
+     if (region%simulationFlags%steadyStateSimulation .and.                                  &
+          mod(timestep_, residualInterval) == 0) then
+        call computeResiduals(region, residuals)
+        write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &      
+             ", momentum = ", residuals(2), ", energy = ", residuals(3)
+        call writeAndFlush(region%comm, output_unit, str)
+        if (all(residuals < region%solverOptions%convergenceTolerance)) then
+           call writeAndFlush(region%comm, output_unit, "Solution has converged!")
+           call saveRegionData(region, QOI_ADJOINT_STATE,                                    &
+                trim(outputPrefix_) // ".steady_state.adjoint.q")
+           timestep = timestep_
+           exit
+        end if
      end if
 
      if (saveInterval > 0) then
@@ -626,11 +657,11 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
         end if
      end if
 
+     if (timestep_ == timestep - nTimesteps) timestep = timestep_
+
   end do
 
   call cleanupReverseMigrator(reverseMigrator)
-
-  timestep = timestep - nTimesteps
 
   call endTiming("solveAdjoint")
 
