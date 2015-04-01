@@ -5,7 +5,7 @@ sys.path.append(os.getcwd())
 
 import numpy as np
 from scipy.interpolate import griddata
-from scipy.ndimage.filters import gaussian_filter1d, uniform_filter1d
+from scipy.ndimage.filters import gaussian_filter1d
 
 import PLOT3D
 
@@ -48,28 +48,9 @@ if __name__ == '__main__':
     soln.Q[0][:,:,0,1] = griddata((x, y), xVelocity, (X, Y), method = 'linear', fill_value = freeStreamMachNumber)
     soln.Q[0][:,:,0,2] = griddata((x, y), yVelocity, (X, Y), method = 'linear', fill_value = 0.)
     
-    # Filter velocity field.
-
-    nFilterRepeat = 50
-
-    showProgress = True
-    try:
-        from progressbar import ProgressBar
-    except:
-        showProgress = False
-
-    if showProgress is True:
-        progressBar = ProgressBar(maxval = nFilterRepeat)
-        progressBar.start()
-
-    for i in range(nFilterRepeat):
-        soln.Q[0][:-1,:,0,1:3] = uniform_filter1d(soln.Q[0][:-1,:,0,1:3], size = 3, axis = 0, mode = 'wrap')
-        soln.Q[0][:-1,:,0,1:3] = uniform_filter1d(soln.Q[0][:-1,:,0,1:3], size = 3, axis = 1, mode = 'nearest')
-        if showProgress is True:
-            progressBar.update(i)
-    
-    if showProgress is True:
-        progressBar.finish()
+    # Gaussian filter.
+    soln.Q[0][:-1,:,0,1:3] = gaussian_filter1d(soln.Q[0][:-1,:,0,1:3], 4, axis = 0, mode = 'wrap')
+    soln.Q[0][:-1,:,0,1:3] = gaussian_filter1d(soln.Q[0][:-1,:,0,1:3], 4, axis = 1, mode = 'nearest')
 
     pressure = 1. / ratioOfSpecificHeats + 0.5 * freeStreamMachNumber ** 2 * (1. - np.sum(soln.Q[0][:,:,0,1:3] ** 2, axis = -1) / freeStreamMachNumber ** 2)
     soln.Q[0][:,:,0,-1] = pressure / (ratioOfSpecificHeats - 1.) + 0.5 / soln.Q[0][:,:,0,0] * np.sum(soln.Q[0][:,:,0,1:3] ** 2, axis = -1)
