@@ -83,8 +83,8 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   ! <<< Arguments >>>
   class(t_State) :: this
   class(t_Grid) :: grid
-  type(t_SimulationFlags), pointer, intent(in), optional :: simulationFlags
-  type(t_SolverOptions), pointer, intent(in), optional :: solverOptions
+  type(t_SimulationFlags), intent(in), optional :: simulationFlags
+  type(t_SolverOptions), intent(in), optional :: solverOptions
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
