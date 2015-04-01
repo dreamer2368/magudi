@@ -50,7 +50,7 @@ module TimeIntegrator_mod
 
      subroutine setup(this, region)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_TimeIntegrator
 
@@ -77,7 +77,7 @@ module TimeIntegrator_mod
 
      subroutine substepForward(this, region, time, timeStepSize, timestep, stage)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_TimeIntegrator
 
@@ -95,7 +95,7 @@ module TimeIntegrator_mod
 
      subroutine substepAdjoint(this, region, time, timeStepSize, timestep, stage)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_TimeIntegrator
 

@@ -3,7 +3,7 @@
 subroutine setupJamesonRK3Integrator(this, region)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use JamesonRK3Integrator_mod, only : t_JamesonRK3Integrator
 
   implicit none
@@ -63,11 +63,13 @@ end subroutine cleanupJamesonRK3Integrator
 subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region, FORWARD
+  use Region_mod, only : t_Region
   use JamesonRK3Integrator_mod, only : t_JamesonRK3Integrator
 
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD
+
   ! <<< Internal modules >>>
-  use Region_mod, only : computeRhs
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
@@ -105,7 +107,7 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
         this%temp_(i)%buffer1 = region%states(i)%conservedVariables        
      end do
 
-     call computeRhs(region, FORWARD, time)
+     call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
         region%states(i)%conservedVariables = this%temp_(i)%buffer1 +                        &
@@ -116,7 +118,7 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
   case (2)
 
      time = time + timeStepSize / 2.0_wp
-     call computeRhs(region, FORWARD, time)
+     call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
         region%states(i)%conservedVariables = (this%temp_(i)%buffer1 +                       &
@@ -127,7 +129,7 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
   case (3)
 
      time = time + timeStepSize / 2.0_wp
-     call computeRhs(region, FORWARD, time)
+     call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
         region%states(i)%conservedVariables =                                                &
@@ -144,7 +146,7 @@ end subroutine substepForwardJamesonRK3
 subroutine substepAdjointJamesonRK3(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region, ADJOINT
+  use Region_mod, only : t_Region
   use JamesonRK3Integrator_mod, only : t_JamesonRK3Integrator
 
   implicit none

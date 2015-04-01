@@ -7,9 +7,9 @@ program shear_layer
 
   use Grid_enum
   use State_enum
-  use Region_type
 
-  use Region_mod
+  use Region_mod, only : t_Region
+
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
@@ -43,8 +43,8 @@ program shear_layer
   if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
 
   ! Setup the region and load the grid file.
-  call setupRegion(region, MPI_COMM_WORLD, globalGridSizes)
-  call loadRegionData(region, QOI_GRID, filename)
+  call region%setup(MPI_COMM_WORLD, globalGridSizes)
+  call region%loadData(QOI_GRID, filename)
 
   ! Setup spatial discretization.
   do i = 1, size(region%grids)
@@ -74,7 +74,7 @@ program shear_layer
   else
      filename = PROJECT_NAME // ".ic.q"
   end if
-  call saveRegionData(region, QOI_FORWARD_STATE, filename)
+  call region%saveData(QOI_FORWARD_STATE, filename)
 
   ! Save target state.
   if (region%simulationFlags%useTargetState) then
@@ -84,11 +84,11 @@ program shear_layer
      else
         filename = PROJECT_NAME // ".target.q"
      end if
-     call saveRegionData(region, QOI_TARGET_STATE, filename)
+     call region%saveData(QOI_TARGET_STATE, filename)
   end if
 
   ! Cleanup.
-  call cleanupRegion(region)
+  call region%cleanup()
 
   ! Finalize MPI.
   call MPI_Finalize(ierror)

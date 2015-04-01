@@ -36,11 +36,11 @@ module ReverseMigrator_mod
      subroutine setupReverseMigrator(this, region, outputPrefix, algorithm,                  &
           startTimestep, endTimestep, saveInterval, numIntermediateStates)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
        use ReverseMigrator_type, only : t_ReverseMigrator
 
        type(t_ReverseMigrator) :: this
-       type(t_Region), intent(in) :: region
+       class(t_Region), intent(in) :: region
        character(len = *), intent(in) :: outputPrefix, algorithm
        integer, intent(in) :: startTimestep, endTimestep, saveInterval, numIntermediateStates
 
@@ -64,12 +64,12 @@ module ReverseMigrator_mod
 
      subroutine migrateToSubstep(this, region, integrator, timestep, stage)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
        use TimeIntegrator_mod, only : t_TimeIntegrator
        use ReverseMigrator_type, only : t_ReverseMigrator
 
        type(t_ReverseMigrator) :: this
-       type(t_Region) :: region
+       class(t_Region) :: region
        class(t_TimeIntegrator) :: integrator
        integer, intent(in) :: timestep, stage
 

@@ -4,7 +4,7 @@ subroutine setupReverseMigrator(this, region, outputPrefix, algorithm,          
      startTimestep, endTimestep, saveInterval, numIntermediateStates)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use ReverseMigrator_type, only : t_ReverseMigrator, UNIFORM_CHECKPOINTING
 
   ! <<< Public members >>>
@@ -14,7 +14,7 @@ subroutine setupReverseMigrator(this, region, outputPrefix, algorithm,          
 
   ! <<< Arguments >>>
   type(t_ReverseMigrator) :: this
-  type(t_Region), intent(in) :: region
+  class(t_Region), intent(in) :: region
   character(len = *), intent(in) :: outputPrefix, algorithm
   integer, intent(in) :: startTimestep, endTimestep, saveInterval, numIntermediateStates
 
@@ -87,21 +87,18 @@ end subroutine cleanupReverseMigrator
 subroutine migrateToSubstep(this, region, integrator, timestep, stage)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use TimeIntegrator_mod, only : t_TimeIntegrator
   use ReverseMigrator_type
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE
 
-  ! <<< Internal modules >>>
-  use Region_mod, only : loadRegionData, getTimeStepSize
-
   implicit none
 
   ! <<< Arguments >>>
   type(t_ReverseMigrator) :: this
-  type(t_Region) :: region
+  class(t_Region) :: region
   class(t_TimeIntegrator) :: integrator
   integer, intent(in) :: timestep, stage
 
@@ -152,7 +149,7 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
                  call region%states(j)%update(region%grids(j), region%simulationFlags,       &
                       region%solverOptions)
               end do
-              timeStepSize = getTimeStepSize(region)
+              timeStepSize = region%getTimeStepSize()
 
               do stage_ = 1, this%nStages
                  if (timestep_ == this%loadedTimestep + this%saveInterval .and.              &

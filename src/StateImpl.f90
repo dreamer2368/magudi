@@ -939,10 +939,12 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use Region_type, only : FORWARD
   use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type
   use SimulationFlags_type, only : t_SimulationFlags
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -997,10 +999,12 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use Region_type, only : ADJOINT
   use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type
   use SimulationFlags_type, only : t_SimulationFlags
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : ADJOINT
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -1053,8 +1057,10 @@ subroutine addSourcesForward(this, grid, patches, time)
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use Region_type, only : FORWARD
   use PatchDescriptor_type, only : SPONGE, SOLENOIDAL_EXCITATION
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD
 
   ! <<< Internal modules >>>
   use Patch_mod, only : addDamping, addSolenoidalExcitation
@@ -1107,8 +1113,10 @@ subroutine addSourcesAdjoint(this, grid, patches, time)
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use Region_type, only : ADJOINT
   use PatchDescriptor_type, only : SPONGE
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : ADJOINT
 
   ! <<< Internal modules >>>
   use Patch_mod, only : addDamping

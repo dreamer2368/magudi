@@ -14,14 +14,14 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
-    use Region_type, only : t_Region
+    use Region_mod, only : t_Region
 
     ! <<< Internal modules >>>
     use InputHelper, only : stripComments
     use ErrorHandler, only : gracefulExit, writeAndFlush
 
     ! <<< Arguments >>>
-    type(t_Region) :: this
+    class(t_Region) :: this
     character(len = *), intent(in) :: filename
 
     ! <<< Local variables >>>
@@ -123,14 +123,14 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
-    use Region_type, only : t_Region
+    use Region_mod, only : t_Region
 
     ! <<< Internal modules >>>
     use MPIHelper, only : splitCommunicatorMultigrid
     use ErrorHandler, only : writeAndFlush
 
     ! <<< Arguments >>>
-    type(t_Region) :: this
+    class(t_Region) :: this
 
     ! <<< Local variables >>>
     integer :: nProcs, ierror
@@ -176,7 +176,7 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
-    use Region_type, only : t_Region
+    use Region_mod, only : t_Region
 
     ! <<< Internal modules >>>
     use InputHelper, only : stripComments
@@ -184,7 +184,7 @@ contains
     use PatchDescriptor_mod, only : parsePatchType
 
     ! <<< Arguments >>>
-    type(t_Region) :: this
+    class(t_Region) :: this
     character(len = *), intent(in) :: filename
 
     ! <<< Local variables >>>
@@ -332,14 +332,14 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
-    use Region_type, only : t_Region
+    use Region_mod, only : t_Region
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : issueWarning, gracefulExit, writeAndFlush
     use PatchDescriptor_mod, only : validatePatchDescriptor, validatePatchesConnectivity
 
     ! <<< Arguments >>>
-    type(t_Region) :: this
+    class(t_Region) :: this
 
     ! <<< Local variables >>>
     integer :: i, errorCode
@@ -371,11 +371,11 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Region_type, only : t_Region
+    use Region_mod, only : t_Region
     use PatchDescriptor_type, only : t_PatchDescriptor
 
     ! <<< Arguments >>>
-    type(t_Region) :: this
+    class(t_Region) :: this
 
     ! <<< Local variables >>>
     integer :: i, j, gridOffset(3), gridLocalSize(3), gridIndex, color, comm, proc, ierror
@@ -425,19 +425,17 @@ contains
 
     ! <<< Derived types >>>
     use State_mod, only : t_State
-    use Region_type, only : t_Region, FORWARD
+    use Region_mod, only : t_Region
 
     ! <<< Enumerations >>>
     use State_enum, only : QOI_FORWARD_STATE
-
-    ! <<< Public members >>>
-    use Region_mod, only : saveRegionData
+    use Region_enum, only : FORWARD
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
-    type(t_Region) :: this
+    class(t_Region) :: this
     integer, intent(in) :: mode
 
     ! <<< Local variables >>>
@@ -492,7 +490,7 @@ contains
 
        select case (mode)
        case (FORWARD)
-          call saveRegionData(this, QOI_FORWARD_STATE, PROJECT_NAME // "-crashed.q")
+          call this%saveData(QOI_FORWARD_STATE, PROJECT_NAME // "-crashed.q")
        end select
 
        call gracefulExit(this%comm, message)
@@ -509,14 +507,13 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   use MPI
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use PatchDescriptor_type, only : t_PatchDescriptor
 
   ! <<< Private members >>>
   use RegionImpl
 
   ! <<< Public members >>>
-  use Region_mod, only : cleanupRegion
   use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Internal modules >>>
@@ -528,7 +525,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
   integer, intent(in) :: comm, globalGridSizes(:,:)
   character(len = *), intent(in), optional :: boundaryConditionFilename
 
@@ -540,7 +537,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   call startTiming("setupRegion")
 
   ! Clean slate.
-  call cleanupRegion(this)
+  call this%cleanup()
   this%comm = comm
   call MPI_Comm_size(this%comm, nProcs, ierror)
 
@@ -662,7 +659,7 @@ subroutine cleanupRegion(this)
   use MPI
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
 
   ! <<< Internal modules >>>
   use Patch_mod, only : cleanupPatch
@@ -670,7 +667,7 @@ subroutine cleanupRegion(this)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
 
   ! <<< Local variables >>>
   integer :: i, ierror
@@ -718,7 +715,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use PLOT3DDescriptor_type, only : t_PLOT3DDescriptor, PLOT3D_SOLUTION_FILE
 
   ! <<< Enumerations >>>
@@ -733,7 +730,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
   integer, intent(in) :: quantityOfInterest
   character(len = *), intent(in) :: filename
 
@@ -814,7 +811,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use PLOT3DDescriptor_type, only : t_PLOT3DDescriptor, PLOT3D_GRID_FILE, PLOT3D_FUNCTION_FILE
 
   ! <<< Enumerations >>>
@@ -829,7 +826,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
   integer, intent(in) :: quantityOfInterest
   character(len = *), intent(in) :: filename
 
@@ -923,12 +920,12 @@ function getCfl(this) result(cfl)
   use MPI
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
 
   ! <<< Result >>>
   real(SCALAR_KIND) :: cfl
@@ -956,12 +953,12 @@ function getTimeStepSize(this) result(timeStepSize)
   use MPI
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
 
   ! <<< Result >>>
   real(SCALAR_KIND) :: timeStepSize
@@ -991,8 +988,11 @@ subroutine computeRhs(this, mode, time)
   use MPI
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region, FORWARD, ADJOINT
+  use Region_mod, only : t_Region
   use PatchDescriptor_type
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT
 
   ! <<< Private members >>>
   use RegionImpl, only : checkSolutionLimits
@@ -1003,7 +1003,7 @@ subroutine computeRhs(this, mode, time)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
   integer, intent(in) :: mode
   real(SCALAR_KIND), intent(in) :: time
 
@@ -1089,7 +1089,7 @@ subroutine reportGridDiagnostics(this)
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
 
   ! <<< Internal modules >>>
   use ErrorHandler, only : writeAndFlush
@@ -1097,7 +1097,7 @@ subroutine reportGridDiagnostics(this)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
 
   ! <<< Local variables >>>
   integer :: i, j, iGlobal, jGlobal, kGlobal, procRank, ierror
@@ -1154,12 +1154,12 @@ subroutine computeResiduals(this, residuals)
   use, intrinsic :: iso_fortran_env
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: this
+  class(t_Region) :: this
   real(SCALAR_KIND), intent(out) :: residuals(3)
 
   ! <<< Local variables >>>

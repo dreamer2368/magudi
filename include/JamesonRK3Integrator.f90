@@ -28,7 +28,7 @@ module JamesonRK3Integrator_mod
 
      subroutine setupJamesonRK3Integrator(this, region)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_JamesonRK3Integrator
 
@@ -55,7 +55,7 @@ module JamesonRK3Integrator_mod
 
      subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, stage)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_JamesonRK3Integrator
 
@@ -73,7 +73,7 @@ module JamesonRK3Integrator_mod
 
      subroutine substepAdjointJamesonRK3(this, region, time, timeStepSize, timestep, stage)       
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_JamesonRK3Integrator
 

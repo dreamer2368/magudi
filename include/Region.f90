@@ -1,6 +1,17 @@
 #include "config.h"
 
-module Region_type
+module Region_enum
+
+  implicit none
+  public
+
+  integer, parameter ::                                                                      &
+       FORWARD = +1,                                                                         &
+       ADJOINT = -1
+
+end module Region_enum
+
+module Region_mod
 
   use MPI, only : MPI_COMM_NULL
 
@@ -14,10 +25,6 @@ module Region_type
   implicit none
   private
 
-  integer, parameter, public ::                                                              &
-       FORWARD = +1,                                                                         &
-       ADJOINT = -1
-
   type, public :: t_Region
 
      type(t_Grid), allocatable :: grids(:)
@@ -30,22 +37,27 @@ module Region_type
      integer, allocatable :: globalGridSizes(:,:), processDistributions(:,:),                &
           gridCommunicators(:), patchCommunicators(:)
 
+   contains
+     
+     procedure, pass :: setup => setupRegion
+     procedure, pass :: cleanup => cleanupRegion
+     procedure, pass :: loadData => loadRegionData
+     procedure, pass :: saveData => saveRegionData
+     procedure, pass :: getCfl
+     procedure, pass :: getTimeStepSize
+     procedure, pass :: reportGridDiagnostics
+     procedure, pass :: computeRhs
+     procedure, pass :: computeResiduals
+
   end type t_Region
-
-end module Region_type
-
-module Region_mod
-
-  implicit none
-  public
 
   interface
 
      subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
        integer, intent(in) :: comm, globalGridSizes(:,:)
 
        character(len = *), intent(in), optional :: boundaryConditionFilename
@@ -58,9 +70,9 @@ module Region_mod
 
      subroutine cleanupRegion(this)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
 
      end subroutine cleanupRegion
 
@@ -70,9 +82,9 @@ module Region_mod
 
      subroutine loadRegionData(this, quantityOfInterest, filename)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
        integer, intent(in) :: quantityOfInterest
        character(len = *), intent(in) :: filename
 
@@ -84,9 +96,9 @@ module Region_mod
 
      subroutine saveRegionData(this, quantityOfInterest, filename)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
        integer, intent(in) :: quantityOfInterest
        character(len = *), intent(in) :: filename
 
@@ -98,9 +110,9 @@ module Region_mod
 
      function getCfl(this) result(cfl)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
 
        real(SCALAR_KIND) :: cfl
 
@@ -112,9 +124,9 @@ module Region_mod
 
      function getTimeStepSize(this) result(timeStepSize)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
 
        real(SCALAR_KIND) :: timeStepSize
 
@@ -126,9 +138,9 @@ module Region_mod
 
      subroutine reportGridDiagnostics(this)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
 
      end subroutine reportGridDiagnostics
 
@@ -138,9 +150,9 @@ module Region_mod
 
      subroutine computeRhs(this, mode, time)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
        integer, intent(in) :: mode
        real(SCALAR_KIND), intent(in) :: time
 
@@ -152,9 +164,9 @@ module Region_mod
 
      subroutine computeResiduals(this, residuals)
 
-       use Region_type, only : t_Region
+       import :: t_Region
 
-       type(t_Region) :: this
+       class(t_Region) :: this
        real(SCALAR_KIND), intent(out) :: residuals(3)
 
      end subroutine computeResiduals

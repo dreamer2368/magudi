@@ -13,14 +13,14 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Region_type, only : t_Region
+    use Region_mod, only : t_Region
     use PatchDescriptor_type, only : ACTUATOR
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
-    type(t_Region) :: region
+    class(t_Region) :: region
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -72,14 +72,14 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Region_type, only : t_Region
+    use Region_mod, only : t_Region
     use PatchDescriptor_type, only : CONTROL_TARGET
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
-    type(t_Region) :: region
+    class(t_Region) :: region
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -131,11 +131,11 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Region_type, only : t_Region
+    use Region_mod, only : t_Region
     use SolverOptions_type
 
     ! <<< Arguments >>>
-    type(t_Region) :: region
+    class(t_Region) :: region
 
     ! <<< Result >>>
     SCALAR_TYPE :: instantaneousCostFunctional
@@ -257,7 +257,7 @@ end module SolverImpl
 subroutine initializeSolver(region, restartFilename)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use SolverOptions_type, only : SOUND
 
   ! <<< Enumerations >>>
@@ -269,13 +269,12 @@ subroutine initializeSolver(region, restartFilename)
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeDependentVariables
-  use Region_mod, only : loadRegionData
   use InputHelper, only : getOption, getRequiredOption
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: region
+  class(t_Region) :: region
   character(len = *), intent(in), optional :: restartFilename
 
   ! <<< Local variables >>>
@@ -293,13 +292,13 @@ subroutine initializeSolver(region, restartFilename)
                 region%solverOptions%ratioOfSpecificHeats, region%states(i)%targetState)
         end do
      else
-        call loadRegionData(region, QOI_TARGET_STATE, filename)
+        call region%loadData(QOI_TARGET_STATE, filename)
      end if
   end if
 
   ! Initialize conserved variables.
   if (present(restartFilename) .and. region%simulationFlags%predictionOnly) then
-     call loadRegionData(region, QOI_FORWARD_STATE, restartFilename)
+     call region%loadData(QOI_FORWARD_STATE, restartFilename)
   else if (region%simulationFlags%predictionOnly .or. .not. &
        region%simulationFlags%isBaselineAvailable) then
      if (region%simulationFlags%useTargetState) then
@@ -310,11 +309,11 @@ subroutine initializeSolver(region, restartFilename)
               region%states(i)%plot3dAuxiliaryData = 0.0_wp
            end do
         else
-           call loadRegionData(region, QOI_FORWARD_STATE, filename) !... initialize from file.
+           call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
         end if
      else
         call getRequiredOption("initial_condition_file", filename)
-        call loadRegionData(region, QOI_FORWARD_STATE, filename) !... initialize from file.
+        call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
      end if
   end if
 
@@ -332,7 +331,7 @@ subroutine initializeSolver(region, restartFilename)
            region%grids(i)%controlMollifier = 1.0_wp
         end do
      else
-        call loadRegionData(region, QOI_CONTROL_MOLLIFIER, filename)
+        call region%loadData(QOI_CONTROL_MOLLIFIER, filename)
      end if
      call normalizeControlMollifier(region)
 
@@ -343,7 +342,7 @@ subroutine initializeSolver(region, restartFilename)
            region%grids(i)%targetMollifier = 1.0_wp
         end do
      else
-        call loadRegionData(region, QOI_TARGET_MOLLIFIER, filename)
+        call region%loadData(QOI_TARGET_MOLLIFIER, filename)
      end if
      call normalizeTargetMollifier(region)
 
@@ -353,7 +352,7 @@ subroutine initializeSolver(region, restartFilename)
         ! Mean pressure.
         if (.not. region%simulationFlags%useTargetState) then
            call getRequiredOption("mean_pressure_file", filename)
-           call loadRegionData(region, QOI_MEAN_PRESSURE, filename)
+           call region%loadData(QOI_MEAN_PRESSURE, filename)
         else
            filename = getOption("mean_pressure_file", "")
            if (len_trim(filename) == 0) then
@@ -364,7 +363,7 @@ subroutine initializeSolver(region, restartFilename)
                       pressure = region%states(i)%meanPressure(:,1))
               end do
            else
-              call loadRegionData(region, QOI_MEAN_PRESSURE, filename)
+              call region%loadData(QOI_MEAN_PRESSURE, filename)
            end if
         end if
 
@@ -382,7 +381,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
 
   ! <<< Derived types >>>
   use State_mod, only : t_State
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use TimeIntegrator_mod, only : t_TimeIntegrator
 
   ! <<< Enumerations >>>
@@ -392,7 +391,6 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   use SolverImpl, only : instantaneousCostFunctional, writeLine
 
   ! <<< Internal modules >>>
-  use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, computeResiduals
   use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
@@ -400,7 +398,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: region
+  class(t_Region) :: region
   class(t_TimeIntegrator) :: integrator
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
@@ -427,7 +425,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   if (present(costFunctional)) costFunctional = 0.0_wp
 
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
-  call saveRegionData(region, QOI_FORWARD_STATE, filename)
+  call region%saveData(QOI_FORWARD_STATE, filename)
 
   verbose = .false.
   residualInterval = getOption("check_residuals_interval", -1)
@@ -444,10 +442,9 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
      verbose = (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0)
 
      do j = 1, size(region%states) !... update state
-        call region%states(j)%update(region%grids(j), region%simulationFlags,                &
-             region%solverOptions)
+        call region%states(j)%update(region%grids(j), region%simulationFlags, region%solverOptions)
      end do
-     timeStepSize = getTimeStepSize(region)
+     timeStepSize = region%getTimeStepSize()
 
      do i = 1, integrator%nStages
 
@@ -473,7 +470,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", timeStepSize, ", time = ", time
         else
-           cfl = getCfl(region)
+           cfl = region%getCfl()
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", CFL = ", cfl, ", time = ", time
         end if
@@ -482,13 +479,13 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
 
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
           mod(timestep_, residualInterval) == 0) then
-        call computeResiduals(region, residuals)
+        call region%computeResiduals(residuals)
         write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &      
              ", momentum = ", residuals(2), ", energy = ", residuals(3)
         call writeAndFlush(region%comm, output_unit, str)
         if (all(residuals < region%solverOptions%convergenceTolerance)) then
            call writeAndFlush(region%comm, output_unit, "Solution has converged!")
-           call saveRegionData(region, QOI_FORWARD_STATE,                                    &
+           call region%saveData(QOI_FORWARD_STATE,                                    &
                 trim(outputPrefix_) // ".steady_state.q")
            timestep = timestep_
            exit
@@ -505,7 +502,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
               end do
 
               write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
-              call saveRegionData(region, QOI_FORWARD_STATE, filename)
+              call region%saveData(QOI_FORWARD_STATE, filename)
 
            end if
         end if
@@ -527,7 +524,7 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
 
   ! <<< Derived types >>>
   use State_mod, only : t_State
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use TimeIntegrator_mod, only : t_TimeIntegrator
   use ReverseMigrator_type, only : t_ReverseMigrator
 
@@ -535,7 +532,6 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
   use State_enum, only : QOI_ADJOINT_STATE
 
   ! <<< Internal modules >>>
-  use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, computeResiduals
   use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
@@ -544,7 +540,7 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Region) :: region
+  class(t_Region) :: region
   class(t_TimeIntegrator) :: integrator
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
@@ -572,7 +568,7 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
        saveInterval, saveInterval * integrator%nStages)
 
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
-  call saveRegionData(region, QOI_ADJOINT_STATE, filename)
+  call region%saveData(QOI_ADJOINT_STATE, filename)
 
   verbose = .false.
   residualInterval = getOption("check_residuals_interval", -1)
@@ -595,7 +591,7 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
                 region%solverOptions)
         end do
      end if
-     timeStepSize = getTimeStepSize(region)
+     timeStepSize = region%getTimeStepSize()
 
      do i = integrator%nStages, 1, -1
 
@@ -623,7 +619,7 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", timeStepSize, ", time = ", time
         else
-           cfl = getCfl(region)
+           cfl = region%getCfl()
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", CFL = ", cfl, ", time = ", time
         end if
@@ -632,13 +628,13 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
 
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
           mod(timestep_, residualInterval) == 0) then
-        call computeResiduals(region, residuals)
+        call region%computeResiduals(residuals)
         write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &      
              ", momentum = ", residuals(2), ", energy = ", residuals(3)
         call writeAndFlush(region%comm, output_unit, str)
         if (all(residuals < region%solverOptions%convergenceTolerance)) then
            call writeAndFlush(region%comm, output_unit, "Solution has converged!")
-           call saveRegionData(region, QOI_ADJOINT_STATE,                                    &
+           call region%saveData(QOI_ADJOINT_STATE,                                    &
                 trim(outputPrefix_) // ".steady_state.adjoint.q")
            timestep = timestep_
            exit
@@ -653,7 +649,7 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
            end do
            write(filename, '(2A,I8.8,A)')                                                    &
                 trim(outputPrefix_), "-", timestep_, ".adjoint.q"
-           call saveRegionData(region, QOI_ADJOINT_STATE, filename)
+           call region%saveData(QOI_ADJOINT_STATE, filename)
         end if
      end if
 

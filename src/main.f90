@@ -5,14 +5,13 @@ program main
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
 
-  use Region_type
+  use Region_mod, only : t_Region
   use TimeIntegrator_mod, only : t_TimeIntegrator
 
   use Grid_enum
   use State_enum
 
   use Solver, only : initializeSolver, solveForward, solveAdjoint
-  use Region_mod
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
@@ -64,11 +63,11 @@ program main
 
   ! Setup the region.
   call getRequiredOption("boundary_condition_file", filename)
-  call setupRegion(region, MPI_COMM_WORLD, globalGridSizes, filename)
+  call region%setup(MPI_COMM_WORLD, globalGridSizes, filename)
 
   ! Read the grid file.
   call getRequiredOption("grid_file", filename)
-  call loadRegionData(region, QOI_GRID, filename)
+  call region%loadData(QOI_GRID, filename)
 
   ! Setup spatial discretization.
   do i = 1, size(region%grids)
@@ -84,14 +83,14 @@ program main
   call MPI_Barrier(region%comm, ierror)
 
   ! Write out some useful information.
-  call reportGridDiagnostics(region)
+  call region%reportGridDiagnostics()
 
   ! Save the Jacobian and normalized metrics.
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
   write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
-  call saveRegionData(region, QOI_JACOBIAN, filename)
+  call region%saveData(QOI_JACOBIAN, filename)
   write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
-  call saveRegionData(region, QOI_METRICS, filename)
+  call region%saveData(QOI_METRICS, filename)
 
   ! Setup the RK4 integrator.
   call createTimeIntegrator(timeIntegrator, getOption("time_integration_scheme", "RK4"))
@@ -131,7 +130,7 @@ program main
         timestep = timestep + nTimesteps
         write(filename, '(2A,I8.8,A)')                                                       &
              trim(outputPrefix), "-", timestep, ".q"
-        call loadRegionData(region, QOI_FORWARD_STATE, filename)
+        call region%loadData(QOI_FORWARD_STATE, filename)
         time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
      end if
 
@@ -142,7 +141,7 @@ program main
   end if
 
   call timeIntegrator%cleanup()
-  call cleanupRegion(region)
+  call region%cleanup()
 
   call endTiming("total")
   call reportTimings()

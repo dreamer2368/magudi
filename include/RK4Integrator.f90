@@ -28,7 +28,7 @@ module RK4Integrator_mod
 
      subroutine setupRK4Integrator(this, region)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_RK4Integrator
 
@@ -55,7 +55,7 @@ module RK4Integrator_mod
 
      subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_RK4Integrator
 
@@ -73,7 +73,7 @@ module RK4Integrator_mod
 
      subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)       
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
        import :: t_RK4Integrator
 

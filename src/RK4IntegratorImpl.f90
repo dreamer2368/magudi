@@ -3,7 +3,7 @@
 subroutine setupRK4Integrator(this, region)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region
+  use Region_mod, only : t_Region
   use RK4Integrator_mod, only : t_RK4Integrator
 
   implicit none
@@ -63,11 +63,13 @@ end subroutine cleanupRK4Integrator
 subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region, FORWARD
+  use Region_mod, only : t_Region
   use RK4Integrator_mod, only : t_RK4Integrator
 
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD
+
   ! <<< Internal modules >>>
-  use Region_mod, only : computeRhs
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
@@ -105,7 +107,7 @@ subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
         this%temp_(i)%buffer1 = region%states(i)%conservedVariables
      end do
 
-     call computeRhs(region, FORWARD, time)
+     call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
         this%temp_(i)%buffer2 = region%states(i)%conservedVariables +                        &
@@ -117,7 +119,7 @@ subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
   case (2)
 
      time = time + timeStepSize / 2.0_wp
-     call computeRhs(region, FORWARD, time)
+     call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
         this%temp_(i)%buffer2 = this%temp_(i)%buffer2 +                                      &
@@ -128,7 +130,7 @@ subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
 
   case (3)
 
-     call computeRhs(region, FORWARD, time)
+     call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
         this%temp_(i)%buffer2 = this%temp_(i)%buffer2 +                                      &
@@ -140,7 +142,7 @@ subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
   case (4)
 
      time = time + timeStepSize / 2.0_wp
-     call computeRhs(region, FORWARD, time)
+     call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
         region%states(i)%conservedVariables = this%temp_(i)%buffer2 +                        &
@@ -156,11 +158,13 @@ end subroutine substepForwardRK4
 subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
 
   ! <<< Derived types >>>
-  use Region_type, only : t_Region, ADJOINT
+  use Region_mod, only : t_Region
   use RK4Integrator_mod, only : t_RK4Integrator
 
+  ! <<< Enumerations >>>
+  use Region_enum, only : ADJOINT
+
   ! <<< Internal modules >>>
-  use Region_mod, only : computeRhs
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
@@ -199,7 +203,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
      end do
 
      region%states(:)%adjointForcingFactor = 1.0_wp
-     call computeRhs(region, ADJOINT, time)
+     call region%computeRhs(ADJOINT, time)
 
      do i = 1, size(region%states)
         this%temp_(i)%buffer2 = region%states(i)%adjointVariables -                          &
@@ -212,7 +216,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
 
      time = time - timeStepSize / 2.0_wp
      region%states(:)%adjointForcingFactor = 0.5_wp
-     call computeRhs(region, ADJOINT, time)
+     call region%computeRhs(ADJOINT, time)
 
      do i = 1, size(region%states)
         this%temp_(i)%buffer2 = this%temp_(i)%buffer2 -                                      &
@@ -224,7 +228,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
   case (2)
 
      region%states(:)%adjointForcingFactor = 1.0_wp
-     call computeRhs(region, ADJOINT, time)
+     call region%computeRhs(ADJOINT, time)
 
      do i = 1, size(region%states)
         this%temp_(i)%buffer2 = this%temp_(i)%buffer2 -                                      &
@@ -237,7 +241,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
 
      time = time - timeStepSize / 2.0_wp
      region%states(:)%adjointForcingFactor = 2.0_wp
-     call computeRhs(region, ADJOINT, time)
+     call region%computeRhs(ADJOINT, time)
 
      do i = 1, size(region%states)
         region%states(i)%adjointVariables = this%temp_(i)%buffer2 -                          &

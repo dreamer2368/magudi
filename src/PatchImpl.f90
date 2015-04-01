@@ -421,7 +421,9 @@ subroutine addDamping(this, mode, rightHandSide, iblank, solvedVariables, target
 
   ! <<< Derived types >>>
   use Patch_type, only : t_Patch
-  use Region_type, only : FORWARD, ADJOINT
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -511,7 +513,9 @@ subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,   
 
   ! <<< Derived types >>>
   use Patch_type, only : t_Patch
-  use Region_type, only : FORWARD, ADJOINT
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -651,8 +655,10 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
 
   ! <<< Derived types >>>
   use Patch_type, only : t_Patch
-  use Region_type, only : FORWARD, ADJOINT
   use PatchDescriptor_type, only : SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
   use CNSHelper

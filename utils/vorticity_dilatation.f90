@@ -7,10 +7,10 @@ program vorticity_dilatation
 
   use Grid_enum
   use State_enum
-  use Region_type
+
+  use Region_mod, only : t_Region
 
   use CNSHelper, only : computeDependentVariables
-  use Region_mod, only : setupRegion, cleanupRegion, loadRegionData, saveRegionData
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
@@ -38,8 +38,8 @@ program vorticity_dilatation
   if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
 
   ! Setup the region and load the grid file.
-  call setupRegion(region, MPI_COMM_WORLD, globalGridSizes)
-  call loadRegionData(region, QOI_GRID, filename)
+  call region%setup(MPI_COMM_WORLD, globalGridSizes)
+  call region%loadData(QOI_GRID, filename)
 
   ! Load the solution file.
   if (command_argument_count() >= 1) then
@@ -47,7 +47,7 @@ program vorticity_dilatation
   else
      call getRequiredOption("solution_file", filename)
   end if
-  call loadRegionData(region, QOI_FORWARD_STATE, filename)
+  call region%loadData(QOI_FORWARD_STATE, filename)
 
   ! Setup spatial discretization.
   do i = 1, size(region%grids)
@@ -74,10 +74,10 @@ program vorticity_dilatation
   else
      filename = PROJECT_NAME // ".vorticity_dilatation.f"
   end if
-  call saveRegionData(region, QOI_VORTICITY_DILATATION, filename)
+  call region%saveData(QOI_VORTICITY_DILATATION, filename)
 
   ! Cleanup.
-  call cleanupRegion(region)
+  call region%cleanup()
 
   ! Finalize MPI.
   call MPI_Finalize(ierror)

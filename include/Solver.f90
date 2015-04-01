@@ -9,9 +9,9 @@ module Solver
 
      subroutine initializeSolver(region, restartFilename)
 
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
 
-       type(t_Region) :: region
+       class(t_Region) :: region
        character(len = *), intent(in), optional :: restartFilename
 
      end subroutine initializeSolver
@@ -24,10 +24,10 @@ module Solver
           saveInterval, outputPrefix, costFunctional)
 
        use State_mod, only : t_State
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
        use TimeIntegrator_mod, only : t_TimeIntegrator
 
-       type(t_Region) :: region
+       class(t_Region) :: region
        class(t_TimeIntegrator) :: integrator
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
@@ -46,10 +46,10 @@ module Solver
           nTimesteps, saveInterval, outputPrefix)
 
        use State_mod, only : t_State
-       use Region_type, only : t_Region
+       use Region_mod, only : t_Region
        use TimeIntegrator_mod, only : t_TimeIntegrator
 
-       type(t_Region) :: region
+       class(t_Region) :: region
        class(t_TimeIntegrator) :: integrator
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
