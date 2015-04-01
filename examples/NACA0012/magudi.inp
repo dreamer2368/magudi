@@ -1,0 +1,56 @@
+# magudi.inp
+# Input file to magudi for simulation of flow around a NACA0012 airfoil
+# Written by Ramanathan Vishnampet
+
+# Filenames, etc.
+output_prefix = "NACA0012"
+grid_file = "NACA0012.xyz"
+initial_condition_file = "NACA0012.ic.q"
+target_state_file = "NACA0012.target.q"
+boundary_condition_file = "bc.dat"
+
+# Simulation flags
+use_constant_CFL_mode = false
+use_target_state = true
+steady_state_simulation = true
+
+# Adjoint optimization flags
+disable_adjoint_solver = true
+baseline_prediction_available = true
+cost_functional_type = "LIFT"
+
+# Periodicity
+grid001/dir1/periodicity_type = 'OVERLAP'
+
+# Derivative schemes
+defaults/first_derivative_scheme = "SBP 3-6"
+
+# Time stepping options
+time_integration_scheme = 'RK4'
+time_step_size = 8e-5
+number_of_timesteps = 100
+report_interval = 100
+save_interval = 100
+
+# Artificial dissipation
+add_dissipation = true
+defaults/artificial_dissipation_scheme = "SBP 3-6"
+dissipation_amount = 0.0005
+
+# Sponge options
+defaults/sponge_amount = 2.0
+
+# Solution limits
+enable_solution_limits = true
+minimum_density = 0.1
+minimum_temperature = 0.05
+maximum_density = 5.
+maximum_temperature = 4.
+
+# Convergence criteria
+density_convergence_tolerance  = 1e-10
+momentum_convergence_tolerance = 1e-10
+energy_convergence_tolerance   = 1e-10
+
+# Patch properties
+patches/airfoil/measure_lift = true
