@@ -32,18 +32,18 @@ program vorticity_dilatation
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
-  if (command_argument_count() >= 1) then
-     call get_command_argument(1, filename)
-  else
-     call getRequiredOption("grid_file", filename)
-  end if
+  call getRequiredOption("grid_file", filename)
   call plot3dDetectFormat(MPI_COMM_WORLD, filename,                                          &
        success, globalGridSizes = globalGridSizes)
   if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
 
+  ! Setup the region and load the grid file.
+  call setupRegion(region, MPI_COMM_WORLD, globalGridSizes)
+  call loadRegionData(region, QOI_GRID, filename)
+
   ! Load the solution file.
-  if (command_argument_count() >= 2) then
-     call get_command_argument(2, filename)
+  if (command_argument_count() >= 1) then
+     call get_command_argument(1, filename)
   else
      call getRequiredOption("solution_file", filename)
   end if
