@@ -98,7 +98,12 @@ program main
   call timeIntegrator%setup(region)
 
   ! Initialize the solver.
-  call initializeSolver(region)
+  if (command_argument_count() == 1) then
+     call get_command_argument(1, filename)
+     call initializeSolver(region, filename)
+  else
+     call initializeSolver(region)
+  end if
 
   ! Time advancement options.
   time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
