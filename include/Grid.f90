@@ -70,7 +70,7 @@ module Grid_mod
      subroutine setupGrid(this, index, globalGridSize, comm, processDistribution,            &
           periodicityType, periodicLength, simulationFlags)
 
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Grid
 

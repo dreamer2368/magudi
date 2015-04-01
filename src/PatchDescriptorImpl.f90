@@ -40,7 +40,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
 
   ! <<< Derived types >>>
   use PatchDescriptor_type
-  use SimulationFlags_type
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption

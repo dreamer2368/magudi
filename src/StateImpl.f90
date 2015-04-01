@@ -11,8 +11,11 @@ contains
 
     ! <<< Derived types >>>
     use State_mod, only : t_State
-    use SolverOptions_type, only : t_SolverOptions, SOUND
-    use SimulationFlags_type, only : t_SimulationFlags
+    use SolverOptions_mod, only : t_SolverOptions
+    use SimulationFlags_mod, only : t_SimulationFlags
+
+    ! <<< Enumerations >>>
+    use SolverOptions_enum, only : SOUND
 
     ! <<< Arguments >>>
     class(t_State) :: this
@@ -66,24 +69,22 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SolverOptions_mod, only : t_SolverOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use StateImpl, only : allocateData
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
-  use SolverOptions_mod, only : initializeSolverOptions
-  use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_State) :: this
   class(t_Grid) :: grid
-  type(t_SimulationFlags), intent(in), optional :: simulationFlags
-  type(t_SolverOptions), intent(in), optional :: solverOptions
+  type(t_SimulationFlags), pointer, intent(in), optional :: simulationFlags
+  type(t_SolverOptions), pointer, intent(in), optional :: solverOptions
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -101,13 +102,13 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   if (present(simulationFlags)) then
      simulationFlags_ = simulationFlags
   else
-     call initializeSimulationFlags(simulationFlags_)
+     call simulationFlags_%initialize()
   end if
 
   if (present(solverOptions)) then
      solverOptions_ = solverOptions
   else
-     call initializeSolverOptions(solverOptions_, simulationFlags_, grid%comm)
+     call solverOptions_%initialize(simulationFlags_, grid%comm)
   end if
 
   assert(grid%nGridPoints > 0)
@@ -407,8 +408,8 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SolverOptions_mod, only : t_SolverOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -477,8 +478,8 @@ function computeStateCfl(this, grid, simulationFlags, solverOptions) result(cfl)
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SolverOptions_mod, only : t_SolverOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeCfl
@@ -544,8 +545,8 @@ function computeStateTimeStepSize(this, grid, simulationFlags,                  
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SolverOptions_mod, only : t_SolverOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeTimeStepSize
@@ -614,9 +615,9 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
+  use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_type, only : SAT_FAR_FIELD, SAT_BLOCK_INTERFACE
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -714,8 +715,8 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SolverOptions_mod, only : t_SolverOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -939,9 +940,9 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
+  use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_type
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD
@@ -999,9 +1000,9 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
+  use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_type
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
   use Region_enum, only : ADJOINT
@@ -1161,9 +1162,9 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use SolverOptions_type, only : t_SolverOptions
+  use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_type
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeCartesianViscousFluxes, computeDependentVariables
@@ -1280,8 +1281,11 @@ subroutine addAdjointForcing(this, grid, patch, solverOptions)
   use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use State_mod, only : t_State
-  use SolverOptions_type
+  use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_type
+
+  ! <<< Enumerations >>>
+  use SolverOptions_enum
 
   implicit none
 

@@ -519,8 +519,6 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   ! <<< Internal modules >>>
   use Patch_mod, only : setupPatch, updatePatchConnectivity
   use InputHelper, only : getRequiredOption
-  use SolverOptions_mod, only : initializeSolverOptions
-  use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
 
@@ -550,10 +548,10 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
        size(this%globalGridSizes, 2)), source = 0)
 
   ! Initialize simulation flags.
-  call initializeSimulationFlags(this%simulationFlags)
+  call this%simulationFlags%initialize()
 
   ! Initialize solver options.
-  call initializeSolverOptions(this%solverOptions, this%simulationFlags, this%comm)
+  call this%solverOptions%initialize(this%simulationFlags, this%comm)
 
   ! Distribute the grids between available MPI processes.
   if (this%simulationFlags%manualDomainDecomp .and.                                          &

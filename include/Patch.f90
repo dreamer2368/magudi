@@ -59,9 +59,9 @@ module Patch_mod
      subroutine setupPatch(this, index, nDimensions, patchDescriptor, comm,                  &
           gridOffset, gridLocalSize, nUnknowns, simulationFlags)
 
-       use Patch_type
-       use PatchDescriptor_type
-       use SimulationFlags_type
+       use Patch_type, only : t_Patch
+       use PatchDescriptor_type, only : t_PatchDescriptor
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        type(t_Patch) :: this
        integer, intent(in) :: index, nDimensions

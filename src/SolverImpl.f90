@@ -132,7 +132,10 @@ contains
 
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
-    use SolverOptions_type
+    use SolverOptions_mod, only : t_SolverOptions
+
+    ! <<< Enumerations >>>
+    use SolverOptions_enum
 
     ! <<< Arguments >>>
     class(t_Region) :: region
@@ -258,11 +261,11 @@ subroutine initializeSolver(region, restartFilename)
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
-  use SolverOptions_type, only : SOUND
 
   ! <<< Enumerations >>>
   use Grid_enum
   use State_enum
+  use SolverOptions_enum, only : SOUND
 
   ! <<< Private members >>>
   use SolverImpl, only : normalizeControlMollifier, normalizeTargetMollifier

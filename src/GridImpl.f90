@@ -19,7 +19,7 @@ contains
 
     ! <<< Derived types >>>
     use Grid_mod, only : t_Grid
-    use SimulationFlags_type, only : t_SimulationFlags
+    use SimulationFlags_mod, only : t_SimulationFlags
 
     ! <<< Arguments >>>
     class(t_Grid) :: this
@@ -265,7 +265,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
-  use SimulationFlags_type, only : t_SimulationFlags
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use GridImpl
@@ -273,7 +273,6 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
   use InputHelper, only : getOption, getRequiredOption
-  use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
 
@@ -282,7 +281,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   integer, intent(in) :: index, globalSize(:)
   integer, intent(in), optional :: comm, processDistribution(:), periodicityType(:)
   real(SCALAR_KIND), intent(in), optional :: periodicLength(:)
-  type(t_SimulationFlags), intent(in), optional :: simulationFlags
+  type(t_SimulationFlags), optional :: simulationFlags
 
   ! <<< Local variables >>>
   integer :: i, comm_, procRank, nProcs, ierror
@@ -392,11 +391,12 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
 
   ! Allocate grid data.
   if (present(simulationFlags)) then
-     simulationFlags_ = simulationFlags
+     call allocateData(this, simulationFlags)
   else
-     call initializeSimulationFlags(simulationFlags_)
+     call simulationFlags_%initialize()
+     call allocateData(this, simulationFlags_)
   end if
-  call allocateData(this, simulationFlags_)
+
   call makeUnitCube(this)
 
   SAFE_DEALLOCATE(processCoordinates)

@@ -12,7 +12,7 @@ contains
     ! <<< Derived types >>>
     use Patch_type, only : t_Patch
     use PatchDescriptor_type
-    use SimulationFlags_type
+    use SimulationFlags_mod, only : t_SimulationFlags
 
     ! <<< Arguments >>>
     type(t_Patch) :: this
@@ -71,7 +71,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   ! <<< Derived types >>>
   use Patch_type, only : t_Patch
   use PatchDescriptor_type
-  use SimulationFlags_type
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use PatchImpl, only : allocateData

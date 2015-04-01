@@ -1,14 +1,21 @@
 #include "config.h"
 
-module SolverOptions_type
+module SolverOptions_enum
 
   implicit none
-  private
+  public
 
-  integer, parameter, public ::                                                              &
+  integer, parameter ::                                                                      &
        SOUND = 1,                                                                            &
        LIFT  = 2,                                                                            &
        DRAG  = 3
+  
+end module SolverOptions_enum
+
+module SolverOptions_mod
+
+  implicit none
+  private
 
   type, public :: t_SolverOptions
 
@@ -17,23 +24,21 @@ module SolverOptions_type
           temperatureRange(2), cfl, timeStepSize, convergenceTolerance(3)
      integer :: costFunctionalType
 
+   contains
+
+     procedure, pass :: initialize => initializeSolverOptions
+
   end type t_SolverOptions
-
-end module SolverOptions_type
-
-module SolverOptions_mod
-
-  implicit none
-  public
 
   interface
 
      subroutine initializeSolverOptions(this, simulationFlags, comm)
 
-       use SolverOptions_type
-       use SimulationFlags_type
+       use SimulationFlags_mod, only : t_SimulationFlags
 
-       type(t_SolverOptions), intent(out) :: this
+       import :: t_SolverOptions
+
+       class(t_SolverOptions), intent(out) :: this
        type(t_SimulationFlags), intent(in) :: simulationFlags
        integer, intent(in), optional :: comm
 

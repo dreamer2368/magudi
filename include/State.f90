@@ -86,8 +86,8 @@ module State_mod
      subroutine setupState(this, grid, simulationFlags, solverOptions)
 
        use Grid_mod, only : t_Grid
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -174,8 +174,8 @@ module State_mod
      subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVariables)
 
        use Grid_mod, only : t_Grid      
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -195,8 +195,8 @@ module State_mod
      function computeStateCfl(this, grid, simulationFlags, solverOptions) result(cfl)
 
        use Grid_mod, only : t_Grid
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -217,8 +217,8 @@ module State_mod
           solverOptions) result(timeStepSize)
 
        use Grid_mod, only : t_Grid
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -239,8 +239,8 @@ module State_mod
 
        use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -261,8 +261,8 @@ module State_mod
 
        use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -283,8 +283,8 @@ module State_mod
 
        use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -305,8 +305,8 @@ module State_mod
 
        use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -363,8 +363,8 @@ module State_mod
 
        use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
@@ -384,7 +384,7 @@ module State_mod
 
        use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use SolverOptions_type, only : t_SolverOptions
+       use SolverOptions_mod, only : t_SolverOptions
 
        import :: t_State
 

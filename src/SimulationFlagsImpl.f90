@@ -3,7 +3,7 @@
 subroutine initializeSimulationFlags(this)
 
   ! <<< Derived types >>>
-  use SimulationFlags_type
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
@@ -11,7 +11,7 @@ subroutine initializeSimulationFlags(this)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_SimulationFlags), intent(out) :: this
+  class(t_SimulationFlags), intent(out) :: this
 
   this%viscosityOn           = getOption("include_viscous_terms", .false.)
   this%predictionOnly        = getOption("disable_adjoint_solver", .true.)

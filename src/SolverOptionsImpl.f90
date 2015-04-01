@@ -9,8 +9,8 @@ contains
 
   subroutine parseCostFunctionalType(costFunctionalTypeString, costFunctionalType)
 
-    ! <<< Derived types >>>
-    use SolverOptions_type
+    ! <<< Enumerations >>>
+    use SolverOptions_enum
 
     ! <<< Arguments >>>
     character(len = *), intent(in) :: costFunctionalTypeString
@@ -36,8 +36,8 @@ subroutine initializeSolverOptions(this, simulationFlags, comm)
   use MPI
 
   ! <<< Derived types >>>
-  use SolverOptions_type
-  use SimulationFlags_type
+  use SolverOptions_mod, only : t_SolverOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use SolverOptionsImpl, only : parseCostFunctionalType
@@ -49,7 +49,7 @@ subroutine initializeSolverOptions(this, simulationFlags, comm)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_SolverOptions), intent(out) :: this
+  class(t_SolverOptions), intent(out) :: this
   type(t_SimulationFlags), intent(in) :: simulationFlags
   integer, intent(in), optional :: comm
 

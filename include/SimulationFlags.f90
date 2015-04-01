@@ -1,6 +1,6 @@
 #include "config.h"
 
-module SimulationFlags_type
+module SimulationFlags_mod
 
   implicit none
   private
@@ -20,22 +20,19 @@ module SimulationFlags_type
                 steadyStateSimulation = .false., &
                 isBaselineAvailable   = .false.
 
+   contains
+
+     procedure, pass :: initialize => initializeSimulationFlags
+
   end type t_SimulationFlags
-
-end module SimulationFlags_type
-
-module SimulationFlags_mod
-
-  implicit none
-  public
 
   interface
 
      subroutine initializeSimulationFlags(this)
 
-       use SimulationFlags_type
+       import :: t_SimulationFlags
 
-       type(t_SimulationFlags), intent(out) :: this
+       class(t_SimulationFlags), intent(out) :: this
 
      end subroutine initializeSimulationFlags
 

@@ -51,7 +51,7 @@ module PatchDescriptor_mod
           simulationFlags, errorCode, message)
 
        use PatchDescriptor_type
-       use SimulationFlags_type
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        type(t_PatchDescriptor) :: this
        integer, intent(in) :: globalGridSizes(:,:)
