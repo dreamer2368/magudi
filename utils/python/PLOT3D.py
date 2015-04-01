@@ -325,7 +325,10 @@ class Grid(MultiBlockObject):
 
     def CopyFrom(self, obj):
         super(Grid, self).CopyFrom(obj)
-        self._hasIBLANK = obj._hasIBLANK
+        try:
+            self._hasIBLANK = obj._hasIBLANK
+        except:
+            pass
 
 class Solution(MultiBlockObject):
 

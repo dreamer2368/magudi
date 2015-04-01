@@ -58,8 +58,10 @@ module Grid_mod
      procedure, pass :: computeSpongeStrengths
      procedure, pass :: computeQuadratureOnPatches
 
-     procedure, private, pass :: computeScalarInnerProduct, computeVectorInnerProduct
-     procedure, private, pass :: computeGradientOfScalar, computeGradientOfVector
+     procedure, private, pass :: computeScalarInnerProduct
+     procedure, private, pass :: computeVectorInnerProduct
+     procedure, private, pass :: computeGradientOfScalar
+     procedure, private, pass :: computeGradientOfVector
 
   end type t_Grid
 
