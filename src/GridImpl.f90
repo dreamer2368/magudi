@@ -4,6 +4,11 @@ module GridImpl
 
   implicit none
   public
+  
+  integer, parameter, public ::                                                              &
+       NONE    = 0,                                                                          &
+       PLANE   = 1,                                                                          &
+       OVERLAP = 2
 
 contains
 
@@ -13,11 +18,11 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Grid_type, only : t_Grid
+    use Grid_mod, only : t_Grid
     use SimulationFlags_type, only : t_SimulationFlags
 
     ! <<< Arguments >>>
-    type(t_Grid) :: this
+    class(t_Grid) :: this
     type(t_SimulationFlags), intent(in) :: simulationFlags
 
     ! <<< Local variables >>>
@@ -62,10 +67,10 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Grid_type, only : t_Grid, PLANE
+    use Grid_mod, only : t_Grid
 
     ! <<< Arguments >>>
-    type(t_Grid) :: this
+    class(t_Grid) :: this
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -136,14 +141,13 @@ contains
     use MPI
 
     ! <<< Derived types >>>
-    use Grid_type, only : t_Grid, PLANE
+    use Grid_mod, only : t_Grid
 
     ! <<< Internal modules >>>
     use MPIHelper, only : fillGhostPoints
-    use StencilOperator_mod, only : applyOperator, applyOperatorAtInteriorPoints
 
     ! <<< Arguments >>>
-    type(t_Grid) :: this
+    class(t_Grid) :: this
     integer, intent(in) :: direction
     SCALAR_TYPE, intent(out) :: coordinateDerivatives(:,:)
 
@@ -161,8 +165,7 @@ contains
     ! Straightforward if periodicity type is not `PLANE`.
     if (this%periodicityType(direction) /= PLANE) then
        coordinateDerivatives = this%coordinates
-       call applyOperator(this%firstDerivative(direction),                                   &
-            coordinateDerivatives, this%localSize)
+       call this%firstDerivative(direction)%apply(coordinateDerivatives, this%localSize)
        return
     end if
 
@@ -245,8 +248,8 @@ contains
     end if
 
     ! Stencil needs to be applied only at interior points.
-    call applyOperatorAtInteriorPoints(this%firstDerivative(direction),                      &
-         xWithGhostPoints, coordinateDerivatives, this%localSize)
+    call this%firstDerivative(direction)%applyAtInteriorPoints(xWithGhostPoints,             &
+         coordinateDerivatives, this%localSize)
 
     SAFE_DEALLOCATE(xWithGhostPoints)
 
@@ -261,24 +264,21 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid, NONE, PLANE, OVERLAP
+  use Grid_mod, only : t_Grid
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Private members >>>
-  use GridImpl, only : allocateData, makeUnitCube
-
-  ! <<< Public members >>>
-  use Grid_mod, only : cleanupGrid
+  use GridImpl
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
   use InputHelper, only : getOption, getRequiredOption
-  use StencilOperator_mod, only : setupOperator, updateOperator
+  use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   integer, intent(in) :: index, globalSize(:)
   integer, intent(in), optional :: comm, processDistribution(:), periodicityType(:)
   real(SCALAR_KIND), intent(in), optional :: periodicLength(:)
@@ -296,7 +296,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   assert(all(globalSize > 0))
 
   ! Clean slate.
-  call cleanupGrid(this)
+  call this%cleanup()
   this%index = index
   this%globalSize = 1
   this%globalSize(1:size(globalSize)) = globalSize
@@ -410,43 +410,40 @@ subroutine cleanupGrid(this)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
-
-  ! <<< Internal modules >>>
-  use StencilOperator_mod, only : cleanupOperator
+  use Grid_mod, only : t_Grid
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
 
   ! <<< Local variables >>>
   integer :: i, ierror
 
   if (allocated(this%firstDerivative)) then
      do i = 1, size(this%firstDerivative)
-        call cleanupOperator(this%firstDerivative(i))
+        call this%firstDerivative(i)%cleanup()
      end do
   end if
   SAFE_DEALLOCATE(this%firstDerivative)
 
   if (allocated(this%secondDerivative)) then
      do i = 1, size(this%secondDerivative)
-        call cleanupOperator(this%secondDerivative(i))
+        call this%secondDerivative(i)%cleanup()
      end do
   end if
   SAFE_DEALLOCATE(this%secondDerivative)
 
   if (allocated(this%dissipation)) then
      do i = 1, size(this%dissipation)
-        call cleanupOperator(this%dissipation(i))
+        call this%dissipation(i)%cleanup()
      end do
   end if
   SAFE_DEALLOCATE(this%dissipation)
 
   if (allocated(this%adjointFirstDerivative)) then
      do i = 1, size(this%adjointFirstDerivative)
-        call cleanupOperator(this%adjointFirstDerivative(i))
+        call this%adjointFirstDerivative(i)%cleanup()
      end do
   end if
   SAFE_DEALLOCATE(this%adjointFirstDerivative)
@@ -484,13 +481,16 @@ subroutine loadGridData(this, quantityOfInterest, filename, offsetInBytes, succe
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_mod, only : t_Grid
+
+  ! <<< Enumerations >>>
+  use Grid_enum
 
   ! <<< Internal modules >>>
   use PLOT3DHelper, only : plot3dReadSingleGrid, plot3dReadSingleFunction
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   integer, intent(in) :: quantityOfInterest
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offsetInBytes
@@ -528,13 +528,16 @@ subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, succe
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type
+  use Grid_mod, only : t_Grid
+
+  ! <<< Enumerations >>>
+  use Grid_enum
 
   ! <<< Internal modules >>>
   use PLOT3DHelper, only : plot3dWriteSingleGrid, plot3dWriteSingleFunction
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   integer, intent(in) :: quantityOfInterest
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offsetInBytes
@@ -566,108 +569,76 @@ subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, succe
 
 end subroutine saveGridData
 
-subroutine setupSpatialDiscretization(this, success, errorMessage)
+subroutine setupSpatialDiscretization(this)
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid, OVERLAP
+  use Grid_mod, only : t_Grid
+
+  ! <<< Private members >>>
+  use GridImpl, only : OVERLAP
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
   use ErrorHandler, only : gracefulExit
-  use StencilOperator_mod, only : setupOperator, updateOperator, getAdjointOperator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
-  logical, intent(out), optional :: success
-  character(len = STRING_LENGTH), intent(out), optional :: errorMessage
+  class(t_Grid) :: this
 
   ! <<< Local variables >>>
   integer :: i, nDimensions, ierror
-  character(len = STRING_LENGTH) :: key, val, message
-  logical :: success_
+  character(len = STRING_LENGTH) :: key, val
 
   call MPI_Cartdim_get(this%comm, nDimensions, ierror)
   assert_key(nDimensions, (1, 2, 3))
-
-  success_ = .true.
 
   do i = 1, nDimensions
 
      write(key, '(A,I3.3,A,I1.1,A)') "grid", this%index, "/dir", i, "/"
 
      ! First derivative operators.
-     val = "null matrix"
      if (this%globalSize(i) > 1) then
         val = getOption("defaults/first_derivative_scheme", "SBP 4-8")
         val = getOption(trim(key) // "first_derivative_scheme", trim(val))
+        call this%firstDerivative(i)%setup(trim(val) // " first derivative")
+     else
+        call this%firstDerivative(i)%setup("null matrix")
      end if
-     call setupOperator(this%firstDerivative(i), trim(val) // " first derivative", success_)
-     if (.not. success_) then
-        write(message, '(2(A,I0.0),3A)')                                                     &
-             "Failed to set up first derivative operator on grid ", this%index,              &
-             " along direction ", i, " using the scheme '", trim(val), "'."
-        exit
-     end if
-     call updateOperator(this%firstDerivative(i), this%comm, i,                              &
-          this%periodicityType(i) == OVERLAP)
+     call this%firstDerivative(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
 
      ! Second derivative operators.
      if (allocated(this%secondDerivative)) then
-        val = "null matrix"
         if (this%globalSize(i) > 1) then
            val = getOption("defaults/second_derivative_scheme", "SBP 4-8")
            val = getOption(trim(key) // "second_derivative_scheme", trim(val))
-        end if
-        call setupOperator(this%secondDerivative(i), trim(val) //                            &
-             " second derivative", success_)
-        if (.not. success_) then
-           write(message, '(2(A,I0.0),3A)')                                                  &
-                "Failed to set up second derivative operator on grid ", this%index,          &
-                " along direction ", i, " using the scheme '", trim(val), "'."
-           exit
-        end if
-        call updateOperator(this%secondDerivative(i), this%comm, i,                          &
-             this%periodicityType(i) == OVERLAP)
+           call this%secondDerivative(i)%setup(trim(val) // " second derivative")
+        else
+           call this%secondDerivative(i)%setup("null matrix")
+        end if        
+        call this%secondDerivative(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
      end if
 
      ! Artificial dissipation operators.
      if (allocated(this%dissipation)) then
-        val = "null matrix"
         if (this%globalSize(i) > 1) then
            val = getOption("defaults/artificial_dissipation_scheme", "SBP 4-8")
            val = getOption(trim(key) // "artificial_dissipation_scheme", trim(val))
+           call this%dissipation(i)%setup(trim(val) // " dissipation")
+        else
+           call this%dissipation(i)%setup("null matrix")
         end if
-        call setupOperator(this%dissipation(i), trim(val) // " dissipation", success_)
-        if (.not. success_) then
-           write(message, '(2(A,I0.0),3A)')                                                  &
-                "Failed to set up artificial dissipation operator on grid ", this%index,     &
-                " along direction ", i, " using the scheme '", trim(val), "'."
-           exit
-        end if
-        call updateOperator(this%dissipation(i), this%comm, i,                               &
-             this%periodicityType(i) == OVERLAP)
+        call this%dissipation(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
      end if
 
      ! Adjoint first derivative operator.
      if (allocated(this%adjointFirstDerivative)) then
-        call getAdjointOperator(this%firstDerivative(i), this%adjointFirstDerivative(i))
-        call updateOperator(this%adjointFirstDerivative(i), this%comm, i,                    &
-             this%periodicityType(i) == OVERLAP)
+        call this%firstDerivative(i)%getAdjoint(this%adjointFirstDerivative(i))
+        call this%adjointFirstDerivative(i)%update(this%comm,                                &
+             i, this%periodicityType(i) == OVERLAP)
      end if
 
   end do !... i = 1, nDimensions
-
-  if (present(success)) then
-     success = success_
-     if (present(errorMessage)) then
-        write(errorMessage, '(A)') message
-        return
-     end if
-  else if (.not. success_) then
-     call gracefulExit(this%comm, message)
-  end if
 
 end subroutine setupSpatialDiscretization
 
@@ -677,22 +648,18 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid, PLANE
+  use Grid_mod, only : t_Grid
 
   ! <<< Private members >>>
-  use GridImpl, only : computeCoordinateDerivatives
-
-  ! <<< Public members >>>
-  use Grid_mod, only : isVariableWithinRange
+  use GridImpl, only : PLANE, computeCoordinateDerivatives
 
   ! <<< Internal modules >>>
   use ErrorHandler, only : gracefulExit
-  use StencilOperator_mod, only : applyOperator, applyOperatorNorm
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   logical, intent(out), optional :: hasNegativeJacobian
   character(len = STRING_LENGTH), intent(out), optional :: errorMessage
 
@@ -816,11 +783,11 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         allocate(F(this%nGridPoints, 1))
 
         F(:,1) = jacobianMatrixInverse(:,5) * this%coordinates(:,3)
-        call applyOperator(this%firstDerivative(3), F, this%localSize)
+        call this%firstDerivative(3)%apply(F, this%localSize)
         this%metrics(:,1) = F(:,1)
         if (this%isCurvilinear) then
            F(:,1) = jacobianMatrixInverse(:,8) * this%coordinates(:,3)
-           call applyOperator(this%firstDerivative(2), F, this%localSize)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,1) = this%metrics(:,1) - F(:,1)
         end if
 
@@ -828,10 +795,10 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
            this%metrics(:,2) = 0.0_wp
         else
            F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
-           call applyOperator(this%firstDerivative(3), F, this%localSize)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,2) = F(:,1)
            F(:,1) = jacobianMatrixInverse(:,9) * this%coordinates(:,1)
-           call applyOperator(this%firstDerivative(2), F, this%localSize)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,2) = this%metrics(:,2) - F(:,1)
         end if
 
@@ -839,10 +806,10 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
            this%metrics(:,3) = 0.0_wp
         else
            F(:,1) = jacobianMatrixInverse(:,4) * this%coordinates(:,2)
-           call applyOperator(this%firstDerivative(3), F, this%localSize)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,3) = F(:,1)
            F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
-           call applyOperator(this%firstDerivative(2), F, this%localSize)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,3) = this%metrics(:,3) - F(:,1)
         end if
 
@@ -850,19 +817,19 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
            this%metrics(:,4) = 0.0_wp
         else
            F(:,1) = jacobianMatrixInverse(:,8) * this%coordinates(:,3)
-           call applyOperator(this%firstDerivative(1), F, this%localSize)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,4) = F(:,1)
            F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
-           call applyOperator(this%firstDerivative(3), F, this%localSize)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,4) = this%metrics(:,4) - F(:,1)
         end if
 
         F(:,1) = jacobianMatrixInverse(:,9) * this%coordinates(:,1)
-        call applyOperator(this%firstDerivative(1), F, this%localSize)
+        call this%firstDerivative(1)%apply(F, this%localSize)
         this%metrics(:,5) = F(:,1)
         if (this%isCurvilinear) then
            F(:,1) = jacobianMatrixInverse(:,3) * this%coordinates(:,1)
-           call applyOperator(this%firstDerivative(3), F, this%localSize)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,5) = this%metrics(:,5) - F(:,1)
         end if
 
@@ -870,10 +837,10 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
            this%metrics(:,6) = 0.0_wp
         else
            F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
-           call applyOperator(this%firstDerivative(1), F, this%localSize)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,6) = F(:,1)
            F(:,1) = jacobianMatrixInverse(:,1) * this%coordinates(:,2)
-           call applyOperator(this%firstDerivative(3), F, this%localSize)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,6) = this%metrics(:,6) - F(:,1)
         end if
 
@@ -881,10 +848,10 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
            this%metrics(:,7) = 0.0_wp
         else
            F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
-           call applyOperator(this%firstDerivative(2), F, this%localSize)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,7) = F(:,1)
            F(:,1) = jacobianMatrixInverse(:,5) * this%coordinates(:,3)
-           call applyOperator(this%firstDerivative(1), F, this%localSize)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,7) = this%metrics(:,7) - F(:,1)
         end if
 
@@ -892,19 +859,19 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
            this%metrics(:,8) = 0.0_wp
         else
            F(:,1) = jacobianMatrixInverse(:,3) * this%coordinates(:,1)
-           call applyOperator(this%firstDerivative(2), F, this%localSize)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,8) = F(:,1)
            F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
-           call applyOperator(this%firstDerivative(1), F, this%localSize)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,8) = this%metrics(:,8) - F(:,1)
         end if
 
         F(:,1) = jacobianMatrixInverse(:,1) * this%coordinates(:,2)
-        call applyOperator(this%firstDerivative(2), F, this%localSize)
+        call this%firstDerivative(2)%apply(F, this%localSize)
         this%metrics(:,9) = F(:,1)
         if (this%isCurvilinear) then
            F(:,1) = jacobianMatrixInverse(:,4) * this%coordinates(:,2)
-           call applyOperator(this%firstDerivative(1), F, this%localSize)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,9) = this%metrics(:,9) - F(:,1)
         end if
 
@@ -922,7 +889,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
 
   SAFE_DEALLOCATE(jacobianMatrixInverse)
 
-  hasNegativeJacobian_ = .not. isVariableWithinRange(this, this%jacobian(:,1), &
+  hasNegativeJacobian_ = .not. this%isVariableWithinRange(this%jacobian(:,1), &
        jacobianOutsideRange, i, j, k, minValue = 0.0_wp)
   call MPI_Allreduce(MPI_IN_PLACE, hasNegativeJacobian_, 1,                                  &
        MPI_LOGICAL, MPI_LOR, this%comm, ierror)
@@ -948,7 +915,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   assert(size(this%norm) == this%nGridPoints)
   this%norm = 1.0_wp
   do i = 1, nDimensions
-     call applyOperatorNorm(this%firstDerivative(i), this%norm, this%localSize)
+     call this%firstDerivative(i)%applyNorm(this%norm, this%localSize)
   end do
   this%norm = this%norm * this%jacobian
 
@@ -956,18 +923,18 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
 
 end subroutine updateGrid
 
-function computeScalarInnerProduct_(this, f, g, weight) result(innerProduct)
+function computeScalarInnerProduct(this, f, g, weight) result(innerProduct)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:), g(:)
   SCALAR_TYPE, intent(in), optional :: weight(:)
 
@@ -1005,20 +972,20 @@ function computeScalarInnerProduct_(this, f, g, weight) result(innerProduct)
        MPI_SUM, this%comm, ierror)
 #endif
 
-end function computeScalarInnerProduct_
+end function computeScalarInnerProduct
 
-function computeVectorInnerProduct_(this, f, g, weight) result(innerProduct)
+function computeVectorInnerProduct(this, f, g, weight) result(innerProduct)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:,:), g(:,:)
   SCALAR_TYPE, intent(in), optional :: weight(:)
 
@@ -1059,22 +1026,21 @@ function computeVectorInnerProduct_(this, f, g, weight) result(innerProduct)
        MPI_SUM, this%comm, ierror)
 #endif
 
-end function computeVectorInnerProduct_
+end function computeVectorInnerProduct
 
-subroutine computeGradientOfScalar_(this, f, gradF)
+subroutine computeGradientOfScalar(this, f, gradF)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
-  use StencilOperator_mod, only : applyOperator
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:)
   SCALAR_TYPE, intent(out) :: gradF(:,:)
 
@@ -1109,13 +1075,13 @@ subroutine computeGradientOfScalar_(this, f, gradF)
 
   case (1)
      gradF(:,1) = f
-     call applyOperator(this%firstDerivative(1), gradF(:,1:1), this%localSize)
+     call this%firstDerivative(1)%apply(gradF(:,1:1), this%localSize)
      gradF(:,1) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,1)
 
   case (2)
      gradF(:,1) = f ; gradF(:,2) = f
-     call applyOperator(this%firstDerivative(1), gradF(:,1:1), this%localSize)
-     call applyOperator(this%firstDerivative(2), gradF(:,2:2), this%localSize)
+     call this%firstDerivative(1)%apply(gradF(:,1:1), this%localSize)
+     call this%firstDerivative(2)%apply(gradF(:,2:2), this%localSize)
      if (this%isCurvilinear) then
         temp(:,1) = gradF(:,1)
         gradF(:,1) = this%jacobian(:,1) * (this%metrics(:,1) *                               &
@@ -1129,9 +1095,9 @@ subroutine computeGradientOfScalar_(this, f, gradF)
 
   case (3)
      gradF(:,1) = f ; gradF(:,2) = f ; gradF(:,3) = f
-     call applyOperator(this%firstDerivative(1), gradF(:,1:1), this%localSize)
-     call applyOperator(this%firstDerivative(2), gradF(:,2:2), this%localSize)
-     call applyOperator(this%firstDerivative(3), gradF(:,3:3), this%localSize)
+     call this%firstDerivative(1)%apply(gradF(:,1:1), this%localSize)
+     call this%firstDerivative(2)%apply(gradF(:,2:2), this%localSize)
+     call this%firstDerivative(3)%apply(gradF(:,3:3), this%localSize)
      if (this%isCurvilinear) then
         temp(:,1:2) = gradF(:,1:2)
         gradF(:,1) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,1) +                  &
@@ -1152,22 +1118,21 @@ subroutine computeGradientOfScalar_(this, f, gradF)
 
   call endTiming("computeGradient")
 
-end subroutine computeGradientOfScalar_
+end subroutine computeGradientOfScalar
 
-subroutine computeGradientOfVector_(this, f, gradF)
+subroutine computeGradientOfVector(this, f, gradF)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
-  use StencilOperator_mod, only : applyOperator
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:,:)
   SCALAR_TYPE, intent(out) :: gradF(:,:)
 
@@ -1203,13 +1168,13 @@ subroutine computeGradientOfVector_(this, f, gradF)
 
   case (1)
      gradF = f
-     call applyOperator(this%firstDerivative(1), gradF(:,1:1), this%localSize)
+     call this%firstDerivative(1)%apply(gradF(:,1:1), this%localSize)
      gradF(:,1) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,1)
 
   case (2)
      gradF(:,1:2) = f(:,1:2) ; gradF(:,3:4) = f(:,1:2)
-     call applyOperator(this%firstDerivative(1), gradF(:,1:2), this%localSize)
-     call applyOperator(this%firstDerivative(2), gradF(:,3:4), this%localSize)
+     call this%firstDerivative(1)%apply(gradF(:,1:2), this%localSize)
+     call this%firstDerivative(2)%apply(gradF(:,3:4), this%localSize)
      if (this%isCurvilinear) then
         temp(:,1) = gradF(:,1)
         gradF(:,1) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,1) +                  &
@@ -1230,9 +1195,9 @@ subroutine computeGradientOfVector_(this, f, gradF)
 
   case (3)
      gradF(:,1:3) = f(:,1:3) ; gradF(:,4:6) = f(:,1:3) ; gradF(:,7:9) = f(:,1:3)
-     call applyOperator(this%firstDerivative(1), gradF(:,1:3), this%localSize)
-     call applyOperator(this%firstDerivative(2), gradF(:,4:6), this%localSize)
-     call applyOperator(this%firstDerivative(3), gradF(:,7:9), this%localSize)
+     call this%firstDerivative(1)%apply(gradF(:,1:3), this%localSize)
+     call this%firstDerivative(2)%apply(gradF(:,4:6), this%localSize)
+     call this%firstDerivative(3)%apply(gradF(:,7:9), this%localSize)
      if (this%isCurvilinear) then
         temp(:,1) = gradF(:,1) ; temp(:,2) = gradF(:,4)
         gradF(:,1) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,1) +                  &
@@ -1273,7 +1238,7 @@ subroutine computeGradientOfVector_(this, f, gradF)
 
   call endTiming("computeGradient")
 
-end subroutine computeGradientOfVector_
+end subroutine computeGradientOfVector
 
 subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
 
@@ -1281,12 +1246,12 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:)
   SCALAR_TYPE, intent(out) :: fMin
   integer, intent(out), optional :: iMin, jMin, kMin
@@ -1359,12 +1324,12 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:)
   SCALAR_TYPE, intent(out) :: fMax
   integer, intent(out), optional :: iMax, jMax, kMax
@@ -1438,15 +1403,12 @@ function isVariableWithinRange(this, f, fOutsideRange,                          
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
-
-  ! <<< Public members >>>
-  use Grid_mod, only : findMinimum, findMaximum
+  use Grid_mod, only : t_Grid
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:)
   SCALAR_TYPE, intent(out) :: fOutsideRange
   integer, intent(out) :: iOutsideRange, jOutsideRange, kOutsideRange
@@ -1463,7 +1425,7 @@ function isVariableWithinRange(this, f, fOutsideRange,                          
   if (.not. present(minValue) .and. .not. present(maxValue)) return
 
   if (present(minValue)) then
-     call findMinimum(this, f, fMin, iOutsideRange, jOutsideRange, kOutsideRange)
+     call this%findMinimum(f, fMin, iOutsideRange, jOutsideRange, kOutsideRange)
      if (real(fMin, SCALAR_KIND) <= minValue) then
         fOutsideRange = fMin
         isVariableWithinRange = .false.
@@ -1471,7 +1433,7 @@ function isVariableWithinRange(this, f, fOutsideRange,                          
   end if
 
   if (present(maxValue)) then
-     call findMaximum(this, f, fMax, iOutsideRange, jOutsideRange, kOutsideRange)
+     call this%findMaximum(f, fMax, iOutsideRange, jOutsideRange, kOutsideRange)
      if (real(fMax, SCALAR_KIND) >= maxValue) then
         fOutsideRange = fMax
         isVariableWithinRange = .false.
@@ -1486,7 +1448,7 @@ subroutine computeSpongeStrengths(this, patches)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use PatchDescriptor_type, only : SPONGE
 
@@ -1499,7 +1461,7 @@ subroutine computeSpongeStrengths(this, patches)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   type(t_Patch), allocatable :: patches(:)
 
   ! <<< Local variables >>>
@@ -1550,7 +1512,8 @@ subroutine computeSpongeStrengths(this, patches)
         do l = 1, size(patches)
            if (patches(l)%gridIndex /= this%index .or.                                       &
                 patches(l)%patchType /= SPONGE .or.                                          &
-                abs(patches(l)%normalDirection) /= direction) cycle
+                abs(patches(l)%normalDirection) /= direction .or.                            &
+                patches(l)%nPatchPoints <= 0) cycle
            select case (direction)
 
            case (1)
@@ -1692,17 +1655,14 @@ end subroutine computeSpongeStrengths
 function computeQuadratureOnPatches(this, f, patches, patchType) result(quadratureOnPatches)
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
   use PatchDescriptor_type
-
-  ! <<< Public members >>>
-  use Grid_mod, only : computeInnerProduct
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid) :: this
+  class(t_Grid) :: this
   SCALAR_TYPE, intent(in) :: f(:)
   type(t_Patch), intent(in), allocatable :: patches(:)
   integer, intent(in) :: patchType
@@ -1756,7 +1716,7 @@ function computeQuadratureOnPatches(this, f, patches, patchType) result(quadratu
      g = 0.0_wp
   end where
 
-  quadratureOnPatches = computeInnerProduct(this, f, g)
+  quadratureOnPatches = this%computeInnerProduct(f, g)
 
   SAFE_DEALLOCATE(g)
 

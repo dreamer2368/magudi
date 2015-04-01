@@ -23,6 +23,9 @@ subroutine splitCommunicatorMultigrid(comm, gridSizes, gridCommunicators, numPro
   ! <<< External modules >>>
   use MPI
 
+  ! <<< Public members >>>
+  use MPIHelper, only : pigeonhole
+
   implicit none
 
   ! <<< Arguments >>>

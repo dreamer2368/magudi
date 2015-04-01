@@ -69,7 +69,7 @@ include_directories(${PROJECT_BINARY_DIR}/include)
 
 set(magudiObj_SOURCES
 
-  # Singleton classes.
+  # Singletons.
   ${PROJECT_SOURCE_DIR}/include/RandomNumber.f90
   ${PROJECT_SOURCE_DIR}/src/RandomNumberImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ErrorHandler.f90
@@ -87,7 +87,10 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/include/Solver.f90
   ${PROJECT_SOURCE_DIR}/src/SolverImpl.f90
 
-  # Object-oriented classes.
+  # Factories.
+  ${PROJECT_SOURCE_DIR}/include/TimeIntegratorFactory.f90
+
+  # Derived types.
   ${PROJECT_SOURCE_DIR}/include/SimulationFlags.f90
   ${PROJECT_SOURCE_DIR}/src/SimulationFlagsImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SolverOptions.f90
@@ -108,10 +111,18 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitation.f90
   ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationImpl.f90
-  ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90
-  ${PROJECT_SOURCE_DIR}/src/RK4IntegratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
+
+  # Abstract types.
+  ${PROJECT_SOURCE_DIR}/include/TimeIntegrator.f90
+  ${PROJECT_SOURCE_DIR}/src/TimeIntegratorImpl.f90
+
+  # Extended types.
+  ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90
+  ${PROJECT_SOURCE_DIR}/src/RK4IntegratorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/JamesonRK3Integrator.f90
+  ${PROJECT_SOURCE_DIR}/src/JamesonRK3IntegratorImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

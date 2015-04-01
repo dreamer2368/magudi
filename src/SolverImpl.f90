@@ -17,7 +17,6 @@ contains
     use PatchDescriptor_type, only : ACTUATOR
 
     ! <<< Internal modules >>>
-    use Grid_mod, only : computeQuadratureOnPatches
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
@@ -46,8 +45,9 @@ contains
                region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if
-       mollifierNorm = mollifierNorm + real(computeQuadratureOnPatches(region%grids(i),      &
-            region%grids(i)%controlMollifier(:,1), region%patches, ACTUATOR), wp)
+       mollifierNorm = mollifierNorm +                                                       &
+            real(region%grids(i)%computeQuadratureOnPatches(                                 &
+       region%grids(i)%controlMollifier(:,1), region%patches, ACTUATOR), wp)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                             &
@@ -76,7 +76,6 @@ contains
     use PatchDescriptor_type, only : CONTROL_TARGET
 
     ! <<< Internal modules >>>
-    use Grid_mod, only : computeQuadratureOnPatches
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
@@ -105,8 +104,9 @@ contains
                region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if
-       mollifierNorm = mollifierNorm + real(computeQuadratureOnPatches(region%grids(i),      &
-            region%grids(i)%targetMollifier(:,1), region%patches, CONTROL_TARGET), wp)
+       mollifierNorm = mollifierNorm +                                                       &
+            real(region%grids(i)%computeQuadratureOnPatches(                                 &
+       region%grids(i)%targetMollifier(:,1), region%patches, CONTROL_TARGET), wp)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                             &
@@ -133,9 +133,6 @@ contains
     ! <<< Derived types >>>
     use Region_type, only : t_Region
     use SolverOptions_type
-
-    ! <<< Internal modules >>>
-    use Grid_mod, only : computeInnerProduct
 
     ! <<< Arguments >>>
     type(t_Region) :: region
@@ -181,8 +178,7 @@ contains
           allocate(F(region%grids(i)%nGridPoints, 1))
           F = region%states(i)%pressure - region%states(i)%meanPressure
           instantaneousCostFunctional = instantaneousCostFunctional +                        &
-               computeInnerProduct(region%grids(i), F, F,                                    &
-               region%grids(i)%targetMollifier(:,1))
+               region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
           SAFE_DEALLOCATE(F)
 
        end select
@@ -261,18 +257,18 @@ end module SolverImpl
 subroutine initializeSolver(region, restartFilename)
 
   ! <<< Derived types >>>
-  use Grid_type, only : QOI_CONTROL_MOLLIFIER, QOI_TARGET_MOLLIFIER
-  use State_type, only : QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_MEAN_PRESSURE
   use Region_type, only : t_Region
   use SolverOptions_type, only : SOUND
+
+  ! <<< Enumerations >>>
+  use Grid_enum
+  use State_enum
 
   ! <<< Private members >>>
   use SolverImpl, only : normalizeControlMollifier, normalizeTargetMollifier
 
   ! <<< Internal modules >>>
-  use Grid_mod, only : computeInnerProduct
   use CNSHelper, only : computeDependentVariables
-  use State_mod, only : makeQuiescent
   use Region_mod, only : loadRegionData
   use InputHelper, only : getOption, getRequiredOption
 
@@ -293,7 +289,7 @@ subroutine initializeSolver(region, restartFilename)
      filename = getOption("target_state_file", "")
      if (len_trim(filename) == 0) then
         do i = 1, size(region%states)
-           call makeQuiescent(region%states(i), size(region%globalGridSizes, 1),             &
+           call region%states(i)%makeQuiescent(size(region%globalGridSizes, 1),              &
                 region%solverOptions%ratioOfSpecificHeats, region%states(i)%targetState)
         end do
      else
@@ -385,25 +381,26 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   use iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
-  use State_type, only : t_State, QOI_FORWARD_STATE
+  use State_mod, only : t_State
   use Region_type, only : t_Region
-  use RK4Integrator_type, only : t_RK4Integrator
+  use TimeIntegrator_mod, only : t_TimeIntegrator
+
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_FORWARD_STATE
 
   ! <<< Private members >>>
   use SolverImpl, only : instantaneousCostFunctional, writeLine
 
   ! <<< Internal modules >>>
-  use State_mod, only : updateState
   use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
-  use RK4Integrator_mod, only : substepForward
 
   implicit none
 
   ! <<< Arguments >>>
   type(t_Region) :: region
-  type(t_RK4Integrator) :: integrator
+  class(t_TimeIntegrator) :: integrator
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps
@@ -439,19 +436,19 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
           mod(timestep_, reportInterval) == 0)
 
      do j = 1, size(region%states) !... update state
-        call updateState(region%states(j), region%grids(j),                                  &
-             region%simulationFlags, region%solverOptions)
+        call region%states(j)%update(region%grids(j), region%simulationFlags,                &
+             region%solverOptions)
      end do
      timeStepSize = getTimeStepSize(region)
 
      do i = 1, integrator%nStages
 
-        call substepForward(integrator, region, time, timeStepSize, timestep_, i)
+        call integrator%substepForward(region, time, timeStepSize, timestep_, i)
 
         if (i /= integrator%nStages) then
            do j = 1, size(region%states) !... update state
-              call updateState(region%states(j), region%grids(j),                            &
-                   region%simulationFlags, region%solverOptions)
+              call region%states(j)%update(region%grids(j), region%simulationFlags, &
+                   region%solverOptions)
            end do
         end if
 
@@ -518,25 +515,26 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
   use iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
-  use State_type, only : t_State, QOI_ADJOINT_STATE
+  use State_mod, only : t_State
   use Region_type, only : t_Region
-  use RK4Integrator_type, only : t_RK4Integrator
+  use TimeIntegrator_mod, only : t_TimeIntegrator
   use ReverseMigrator_type, only : t_ReverseMigrator
 
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_ADJOINT_STATE
+
   ! <<< Internal modules >>>
-  use State_mod, only : updateState
   use Region_mod, only : saveRegionData, getTimeStepSize, getCfl, reportResiduals
   use InputHelper, only : getOption
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
-  use RK4Integrator_mod, only : substepAdjoint
   use ReverseMigrator_mod
 
   implicit none
 
   ! <<< Arguments >>>
   type(t_Region) :: region
-  type(t_RK4Integrator) :: integrator
+  class(t_TimeIntegrator) :: integrator
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps, saveInterval
@@ -576,8 +574,8 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
      if (region%simulationFlags%useConstantCfl) then
         call migrateToSubstep(reverseMigrator, region, integrator, timestep_, 1)
         do j = 1, size(region%states) !... update state
-           call updateState(region%states(j), region%grids(j),                               &
-                region%simulationFlags, region%solverOptions)
+           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
+                region%solverOptions)
         end do
      end if
      timeStepSize = getTimeStepSize(region)
@@ -595,11 +593,11 @@ subroutine solveAdjoint(region, integrator, time, timestep, nTimesteps,         
         end if
 
         do j = 1, size(region%states) !... update state
-           call updateState(region%states(j), region%grids(j),                               &
-                region%simulationFlags, region%solverOptions)
+           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
+                region%solverOptions)
         end do
 
-        call substepAdjoint(integrator, region, time, timeStepSize, timestep_, i)
+        call integrator%substepAdjoint(region, time, timeStepSize, timestep_, i)
 
      end do
 

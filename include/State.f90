@@ -1,111 +1,27 @@
 #include "config.h"
 
-module State_type
-
-  use AcousticSource_type, only : t_AcousticSource
+module State_enum
 
   implicit none
-  private
+  public
 
-  integer, parameter, private :: wp = SCALAR_KIND
-
-  integer, parameter, public ::                                                              &
+  integer, parameter ::                                                                      &
        QOI_FORWARD_STATE        =  100,                                                      &
        QOI_ADJOINT_STATE        =  101,                                                      &
        QOI_TARGET_STATE         =  102,                                                      &
        QOI_VORTICITY_DILATATION =  103,                                                      &
        QOI_MEAN_PRESSURE        =  104
 
-  type, public :: t_State
-
-     type(t_AcousticSource), allocatable :: acousticSources(:)
-
-     integer :: nUnknowns = 0
-     real(wp) :: adjointForcingFactor = 1.0_wp
-     SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
-
-     SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
-          specificVolume, velocity, velocityGradient, stressTensor, pressure, temperature,   &
-          heatFlux, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,      &
-          meanPressure, targetState, adjointVariables
-
-  end type t_State
-
-end module State_type
+end module State_enum
 
 module State_mod
 
+  use AcousticSource_mod, only : t_AcousticSource
+
   implicit none
-  public
+  private
 
-  interface
-
-     subroutine setupState(this, grid, simulationFlags, solverOptions)
-
-       use Grid_type, only : t_Grid
-       use State_type, only : t_State
-       use SolverOptions_type, only : t_SolverOptions
-       use SimulationFlags_type, only : t_SimulationFlags
-
-       type(t_State) :: this
-       type(t_Grid) :: grid
-
-       type(t_SimulationFlags), intent(in), optional :: simulationFlags
-       type(t_SolverOptions), intent(in), optional :: solverOptions
-
-     end subroutine setupState
-
-  end interface
-
-  interface
-
-     subroutine cleanupState(this)
-
-       use State_type, only : t_State
-
-       type(t_State) :: this
-
-     end subroutine cleanupState
-
-  end interface
-
-  interface
-
-     subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, success)
-
-       use MPI, only : MPI_OFFSET_KIND
-       use Grid_type, only : t_Grid
-       use State_type, only : t_State
-
-       type(t_State) :: this
-       type(t_Grid) :: grid
-       integer, intent(in) :: quantityOfInterest
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       logical, intent(out) :: success
-
-     end subroutine loadStateData
-
-  end interface
-
-  interface
-
-     subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, success)
-
-       use MPI, only : MPI_OFFSET_KIND
-       use Grid_type, only : t_Grid
-       use State_type, only : t_State
-
-       type(t_State) :: this
-       type(t_Grid) :: grid
-       integer, intent(in) :: quantityOfInterest
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       logical, intent(out) :: success
-
-     end subroutine saveStateData
-
-  end interface
+  integer, parameter, private :: wp = SCALAR_KIND
 
   interface
 
@@ -129,13 +45,121 @@ module State_mod
 
   end interface
 
+  public :: getFileType, getNumberOfScalars
+
+  type, public :: t_State
+
+     type(t_AcousticSource), allocatable :: acousticSources(:)
+
+     integer :: nUnknowns = 0
+     real(wp) :: adjointForcingFactor = 1.0_wp
+     SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
+
+     SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
+          specificVolume, velocity, velocityGradient, stressTensor, pressure, temperature,   &
+          heatFlux, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,      &
+          meanPressure, targetState, adjointVariables
+
+   contains
+
+     procedure, pass :: setup => setupState
+     procedure, pass :: cleanup => cleanupState
+     procedure, pass :: loadData => loadStateData
+     procedure, pass :: saveData => saveStateData
+     procedure, pass :: makeQuiescent
+     procedure, pass :: update => updateState
+     procedure, pass :: computeCfl => computeStateCfl
+     procedure, pass :: computeTimeStepSize => computeStateTimeStepSize
+     procedure, pass :: computeRhsForward
+     procedure, pass :: computeRhsAdjoint
+     procedure, pass :: addPenaltiesForward
+     procedure, pass :: addPenaltiesAdjoint
+     procedure, pass :: addSourcesForward
+     procedure, pass :: addSourcesAdjoint
+     procedure, pass :: updatePatches
+     procedure, pass :: addAdjointForcing
+
+  end type t_State
+
+  interface
+
+     subroutine setupState(this, grid, simulationFlags, solverOptions)
+
+       use Grid_mod, only : t_Grid
+       use SolverOptions_type, only : t_SolverOptions
+       use SimulationFlags_type, only : t_SimulationFlags
+
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
+
+       type(t_SimulationFlags), intent(in), optional :: simulationFlags
+       type(t_SolverOptions), intent(in), optional :: solverOptions
+
+     end subroutine setupState
+
+  end interface
+
+  interface
+
+     subroutine cleanupState(this)
+
+       import :: t_State
+
+       class(t_State) :: this
+
+     end subroutine cleanupState
+
+  end interface
+
+  interface
+
+     subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, success)
+
+       use MPI, only : MPI_OFFSET_KIND
+       use Grid_mod, only : t_Grid
+       
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
+       integer, intent(in) :: quantityOfInterest
+       character(len = *), intent(in) :: filename
+       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
+       logical, intent(out) :: success
+
+     end subroutine loadStateData
+
+  end interface
+
+  interface
+
+     subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, success)
+
+       use MPI, only : MPI_OFFSET_KIND
+       use Grid_mod, only : t_Grid
+       
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
+       integer, intent(in) :: quantityOfInterest
+       character(len = *), intent(in) :: filename
+       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
+       logical, intent(out) :: success
+
+     end subroutine saveStateData
+
+  end interface
+
   interface
 
      subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
 
-       use State_type, only : t_State
+       import :: t_State
 
-       type(t_State) :: this
+       class(t_State) :: this
        integer, intent(in) :: nDimensions
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
 
@@ -149,13 +173,14 @@ module State_mod
 
      subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVariables)
 
-       use Grid_type, only : t_Grid
-       use State_type, only : t_State
+       use Grid_mod, only : t_Grid      
        use SolverOptions_type, only : t_SolverOptions
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
 
@@ -167,41 +192,44 @@ module State_mod
 
   interface
 
-     function cfl(this, grid, simulationFlags, solverOptions)
+     function computeStateCfl(this, grid, simulationFlags, solverOptions) result(cfl)
 
-       use Grid_type, only : t_Grid
-       use State_type, only : t_State
+       use Grid_mod, only : t_Grid
        use SolverOptions_type, only : t_SolverOptions
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
 
        real(SCALAR_KIND) :: cfl
 
-     end function cfl
+     end function computeStateCfl
 
   end interface
 
   interface
 
-     function timeStepSize(this, grid, simulationFlags, solverOptions)
+     function computeStateTimeStepSize(this, grid, simulationFlags,                          &     
+          solverOptions) result(timeStepSize)
 
-       use Grid_type, only : t_Grid
-       use State_type, only : t_State
+       use Grid_mod, only : t_Grid
        use SolverOptions_type, only : t_SolverOptions
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
 
        real(SCALAR_KIND) :: timeStepSize
 
-     end function timeStepSize
+     end function computeStateTimeStepSize
 
   end interface
 
@@ -209,14 +237,15 @@ module State_mod
 
      subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverOptions)
 
-       use Grid_type, only : t_Grid
+       use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use State_type, only : t_State
        use SolverOptions_type, only : t_SolverOptions
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_Patch), allocatable :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -230,14 +259,15 @@ module State_mod
 
      subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
 
-       use Grid_type, only : t_Grid
+       use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use State_type, only : t_State
        use SolverOptions_type, only : t_SolverOptions
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_Patch), allocatable :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -251,14 +281,15 @@ module State_mod
 
      subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solverOptions)
 
-       use Grid_type, only : t_Grid
+       use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use State_type, only : t_State
        use SolverOptions_type, only : t_SolverOptions
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_Patch), allocatable :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -272,14 +303,15 @@ module State_mod
 
      subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
 
-       use Grid_type, only : t_Grid
+       use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use State_type, only : t_State
        use SolverOptions_type, only : t_SolverOptions
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_Patch), allocatable :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -293,12 +325,13 @@ module State_mod
 
      subroutine addSourcesForward(this, grid, patches, time)
 
-       use Grid_type, only : t_Grid
+       use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use State_type, only : t_State
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_Patch), allocatable, intent(in) :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
 
@@ -310,12 +343,13 @@ module State_mod
 
      subroutine addSourcesAdjoint(this, grid, patches, time)
 
-       use Grid_type, only : t_Grid
+       use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use State_type, only : t_State
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_Patch), allocatable, intent(in) :: patches(:)
        real(SCALAR_KIND), intent(in) :: time
 
@@ -327,14 +361,15 @@ module State_mod
 
      subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
-       use Grid_type, only : t_Grid
+       use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use State_type, only : t_State
        use SolverOptions_type, only : t_SolverOptions
        use SimulationFlags_type, only : t_SimulationFlags
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
        type(t_Patch), allocatable :: patches(:)
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
@@ -347,14 +382,15 @@ module State_mod
 
      subroutine addAdjointForcing(this, grid, patch, solverOptions)
 
-       use Grid_type, only : t_Grid
+       use Grid_mod, only : t_Grid
        use Patch_type, only : t_Patch
-       use State_type, only : t_State
        use SolverOptions_type, only : t_SolverOptions
 
-       type(t_State) :: this
-       type(t_Grid) :: grid
-       type(t_Patch) :: patch
+       import :: t_State
+
+       class(t_State) :: this
+       class(t_Grid) :: grid
+       class(t_Patch) :: patch
        type(t_SolverOptions), intent(in) :: solverOptions
 
      end subroutine addAdjointForcing

@@ -2,10 +2,9 @@
 
 program stencil_coefficients
 
-  use StencilOperator_type, only : t_StencilOperator
+  use StencilOperator_mod, only : t_StencilOperator
 
   use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
-  use StencilOperator_mod, only : setupOperator
 
   implicit none
 
@@ -16,14 +15,14 @@ program stencil_coefficients
 
   integer, parameter :: wp = SCALAR_KIND
   type(t_StencilOperator) :: A
-  logical :: success, success_
+  logical :: success
 
   interface
 
      subroutine testStencilAccuracy(D, derivativeOrder, interiorOrderOfAccuracy,             &
           boundaryOrderOfAccuracy, success, tolerance)
 
-       use StencilOperator_type, only : t_StencilOperator
+       use StencilOperator_mod, only : t_StencilOperator
 
        type(t_StencilOperator) :: D
        integer, intent(in) :: derivativeOrder, interiorOrderOfAccuracy,                      &
@@ -40,51 +39,39 @@ program stencil_coefficients
 
   call initializeErrorHandler()
 
-  call setupOperator(A, "SBP 1-2 first derivative", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 1, 2, 1, success)
-  call setupOperator(A, "SBP 1-2 second derivative", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 2, 2, 1, success)
-  call setupOperator(A, "SBP 1-2 dissipation", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 0, 2, 1, success)
+  call A%setup("SBP 1-2 first derivative")
+  call testStencilAccuracy(A, 1, 2, 1, success)
+  call A%setup("SBP 1-2 second derivative")
+  call testStencilAccuracy(A, 2, 2, 1, success)
+  call A%setup("SBP 1-2 dissipation")
+  call testStencilAccuracy(A, 0, 2, 1, success)
+  
+  call A%setup("SBP 2-4 first derivative")
+  call testStencilAccuracy(A, 1, 4, 2, success)
+  call A%setup("SBP 2-4 second derivative")
+  call testStencilAccuracy(A, 2, 4, 2, success)
+  call A%setup("SBP 2-4 dissipation")
+  call testStencilAccuracy(A, 0, 4, 2, success)
 
-  call setupOperator(A, "SBP 2-4 first derivative", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 1, 4, 2, success)
-  call setupOperator(A, "SBP 2-4 second derivative", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 2, 4, 2, success)
-  call setupOperator(A, "SBP 2-4 dissipation", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 0, 4, 2, success)
-
-  call setupOperator(A, "SBP 3-6 first derivative", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 1, 6, 3, success)
-  call setupOperator(A, "SBP 3-6 second derivative", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 2, 6, 3, success,                                &
+  call A%setup("SBP 3-6 first derivative")
+  call testStencilAccuracy(A, 1, 6, 3, success)
+  call A%setup("SBP 3-6 second derivative")
+  call testStencilAccuracy(A, 2, 6, 3, success,                                &
        tolerance = epsilon(0.0_wp) * 2.0_wp) !... some schemes require a higher tolerance.
-  call setupOperator(A, "SBP 3-6 dissipation", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 0, 6, 3, success)
+  call A%setup("SBP 3-6 dissipation")
+  call testStencilAccuracy(A, 0, 6, 3, success)
 
-  call setupOperator(A, "SBP 4-8 first derivative", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 1, 8, 4, success,                                &
+  call A%setup("SBP 4-8 first derivative")
+  call testStencilAccuracy(A, 1, 8, 4, success,                                &
        tolerance = epsilon(0.0_wp) * 300.0_wp)
-  call setupOperator(A, "SBP 4-8 second derivative", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 2, 8, 4, success,                                &
+  call A%setup("SBP 4-8 second derivative")
+  call testStencilAccuracy(A, 2, 8, 4, success,                                &
        tolerance = epsilon(0.0_wp) * 4.0_wp)
-  call setupOperator(A, "SBP 4-8 dissipation", success_)
-  success = success .and. success_
-  if (success_) call testStencilAccuracy(A, 0, 8, 4, success,                                &
+  call A%setup("SBP 4-8 dissipation")
+  call testStencilAccuracy(A, 0, 8, 4, success,                                &
        tolerance = epsilon(0.0_wp) * 20.0_wp)
 
-  call cleanupOperator(A)
+  call A%cleanup()
 
   call cleanupErrorHandler()
 
@@ -97,7 +84,7 @@ subroutine testStencilAccuracy(D, derivativeOrder, interiorOrderOfAccuracy,     
      boundaryOrderOfAccuracy, success, tolerance)
 
   ! <<< Internal modules >>>
-  use StencilOperator_type, only : t_StencilOperator
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Arguments >>>
   type(t_StencilOperator) :: D
@@ -130,9 +117,7 @@ subroutine testStencilAccuracy(D, derivativeOrder, interiorOrderOfAccuracy,     
   ! typed in decimal form, use a higher tolerance.
   tolerance_ = epsilon(0.0_wp)
   if (present(tolerance)) tolerance_ = tolerance
-
-  success = success .and.                                                                    &
-       (getOrderOfAccuracy(D%RHSinterior, derivativeOrder, tolerance_) ==                    &
+  success = success .and. (getOrderOfAccuracy(D%RHSinterior, derivativeOrder, tolerance_) == &
        interiorOrderOfAccuracy) !... interior
   do i = 1, D%boundaryDepth
      SAFE_DEALLOCATE(boundary_stencil)

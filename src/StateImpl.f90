@@ -10,12 +10,12 @@ contains
   subroutine allocateData(this, simulationFlags, solverOptions, nGridPoints, nDimensions)
 
     ! <<< Derived types >>>
-    use State_type, only : t_State
+    use State_mod, only : t_State
     use SolverOptions_type, only : t_SolverOptions, SOUND
     use SimulationFlags_type, only : t_SimulationFlags
 
     ! <<< Arguments >>>
-    type(t_State) :: this
+    class(t_State) :: this
     type(t_SimulationFlags), intent(in) :: simulationFlags
     type(t_SolverOptions), intent(in) :: solverOptions
     integer, intent(in) :: nGridPoints, nDimensions
@@ -64,28 +64,24 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
-  use State_type, only : t_State
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
   use SolverOptions_type, only : t_SolverOptions
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use StateImpl, only : allocateData
 
-  ! <<< Public members >>>
-  use State_mod, only : cleanupState, makeQuiescent
-
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
   use SolverOptions_mod, only : initializeSolverOptions
-  use AcousticSource_mod, only : setupAcousticSource
   use SimulationFlags_mod, only : initializeSimulationFlags
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_SimulationFlags), intent(in), optional :: simulationFlags
   type(t_SolverOptions), intent(in), optional :: solverOptions
 
@@ -97,7 +93,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   real(SCALAR_KIND) :: ratioOfSpecificHeats, temp(3)
   character(len = STRING_LENGTH) :: key
 
-  call cleanupState(this)
+  call this%cleanup()
 
   call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
   assert_key(nDimensions, (1, 2, 3))
@@ -123,7 +119,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      assert(solverOptions%ratioOfSpecificHeats > 1.0_wp)
      ratioOfSpecificHeats = solverOptions%ratioOfSpecificHeats
   end if
-  call makeQuiescent(this, nDimensions, ratioOfSpecificHeats)
+  call this%makeQuiescent(nDimensions, ratioOfSpecificHeats)
 
   n = min(getOption("number_of_acoustic_sources", 0), 99)
   if (n > 0) then
@@ -133,7 +129,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
         temp(1) = getOption(trim(key) // "x", 0.0_wp)
         temp(2) = getOption(trim(key) // "y", 0.0_wp)
         temp(3) = getOption(trim(key) // "z", 0.0_wp)
-        call setupAcousticSource(this%acousticSources(i), temp,                              &
+        call this%acousticSources(i)%setup(temp,                                             &     
              getOption(trim(key) // "amplitude", 1.0_wp),                                    &
              getOption(trim(key) // "frequency", 1.0_wp),                                    &
              getOption(trim(key) // "radius", 1.0_wp),                                       &
@@ -146,12 +142,12 @@ end subroutine setupState
 subroutine cleanupState(this)
 
   ! <<< Derived types >>>
-  use State_type, only : t_State
+  use State_mod, only : t_State
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
+  class(t_State) :: this
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -184,8 +180,11 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
-  use State_type
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
+
+  ! <<< Enumerations >>>
+  use State_enum
 
   ! <<< Internal modules >>>
   use PLOT3DHelper
@@ -193,8 +192,8 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   integer, intent(in) :: quantityOfInterest
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
@@ -233,19 +232,21 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
-  use State_type
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
+
+  ! <<< Enumerations >>>
+  use State_enum
 
   ! <<< Internal modules >>>
-  use Grid_mod, only : computeGradient
   use CNSHelper, only : computeVorticityMagnitudeAndDilatation
   use PLOT3DHelper
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   integer, intent(in) :: quantityOfInterest
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
@@ -270,11 +271,11 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
         call computeVorticityMagnitudeAndDilatation(nDimensions, this%velocityGradient,      &
              dilatation = f(:,1), vorticityMagnitude = f(:,2))
      else if (allocated(this%stressTensor)) then
-        call computeGradient(grid, this%velocity, this%stressTensor)
+        call grid%computeGradient(this%velocity, this%stressTensor)
         call computeVorticityMagnitudeAndDilatation(nDimensions, this%stressTensor,          &
              dilatation = f(:,1), vorticityMagnitude = f(:,2))
      else
-        call computeGradient(grid, this%velocity, f)
+        call grid%computeGradient(this%velocity, f)
         call computeVorticityMagnitudeAndDilatation(nDimensions, f,                          &
              dilatation = f(:,1), vorticityMagnitude = f(:,2))
      end if
@@ -316,8 +317,10 @@ end subroutine saveStateData
 function getFileType(quantityOfInterest) result(fileType)
 
   ! <<< Derived types >>>
-  use State_type
   use PLOT3DDescriptor_type
+
+  ! <<< Enumerations >>>
+  use State_enum
 
   implicit none
 
@@ -342,7 +345,8 @@ end function getFileType
 
 function getNumberOfScalars(quantityOfInterest, nDimensions) result(nScalars)
 
-  use State_type
+  ! <<< Enumerations >>>
+  use State_enum
 
   implicit none
 
@@ -366,12 +370,12 @@ end function getNumberOfScalars
 subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
 
   ! <<< Derived types >>>
-  use State_type, only : t_State
+  use State_mod, only : t_State
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
+  class(t_State) :: this
   integer, intent(in) :: nDimensions
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out), optional :: conservedVariables(:,:)
@@ -401,21 +405,20 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
-  use State_type, only : t_State
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
   use SolverOptions_type, only : t_SolverOptions
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use Grid_mod
   use CNSHelper
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   SCALAR_TYPE, intent(in), optional :: conservedVariables(:,:)
@@ -448,18 +451,18 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
 
      if (simulationFlags%repeatFirstDerivative) then
 
-        call computeGradient(grid, this%velocity, this%stressTensor)
+        call grid%computeGradient(this%velocity, this%stressTensor)
         call computeStressTensor(nDimensions, this%stressTensor, this%dynamicViscosity(:,1), &
              this%secondCoefficientOfViscosity(:,1))
 
-        call computeGradient(grid, this%temperature(:,1), this%heatFlux)
+        call grid%computeGradient(this%temperature(:,1), this%heatFlux)
         do i = 1, nDimensions
            this%heatFlux(:,i) = - this%thermalDiffusivity(:,1) * this%heatFlux(:,i)
         end do
 
      else
 
-        call computeGradient(grid, this%velocity, this%velocityGradient)
+        call grid%computeGradient(this%velocity, this%velocityGradient)
 
      end if
 
@@ -469,11 +472,11 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
 
 end subroutine updateState
 
-function cfl(this, grid, simulationFlags, solverOptions)
+function computeStateCfl(this, grid, simulationFlags, solverOptions) result(cfl)
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
-  use State_type, only : t_State
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
   use SolverOptions_type, only : t_SolverOptions
   use SimulationFlags_type, only : t_SimulationFlags
 
@@ -483,8 +486,8 @@ function cfl(this, grid, simulationFlags, solverOptions)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
 
@@ -533,13 +536,14 @@ function cfl(this, grid, simulationFlags, solverOptions)
      end if
   end if
 
-end function cfl
+end function computeStateCfl
 
-function timeStepSize(this, grid, simulationFlags, solverOptions)
+function computeStateTimeStepSize(this, grid, simulationFlags,                               &
+     solverOptions) result(timeStepSize)
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
-  use State_type, only : t_State
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
   use SolverOptions_type, only : t_SolverOptions
   use SimulationFlags_type, only : t_SimulationFlags
 
@@ -549,8 +553,8 @@ function timeStepSize(this, grid, simulationFlags, solverOptions)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
 
@@ -599,7 +603,7 @@ function timeStepSize(this, grid, simulationFlags, solverOptions)
      timeStepSize = solverOptions%timeStepSize
   end if
 
-end function timeStepSize
+end function computeStateTimeStepSize
 
 subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverOptions)
 
@@ -607,24 +611,23 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type, only : SAT_FAR_FIELD, SAT_BLOCK_INTERFACE
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
-  use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
+  use Patch_mod, only : collectAtPatch
   use MPITimingsHelper, only : startTiming, endTiming
-  use StencilOperator_mod, only : applyOperator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_Patch), allocatable :: patches(:)
   real(SCALAR_KIND), intent(in) :: time
   type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -672,7 +675,7 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
 
   ! Take derivatives of fluxes.
   do i = 1, nDimensions
-     call applyOperator(grid%firstDerivative(i), fluxes2(:,:,i), grid%localSize)
+     call grid%firstDerivative(i)%apply(fluxes2(:,:,i), grid%localSize)
   end do
   this%rightHandSide = this%rightHandSide - sum(fluxes2, dim = 3) !... update right-hand side.
 
@@ -681,7 +684,7 @@ subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverO
      do i = 1, nDimensions
         fluxes2(:,:,i) = this%conservedVariables !... dissipation based on high-order even
                                                  !... derivatives of conserved variables.
-        call applyOperator(grid%dissipation(i), fluxes2(:,:,i), grid%localSize)
+        call grid%dissipation(i)%apply(fluxes2(:,:,i), grid%localSize)
      end do
      this%rightHandSide = this%rightHandSide +                                               &
           solverOptions%dissipationAmount * sum(fluxes2, dim = 3) !... update right-hand side.
@@ -708,23 +711,21 @@ end subroutine computeRhsForward
 subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use SolverOptions_type, only : t_SolverOptions
   use SimulationFlags_type, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper
-  use Patch_mod, only : addFarFieldPenalty, addWallPenalty
   use MPITimingsHelper, only : startTiming, endTiming
-  use StencilOperator_mod, only : applyOperator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_Patch), allocatable, intent(in) :: patches(:)
   real(SCALAR_KIND), intent(in) :: time
   type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -749,7 +750,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   if (simulationFlags%dissipationOn) then
      do i = 1, nDimensions
         temp1(:,:,i) = this%adjointVariables
-        call applyOperator(grid%dissipation(i), temp1(:,:,i), grid%localSize)
+        call grid%dissipation(i)%apply(temp1(:,:,i), grid%localSize)
      end do
      this%rightHandSide = this%rightHandSide -                                               &
           solverOptions%dissipationAmount * sum(temp1, dim = 3) !... update right-hand side.
@@ -758,8 +759,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
   ! Partial derivatives of adjoint variables w.r.t. *computational* coordinates.
   do i = 1, nDimensions
      temp1(:,:,i) = this%adjointVariables
-     call applyOperator(grid%adjointFirstDerivative(i), temp1(:,:,i),                         &
-          grid%localSize)
+     call grid%adjointFirstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
   end do
 
   allocate(localFluxJacobian1(this%nUnknowns, this%nUnknowns))
@@ -897,8 +897,7 @@ subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverO
      end do !... i = 1, grid%nGridPoints
 
      do i = 1, nDimensions
-        call applyOperator(grid%adjointFirstDerivative(i),                                   &
-             temp1(:,2:this%nUnknowns,i), grid%localSize)
+        call grid%adjointFirstDerivative(i)%apply(temp1(:,2:this%nUnknowns,i), grid%localSize)
      end do
      temp2 = sum(temp1(:,2:this%nUnknowns,:), dim = 3)
 
@@ -937,9 +936,9 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use Region_type, only : FORWARD
   use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type
@@ -949,13 +948,12 @@ subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solve
   use CNSHelper
   use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
   use MPITimingsHelper, only : startTiming, endTiming
-  use StencilOperator_mod, only : applyOperator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_Patch), allocatable :: patches(:)
   real(SCALAR_KIND), intent(in) :: time
   type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -996,9 +994,9 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use Region_type, only : ADJOINT
   use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type
@@ -1008,13 +1006,12 @@ subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solve
   use CNSHelper
   use Patch_mod, only : collectAtPatch, addFarFieldPenalty, addWallPenalty
   use MPITimingsHelper, only : startTiming, endTiming
-  use StencilOperator_mod, only : applyOperator
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_Patch), allocatable :: patches(:)
   real(SCALAR_KIND), intent(in) :: time
   type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -1053,22 +1050,21 @@ end subroutine addPenaltiesAdjoint
 subroutine addSourcesForward(this, grid, patches, time)
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use Region_type, only : FORWARD
   use PatchDescriptor_type, only : SPONGE, SOLENOIDAL_EXCITATION
 
   ! <<< Internal modules >>>
   use Patch_mod, only : addDamping, addSolenoidalExcitation
   use MPITimingsHelper, only : startTiming, endTiming
-  use AcousticSource_mod, only : addAcousticSource
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_Patch), allocatable, intent(in) :: patches(:)
   real(SCALAR_KIND), intent(in) :: time
 
@@ -1079,7 +1075,7 @@ subroutine addSourcesForward(this, grid, patches, time)
 
   if (allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
-        call addAcousticSource(this%acousticSources(i), time, grid%coordinates,              &
+        call this%acousticSources(i)%add(time, grid%coordinates,                             &
              grid%iblank, this%rightHandSide)
      end do
   end if
@@ -1108,9 +1104,9 @@ end subroutine addSourcesForward
 subroutine addSourcesAdjoint(this, grid, patches, time)
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use Region_type, only : ADJOINT
   use PatchDescriptor_type, only : SPONGE
 
@@ -1121,8 +1117,8 @@ subroutine addSourcesAdjoint(this, grid, patches, time)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_Patch), allocatable, intent(in) :: patches(:)
   real(SCALAR_KIND), intent(in) :: time
 
@@ -1154,29 +1150,23 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use SolverOptions_type, only : t_SolverOptions
   use PatchDescriptor_type
   use SimulationFlags_type, only : t_SimulationFlags
 
-  ! <<< Public members >>>
-  use State_mod, only : updateState
-
   ! <<< Internal modules >>>
-  use Grid_mod, only : computeNormalizedCurveLengths
   use CNSHelper, only : computeCartesianViscousFluxes, computeDependentVariables
-  use State_mod, only : updateState
   use Patch_mod, only : collectAtPatch, updateSolenoidalExcitationStrength
   use MPITimingsHelper, only : startTiming, endTiming
-  use AcousticSource_mod, only : addAcousticSource
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
+  class(t_State) :: this
+  class(t_Grid) :: grid
   type(t_Patch), allocatable :: patches(:)
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
@@ -1220,8 +1210,7 @@ subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
 
      if (flag) then
         allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
-        call updateState(this, grid, simulationFlags,                                        &
-             solverOptions, this%targetState)
+        call this%update(grid, simulationFlags, solverOptions, this%targetState)
         call computeCartesianViscousFluxes(nDimensions, this%velocity,                       &
              this%stressTensor, this%heatFlux, targetViscousFluxes)
      end if
@@ -1280,18 +1269,18 @@ subroutine addAdjointForcing(this, grid, patch, solverOptions)
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_type, only : t_Grid
+  use Grid_mod, only : t_Grid
   use Patch_type, only : t_Patch
-  use State_type, only : t_State
+  use State_mod, only : t_State
   use SolverOptions_type
   use PatchDescriptor_type
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_State) :: this
-  type(t_Grid) :: grid
-  type(t_Patch) :: patch
+  class(t_State) :: this
+  class(t_Grid) :: grid
+  class(t_Patch) :: patch
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>

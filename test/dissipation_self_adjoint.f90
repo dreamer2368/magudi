@@ -94,13 +94,11 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   use MPI
 
   ! <<< Derived types >>>
-  use StencilOperator_type, only : t_StencilOperator
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
   use RandomNumber, only : initializeRandomNumberGenerator, random
-  use StencilOperator_mod, only : setupOperator, updateOperator, &
-       getAdjointOperator, applyOperator, cleanupOperator
 
   ! <<< Arguments >>>
   character(len = *), intent(in) :: identifier
@@ -111,7 +109,7 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  logical :: isPeriodic_(3), success_
+  logical :: isPeriodic_(3)
   real(wp) :: tolerance_
   integer :: n, offset, nLocal, gridSize(3), cartesianCommunicator,                          &
        numProcesses(3), procRank, nProcs, ierror
@@ -147,14 +145,10 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
        .true., cartesianCommunicator, ierror)
 
   ! Update the operators.
-  call setupOperator(A, identifier, success_)
-  if (.not. success_) then
-     success = .false.
-     return
-  end if
-  call updateOperator(A, cartesianCommunicator, direction)
-  call getAdjointOperator(A, adjointOfA)
-  call updateOperator(adjointOfA, cartesianCommunicator, direction)
+  call A%setup(identifier)
+  call A%update(cartesianCommunicator, direction)
+  call A%getAdjoint(adjointOfA)
+  call adjointOfA%update(cartesianCommunicator, direction)
 
   ! Decide the size of arrays to be used for the test.
   n = random(nProcs * adjointOfA%boundaryDepth, 2 ** 16)
@@ -173,8 +167,8 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
 
   u = f
   v = f
-  call applyOperator(A, u, gridSize)
-  call applyOperator(adjointOfA, v, gridSize)
+  call A%apply(u, gridSize)
+  call adjointOfA%apply(v, gridSize)
 
   success = (maxval(abs(u - v)) / real(n, wp) <= tolerance_)
 
@@ -182,7 +176,7 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   SAFE_DEALLOCATE(u)
   SAFE_DEALLOCATE(v)
 
-  call cleanupOperator(A)
-  call cleanupOperator(adjointOfA)
+  call A%cleanup()
+  call adjointOfA%cleanup()
 
 end subroutine testSelfAdjointness

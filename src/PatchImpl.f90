@@ -77,6 +77,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
   use PatchImpl, only : allocateData
 
   ! <<< Internal modules >>>
+  use Patch_mod, only : cleanupPatch
   use InputHelper, only : getOption, getRequiredOption
   use SolenoidalExcitation_mod, only : setupSolenoidalExcitation
 
@@ -243,8 +244,7 @@ subroutine setupPatch(this, index, nDimensions, patchDescriptor,                
 
   if (this%nPatchPoints > 0) call allocateData(this, nDimensions, nUnknowns, simulationFlags)
 
-  if (this%patchType == SAT_ISOTHERMAL_WALL .and.                                            &
-       .not. simulationFlags%useTargetState) then
+  if (allocated(this%wallTemperature) .and. .not. simulationFlags%useTargetState) then
      call getRequiredOption(trim(key) // "temperature", wallTemperature)
      this%wallTemperature = wallTemperature
   end if
@@ -305,7 +305,7 @@ subroutine collectScalarAtPatch_(this, gridArray, patchArray)
   integer :: i, j, k, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%gridLocalSize))
+  assert(all(this%patchSize >= 0) .and. size(patchArray, 1) == product(this%patchSize)) 
 
   call startTiming("collectAtPatch")
 
@@ -344,7 +344,7 @@ subroutine collectVectorAtPatch_(this, gridArray, patchArray)
   integer :: i, j, k, l, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%patchSize))
+  assert(all(this%patchSize >= 0) .and. size(patchArray, 1) == product(this%patchSize))
   assert(size(gridArray, 2) > 0)
   assert(size(patchArray, 2) == size(gridArray, 2))
 
@@ -387,7 +387,7 @@ subroutine collectTensorAtPatch_(this, gridArray, patchArray)
   integer :: i, j, k, l, m, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize > 0) .and. size(patchArray, 1) == product(this%patchSize))
+  assert(all(this%patchSize >= 0) .and. size(patchArray, 1) == product(this%patchSize))
   assert(size(gridArray, 2) > 0)
   assert(size(patchArray, 2) == size(gridArray, 2))
   assert(size(gridArray, 3) > 0)
@@ -821,8 +821,8 @@ subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,       
 
               select case (this%patchType)
               case (SAT_ISOTHERMAL_WALL, SAT_ADIABATIC_WALL)
-                 rightHandSide(gridIndex,2:nUnknowns-1) =                                    &
-                      rightHandSide(gridIndex,2:nUnknowns-1) -                               &
+                 rightHandSide(gridIndex,2:nUnknowns) =                                      &
+                      rightHandSide(gridIndex,2:nUnknowns) -                                 &
                       this%viscousPenaltyAmount * viscousPenalty
               end select
 

@@ -4,17 +4,16 @@ program operator_convergence
 
   use MPI
 
-  use StencilOperator_type, only : t_StencilOperator
+  use StencilOperator_mod, only : t_StencilOperator
 
   use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
-  use StencilOperator_mod, only : setupOperator, cleanupOperator
 
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
   type(t_StencilOperator) :: A
   integer :: direction, ierror
-  logical :: success, success_
+  logical :: success
 
   interface
 
@@ -51,7 +50,7 @@ program operator_convergence
      subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, success, &
           isPeriodic, quotientExponent, startSize, nIterations, refinementFactor)
 
-       use StencilOperator_type, only : t_StencilOperator
+       use StencilOperator_mod, only : t_StencilOperator
 
        type(t_StencilOperator) :: A
        integer, intent(in) :: direction
@@ -87,60 +86,48 @@ program operator_convergence
 
   call initializeErrorHandler()
 
-  call setupOperator(A, "SBP 1-2 first derivative", success_)
-  success = success .and. success_
-  if (success_) then
-     do direction = 1, 3
-        call testStencilOperatorConvergence(A, direction, F1, dF1, 2,                        &
-             success, isPeriodic = .true., quotientExponent = 1)
-        call testStencilOperatorConvergence(A, direction, F2, dF2, 1,                        &
-             success, quotientExponent = 1)
-        call testStencilOperatorConvergence(A, direction, F3, dF3, 1,                        &
-             success, quotientExponent = 1)
-     end do
-  end if
+  call A%setup("SBP 1-2 first derivative")
+  do direction = 1, 3
+     call testStencilOperatorConvergence(A, direction, F1, dF1, 2,                           &
+          success, isPeriodic = .true., quotientExponent = 1)
+     call testStencilOperatorConvergence(A, direction, F2, dF2, 1,                           &
+          success, quotientExponent = 1)
+     call testStencilOperatorConvergence(A, direction, F3, dF3, 1,                           &
+          success, quotientExponent = 1)
+  end do
 
-  call setupOperator(A, "SBP 2-4 first derivative", success_)
-  success = success .and. success_
-  if (success_) then
-     do direction = 1, 3
-        call testStencilOperatorConvergence(A, direction, F1, dF1, 4,                        &
-             success, isPeriodic = .true., quotientExponent = 1)
-        call testStencilOperatorConvergence(A, direction, F2, dF2, 2,                        &
-             success, quotientExponent = 1)
-        call testStencilOperatorConvergence(A, direction, F3, dF3, 2,                        &
-             success, quotientExponent = 1)
-     end do
-  end if
+  call A%setup("SBP 2-4 first derivative")
+  do direction = 1, 3
+     call testStencilOperatorConvergence(A, direction, F1, dF1, 4,                           &
+          success, isPeriodic = .true., quotientExponent = 1)
+     call testStencilOperatorConvergence(A, direction, F2, dF2, 2,                           &
+          success, quotientExponent = 1)
+     call testStencilOperatorConvergence(A, direction, F3, dF3, 2,                           &
+          success, quotientExponent = 1)
+  end do
 
-  call setupOperator(A, "SBP 3-6 first derivative", success_)
-  success = success .and. success_
-  if (success_) then
-     do direction = 1, 3
-        call testStencilOperatorConvergence(A, direction, F1, dF1, 6,                        &
-             success, isPeriodic = .true., quotientExponent = 1)
-        call testStencilOperatorConvergence(A, direction, F2, dF2, 3,                        &
-             success, quotientExponent = 1)
-        call testStencilOperatorConvergence(A, direction, F3, dF3, 3,                        &
-             success, quotientExponent = 1)
-     end do
-  end if
+  call A%setup("SBP 3-6 first derivative")
+  do direction = 1, 3
+     call testStencilOperatorConvergence(A, direction, F1, dF1, 6,                           &
+          success, isPeriodic = .true., quotientExponent = 1)
+     call testStencilOperatorConvergence(A, direction, F2, dF2, 3,                           &
+          success, quotientExponent = 1)
+     call testStencilOperatorConvergence(A, direction, F3, dF3, 3,                           &
+          success, quotientExponent = 1)
+  end do
 
-  call setupOperator(A, "SBP 4-8 first derivative", success_)
-  success = success .and. success_
-  if (success_) then
-     do direction = 1, 3
-        call testStencilOperatorConvergence(A, direction, F1, dF1, 8, success,               &
-             isPeriodic = .true., quotientExponent = 1,                                      &
-             refinementFactor = 1.06_wp)
-        call testStencilOperatorConvergence(A, direction, F2, dF2, 4, success,               &
-             quotientExponent = 1, refinementFactor = 1.08_wp)
-        call testStencilOperatorConvergence(A, direction, F3, dF3, 4, success,               &
-             quotientExponent = 1, refinementFactor = 1.08_wp)
-     end do
-  end if
+  call A%setup("SBP 4-8 first derivative")
+  do direction = 1, 3
+     call testStencilOperatorConvergence(A, direction, F1, dF1, 8, success,                  &
+          isPeriodic = .true., quotientExponent = 1,                                         &
+          refinementFactor = 1.06_wp)
+     call testStencilOperatorConvergence(A, direction, F2, dF2, 4, success,                  &
+          quotientExponent = 1, refinementFactor = 1.08_wp)
+     call testStencilOperatorConvergence(A, direction, F3, dF3, 4, success,                  &
+          quotientExponent = 1, refinementFactor = 1.08_wp)
+  end do
 
-  call cleanupOperator(A)
+  call A%cleanup()
 
   call cleanupErrorHandler()
   
@@ -159,11 +146,10 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
   use MPI
 
   ! <<< Derived types >>>
-  use StencilOperator_type, only : t_StencilOperator
+  use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
-  use StencilOperator_mod, only : updateOperator, applyOperator
 
   ! <<< Arguments >>>
   type(t_StencilOperator) :: A
@@ -231,7 +217,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
   ! Create a Cartesian communicator.
   call MPI_Cart_create(MPI_COMM_WORLD, 3, numProcesses,                                      &
        isPeriodic_, .true., cartesianCommunicator, ierror)
-  call updateOperator(A, cartesianCommunicator, direction)
+  call A%update(cartesianCommunicator, direction)
 
   if (present(startSize)) then
      startSize_ = startSize
@@ -267,7 +253,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
 
      ! Apply the stencil.
      gridSize = 1 ; gridSize(direction) = nLocal
-     call applyOperator(A, y, gridSize)
+     call A%apply(y, gridSize)
      if (present(quotientExponent)) y = y / h ** quotientExponent
 
      ! Compute the error.
