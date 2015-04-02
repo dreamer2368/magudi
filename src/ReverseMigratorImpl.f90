@@ -52,9 +52,9 @@ subroutine setupReverseMigrator(this, region, outputPrefix, algorithm,          
   allocate(this%temp_(size(region%states)))
   do i = 1, size(this%temp_)
      assert(region%grids(i)%nGridPoints > 0)
-     assert(region%states(i)%nUnknowns > 0)
-     allocate(this%temp_(i)%buffer(region%grids(i)%nGridPoints, &
-          region%states(i)%nUnknowns, numIntermediateStates))
+     assert(region%solverOptions%nUnknowns > 0)
+     allocate(this%temp_(i)%buffer(region%grids(i)%nGridPoints,                              &
+          region%solverOptions%nUnknowns, numIntermediateStates))
   end do
 
 end subroutine setupReverseMigrator

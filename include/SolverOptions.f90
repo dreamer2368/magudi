@@ -22,7 +22,7 @@ module SolverOptions_mod
      real(SCALAR_KIND) :: reynoldsNumberInverse, prandtlNumberInverse, ratioOfSpecificHeats, &
           powerLawExponent, bulkViscosityRatio, dissipationAmount, densityRange(2),          &
           temperatureRange(2), cfl, timeStepSize, convergenceTolerance(3)
-     integer :: costFunctionalType
+     integer :: costFunctionalType, nUnknowns
 
    contains
 
@@ -32,13 +32,14 @@ module SolverOptions_mod
 
   interface
 
-     subroutine initializeSolverOptions(this, simulationFlags, comm)
+     subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
        use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_SolverOptions
 
        class(t_SolverOptions), intent(out) :: this
+       integer, intent(in) :: nDimensions
        type(t_SimulationFlags), intent(in) :: simulationFlags
        integer, intent(in), optional :: comm
 

@@ -8,7 +8,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use SpongePatch_mod, only : t_SpongePatch
   ! use ActuatorPatch_mod, only : t_ActuatorPatch
   ! use AdiabaticWall_mod, only : t_AdiabaticWall
-  ! use FarFieldPatch_mod, only : t_FarFieldPatch
+  use FarFieldPatch_mod, only : t_FarFieldPatch
   ! use IsothermalWall_mod, only : t_IsothermalWall
   ! use CostTargetPatch_mod, only : t_CostTargetPatch
   ! use ImpenetrableWall_mod, only : t_ImpenetrableWall
@@ -26,10 +26,10 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   ! <<< Local variables >>>
   logical :: createNew_
 
-  createNew_ = .true.
-  if (associated(this%patch) .and. present(createNew)) createNew_ = createNew
+  createNew_ = .false.
+  if (present(createNew)) createNew_ = createNew
 
-  if (present(patchType) .and. createNew_) then
+  if (present(patchType) .and. .not. (associated(this%patch) .and. .not. createNew_)) then
 
      if (associated(this%patch)) deallocate(this%patch)
      nullify(this%patch)
@@ -47,8 +47,8 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
      ! case ('SAT_ADIABATIC_WALL')
      !    allocate(t_AdiabaticWall :: this%patch)
 
-     ! case ('SAT_FAR_FIELD')
-     !    allocate(t_FarFieldPatch :: this%patch)
+     case ('SAT_FAR_FIELD')
+        allocate(t_FarFieldPatch :: this%patch)
 
      ! case ('SAT_ISOTHERMAL_WALL')
      !    allocate(t_IsothermalWall :: this%patch)
@@ -92,6 +92,56 @@ subroutine cleanupPatchFactory(this)
 
 end subroutine cleanupPatchFactory
 
+function queryPatchTypeExists(patchFactories, patchType,                                     &
+     gridIndex, normalDirection) result(patchTypeExists)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Patch_factory, only : t_PatchFactory
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_PatchFactory), allocatable :: patchFactories(:)  
+  character(len = *), intent(in) :: patchType
+  integer, intent(in), optional :: gridIndex, normalDirection
+
+  ! <<< Result >>>
+  logical :: patchTypeExists
+
+  ! <<< Local variables >>>
+  integer :: i
+  class(t_Patch), pointer :: patch => null()
+
+#ifdef DEBUG
+  if (present(normalDirection)) then
+     assert_key(normalDirection, (1, 2, 3))
+  end if
+#endif
+  
+  patchTypeExists = .false.
+
+  if (allocated(patchFactories)) then
+     do i = 1, size(patchFactories)
+        if (trim(patchType) /= trim(patchFactories(i)%patchType)) cycle
+
+        call patchFactories(i)%connect(patch, patchType)
+
+        if (associated(patch)) then
+           if (present(gridIndex)) then
+              if (patch%gridIndex /= gridIndex) cycle
+           end if
+           if (present(normalDirection)) then
+              if (abs(patch%normalDirection) /= normalDirection) cycle
+           end if
+           patchTypeExists = .true.
+        end if
+
+     end do
+  end if
+
+end function queryPatchTypeExists
+
 subroutine computeSpongeStrengths(patchFactories, grid)
 
   ! <<< External modules >>>
@@ -105,6 +155,7 @@ subroutine computeSpongeStrengths(patchFactories, grid)
 
   ! <<< Internal modules >>>
   use MPIHelper, only : gatherAlongDirection
+  use Patch_factory, only : queryPatchTypeExists
 
   implicit none
 
@@ -119,6 +170,7 @@ subroutine computeSpongeStrengths(patchFactories, grid)
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, dimension(:,:), allocatable :: coordinateDerivatives, arcLength,              &
        globalArcLengthsAlongDirection
+  SCALAR_TYPE, allocatable :: patchJacobian(:)
   real(wp), allocatable :: curveLengthIntegrand(:)
 
   nDimensions = grid%nDimensions
@@ -132,16 +184,8 @@ subroutine computeSpongeStrengths(patchFactories, grid)
   do direction =  1, nDimensions
 
      ! Check if there are sponge patches along direction `direction`.
-     spongesExistAlongDirection = .false.
-     if (allocated(patchFactories)) then
-        do i = 1, size(patchFactories)
-           if (trim(patchFactories(i)%patchType) /= 'SPONGE') cycle
-           call patchFactories(i)%connect(patch)
-           if (associated(patch))                                                            &
-                spongesExistAlongDirection = spongesExistAlongDirection .or.                 &
-                (patch%gridIndex == grid%index .and. abs(patch%normalDirection) == direction)
-        end do
-     end if
+     spongesExistAlongDirection = queryPatchTypeExists(patchFactories,                       &
+          'SPONGE', grid%index, direction)
      call MPI_Allreduce(MPI_IN_PLACE, spongesExistAlongDirection, 1, MPI_LOGICAL,            &
           MPI_LOR, grid%comm, ierror) !... reduce across grid-level processes.
      if (.not. spongesExistAlongDirection) cycle
@@ -170,7 +214,10 @@ subroutine computeSpongeStrengths(patchFactories, grid)
            if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0 .or.               &
                 abs(patch%normalDirection) /= direction) cycle
            select type (patch)
-              class is (t_SpongePatch)           
+           class is (t_SpongePatch)
+
+              allocate(patchJacobian(patch%nPatchPoints))
+              call patch%collect(grid%jacobian(:,1), patchJacobian)
 
               select case (direction)
 
@@ -299,6 +346,8 @@ subroutine computeSpongeStrengths(patchFactories, grid)
 
               patch%spongeStrength = patch%spongeAmount *                                    &
                    (1.0_wp - patch%spongeStrength) ** real(patch%spongeExponent, wp)
+              patch%spongeStrength = patch%spongeStrength / patchJacobian
+              SAFE_DEALLOCATE(patchJacobian)
 
            end select !... select type (patch)
 
@@ -392,12 +441,14 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   use Patch_mod, only : t_Patch
   use State_mod, only : t_State
   use Patch_factory, only : t_PatchFactory
+  use FarFieldPatch_mod, only : t_FarFieldPatch
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeCartesianViscousFluxes, computeDependentVariables
-  use MPITimingsHelper, only : startTiming, endTiming
+  use Patch_factory, only : queryPatchTypeExists
+  use MPITimingsHelper, only : startTiming, endTiming  
 
   implicit none
 
@@ -408,95 +459,74 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   class(t_Grid) :: grid
   class(t_State) :: state
 
-  ! ! <<< Local variables >>>
-  ! integer :: i, nDimensions, ierror
-  ! logical :: flag
-  ! SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:), targetTemperature(:)
+  ! <<< Local variables >>>
+  integer :: i, nDimensions, ierror
+  logical :: flag
+  class(t_Patch), pointer :: patch => null()
+  SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:), targetTemperature(:)
 
-  ! call startTiming("updatePatches")
+  call startTiming("updatePatches")
 
-  ! nDimensions = grid%nDimensions
-  ! assert_key(nDimensions, (1, 2, 3))
+  nDimensions = grid%nDimensions
+  assert_key(nDimensions, (1, 2, 3))
 
-  ! if (simulationFlags%viscosityOn) then
+  if (simulationFlags%viscosityOn) then
 
-  !    flag = .false.
-  !    if (allocated(patches)) flag = any(patches(:)%gridIndex == grid%index .and.             &
-  !         patches(:)%patchType == SAT_ISOTHERMAL_WALL)
-  !    call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
+     flag = queryPatchTypeExists(patchFactories, 'SAT_ISOTHERMAL_WALL', grid%index)
+     call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
+     if (flag) then
+        allocate(targetTemperature(grid%nGridPoints))
+        call computeDependentVariables(nDimensions, state%targetState,                       &
+             solverOptions%ratioOfSpecificHeats, temperature = targetTemperature)
+     end if
 
-  !    if (flag) then
-  !       allocate(targetTemperature(grid%nGridPoints))
-  !       call computeDependentVariables(nDimensions, this%targetState,                        &
-  !            solverOptions%ratioOfSpecificHeats, temperature = targetTemperature)
-  !    end if
+     if (allocated(patchFactories)) then
+        do i = 1, size(patchFactories)
 
-  !    if (allocated(patches)) then
-  !       do i = 1, size(patches)
-  !          if (patches(i)%gridIndex /= grid%index .or.                                       &
-  !               patches(i)%patchType /= SAT_ISOTHERMAL_WALL) cycle
-  !          call collectAtPatch(patches(i), targetTemperature, patches(i)%wallTemperature)
-  !       end do
-  !    end if
+           call patchFactories(i)%connect(patch)
+           if (.not. associated(patch)) cycle
+           if (patch%gridIndex /= grid%index) cycle
 
-  !    SAFE_DEALLOCATE(targetTemperature)
+           ! select type (patch)
+           ! class is (t_IsothermalWall)
+           !    call patch%collect(targetTemperature, patch%wallTemperature)
+           ! end select
 
-  !    flag = .false.
-  !    if (allocated(patches)) flag = any(patches(:)%gridIndex == grid%index .and.             &
-  !         patches(:)%patchType == SAT_FAR_FIELD)
-  !    call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
+        end do
+     end if
 
-  !    if (flag) then
-  !       allocate(targetViscousFluxes(grid%nGridPoints, nDimensions + 2, nDimensions))
-  !       call this%update(grid, simulationFlags, solverOptions, this%targetState)
-  !       call computeCartesianViscousFluxes(nDimensions, this%velocity,                       &
-  !            this%stressTensor, this%heatFlux, targetViscousFluxes)
-  !    end if
+     SAFE_DEALLOCATE(targetTemperature)
 
-  ! end if
+     flag = queryPatchTypeExists(patchFactories, 'SAT_FAR_FIELD', grid%index)
+     call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
+     if (flag) then
+        allocate(targetViscousFluxes(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+        call state%update(grid, simulationFlags, solverOptions,                              &
+             conservedVariables = state%targetState)
+     end if
 
-  ! if (allocated(patches)) then
-  !    do i = 1, size(patches)
-  !       if (patches(i)%gridIndex /= grid%index) cycle
+     if (allocated(patchFactories)) then
+        do i = 1, size(patchFactories)
 
-  !       if (simulationFlags%viscosityOn) then
+           call patchFactories(i)%connect(patch)
+           if (.not. associated(patch)) cycle
+           if (patch%gridIndex /= grid%index) cycle
 
-  !          select case (patches(i)%patchType)
+           select type (patch)
+           class is (t_FarFieldPatch)
+              call patch%update(simulationFlags, solverOptions, grid, state)
+              assert(allocated(patch%targetViscousFluxes))
+              assert(allocated(patch%viscousFluxes))
+              patch%targetViscousFluxes = patch%viscousFluxes
+           end select
 
-  !          case (SAT_FAR_FIELD)
-  !             call collectAtPatch(patches(i), targetViscousFluxes,                           &
-  !                  patches(i)%targetViscousFluxes)
+        end do
+     end if
 
-  !          end select
+     SAFE_DEALLOCATE(targetViscousFluxes)
 
-  !       end if
+  end if !... simulationFlags%viscosityOn
 
-  !       select case (patches(i)%patchType)
-
-  !       case (SAT_FAR_FIELD, SAT_SLIP_WALL, SAT_ISOTHERMAL_WALL,                             &
-  !             SAT_ADIABATIC_WALL, SAT_BLOCK_INTERFACE)
-
-  !          call collectAtPatch(patches(i), grid%metrics, patches(i)%metrics)
-  !          patches(i)%inviscidPenaltyAmount = patches(i)%inviscidPenaltyAmount /             &
-  !               grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1)
-
-  !          if (simulationFlags%viscosityOn) then
-  !             patches(i)%viscousPenaltyAmount = patches(i)%viscousPenaltyAmount /            &
-  !                  grid%firstDerivative(abs(patches(i)%normalDirection))%normBoundary(1) *   &
-  !                  solverOptions%reynoldsNumberInverse
-  !          end if
-
-  !       case (SOLENOIDAL_EXCITATION)
-  !          call updateSolenoidalExcitationStrength(patches(i), grid%coordinates, grid%iblank)
-
-  !       end select
-
-  !    end do !... i = 1, size(patches)
-  ! end if
-
-  ! SAFE_DEALLOCATE(targetViscousFluxes)
-  ! SAFE_DEALLOCATE(targetTemperature)
-
-  ! call endTiming("updatePatches")
+  call endTiming("updatePatches")
 
 end subroutine updatePatchFactories

@@ -39,7 +39,7 @@ subroutine addAcousticSource(this, time, coordinates, iblank, rightHandSide)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_AcousticSource) :: this
+  class(t_AcousticSource) :: this
   real(SCALAR_KIND), intent(in) :: time
   SCALAR_TYPE, intent(in) :: coordinates(:,:)
   integer, intent(in) :: iblank(:)

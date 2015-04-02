@@ -38,11 +38,11 @@ subroutine computeRhsForward(time, simulationFlags,                             
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  allocate(fluxes1(grid%nGridPoints, state%nUnknowns, nDimensions))
-  allocate(fluxes2(grid%nGridPoints, state%nUnknowns, nDimensions))
+  allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+  allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
 
   ! Compute Cartesian form of inviscid fluxes.
-  call computeCartesianInvsicidFluxes(nDimensions, state%conservedVariables,                  &
+  call computeCartesianInvsicidFluxes(nDimensions, state%conservedVariables,                 &
        state%velocity, state%pressure(:,1), fluxes1)
 
   ! Compute Cartesian form of viscous fluxes if viscous terms are included and computed using
@@ -50,7 +50,7 @@ subroutine computeRhsForward(time, simulationFlags,                             
 
   if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
 
-     call computeCartesianViscousFluxes(nDimensions, state%velocity,                          &
+     call computeCartesianViscousFluxes(nDimensions, state%velocity,                         & 
           state%stressTensor, state%heatFlux, fluxes2)
 
      if (allocated(patchFactories)) then
@@ -112,7 +112,7 @@ subroutine computeRhsForward(time, simulationFlags,                             
 
 end subroutine computeRhsForward
 
-subroutine computeRhsAdjoint(time, simulationFlags, &
+subroutine computeRhsAdjoint(time, simulationFlags,                                          &
      solverOptions, grid, state, patchFactories)
 
   ! <<< Derived types >>>
@@ -150,7 +150,7 @@ subroutine computeRhsAdjoint(time, simulationFlags, &
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  allocate(temp1(grid%nGridPoints, state%nUnknowns, nDimensions))
+  allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
 
   ! Add dissipation if required.
   if (simulationFlags%dissipationOn) then
@@ -168,13 +168,13 @@ subroutine computeRhsAdjoint(time, simulationFlags, &
      call grid%adjointFirstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
   end do
 
-  allocate(localFluxJacobian1(state%nUnknowns, state%nUnknowns))
-  allocate(localConservedVariables(state%nUnknowns))
+  allocate(localFluxJacobian1(solverOptions%nUnknowns, solverOptions%nUnknowns))
+  allocate(localConservedVariables(solverOptions%nUnknowns))
   allocate(localVelocity(nDimensions))
   allocate(localMetricsAlongDirection1(nDimensions))
 
   if (simulationFlags%viscosityOn) then
-     allocate(localFluxJacobian2(state%nUnknowns, state%nUnknowns))
+     allocate(localFluxJacobian2(solverOptions%nUnknowns, solverOptions%nUnknowns))
      allocate(localStressTensor(nDimensions ** 2))
      allocate(localHeatFlux(nDimensions))
   end if
@@ -250,11 +250,11 @@ subroutine computeRhsAdjoint(time, simulationFlags, &
      SAFE_DEALLOCATE(localStressTensor)
      SAFE_DEALLOCATE(localFluxJacobian2)
 
-     allocate(temp2(grid%nGridPoints, state%nUnknowns - 1))
+     allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns - 1))
 
      allocate(localMetricsAlongDirection2(nDimensions))
-     allocate(localFluxJacobian2(state%nUnknowns - 1, state%nUnknowns - 1))
-     allocate(localAdjointDiffusion(state%nUnknowns - 1, nDimensions))
+     allocate(localFluxJacobian2(solverOptions%nUnknowns - 1, solverOptions%nUnknowns - 1))
+     allocate(localAdjointDiffusion(solverOptions%nUnknowns - 1, nDimensions))
 
      do i = 1, grid%nGridPoints
 
@@ -290,23 +290,23 @@ subroutine computeRhsAdjoint(time, simulationFlags, &
               end select !... nDimensions
 
               localAdjointDiffusion(:,j) = localAdjointDiffusion(:,j) +                      &
-                   matmul(transpose(localFluxJacobian2), temp1(i,2:state%nUnknowns,k))
+                   matmul(transpose(localFluxJacobian2), temp1(i,2:solverOptions%nUnknowns,k))
 
            end do !... k = 1, nDimensions
 
         end do !... j = 1, nDimensions
 
         do j = 1, nDimensions
-           temp1(i,2:state%nUnknowns,j) = localAdjointDiffusion(:,j)
+           temp1(i,2:solverOptions%nUnknowns,j) = localAdjointDiffusion(:,j)
         end do
 
      end do !... i = 1, grid%nGridPoints
 
      do i = 1, nDimensions
-        call grid%adjointFirstDerivative(i)%apply(temp1(:,2:state%nUnknowns,i),              &
+        call grid%adjointFirstDerivative(i)%apply(temp1(:,2:solverOptions%nUnknowns,i),      &
              grid%localSize)
      end do
-     temp2 = sum(temp1(:,2:state%nUnknowns,:), dim = 3)
+     temp2 = sum(temp1(:,2:solverOptions%nUnknowns,:), dim = 3)
 
      temp2(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                           &
           state%specificVolume(:,1) * temp2(:,nDimensions+1)
@@ -315,8 +315,8 @@ subroutine computeRhsAdjoint(time, simulationFlags, &
              state%velocity(:,i) * temp2(:,nDimensions+1)
      end do
 
-     state%rightHandSide(:,2:state%nUnknowns) =                                              &
-          state%rightHandSide(:,2:state%nUnknowns) - temp2
+     state%rightHandSide(:,2:solverOptions%nUnknowns) =                                      &
+          state%rightHandSide(:,2:solverOptions%nUnknowns) - temp2
      state%rightHandSide(:,1) = state%rightHandSide(:,1) +                                   &
           state%specificVolume(:,1) * state%conservedVariables(:,nDimensions+2) *            &
           temp2(:,nDimensions+1) + sum(state%velocity * temp2(:,1:nDimensions), dim = 2)

@@ -74,6 +74,8 @@ contains
     real(wp) :: h
     real(wp), allocatable :: unitInterval(:)
 
+    assert_key(this%nDimensions, (1, 2, 3))
+
     do l = 1, this%nDimensions
 
        SAFE_DEALLOCATE(unitInterval)
@@ -235,6 +237,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   isPeriodic = (this%periodicityType /= NONE)
   call MPI_Cart_create(comm_, size(globalSize), processDistribution_,                        &
        isPeriodic(1:size(globalSize)), .true., this%comm, ierror)
+  call MPI_Cartdim_get(this%comm, this%nDimensions, ierror)
 
   ! Find process coordinates in Cartesian topology.
   allocate(processCoordinates(size(globalSize)), source = 0)
@@ -541,9 +544,9 @@ subroutine computeCoordinateDerivatives(this, direction, coordinateDerivatives)
   SCALAR_TYPE, allocatable :: xWithGhostPoints(:,:,:,:)
 
   ! Get information from the grid communicator.
+  nDimensions = this%nDimensions
   call MPI_Cart_get(this%comm, nDimensions, processDistribution,                             &
        isPeriodic, processCoordinates, ierror)
-  assert(nDimensions == this%nDimensions)
 
   ! Straightforward if periodicity type is not `PLANE`.
   if (this%periodicityType(direction) /= PLANE) then

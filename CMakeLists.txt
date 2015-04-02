@@ -51,7 +51,7 @@ execute_process(COMMAND basename ${CMAKE_Fortran_COMPILER_PATH} OUTPUT_VARIABLE 
 
 if(CMAKE_Fortran_COMPILER_NAME STREQUAL "gfortran")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-form -fmodule-private -fimplicit-none -cpp -pedantic-errors -std=f2008")
-  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -fbacktrace -Wall -Wextra -Waliasing -ffree-line-length-none -fall-intrinsics -fcheck=all -g")
+  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -fbacktrace -Wall -Wextra -Waliasing -Wno-unused-dummy-argument -Wno-unused-parameter -ffree-line-length-none -fall-intrinsics -fcheck=all -g")
   set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftree-vectorize -ffast-math -funroll-loops")
 elseif(CMAKE_Fortran_COMPILER_NAME STREQUAL "ifort")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -FR -u -fpp")
@@ -130,6 +130,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/JamesonRK3IntegratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SpongePatch.f90
   ${PROJECT_SOURCE_DIR}/src/SpongePatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/FarFieldPatch.f90
+  ${PROJECT_SOURCE_DIR}/src/FarFieldPatchImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

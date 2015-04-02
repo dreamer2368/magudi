@@ -51,7 +51,6 @@ module State_mod
 
      type(t_AcousticSource), allocatable :: acousticSources(:)
 
-     integer :: nUnknowns = 0
      real(wp) :: adjointForcingFactor = 1.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 

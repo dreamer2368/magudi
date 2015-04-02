@@ -282,11 +282,11 @@ contains
              exit
           end if
 
-          call patchFactory%connect(dummyPatch, this%patchData(i)%name)
+          call patchFactory%connect(dummyPatch, this%patchData(i)%patchType, .true.)
           if (.not. associated(dummyPatch)) then
              istat = -1
              write(message, "(2A,I0.0,3A)") trim(filename), ":", lineNo,                     &
-                  ": Invalid type for patch '", this%patchData(i)%name, "'!"
+                  ": Invalid type for patch '", trim(this%patchData(i)%name), "'!"
              exit
           end if
           call patchFactory%cleanup()
@@ -356,8 +356,8 @@ contains
     call writeAndFlush(this%comm, output_unit, message)
 
     do i = 1, size(this%patchData)
-       call validatePatchDescriptor(this%patchData(i), this%globalGridSizes,                 &
-            this%simulationFlags, errorCode, message)
+       call this%patchData(i)%validate(this%globalGridSizes,                                 &
+            this%simulationFlags, this%solverOptions, errorCode, message)
        if (errorCode == 1) then
           call issueWarning(this%comm, message)
        else if (errorCode == 2) then
@@ -554,7 +554,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   call this%simulationFlags%initialize()
 
   ! Initialize solver options.
-  call this%solverOptions%initialize(this%simulationFlags, this%comm)
+  call this%solverOptions%initialize(size(this%globalGridSizes, 1),                          &
+       this%simulationFlags, this%comm)
 
   ! Distribute the grids between available MPI processes.
   if (this%simulationFlags%manualDomainDecomp .and.                                          &
@@ -582,6 +583,12 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
      end do
      call MPI_Barrier(this%comm, ierror)
   end do
+
+  ! Setup spatial discretization.
+  do i = 1, size(this%grids)
+     call this%grids(i)%setupSpatialDiscretization()
+  end do
+  call MPI_Barrier(this%comm, ierror)
 
   ! Setup states:
 
@@ -620,7 +627,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
                     if (patchIndices(j) /= 0 .or.                                            &
                          this%patchCommunicators(i) == MPI_COMM_NULL) cycle
                     call this%patchFactories(j)%connect(patch, trim(p%patchType))
-                    call setupPatch(patch, i, this%patchCommunicators(i), p, this%grids(k),  &
+                    assert(associated(patch))
+                    call patch%setup(i, this%patchCommunicators(i), p, this%grids(k),        &
                          this%simulationFlags, this%solverOptions)
                     patchIndices(j) = i
                     exit
@@ -683,8 +691,8 @@ subroutine cleanupRegion(this)
   if (allocated(this%patchFactories)) then
      do i = 1, size(this%patchFactories)
         call this%patchFactories(i)%connect(patch)
-        call cleanupPatch(patch)
-        deallocate(patch)
+        if (associated(patch)) call patch%cleanup()
+        call this%patchFactories(i)%cleanup()
      end do
   end if
   SAFE_DEALLOCATE(this%patchFactories)
@@ -1031,14 +1039,14 @@ subroutine computeRhs(this, mode, time)
 
   end do
 
-  ! Source terms and penalties.
+  ! Patch penalties.
   if (allocated(this%patchFactories)) then
      do i = 1, size(this%states)
         do j = 1, size(this%patchFactories)
            call this%patchFactories(j)%connect(patch)
            if (.not. associated(patch)) cycle
            if (patch%gridIndex /= this%grids(i)%index) cycle
-           call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,           &
+           call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,              &
                 this%grids(i), this%states(i))
         end do
      end do
@@ -1046,7 +1054,7 @@ subroutine computeRhs(this, mode, time)
 
   ! Multiply by Jacobian and zero-out at hole points.
   do i = 1, size(this%states)
-     do j = 1, this%states(i)%nUnknowns
+     do j = 1, this%solverOptions%nUnknowns
         where (this%grids(i)%iblank /= 0)
            this%states(i)%rightHandSide(:,j) = this%states(i)%rightHandSide(:,j) *           &
                 this%grids(i)%jacobian(:,1)
@@ -1054,6 +1062,11 @@ subroutine computeRhs(this, mode, time)
            this%states(i)%rightHandSide(:,j) = 0.0_wp
         end where
      end do
+  end do
+
+  ! Source terms.
+  do i = 1, size(this%states)
+     call this%states(i)%addSources(mode, time, this%grids(i))
   end do
 
   call endTiming("computeRhs")

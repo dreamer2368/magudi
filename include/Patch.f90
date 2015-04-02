@@ -9,7 +9,7 @@ module Patch_mod
 
   type, abstract, public :: t_Patch
 
-     integer :: index, normalDirection, gridIndex, extent(6), patchSize(3),                  &
+     integer :: index, normalDirection, gridIndex, extent(6), nDimensions, patchSize(3),     &
           offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints, comm = MPI_COMM_NULL
      logical :: isCurvilinear
 
@@ -22,7 +22,7 @@ module Patch_mod
      procedure(cleanup), pass, deferred :: cleanup
      procedure(update), pass, deferred :: update
      procedure(verifyUsage), pass, deferred :: verifyUsage
-     generic :: collectAtPatch => collectScalarAtPatch,                                      &
+     generic :: collect => collectScalarAtPatch,                                             &
           collectVectorAtPatch, collectTensorAtPatch
      procedure(updateRhs), pass, deferred :: updateRhs
 
@@ -90,11 +90,18 @@ module Patch_mod
 
   abstract interface
 
-     function verifyUsage(this, success, message) result(isPatchUsed)
+     function verifyUsage(this, patchDescriptor, gridSize, normalDirection, extent,          &
+          simulationFlags, success, message) result(isPatchUsed)
+
+       use PatchDescriptor_mod, only : t_PatchDescriptor
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Patch
        
        class(t_Patch) :: this
+       type(t_PatchDescriptor), intent(in) :: patchDescriptor
+       integer, intent(in) :: gridSize(:), normalDirection, extent(6)
+       type(t_SimulationFlags), intent(in) :: simulationFlags
        logical, intent(out) :: success
        character(len = STRING_LENGTH), intent(out) :: message
 

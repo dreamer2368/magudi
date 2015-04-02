@@ -1,11 +1,12 @@
 #include "config.h"
 
 subroutine validatePatchDescriptor(this, globalGridSizes,                                    &
-     simulationFlags, errorCode, message)
+     simulationFlags, solverOptions, errorCode, message)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Patch_factory, only : t_PatchFactory
+  use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -16,6 +17,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   class(t_PatchDescriptor) :: this
   integer, intent(in) :: globalGridSizes(:,:)
   type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
   integer, intent(out) :: errorCode
   character(len = STRING_LENGTH), intent(out) :: message
 
@@ -24,6 +26,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   class(t_Patch), pointer :: dummyPatch => null()
   integer :: i, extent(6)
   logical :: isExtentValid, flag, success
+  character(len = STRING_LENGTH) :: str
 
   assert(len_trim(this%patchType) > 0)
 
@@ -80,9 +83,12 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   this%kMax = extent(6)
 
   call patchFactory%connect(dummyPatch, trim(this%patchType))
-  flag = dummyPatch%verifyUsage(success, message)
+  flag = dummyPatch%verifyUsage(this, globalGridSizes(:,this%gridIndex),                     &
+       this%normalDirection, extent, simulationFlags, success, str)
 
   if (.not. success) then
+     write(message, '(3A,I0.0,2A)') "Patch '", trim(this%name), "' on grid ",                &
+          this%gridIndex, " reported: ", trim(str)
      errorCode = 2
      return
   end if

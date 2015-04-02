@@ -28,9 +28,11 @@ subroutine setupRK4Integrator(this, region)
   allocate(this%temp_(size(region%states)))
   do i = 1, size(this%temp_)
      assert(region%grids(i)%nGridPoints > 0)
-     assert(region%states(i)%nUnknowns > 0)
-     allocate(this%temp_(i)%buffer1(region%grids(i)%nGridPoints, region%states(i)%nUnknowns))
-     allocate(this%temp_(i)%buffer2(region%grids(i)%nGridPoints, region%states(i)%nUnknowns))
+     assert(region%solverOptions%nUnknowns > 0)
+     allocate(this%temp_(i)%buffer1(region%grids(i)%nGridPoints,                             &
+          region%solverOptions%nUnknowns))
+     allocate(this%temp_(i)%buffer2(region%grids(i)%nGridPoints,                             &
+          region%solverOptions%nUnknowns))
   end do
 
 end subroutine setupRK4Integrator

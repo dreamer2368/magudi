@@ -50,6 +50,24 @@ module Patch_factory
 
   interface
 
+     function queryPatchTypeExists(patchFactories, patchType,                                &
+          gridIndex, normalDirection) result(patchTypeExists)
+
+       import :: t_PatchFactory
+
+       type(t_PatchFactory), allocatable :: patchFactories(:)  
+       character(len = *), intent(in) :: patchType
+
+       integer, intent(in), optional :: gridIndex, normalDirection
+
+       logical :: patchTypeExists
+
+     end function queryPatchTypeExists
+
+  end interface
+
+  interface
+
      subroutine computeSpongeStrengths(patchFactories, grid)
 
        use Grid_mod, only : t_Grid
@@ -105,6 +123,7 @@ module Patch_factory
 
   end interface
 
-  public :: computeSpongeStrengths, computeQuadratureOnPatches, updatePatchFactories
+  public :: computeSpongeStrengths, computeQuadratureOnPatches,                              &
+       updatePatchFactories, queryPatchTypeExists
 
 end module Patch_factory

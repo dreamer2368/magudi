@@ -30,7 +30,7 @@ contains
 
 end module SolverOptionsImpl
 
-subroutine initializeSolverOptions(this, simulationFlags, comm)
+subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   ! <<< External modules >>>
   use MPI
@@ -50,6 +50,7 @@ subroutine initializeSolverOptions(this, simulationFlags, comm)
 
   ! <<< Arguments >>>
   class(t_SolverOptions), intent(out) :: this
+  integer, intent(in) :: nDimensions
   type(t_SimulationFlags), intent(in) :: simulationFlags
   integer, intent(in), optional :: comm
 
@@ -58,10 +59,14 @@ subroutine initializeSolverOptions(this, simulationFlags, comm)
   integer :: comm_
   character(len = STRING_LENGTH) :: str, message
 
+  assert_key(nDimensions, (1, 2, 3))
+
   comm_ = MPI_COMM_WORLD
   if (present(comm)) comm_ = comm
 
   this%ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
+
+  this%nUnknowns = nDimensions + 2 !... extendable to reactive flows, for later.
 
   if (simulationFlags%viscosityOn) then
      call getRequiredOption("Reynolds_number", this%reynoldsNumberInverse)

@@ -15,14 +15,14 @@ program main
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
-  use Patch_factory, only : computeSpongeStrengths
+  use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, timestep, nTimesteps, saveInterval, ierror
+  integer :: i, timestep, nTimesteps, saveInterval, procRank, numProcs, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
@@ -34,6 +34,8 @@ program main
 
   ! Initialize MPI.
   call MPI_Init(ierror)
+  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
+  call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
 
   call initializeErrorHandler()
 
@@ -70,12 +72,6 @@ program main
   ! Read the grid file.
   call getRequiredOption("grid_file", filename)
   call region%loadData(QOI_GRID, filename)
-
-  ! Setup spatial discretization.
-  do i = 1, size(region%grids)
-     call region%grids(i)%setupSpatialDiscretization()
-  end do
-  call MPI_Barrier(region%comm, ierror)
 
   ! Update the grids by computing the Jacobian, metrics, and norm.
   do i = 1, size(region%grids)

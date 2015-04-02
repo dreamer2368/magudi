@@ -27,19 +27,17 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
-  integer :: nDimensions
   character(len = STRING_LENGTH) :: key
 
   assert(index > 0)
 
-  nDimensions = grid%nDimensions
-  assert_key(nDimensions, (1, 2, 3))
+  assert_key(grid%nDimensions, (1, 2, 3))
 
   assert(all(grid%offset >= 0))
   assert(all(grid%localSize > 0))
 
   assert(patchDescriptor%gridIndex == grid%index)
-  assert(abs(patchDescriptor%normalDirection) <= nDimensions)
+  assert(abs(patchDescriptor%normalDirection) <= grid%nDimensions)
   assert(patchDescriptor%iMin > 0)
   assert(patchDescriptor%jMin > 0)
   assert(patchDescriptor%kMin > 0)
@@ -53,6 +51,7 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   this%index = index
   this%normalDirection = patchDescriptor%normalDirection
   this%gridIndex = grid%index
+  this%nDimensions = grid%nDimensions
 
   this%extent = (/ patchDescriptor%iMin, patchDescriptor%iMax,                               &
        patchDescriptor%jMin, patchDescriptor%jMax,                                           &

@@ -46,12 +46,6 @@ program shear_layer
   call region%setup(MPI_COMM_WORLD, globalGridSizes)
   call region%loadData(QOI_GRID, filename)
 
-  ! Setup spatial discretization.
-  do i = 1, size(region%grids)
-     call region%grids(i)%setupSpatialDiscretization()
-  end do
-  call MPI_Barrier(region%comm, ierror)
-
   ! Compute normalized metrics, norm matrix and Jacobian.
   do i = 1, size(region%grids)
      call region%grids(i)%update()

@@ -23,15 +23,15 @@ contains
     type(t_SolverOptions), intent(in) :: solverOptions
     integer, intent(in) :: nGridPoints, nDimensions
 
-    allocate(this%conservedVariables(nGridPoints, this%nUnknowns))
-    allocate(this%rightHandSide(nGridPoints, this%nUnknowns))
+    allocate(this%conservedVariables(nGridPoints, solverOptions%nUnknowns))
+    allocate(this%rightHandSide(nGridPoints, solverOptions%nUnknowns))
     allocate(this%specificVolume(nGridPoints, 1))
     allocate(this%velocity(nGridPoints, nDimensions))
     allocate(this%pressure(nGridPoints, 1))
     allocate(this%temperature(nGridPoints, 1))
 
     if (simulationFlags%useTargetState) then
-       allocate(this%targetState(nGridPoints, this%nUnknowns))
+       allocate(this%targetState(nGridPoints, solverOptions%nUnknowns))
     end if
 
     if (simulationFlags%viscosityOn) then
@@ -50,7 +50,7 @@ contains
     end if
 
     if (.not. simulationFlags%predictionOnly) then
-       allocate(this%adjointVariables(nGridPoints, this%nUnknowns))
+       allocate(this%adjointVariables(nGridPoints, solverOptions%nUnknowns))
        select case (solverOptions%costFunctionalType)
        case (SOUND)
           allocate(this%meanPressure(nGridPoints, 1))
@@ -107,11 +107,10 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   if (present(solverOptions)) then
      solverOptions_ = solverOptions
   else
-     call solverOptions_%initialize(simulationFlags_, grid%comm)
+     call solverOptions_%initialize(grid%nDimensions, simulationFlags_, grid%comm)
   end if
 
   assert(grid%nGridPoints > 0)
-  this%nUnknowns = grid%nDimensions + 2
   call allocateData(this, simulationFlags_, solverOptions_,                                  &
        grid%nGridPoints, grid%nDimensions)
 
@@ -170,7 +169,6 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%heatFlux)
   SAFE_DEALLOCATE(this%meanPressure)
 
-  this%nUnknowns = 0
   this%adjointForcingFactor = 1.0_wp
 
 end subroutine cleanupState
