@@ -15,8 +15,9 @@ program main
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
+  use Patch_factory, only : computeSpongeStrengths
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
-  use TimeIntegrator_factory, only : createTimeIntegrator
+  use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   implicit none
 
@@ -26,6 +27,7 @@ program main
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
+  type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   real(wp) :: time
   SCALAR_TYPE :: costFunctional
@@ -78,7 +80,7 @@ program main
   ! Update the grids by computing the Jacobian, metrics, and norm.
   do i = 1, size(region%grids)
      call region%grids(i)%update()
-     call region%grids(i)%computeSpongeStrengths(region%patches)
+     call computeSpongeStrengths(region%patchFactories, region%grids(i))
   end do
   call MPI_Barrier(region%comm, ierror)
 
@@ -93,7 +95,8 @@ program main
   call region%saveData(QOI_METRICS, filename)
 
   ! Setup the RK4 integrator.
-  call createTimeIntegrator(timeIntegrator, getOption("time_integration_scheme", "RK4"))
+  call timeIntegratorFactory%connect(timeIntegrator,                                         &
+       getOption("time_integration_scheme", "RK4"))
   call timeIntegrator%setup(region)
 
   ! Initialize the solver.
@@ -112,13 +115,13 @@ program main
 
   ! Update patches.
   do i = 1, size(region%grids)
-     call region%states(i)%updatePatches(region%grids(i), region%patches,                    &
-          region%simulationFlags, region%solverOptions)
+     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
+          region%solverOptions, region%grids(i), region%states(i))
   end do
   call MPI_Barrier(region%comm, ierror)
 
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
-     call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                   &    
+     call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                   &
           saveInterval, outputPrefix)
   else
 
@@ -140,7 +143,8 @@ program main
 
   end if
 
-  call timeIntegrator%cleanup()
+  call timeIntegratorFactory%cleanup()
+
   call region%cleanup()
 
   call endTiming("total")

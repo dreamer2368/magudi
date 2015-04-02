@@ -176,12 +176,13 @@ contains
     use, intrinsic :: iso_fortran_env
 
     ! <<< Derived types >>>
+    use Patch_mod, only : t_Patch
     use Region_mod, only : t_Region
+    use Patch_factory, only : t_PatchFactory
 
     ! <<< Internal modules >>>
     use InputHelper, only : stripComments
     use ErrorHandler, only : gracefulExit, writeAndFlush
-    use PatchDescriptor_mod, only : parsePatchType
 
     ! <<< Arguments >>>
     class(t_Region) :: this
@@ -189,8 +190,10 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, fileUnit, proc, nPatches, lineNo, istat, ierror
-    character(len = STRING_LENGTH) :: line, str, message
+    character(len = STRING_LENGTH) :: line, message
     character(len = 1), parameter :: commentMarker = '#'
+    type(t_PatchFactory) :: patchFactory
+    class(t_Patch), pointer :: dummyPatch => null()
     integer, allocatable :: tempBuffer(:,:)
 
     call MPI_Comm_rank(this%comm, proc, ierror)
@@ -241,7 +244,7 @@ contains
     end if
 
     ! Allocate tempBuffer for use in MPI communication.
-    allocate(tempBuffer(nPatches, 9))
+    allocate(tempBuffer(nPatches, 8))
 
     ! Again, only the root process reads the file.
     if (proc == 0) then
@@ -260,7 +263,7 @@ contains
           i = i + 1
 
           ! Parse patch data.
-          read(line, *, iostat = istat) this%patchData(i)%name, str,                         &
+          read(line, *, iostat = istat) this%patchData(i)%name, this%patchData(i)%patchType, &                        
                this%patchData(i)%gridIndex, this%patchData(i)%normalDirection,               &
                this%patchData(i)%iMin, this%patchData(i)%iMax,                               &
                this%patchData(i)%jMin, this%patchData(i)%jMax,                               &
@@ -279,23 +282,25 @@ contains
              exit
           end if
 
-          ! Pack patch data into tempBuffer for broadcasting.
-          tempBuffer(i,1) = this%patchData(i)%gridIndex
-          tempBuffer(i,2) = this%patchData(i)%normalDirection
-          call parsePatchType(str, tempBuffer(i,3)) !... validate.
-          if (tempBuffer(i,3) == -1) then
+          call patchFactory%connect(dummyPatch, this%patchData(i)%name)
+          if (.not. associated(dummyPatch)) then
              istat = -1
              write(message, "(2A,I0.0,3A)") trim(filename), ":", lineNo,                     &
                   ": Invalid type for patch '", this%patchData(i)%name, "'!"
              exit
           end if
-          tempBuffer(i,4:9) = (/ this%patchData(i)%iMin, this%patchData(i)%iMax,             &
+          call patchFactory%cleanup()
+
+          ! Pack patch data into tempBuffer for broadcasting.
+          tempBuffer(i,:) = (/ this%patchData(i)%gridIndex,                                  &
+               this%patchData(i)%normalDirection,                                            &
+               this%patchData(i)%iMin, this%patchData(i)%iMax,                               &
                this%patchData(i)%jMin, this%patchData(i)%jMax,                               &
                this%patchData(i)%kMin, this%patchData(i)%kMax /)
 
        end do
        close(fileUnit)
-    end if
+    end if !... proc == 0
 
     ! Check if an error occurred.
     call MPI_Bcast(istat, 1, MPI_INTEGER, 0,                                                 &
@@ -311,14 +316,15 @@ contains
     do i = 1, nPatches
        this%patchData(i)%gridIndex = tempBuffer(i,1)
        this%patchData(i)%normalDirection = tempBuffer(i,2)
-       this%patchData(i)%patchType = tempBuffer(i,3)
-       this%patchData(i)%iMin = tempBuffer(i,4)
-       this%patchData(i)%iMax = tempBuffer(i,5)
-       this%patchData(i)%jMin = tempBuffer(i,6)
-       this%patchData(i)%jMax = tempBuffer(i,7)
-       this%patchData(i)%kMin = tempBuffer(i,8)
-       this%patchData(i)%kMax = tempBuffer(i,9)
+       this%patchData(i)%iMin = tempBuffer(i,3)
+       this%patchData(i)%iMax = tempBuffer(i,4)
+       this%patchData(i)%jMin = tempBuffer(i,5)
+       this%patchData(i)%jMax = tempBuffer(i,6)
+       this%patchData(i)%kMin = tempBuffer(i,7)
+       this%patchData(i)%kMax = tempBuffer(i,8)
        call MPI_Bcast(this%patchData(i)%name, len(this%patchData(i)%name),                   &
+            MPI_CHARACTER, 0, this%comm, ierror)
+       call MPI_Bcast(this%patchData(i)%patchType, len(this%patchData(i)%patchType),         &          
             MPI_CHARACTER, 0, this%comm, ierror)
     end do
 
@@ -336,7 +342,6 @@ contains
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : issueWarning, gracefulExit, writeAndFlush
-    use PatchDescriptor_mod, only : validatePatchDescriptor, validatePatchesConnectivity
 
     ! <<< Arguments >>>
     class(t_Region) :: this
@@ -360,9 +365,6 @@ contains
        end if
     end do
 
-    call validatePatchesConnectivity(this%patchData, errorCode, message)
-    if (errorCode == 2) call gracefulExit(this%comm, message)
-
   end subroutine validatePatches
 
   subroutine distributePatches(this)
@@ -372,7 +374,7 @@ contains
 
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
-    use PatchDescriptor_type, only : t_PatchDescriptor
+    use PatchDescriptor_mod, only : t_PatchDescriptor
 
     ! <<< Arguments >>>
     class(t_Region) :: this
@@ -397,7 +399,7 @@ contains
        do j = 1, size(this%patchData)
 
           p = this%patchData(j)
-          color = p%patchType
+          color = 1
           if (p%gridIndex /= gridIndex .or.                                                  &
                p%iMax < gridOffset(1) + 1 .or.                                               &
                p%iMin > gridOffset(1) + gridLocalSize(1) .or.                                &
@@ -409,10 +411,9 @@ contains
           end if
           call MPI_Comm_split(this%grids(i)%comm, color, proc, comm, ierror)
           if (comm /= MPI_COMM_NULL) this%patchCommunicators(j) = comm
+          call MPI_Barrier(this%grids(i)%comm, ierror)
 
        end do
-
-       call MPI_Barrier(this%grids(i)%comm, ierror)
 
     end do
 
@@ -507,8 +508,9 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   use MPI
 
   ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
-  use PatchDescriptor_type, only : t_PatchDescriptor
+  use PatchDescriptor_mod, only : t_PatchDescriptor
 
   ! <<< Private members >>>
   use RegionImpl
@@ -517,7 +519,6 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Internal modules >>>
-  use Patch_mod, only : setupPatch, updatePatchConnectivity
   use InputHelper, only : getRequiredOption
 
   implicit none
@@ -531,6 +532,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   integer :: i, j, k, nPatches, color, procRank, nProcs, ierror
   character(len = STRING_LENGTH) :: decompositionMapFilename
   type(t_PatchDescriptor) :: p
+  integer, allocatable :: patchIndices(:)
+  class(t_Patch), pointer :: patch => null()
 
   call startTiming("setupRegion")
 
@@ -601,8 +604,9 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
      if (allocated(this%patchCommunicators))                                                 &
           nPatches = count(this%patchCommunicators /= MPI_COMM_NULL)
      if (nPatches > 0) then
-       allocate(this%patches(nPatches))
-        this%patches%index = 0
+        allocate(this%patchFactories(nPatches))
+        allocate(patchIndices(nPatches))
+        patchIndices = 0
      end if
 
      if (allocated(this%patchData)) then
@@ -611,27 +615,20 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
            do i = 1, size(this%patchData)
               p = this%patchData(i)
               if (p%gridIndex /= this%grids(k)%index) cycle
-              if (allocated(this%patches)) then
-                 do j = 1, size(this%patches)
-                    if (this%patches(j)%index /= 0) cycle
-                    if (this%patchCommunicators(i) /= MPI_COMM_NULL) then
-                       call setupPatch(this%patches(j), i, size(globalGridSizes, 1), p,      &
-                            this%patchCommunicators(i), this%grids(k)%offset,                &
-                            this%grids(k)%localSize, this%states(k)%nUnknowns,               &
-                            this%simulationFlags)
-                       exit
-                    end if
+              if (allocated(this%patchFactories)) then
+                 do j = 1, size(this%patchFactories)
+                    if (patchIndices(j) /= 0 .or.                                            &
+                         this%patchCommunicators(i) == MPI_COMM_NULL) cycle
+                    call this%patchFactories(j)%connect(patch, trim(p%patchType))
+                    call setupPatch(patch, i, this%patchCommunicators(i), p, this%grids(k),  &
+                         this%simulationFlags, this%solverOptions)
+                    patchIndices(j) = i
+                    exit
                  end do
               end if
               call MPI_Barrier(this%grids(k)%comm, ierror)
            end do
         end do
-
-        if (allocated(this%patches)) then
-           do i = 1, size(this%patches)
-              call updatePatchConnectivity(this%patches(i), this%patchData)
-           end do
-        end if
 
      end if
 
@@ -657,10 +654,8 @@ subroutine cleanupRegion(this)
   use MPI
 
   ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
-
-  ! <<< Internal modules >>>
-  use Patch_mod, only : cleanupPatch
 
   implicit none
 
@@ -669,6 +664,7 @@ subroutine cleanupRegion(this)
 
   ! <<< Local variables >>>
   integer :: i, ierror
+  class(t_Patch), pointer :: patch => null()
 
   if (allocated(this%grids)) then
      do i = 1, size(this%grids)
@@ -684,12 +680,14 @@ subroutine cleanupRegion(this)
   end if
   SAFE_DEALLOCATE(this%states)
 
-  if (allocated(this%patches)) then
-     do i = 1, size(this%patches)
-        call cleanupPatch(this%patches(i))
+  if (allocated(this%patchFactories)) then
+     do i = 1, size(this%patchFactories)
+        call this%patchFactories(i)%connect(patch)
+        call cleanupPatch(patch)
+        deallocate(patch)
      end do
   end if
-  SAFE_DEALLOCATE(this%patches)
+  SAFE_DEALLOCATE(this%patchFactories)
 
   SAFE_DEALLOCATE(this%patchData)
   SAFE_DEALLOCATE(this%globalGridSizes)
@@ -986,8 +984,8 @@ subroutine computeRhs(this, mode, time)
   use MPI
 
   ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
-  use PatchDescriptor_type
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT
@@ -996,6 +994,7 @@ subroutine computeRhs(this, mode, time)
   use RegionImpl, only : checkSolutionLimits
 
   ! <<< Internal modules >>>
+  use RhsHelper, only : computeRhsForward, computeRhsAdjoint
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
@@ -1008,6 +1007,7 @@ subroutine computeRhs(this, mode, time)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j
+  class(t_Patch), pointer :: patch => null()
 
   call startTiming("computeRhs")
 
@@ -1022,58 +1022,38 @@ subroutine computeRhs(this, mode, time)
      ! Semi-discrete right-hand-side operator.
      select case (mode)
      case (FORWARD)
-        call this%states(i)%computeRhsForward(this%grids(i), this%patches, time,             &
-             this%simulationFlags, this%solverOptions)
+        call computeRhsForward(time, this%simulationFlags, this%solverOptions,               &
+             this%grids(i), this%states(i), this%patchFactories)
      case (ADJOINT)
-        call this%states(i)%computeRhsAdjoint(this%grids(i), this%patches, time,             &
-             this%simulationFlags, this%solverOptions)
+        call computeRhsAdjoint(time, this%simulationFlags, this%solverOptions,               &
+             this%grids(i), this%states(i), this%patchFactories)
      end select
 
   end do
 
+  ! Source terms and penalties.
+  if (allocated(this%patchFactories)) then
+     do i = 1, size(this%states)
+        do j = 1, size(this%patchFactories)
+           call this%patchFactories(j)%connect(patch)
+           if (.not. associated(patch)) cycle
+           if (patch%gridIndex /= this%grids(i)%index) cycle
+           call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,           &
+                this%grids(i), this%states(i))
+        end do
+     end do
+  end if
+
+  ! Multiply by Jacobian and zero-out at hole points.
   do i = 1, size(this%states)
-
-     ! SAT penalties.
-     select case (mode)
-     case (FORWARD)
-        call this%states(i)%addPenaltiesForward(this%grids(i), this%patches, time,           &
-             this%simulationFlags, this%solverOptions)
-     case (ADJOINT)
-        call this%states(i)%addPenaltiesAdjoint(this%grids(i), this%patches, time,           &
-             this%simulationFlags, this%solverOptions)
-     end select
-
-     ! Multiply by Jacobian.
      do j = 1, this%states(i)%nUnknowns
         where (this%grids(i)%iblank /= 0)
            this%states(i)%rightHandSide(:,j) = this%states(i)%rightHandSide(:,j) *           &
                 this%grids(i)%jacobian(:,1)
-        end where
-     end do
-
-     ! Source terms.
-     select case (mode)
-     case (FORWARD)
-        call this%states(i)%addSourcesForward(this%grids(i), this%patches, time)
-     case (ADJOINT)
-        call this%states(i)%addSourcesAdjoint(this%grids(i), this%patches, time)
-        if (allocated(this%patches)) then
-           do j = 1, size(this%patches)
-              if (this%patches(j)%gridIndex /= this%grids(i)%index .or.                      &
-                   this%patches(j)%patchType /= CONTROL_TARGET) cycle
-              call this%states(i)%addAdjointForcing(this%grids(i),                           &
-                   this%patches(j), this%solverOptions)
-           end do
-        end if
-     end select
-
-     ! Zero-out at hole points.
-     do j = 1, this%states(i)%nUnknowns
-        where (this%grids(i)%iblank == 0)
+        elsewhere
            this%states(i)%rightHandSide(:,j) = 0.0_wp
         end where
      end do
-
   end do
 
   call endTiming("computeRhs")
@@ -1168,7 +1148,7 @@ subroutine computeResiduals(this, residuals)
 
   do i = 1, size(this%states)
 
-     call MPI_Cartdim_get(this%grids(i)%comm, nDimensions, ierror)
+     nDimensions = this%grids(i)%nDimensions
      assert_key(nDimensions, (1, 2, 3))
 
      allocate(f(size(this%states(i)%rightHandSide, 1)))

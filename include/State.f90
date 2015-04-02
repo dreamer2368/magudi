@@ -70,14 +70,7 @@ module State_mod
      procedure, pass :: update => updateState
      procedure, pass :: computeCfl => computeStateCfl
      procedure, pass :: computeTimeStepSize => computeStateTimeStepSize
-     procedure, pass :: computeRhsForward
-     procedure, pass :: computeRhsAdjoint
-     procedure, pass :: addPenaltiesForward
-     procedure, pass :: addPenaltiesAdjoint
-     procedure, pass :: addSourcesForward
-     procedure, pass :: addSourcesAdjoint
-     procedure, pass :: updatePatches
-     procedure, pass :: addAdjointForcing
+     procedure, pass :: addSources
 
   end type t_State
 
@@ -213,7 +206,7 @@ module State_mod
 
   interface
 
-     function computeStateTimeStepSize(this, grid, simulationFlags,                          &     
+     function computeStateTimeStepSize(this, grid, simulationFlags,                          &
           solverOptions) result(timeStepSize)
 
        use Grid_mod, only : t_Grid
@@ -235,165 +228,18 @@ module State_mod
 
   interface
 
-     subroutine computeRhsForward(this, grid, patches, time, simulationFlags, solverOptions)
+     subroutine addSources(this, mode, time, grid)
 
        use Grid_mod, only : t_Grid
-       use Patch_type, only : t_Patch
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_State
 
        class(t_State) :: this
-       class(t_Grid) :: grid
-       type(t_Patch), allocatable :: patches(:)
+       integer, intent(in) :: mode
        real(SCALAR_KIND), intent(in) :: time
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-
-     end subroutine computeRhsForward
-
-  end interface
-
-  interface
-
-     subroutine computeRhsAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
-
-       use Grid_mod, only : t_Grid
-       use Patch_type, only : t_Patch
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_State
-
-       class(t_State) :: this
        class(t_Grid) :: grid
-       type(t_Patch), allocatable :: patches(:)
-       real(SCALAR_KIND), intent(in) :: time
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
 
-     end subroutine computeRhsAdjoint
-
-  end interface
-
-  interface
-
-     subroutine addPenaltiesForward(this, grid, patches, time, simulationFlags, solverOptions)
-
-       use Grid_mod, only : t_Grid
-       use Patch_type, only : t_Patch
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_State
-
-       class(t_State) :: this
-       class(t_Grid) :: grid
-       type(t_Patch), allocatable :: patches(:)
-       real(SCALAR_KIND), intent(in) :: time
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-
-     end subroutine addPenaltiesForward
-
-  end interface
-
-  interface
-
-     subroutine addPenaltiesAdjoint(this, grid, patches, time, simulationFlags, solverOptions)
-
-       use Grid_mod, only : t_Grid
-       use Patch_type, only : t_Patch
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_State
-
-       class(t_State) :: this
-       class(t_Grid) :: grid
-       type(t_Patch), allocatable :: patches(:)
-       real(SCALAR_KIND), intent(in) :: time
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-
-     end subroutine addPenaltiesAdjoint
-
-  end interface
-
-  interface
-
-     subroutine addSourcesForward(this, grid, patches, time)
-
-       use Grid_mod, only : t_Grid
-       use Patch_type, only : t_Patch
-
-       import :: t_State
-
-       class(t_State) :: this
-       class(t_Grid) :: grid
-       type(t_Patch), allocatable, intent(in) :: patches(:)
-       real(SCALAR_KIND), intent(in) :: time
-
-     end subroutine addSourcesForward
-
-  end interface
-
-  interface
-
-     subroutine addSourcesAdjoint(this, grid, patches, time)
-
-       use Grid_mod, only : t_Grid
-       use Patch_type, only : t_Patch
-
-       import :: t_State
-
-       class(t_State) :: this
-       class(t_Grid) :: grid
-       type(t_Patch), allocatable, intent(in) :: patches(:)
-       real(SCALAR_KIND), intent(in) :: time
-
-     end subroutine addSourcesAdjoint
-
-  end interface
-
-  interface
-
-     subroutine updatePatches(this, grid, patches, simulationFlags, solverOptions)
-
-       use Grid_mod, only : t_Grid
-       use Patch_type, only : t_Patch
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_State
-
-       class(t_State) :: this
-       class(t_Grid) :: grid
-       type(t_Patch), allocatable :: patches(:)
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-
-     end subroutine updatePatches
-
-  end interface
-
-  interface
-
-     subroutine addAdjointForcing(this, grid, patch, solverOptions)
-
-       use Grid_mod, only : t_Grid
-       use Patch_type, only : t_Patch
-       use SolverOptions_mod, only : t_SolverOptions
-
-       import :: t_State
-
-       class(t_State) :: this
-       class(t_Grid) :: grid
-       class(t_Patch) :: patch
-       type(t_SolverOptions), intent(in) :: solverOptions
-
-     end subroutine addAdjointForcing
+     end subroutine addSources
 
   end interface
 

@@ -1,34 +1,5 @@
 #include "config.h"
 
-subroutine createTimeIntegrator(timeIntegrator, identifier)
-
-  ! <<< Derived types >>>
-  use RK4Integrator_mod, only : t_RK4Integrator
-  use TimeIntegrator_mod, only : t_TimeIntegrator
-  use JamesonRK3Integrator_mod, only : t_JamesonRK3Integrator
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_TimeIntegrator), pointer, intent(out) :: timeIntegrator
-  character(len = *), intent(in) :: identifier
-
-  assert_key(trim(identifier), ( \
-  'RK4', \
-  'JamesonRK3'))
-
-  select case (trim(identifier))
-
-  case ('RK4')
-     allocate(t_RK4Integrator :: timeIntegrator)
-
-  case ('JamesonRK3')
-     allocate(t_JamesonRK3Integrator :: timeIntegrator)
-
-  end select
-
-end subroutine createTimeIntegrator
-
 subroutine setupTimeIntegrator(this)
 
   ! <<< Derived types >>>

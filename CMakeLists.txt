@@ -86,9 +86,14 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/InputHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Solver.f90
   ${PROJECT_SOURCE_DIR}/src/SolverImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/RhsHelper.f90
+  ${PROJECT_SOURCE_DIR}/src/RhsHelperImpl.f90
 
   # Factories.
+  ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
+  ${PROJECT_SOURCE_DIR}/src/PatchFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegratorFactory.f90
+  ${PROJECT_SOURCE_DIR}/src/TimeIntegratorFactoryImpl.f90
 
   # Derived types.
   ${PROJECT_SOURCE_DIR}/include/SimulationFlags.f90
@@ -101,8 +106,6 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/GridImpl.f90
   ${PROJECT_SOURCE_DIR}/include/State.f90
   ${PROJECT_SOURCE_DIR}/src/StateImpl.f90
-  ${PROJECT_SOURCE_DIR}/include/Patch.f90
-  ${PROJECT_SOURCE_DIR}/src/PatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PatchDescriptor.f90
   ${PROJECT_SOURCE_DIR}/src/PatchDescriptorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Region.f90
@@ -115,6 +118,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
 
   # Abstract types.
+  ${PROJECT_SOURCE_DIR}/include/Patch.f90
+  ${PROJECT_SOURCE_DIR}/src/PatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegrator.f90
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorImpl.f90
 
@@ -123,6 +128,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/RK4IntegratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/JamesonRK3Integrator.f90
   ${PROJECT_SOURCE_DIR}/src/JamesonRK3IntegratorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/SpongePatch.f90
+  ${PROJECT_SOURCE_DIR}/src/SpongePatchImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

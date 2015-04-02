@@ -35,7 +35,7 @@ module Grid_mod
      real(SCALAR_KIND), allocatable :: mpiReduceBuffer(:)
 #endif
 
-     integer :: index, comm = MPI_COMM_NULL, globalSize(3), periodicityType(3),              &
+     integer :: index, comm = MPI_COMM_NULL, nDimensions, globalSize(3), periodicityType(3), &
           localSize(3), offset(3), nGridPoints = 0
      integer :: mpiDerivedTypeScalarSubarray = MPI_DATATYPE_NULL,                            &
           mpiDerivedTypeIntegerSubarray = MPI_DATATYPE_NULL
@@ -49,14 +49,13 @@ module Grid_mod
      procedure, pass :: loadData => loadGridData
      procedure, pass :: saveData => saveGridData
      procedure, pass :: setupSpatialDiscretization
+     procedure, pass :: computeCoordinateDerivatives
      procedure, pass :: update => updateGrid
      generic :: computeInnerProduct => computeScalarInnerProduct, computeVectorInnerProduct
      generic :: computeGradient => computeGradientOfScalar, computeGradientOfVector
      procedure, pass :: findMinimum
      procedure, pass :: findMaximum
      procedure, pass :: isVariableWithinRange
-     procedure, pass :: computeSpongeStrengths
-     procedure, pass :: computeQuadratureOnPatches
 
      procedure, private, pass :: computeScalarInnerProduct
      procedure, private, pass :: computeVectorInnerProduct
@@ -143,6 +142,20 @@ module Grid_mod
        class(t_Grid) :: this
 
      end subroutine setupSpatialDiscretization
+
+  end interface
+
+  interface
+
+     subroutine computeCoordinateDerivatives(this, direction, coordinateDerivatives)
+
+       import :: t_Grid
+
+       class(t_Grid) :: this
+       integer, intent(in) :: direction
+       SCALAR_TYPE, intent(out) :: coordinateDerivatives(:,:)
+
+     end subroutine computeCoordinateDerivatives
 
   end interface
 
@@ -265,41 +278,6 @@ module Grid_mod
        logical :: isVariableWithinRange
 
      end function isVariableWithinRange
-
-  end interface
-
-  interface
-
-     subroutine computeSpongeStrengths(this, patches)
-
-       use Patch_type, only : t_Patch
-
-       import :: t_Grid
-
-       class(t_Grid) :: this
-       type(t_Patch), allocatable :: patches(:)
-
-     end subroutine computeSpongeStrengths
-
-  end interface
-
-  interface
-
-     function computeQuadratureOnPatches(this, f, patches, patchType)                        &
-          result(quadratureOnPatches)
-
-       use Patch_type, only : t_Patch
-
-       import :: t_Grid
-
-       class(t_Grid) :: this
-       SCALAR_TYPE, intent(in) :: f(:)
-       type(t_Patch), intent(in), allocatable :: patches(:)
-       integer, intent(in) :: patchType
-
-       SCALAR_TYPE :: quadratureOnPatches
-
-     end function computeQuadratureOnPatches
 
   end interface
 

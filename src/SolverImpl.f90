@@ -14,10 +14,10 @@ contains
 
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
-    use PatchDescriptor_type, only : ACTUATOR
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : gracefulExit
+    use Patch_factory, only : computeQuadratureOnPatches
 
     ! <<< Arguments >>>
     class(t_Region) :: region
@@ -46,8 +46,8 @@ contains
           call gracefulExit(region%grids(i)%comm, str)
        end if
        mollifierNorm = mollifierNorm +                                                       &
-            real(region%grids(i)%computeQuadratureOnPatches(                                 &
-       region%grids(i)%controlMollifier(:,1), region%patches, ACTUATOR), wp)
+            real(computeQuadratureOnPatches(region%patchFactories,                           &
+            'ACTUATOR', region%grids(i), region%grids(i)%controlMollifier(:,1)), wp)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                             &
@@ -73,10 +73,10 @@ contains
 
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
-    use PatchDescriptor_type, only : CONTROL_TARGET
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : gracefulExit
+    use Patch_factory, only : computeQuadratureOnPatches
 
     ! <<< Arguments >>>
     class(t_Region) :: region
@@ -105,8 +105,8 @@ contains
           call gracefulExit(region%grids(i)%comm, str)
        end if
        mollifierNorm = mollifierNorm +                                                       &
-            real(region%grids(i)%computeQuadratureOnPatches(                                 &
-       region%grids(i)%targetMollifier(:,1), region%patches, CONTROL_TARGET), wp)
+            real(computeQuadratureOnPatches(region%patchFactories,                           &
+            'FUNCTIONAL_TARGET', region%grids(i), region%grids(i)%targetMollifier(:,1)), wp)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                             &

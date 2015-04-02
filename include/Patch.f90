@@ -1,226 +1,201 @@
 #include "config.h"
 
-module Patch_type
+module Patch_mod
 
   use MPI, only : MPI_COMM_NULL, MPI_DATATYPE_NULL
-
-  use PatchDescriptor_type
-  use SolenoidalExcitation_type
 
   implicit none
   private
 
-  type, public :: t_Patch
+  type, abstract, public :: t_Patch
 
-     integer :: index, normalDirection, gridIndex, patchType, extent(6), patchSize(3),       &
+     integer :: index, normalDirection, gridIndex, extent(6), patchSize(3),                  &
           offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints, comm = MPI_COMM_NULL
      logical :: isCurvilinear
 
-     ! Common to far-field and wall boundaries.
-     real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
-     SCALAR_TYPE, allocatable :: metrics(:,:)
+   contains
 
-     ! Far-field patch variables.
-     SCALAR_TYPE, dimension(:,:,:), allocatable :: viscousFluxes, targetViscousFluxes
+     procedure, non_overridable, pass :: setupBase => setupPatch
+     procedure, non_overridable, pass :: cleanupBase => cleanupPatch
 
-     ! Wall patch variables.
-     logical :: isLiftMeasured, isDragMeasured
-     real(SCALAR_KIND) :: liftDirection(3), dragDirection(3)
-     SCALAR_TYPE, allocatable :: adjointSource(:,:), wallTemperature(:)
+     procedure(setup), pass, deferred :: setup
+     procedure(cleanup), pass, deferred :: cleanup
+     procedure(update), pass, deferred :: update
+     procedure(verifyUsage), pass, deferred :: verifyUsage
+     generic :: collectAtPatch => collectScalarAtPatch,                                      &
+          collectVectorAtPatch, collectTensorAtPatch
+     procedure(updateRhs), pass, deferred :: updateRhs
 
-     ! Block interface patch variables.
-     integer :: indexOfConformingPatch, commOfConformingPatch = MPI_COMM_NULL
-     SCALAR_TYPE, dimension(:,:), allocatable :: conservedVariables,                         &
-          interfaceDataBuffer1, interfaceDataBuffer2
-
-     ! Sponge patch variables.
-     real(SCALAR_KIND) :: spongeAmount
-     integer :: spongeExponent
-     real(SCALAR_KIND), allocatable :: spongeStrength(:)
-
-     ! Actuator patch variables.
-     SCALAR_TYPE, allocatable :: gradient(:,:)
-
-     ! Solenoidal excitation patch variables.
-     type(t_SolenoidalExcitation) :: solenoidalExcitation
-     real(SCALAR_KIND), allocatable :: solenoidalExcitationStrength(:)
+     procedure, private, pass :: collectScalarAtPatch
+     procedure, private, pass :: collectVectorAtPatch
+     procedure, private, pass :: collectTensorAtPatch
 
   end type t_Patch
 
-end module Patch_type
+  abstract interface
 
-module Patch_mod
+     subroutine setup(this, index, comm, patchDescriptor,                                    &
+          grid, simulationFlags, solverOptions)
 
-  implicit none
-  public
+       use Grid_mod, only : t_Grid
+       use SolverOptions_mod, only : t_SolverOptions
+       use PatchDescriptor_mod, only : t_PatchDescriptor
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       integer, intent(in) :: index, comm
+       type(t_PatchDescriptor), intent(in) :: patchDescriptor
+       class(t_Grid), intent(in) :: grid
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+
+     end subroutine setup
+
+  end interface
+
+  abstract interface
+     
+     subroutine cleanup(this)
+       
+       import :: t_Patch
+       
+       class(t_Patch) :: this
+       
+     end subroutine cleanup
+     
+  end interface
+
+  abstract interface
+     
+     subroutine update(this, simulationFlags, solverOptions, grid, state)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
+       
+       import :: t_Patch
+       
+       class(t_Patch) :: this
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_Grid), intent(in) :: grid
+       class(t_State), intent(in) :: state
+       
+     end subroutine update
+     
+  end interface
+
+  abstract interface
+
+     function verifyUsage(this, success, message) result(isPatchUsed)
+
+       import :: t_Patch
+       
+       class(t_Patch) :: this
+       logical, intent(out) :: success
+       character(len = STRING_LENGTH), intent(out) :: message
+
+       logical :: isPatchUsed
+
+     end function verifyUsage
+
+  end interface
+
+  abstract interface
+
+     subroutine updateRhs(this, mode, simulationFlags, solverOptions, grid, state)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       integer, intent(in) :: mode
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_Grid), intent(in) :: grid
+       class(t_State) :: state
+
+     end subroutine updateRhs
+
+  end interface
 
   interface
 
-     subroutine setupPatch(this, index, nDimensions, patchDescriptor, comm,                  &
-          gridOffset, gridLocalSize, nUnknowns, simulationFlags)
+     subroutine setupPatch(this, index, comm, patchDescriptor,                               &
+          grid, simulationFlags, solverOptions)
 
-       use Patch_type, only : t_Patch
-       use PatchDescriptor_type, only : t_PatchDescriptor
+       use Grid_mod, only : t_Grid
+       use SolverOptions_mod, only : t_SolverOptions
+       use PatchDescriptor_mod, only : t_PatchDescriptor
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       type(t_Patch) :: this
-       integer, intent(in) :: index, nDimensions
-       type(t_PatchDescriptor) :: patchDescriptor
-       integer, intent(in) :: comm, gridOffset(3), gridLocalSize(3), nUnknowns
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       integer, intent(in) :: index, comm
+       type(t_PatchDescriptor), intent(in) :: patchDescriptor
+       class(t_Grid), intent(in) :: grid
        type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
 
      end subroutine setupPatch
 
   end interface
 
   interface
-
+     
      subroutine cleanupPatch(this)
-
-       use Patch_type
-
-       type(t_Patch) :: this
-
+       
+       import :: t_Patch
+       
+       class(t_Patch) :: this
+       
      end subroutine cleanupPatch
-
+     
   end interface
 
   interface collectAtPatch
 
-     subroutine collectScalarAtPatch_(this, gridArray, patchArray)
+     subroutine collectScalarAtPatch(this, gridArray, patchArray)
 
-       use Patch_type
+       import :: t_Patch
 
-       type(t_Patch) :: this
+       class(t_Patch) :: this
 
        SCALAR_TYPE, intent(in) :: gridArray(:)
        SCALAR_TYPE, intent(out) :: patchArray(:)
 
-     end subroutine collectScalarAtPatch_
+     end subroutine collectScalarAtPatch
 
-     subroutine collectVectorAtPatch_(this, gridArray, patchArray)
+     subroutine collectVectorAtPatch(this, gridArray, patchArray)
 
-       use Patch_type
+       import :: t_Patch
 
-       type(t_Patch) :: this
+       class(t_Patch) :: this
 
        SCALAR_TYPE, intent(in) :: gridArray(:,:)
        SCALAR_TYPE, intent(out) :: patchArray(:,:)
 
-     end subroutine collectVectorAtPatch_
+     end subroutine collectVectorAtPatch
 
-     subroutine collectTensorAtPatch_(this, gridArray, patchArray)
+     subroutine collectTensorAtPatch(this, gridArray, patchArray)
 
-       use Patch_type
+       import :: t_Patch
 
-       type(t_Patch) :: this
+       class(t_Patch) :: this
 
        SCALAR_TYPE, intent(in) :: gridArray(:,:,:)
        SCALAR_TYPE, intent(out) :: patchArray(:,:,:)
 
-     end subroutine collectTensorAtPatch_
+     end subroutine collectTensorAtPatch
 
   end interface collectAtPatch
-
-  interface
-
-     subroutine addDamping(this, mode, rightHandSide, iblank,                                &
-          solvedVariables, targetVariables)
-
-       use Patch_type
-
-       type(t_Patch) :: this
-       integer, intent(in) :: mode
-       SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
-       integer, intent(in) :: iblank(:)
-       SCALAR_TYPE, intent(in) :: solvedVariables(:,:)
-
-       SCALAR_TYPE, intent(in), optional :: targetVariables(:,:)
-
-     end subroutine addDamping
-
-  end interface
-
-  interface
-
-     subroutine addFarFieldPenalty(this, mode, rightHandSide, iblank, nDimensions,           &
-          ratioOfSpecificHeats, conservedVariables, targetState, adjointVariables)
-
-       use Patch_type
-
-       type(t_Patch) :: this
-       integer, intent(in) :: mode
-       SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
-       integer, intent(in) :: iblank(:), nDimensions
-       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-       SCALAR_TYPE, intent(in) :: conservedVariables(:,:), targetState(:,:)
-       SCALAR_TYPE, intent(in), optional :: adjointVariables(:,:)
-
-     end subroutine addFarFieldPenalty
-
-  end interface
-
-  interface
-
-     subroutine addWallPenalty(this, mode, rightHandSide, iblank, nDimensions,               &
-          ratioOfSpecificHeats, conservedVariables, adjointVariables)
-
-       use Patch_type
-
-       type(t_Patch) :: this
-       integer, intent(in) :: mode
-       SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
-       integer, intent(in) :: iblank(:), nDimensions
-       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-       SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
-       SCALAR_TYPE, intent(in), optional :: adjointVariables(:,:)
-
-     end subroutine addWallPenalty
-
-  end interface
-
-  interface
-
-     subroutine updateSolenoidalExcitationStrength(this, coordinates, iblank)
-
-       use Patch_type
-
-       type(t_Patch) :: this
-       SCALAR_TYPE, intent(in) :: coordinates(:,:)
-       integer, intent(in) :: iblank(:)
-
-     end subroutine updateSolenoidalExcitationStrength
-
-  end interface
-
-  interface
-
-     subroutine addSolenoidalExcitation(this, coordinates, iblank, time, rightHandSide)
-
-       use Patch_type
-
-       type(t_Patch) :: this
-       SCALAR_TYPE, intent(in) :: coordinates(:,:)
-       integer, intent(in) :: iblank(:)
-       real(SCALAR_KIND), intent(in) :: time
-       SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
-
-     end subroutine addSolenoidalExcitation
-
-  end interface
-
-  interface
-
-     subroutine updatePatchConnectivity(this, patchData)
-
-       use Patch_type
-       use PatchDescriptor_type
-
-       type(t_Patch) :: this
-       type(t_PatchDescriptor), intent(in) :: patchData(:)
-
-     end subroutine updatePatchConnectivity
-
-  end interface
 
 end module Patch_mod

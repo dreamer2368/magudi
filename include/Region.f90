@@ -17,9 +17,9 @@ module Region_mod
 
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use Patch_type, only : t_Patch
+  use Patch_factory, only : t_PatchFactory
   use SolverOptions_mod, only : t_SolverOptions
-  use PatchDescriptor_type, only : t_PatchDescriptor
+  use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   implicit none
@@ -29,7 +29,7 @@ module Region_mod
 
      type(t_Grid), allocatable :: grids(:)
      type(t_State), allocatable :: states(:)
-     type(t_Patch), allocatable :: patches(:)
+     type(t_PatchFactory), allocatable :: patchFactories(:)
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)

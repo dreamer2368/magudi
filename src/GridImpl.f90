@@ -27,25 +27,21 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: nDimensions, ierror
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
     integer :: nProcs
 #endif
 
-    call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-    assert_key(nDimensions, (1, 2, 3))
-
-    allocate(this%firstDerivative(nDimensions))
+    allocate(this%firstDerivative(this%nDimensions))
     if (.not. simulationFlags%repeatFirstDerivative)                                         &
-         allocate(this%secondDerivative(nDimensions))
-    if (simulationFlags%dissipationOn) allocate(this%dissipation(nDimensions))
+         allocate(this%secondDerivative(this%nDimensions))
+    if (simulationFlags%dissipationOn) allocate(this%dissipation(this%nDimensions))
     if (.not. simulationFlags%predictionOnly)                                                &
-         allocate(this%adjointFirstDerivative(nDimensions))
+         allocate(this%adjointFirstDerivative(this%nDimensions))
 
     allocate(this%iblank(this%nGridPoints), source = 1)
-    allocate(this%coordinates(this%nGridPoints, nDimensions))
+    allocate(this%coordinates(this%nGridPoints, this%nDimensions))
     allocate(this%jacobian(this%nGridPoints, 1))
-    allocate(this%metrics(this%nGridPoints, nDimensions ** 2))
+    allocate(this%metrics(this%nGridPoints, this%nDimensions ** 2))
     allocate(this%norm(this%nGridPoints, 1))
     this%norm = 1.0_wp
 
@@ -74,13 +70,11 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, l, nDimensions, ierror
+    integer :: i, j, k, l
     real(wp) :: h
     real(wp), allocatable :: unitInterval(:)
 
-    call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-
-    do l = 1, nDimensions
+    do l = 1, this%nDimensions
 
        SAFE_DEALLOCATE(unitInterval)
        allocate(unitInterval(this%globalSize(l)))
@@ -131,129 +125,9 @@ contains
 
        SAFE_DEALLOCATE(unitInterval)
 
-    end do !... l = 1, nDimensions
+    end do !... l = 1, this%nDimensions
 
   end subroutine makeUnitCube
-
-  subroutine computeCoordinateDerivatives(this, direction, coordinateDerivatives)
-
-    ! <<< External modules >>>
-    use MPI
-
-    ! <<< Derived types >>>
-    use Grid_mod, only : t_Grid
-
-    ! <<< Internal modules >>>
-    use MPIHelper, only : fillGhostPoints
-
-    ! <<< Arguments >>>
-    class(t_Grid) :: this
-    integer, intent(in) :: direction
-    SCALAR_TYPE, intent(out) :: coordinateDerivatives(:,:)
-
-    ! <<< Local variables >>>
-    integer :: i, j, k, l, nDimensions, gridSizeWithGhostPoints(3), numGhostPointsBegin(3),  &
-         processDistribution(3), processCoordinates(3), ierror
-    logical :: isPeriodic(3)
-    SCALAR_TYPE, allocatable :: xWithGhostPoints(:,:,:,:)
-
-    ! Get information from the grid communicator.
-    call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-    call MPI_Cart_get(this%comm, nDimensions, processDistribution,                           &
-         isPeriodic, processCoordinates, ierror)
-
-    ! Straightforward if periodicity type is not `PLANE`.
-    if (this%periodicityType(direction) /= PLANE) then
-       coordinateDerivatives = this%coordinates
-       call this%firstDerivative(direction)%apply(coordinateDerivatives, this%localSize)
-       return
-    end if
-
-    ! Special hack require for periodicity type `PLANE`:
-
-    ! Find the grid size including ghost points, and the number of ghost points at the
-    ! beginning (which is also the offset of the physical grid points).
-    gridSizeWithGhostPoints = this%localSize
-    gridSizeWithGhostPoints(direction) = gridSizeWithGhostPoints(direction) +                &
-         sum(this%firstDerivative(direction)%nGhost)
-    numGhostPointsBegin = 0
-    numGhostPointsBegin(direction) = this%firstDerivative(direction)%nGhost(1)
-
-    ! Allocate an array to hold both physical and ghost point coordinates.
-    SAFE_DEALLOCATE(xWithGhostPoints)
-    allocate(xWithGhostPoints(gridSizeWithGhostPoints(1), gridSizeWithGhostPoints(2),        &
-         gridSizeWithGhostPoints(3), nDimensions))
-
-    ! Copy coordinates at physical grid points to the ghost array.
-    do l = 1, nDimensions
-       do k = 1, this%localSize(3)
-          do j = 1, this%localSize(2)
-             do i = 1, this%localSize(1)
-                xWithGhostPoints(i + numGhostPointsBegin(1),                                 &
-                     j + numGhostPointsBegin(2), k + numGhostPointsBegin(3), l) =            &
-                     this%coordinates(i + this%localSize(1) * (j - 1 +                       &
-                     this%localSize(2) * (k - 1)), l)
-             end do
-          end do
-       end do
-    end do
-
-    ! Exchange ghost points between MPI processes.
-    call fillGhostPoints(this%comm, xWithGhostPoints, direction,                             &
-         this%firstDerivative(direction)%nGhost,                                             &
-         this%firstDerivative(direction)%periodicOffset)
-
-    ! At the first process, subtract the periodic length from coordinates received from
-    ! the last process
-    if (processCoordinates(direction) == 0) then
-       select case (direction)
-       case (1)
-          xWithGhostPoints(1:numGhostPointsBegin(1),:,:,1) =                                 &
-               xWithGhostPoints(1:numGhostPointsBegin(1),:,:,1) -                            &
-               this%periodicLength(1)
-       case (2)
-          xWithGhostPoints(:,1:numGhostPointsBegin(2),:,2) =                                 &
-               xWithGhostPoints(:,1:numGhostPointsBegin(2),:,2) -                            &
-               this%periodicLength(2)
-       case (3)
-          xWithGhostPoints(:,:,1:numGhostPointsBegin(3),3) =                                 &
-               xWithGhostPoints(:,:,1:numGhostPointsBegin(3),3) -                            &
-               this%periodicLength(3)
-       end select
-    end if
-
-    ! At the last process, add the periodic length from coordinates received from the
-    ! first process
-    if (processCoordinates(direction) == processDistribution(direction) - 1) then
-       select case (direction)
-       case (1)
-          xWithGhostPoints(gridSizeWithGhostPoints(1) + 1 -                                  &
-               numGhostPointsBegin(1) : gridSizeWithGhostPoints(1),:,:,1)                    &
-               = xWithGhostPoints(gridSizeWithGhostPoints(1) + 1 -                           &
-               numGhostPointsBegin(1) : gridSizeWithGhostPoints(1),:,:,1) +                  &
-               this%periodicLength(1)
-       case (2)
-          xWithGhostPoints(:,gridSizeWithGhostPoints(2) + 1 -                                &
-               numGhostPointsBegin(2) : gridSizeWithGhostPoints(2),:,2)                      &
-               = xWithGhostPoints(:,gridSizeWithGhostPoints(2) + 1 -                         &
-               numGhostPointsBegin(2) : gridSizeWithGhostPoints(2),:,2) +                    &
-               this%periodicLength(2)
-       case (3)
-          xWithGhostPoints(:,:,gridSizeWithGhostPoints(3) + 1 -                              &
-               numGhostPointsBegin(3) : gridSizeWithGhostPoints(3),3)                        &
-               = xWithGhostPoints(:,:,gridSizeWithGhostPoints(3) + 1 -                       &
-               numGhostPointsBegin(3) : gridSizeWithGhostPoints(3),3) +                      &
-               this%periodicLength(3)
-       end select
-    end if
-
-    ! Stencil needs to be applied only at interior points.
-    call this%firstDerivative(direction)%applyAtInteriorPoints(xWithGhostPoints,             &
-         coordinateDerivatives, this%localSize)
-
-    SAFE_DEALLOCATE(xWithGhostPoints)
-
-  end subroutine computeCoordinateDerivatives
 
 end module GridImpl
 
@@ -587,13 +461,10 @@ subroutine setupSpatialDiscretization(this)
   class(t_Grid) :: this
 
   ! <<< Local variables >>>
-  integer :: i, nDimensions, ierror
+  integer :: i
   character(len = STRING_LENGTH) :: key, val
 
-  call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert_key(nDimensions, (1, 2, 3))
-
-  do i = 1, nDimensions
+  do i = 1, this%nDimensions
 
      write(key, '(A,I3.3,A,I1.1,A)') "grid", this%index, "/dir", i, "/"
 
@@ -638,9 +509,134 @@ subroutine setupSpatialDiscretization(this)
              i, this%periodicityType(i) == OVERLAP)
      end if
 
-  end do !... i = 1, nDimensions
+  end do !... i = 1, this%nDimensions
 
 end subroutine setupSpatialDiscretization
+
+subroutine computeCoordinateDerivatives(this, direction, coordinateDerivatives)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
+
+  ! <<< Private members >>>
+  use GridImpl, only : PLANE
+
+  ! <<< Internal modules >>>
+  use MPIHelper, only : fillGhostPoints
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Grid) :: this
+  integer, intent(in) :: direction
+  SCALAR_TYPE, intent(out) :: coordinateDerivatives(:,:)
+
+  ! <<< Local variables >>>
+  integer :: i, j, k, l, nDimensions, gridSizeWithGhostPoints(3), numGhostPointsBegin(3),    &
+       processDistribution(3), processCoordinates(3), ierror
+  logical :: isPeriodic(3)
+  SCALAR_TYPE, allocatable :: xWithGhostPoints(:,:,:,:)
+
+  ! Get information from the grid communicator.
+  call MPI_Cart_get(this%comm, nDimensions, processDistribution,                             &
+       isPeriodic, processCoordinates, ierror)
+  assert(nDimensions == this%nDimensions)
+
+  ! Straightforward if periodicity type is not `PLANE`.
+  if (this%periodicityType(direction) /= PLANE) then
+     coordinateDerivatives = this%coordinates
+     call this%firstDerivative(direction)%apply(coordinateDerivatives, this%localSize)
+     return
+  end if
+
+  ! Special hack require for periodicity type `PLANE`:
+
+  ! Find the grid size including ghost points, and the number of ghost points at the
+  ! beginning (which is also the offset of the physical grid points).
+  gridSizeWithGhostPoints = this%localSize
+  gridSizeWithGhostPoints(direction) = gridSizeWithGhostPoints(direction) +                  &
+       sum(this%firstDerivative(direction)%nGhost)
+  numGhostPointsBegin = 0
+  numGhostPointsBegin(direction) = this%firstDerivative(direction)%nGhost(1)
+
+  ! Allocate an array to hold both physical and ghost point coordinates.
+  SAFE_DEALLOCATE(xWithGhostPoints)
+  allocate(xWithGhostPoints(gridSizeWithGhostPoints(1), gridSizeWithGhostPoints(2),          &
+       gridSizeWithGhostPoints(3), nDimensions))
+
+  ! Copy coordinates at physical grid points to the ghost array.
+  do l = 1, nDimensions
+     do k = 1, this%localSize(3)
+        do j = 1, this%localSize(2)
+           do i = 1, this%localSize(1)
+              xWithGhostPoints(i + numGhostPointsBegin(1),                                   &
+                   j + numGhostPointsBegin(2), k + numGhostPointsBegin(3), l) =              &
+                   this%coordinates(i + this%localSize(1) * (j - 1 +                         &
+                   this%localSize(2) * (k - 1)), l)
+           end do
+        end do
+     end do
+  end do
+
+  ! Exchange ghost points between MPI processes.
+  call fillGhostPoints(this%comm, xWithGhostPoints, direction,                               &
+       this%firstDerivative(direction)%nGhost,                                               &
+       this%firstDerivative(direction)%periodicOffset)
+
+  ! At the first process, subtract the periodic length from coordinates received from
+  ! the last process
+  if (processCoordinates(direction) == 0) then
+     select case (direction)
+     case (1)
+        xWithGhostPoints(1:numGhostPointsBegin(1),:,:,1) =                                   &
+             xWithGhostPoints(1:numGhostPointsBegin(1),:,:,1) -                              &
+             this%periodicLength(1)
+     case (2)
+        xWithGhostPoints(:,1:numGhostPointsBegin(2),:,2) =                                   &
+             xWithGhostPoints(:,1:numGhostPointsBegin(2),:,2) -                              &
+             this%periodicLength(2)
+     case (3)
+        xWithGhostPoints(:,:,1:numGhostPointsBegin(3),3) =                                   &
+             xWithGhostPoints(:,:,1:numGhostPointsBegin(3),3) -                              &
+             this%periodicLength(3)
+     end select
+  end if
+
+  ! At the last process, add the periodic length from coordinates received from the
+  ! first process
+  if (processCoordinates(direction) == processDistribution(direction) - 1) then
+     select case (direction)
+     case (1)
+        xWithGhostPoints(gridSizeWithGhostPoints(1) + 1 -                                    &
+             numGhostPointsBegin(1) : gridSizeWithGhostPoints(1),:,:,1)                      &
+             = xWithGhostPoints(gridSizeWithGhostPoints(1) + 1 -                             &
+             numGhostPointsBegin(1) : gridSizeWithGhostPoints(1),:,:,1) +                    &
+             this%periodicLength(1)
+     case (2)
+        xWithGhostPoints(:,gridSizeWithGhostPoints(2) + 1 -                                  &
+             numGhostPointsBegin(2) : gridSizeWithGhostPoints(2),:,2)                        &
+             = xWithGhostPoints(:,gridSizeWithGhostPoints(2) + 1 -                           &
+             numGhostPointsBegin(2) : gridSizeWithGhostPoints(2),:,2) +                      &
+             this%periodicLength(2)
+     case (3)
+        xWithGhostPoints(:,:,gridSizeWithGhostPoints(3) + 1 -                                &
+             numGhostPointsBegin(3) : gridSizeWithGhostPoints(3),3)                          &
+             = xWithGhostPoints(:,:,gridSizeWithGhostPoints(3) + 1 -                         &
+             numGhostPointsBegin(3) : gridSizeWithGhostPoints(3),3) +                        &
+             this%periodicLength(3)
+     end select
+  end if
+
+  ! Stencil needs to be applied only at interior points.
+  call this%firstDerivative(direction)%applyAtInteriorPoints(xWithGhostPoints,               &
+       coordinateDerivatives, this%localSize)
+
+  SAFE_DEALLOCATE(xWithGhostPoints)
+
+end subroutine computeCoordinateDerivatives
 
 subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
 
@@ -651,7 +647,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   use Grid_mod, only : t_Grid
 
   ! <<< Private members >>>
-  use GridImpl, only : PLANE, computeCoordinateDerivatives
+  use GridImpl, only : PLANE
 
   ! <<< Internal modules >>>
   use ErrorHandler, only : gracefulExit
@@ -671,15 +667,15 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   character(len = STRING_LENGTH) :: message
   SCALAR_TYPE :: jacobianOutsideRange
 
-  call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert_key(nDimensions, (1, 2, 3))
-
+  assert_key(this%nDimensions, (1, 2, 3))
   assert(this%nGridPoints > 0)
   assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
 
+  nDimensions = this%nDimensions
+
   allocate(jacobianMatrixInverse(this%nGridPoints, nDimensions ** 2))
   do i = 1, nDimensions
-     call computeCoordinateDerivatives(this, i,                                              &
+     call this%computeCoordinateDerivatives(i,                                               &
           jacobianMatrixInverse(:,(i-1)*nDimensions+1:i*nDimensions))
   end do
 
@@ -1045,12 +1041,12 @@ subroutine computeGradientOfScalar(this, f, gradF)
   SCALAR_TYPE, intent(out) :: gradF(:,:)
 
   ! <<< Local variables >>>
-  integer :: nDimensions, ierror
+  integer :: nDimensions
   SCALAR_TYPE, allocatable :: temp(:,:)
 
   call startTiming("computeGradient")
 
-  call MPI_Cartdim_get(this%comm, nDimensions, ierror)
+  nDimensions = this%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   assert(this%nGridPoints > 0)
@@ -1137,12 +1133,12 @@ subroutine computeGradientOfVector(this, f, gradF)
   SCALAR_TYPE, intent(out) :: gradF(:,:)
 
   ! <<< Local variables >>>
-  integer :: nDimensions, ierror
+  integer :: nDimensions
   SCALAR_TYPE, allocatable :: temp(:,:)
 
   call startTiming("computeGradient")
 
-  call MPI_Cartdim_get(this%comm, nDimensions, ierror)
+  nDimensions = this%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   assert(this%nGridPoints > 0)
@@ -1441,283 +1437,3 @@ function isVariableWithinRange(this, f, fOutsideRange,                          
   end if
 
 end function isVariableWithinRange
-
-subroutine computeSpongeStrengths(this, patches)
-
-  ! <<< External modules >>>
-  use MPI
-
-  ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use Patch_type, only : t_Patch
-  use PatchDescriptor_type, only : SPONGE
-
-  ! <<< Private members >>>
-  use GridImpl, only : computeCoordinateDerivatives
-
-  ! <<< Internal modules >>>
-  use MPIHelper, only : gatherAlongDirection
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_Grid) :: this
-  type(t_Patch), allocatable :: patches(:)
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, iMin, iMax, jMin, jMax, kMin, kMax, direction, nDimensions, ierror
-  logical :: spongesExistAlongDirection
-  SCALAR_TYPE, dimension(:,:), allocatable :: coordinateDerivatives, arcLength,              &
-       globalArcLengthsAlongDirection
-  real(wp), allocatable :: curveLengthIntegrand(:)
-
-  call MPI_Cartdim_get(this%comm, nDimensions, ierror)
-  assert_key(nDimensions, (1, 2, 3))
-
-  assert(this%nGridPoints > 0)
-  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
-  assert(all(this%offset >= 0))
-  assert(all(this%globalSize >= this%localSize))
-
-  do direction =  1, nDimensions
-
-     ! Check if there are sponge patches along direction `direction`.
-
-     spongesExistAlongDirection = .false.
-     if (allocated(patches))                                                                 &
-          spongesExistAlongDirection = any(patches(:)%gridIndex == this%index .and.          &
-          patches(:)%patchType == SPONGE .and. abs(patches(:)%normalDirection) == direction)
-     call MPI_Allreduce(MPI_IN_PLACE, spongesExistAlongDirection, 1, MPI_LOGICAL,            &
-          MPI_LOR, this%comm, ierror) !... reduce across grid-level processes.
-     if (.not. spongesExistAlongDirection) cycle
-
-     ! Compute local arc length.
-     allocate(arcLength(this%nGridPoints, 1))
-     allocate(coordinateDerivatives(this%nGridPoints, nDimensions))
-     call computeCoordinateDerivatives(this, direction, coordinateDerivatives)
-     arcLength(:,1) = sqrt(sum(coordinateDerivatives ** 2, dim = 2))
-     SAFE_DEALLOCATE(coordinateDerivatives) !... no longer needed.
-
-     ! Gather arc length along direction `direction`.
-     allocate(globalArcLengthsAlongDirection(this%nGridPoints / this%localSize(direction) *  &
-          this%globalSize(direction), 1))
-     call gatherAlongDirection(this%comm, arcLength, this%localSize,                         &
-          direction, this%offset(direction), globalArcLengthsAlongDirection)
-     SAFE_DEALLOCATE(arcLength) !... no longer needed.
-
-     allocate(curveLengthIntegrand(this%globalSize(direction)))
-
-     if (allocated(patches)) then
-        do l = 1, size(patches)
-           if (patches(l)%gridIndex /= this%index .or.                                       &
-                patches(l)%patchType /= SPONGE .or.                                          &
-                abs(patches(l)%normalDirection) /= direction .or.                            &
-                patches(l)%nPatchPoints <= 0) cycle
-           select case (direction)
-
-           case (1)
-
-              iMin = patches(l)%extent(1)
-              iMax = patches(l)%extent(2)
-
-              do k = patches(l)%offset(3) + 1, patches(l)%offset(3) + patches(l)%patchSize(3)
-                 do j = patches(l)%offset(2) + 1,                                            &
-                      patches(l)%offset(2) + patches(l)%patchSize(2)
-
-                    do i = 1, this%globalSize(1)
-                       curveLengthIntegrand(i) =                                             &
-                            real(globalArcLengthsAlongDirection(i +                          &
-                            this%globalSize(1) * (j - 1 - this%offset(2) +                   &
-                            this%localSize(2) * (k - 1 - this%offset(3))), 1), wp)
-                    end do
-
-                    if (patches(l)%normalDirection > 0) then
-                       do i = patches(l)%offset(1) + 1,                                      &
-                            patches(l)%offset(1) + patches(l)%patchSize(1)
-                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
-                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
-                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
-                               sum(curveLengthIntegrand(iMin : i - 1)) /                     &
-                               sum(curveLengthIntegrand(iMin : iMax - 1))
-                       end do
-                    else
-                       do i = patches(l)%offset(1) + 1,                                      &
-                            patches(l)%offset(1) + patches(l)%patchSize(1)
-                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
-                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
-                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
-                               sum(curveLengthIntegrand(i + 1 : iMax)) /                     &
-                               sum(curveLengthIntegrand(iMin + 1 : iMax))
-                       end do
-                    end if
-
-                 end do !... j = patches(l)%offset(2) + 1,                                   &
-                        !...       patches(l)%offset(2) + patches(l)%patchSize(2)
-              end do !... k = patches(l)%offset(3) + 1,                                      &
-                     !...       patches(l)%offset(3) + patches(l)%patchSize(3)
-
-           case (2)
-
-              jMin = patches(l)%extent(3)
-              jMax = patches(l)%extent(4)
-
-              do k = patches(l)%offset(3) + 1, patches(l)%offset(3) + patches(l)%patchSize(3)
-                 do i = patches(l)%offset(1) + 1,                                            &
-                      patches(l)%offset(1) + patches(l)%patchSize(1)
-
-                    do j = 1, this%globalSize(2)
-                       curveLengthIntegrand(j) =                                             &
-                            real(globalArcLengthsAlongDirection(i - this%offset(1) +         &
-                            this%localSize(1) * (j - 1 +                                     &
-                            this%globalSize(2) * (k - 1 - this%offset(3))), 1), wp)
-                    end do
-
-                    if (patches(l)%normalDirection > 0) then
-                       do j = patches(l)%offset(2) + 1,                                      &
-                            patches(l)%offset(2) + patches(l)%patchSize(2)
-                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
-                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
-                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
-                               sum(curveLengthIntegrand(jMin : j - 1)) /                     &
-                               sum(curveLengthIntegrand(jMin : jMax - 1))
-                       end do
-                    else
-                       do j = patches(l)%offset(2) + 1,                                      &
-                            patches(l)%offset(2) + patches(l)%patchSize(2)
-                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
-                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
-                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
-                               sum(curveLengthIntegrand(j + 1 : jMax)) /                     &
-                               sum(curveLengthIntegrand(jMin + 1 : jMax))
-                       end do
-                    end if
-
-                 end do !... i = patches(l)%offset(1) + 1,                                   &
-                        !...       patches(l)%offset(1) + patches(l)%patchSize(1)
-              end do !... k = patches(l)%offset(3) + 1,                                      &
-                     !...       patches(l)%offset(3) + patches(l)%patchSize(3)
-
-           case (3)
-
-              kMin = patches(l)%extent(5)
-              kMax = patches(l)%extent(6)
-
-              do j = patches(l)%offset(2) + 1, patches(l)%offset(2) + patches(l)%patchSize(2)
-                 do i = patches(l)%offset(1) + 1,                                            &
-                      patches(l)%offset(1) + patches(l)%patchSize(1)
-
-                    do k = 1, this%globalSize(3)
-                       curveLengthIntegrand(k) =                                             &
-                            real(globalArcLengthsAlongDirection(i - this%offset(1) +         &
-                            this%localSize(1) * (j - 1 - this%offset(2) +                    &
-                            this%localSize(2) * (k - 1)), 1), wp)
-                    end do
-
-                    if (patches(l)%normalDirection > 0) then
-                       do k = patches(l)%offset(3) + 1,                                      &
-                            patches(l)%offset(3) + patches(l)%patchSize(3)
-                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
-                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
-                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
-                               sum(curveLengthIntegrand(kMin : k - 1)) /                     &
-                               sum(curveLengthIntegrand(kMin : kMax - 1))
-                       end do
-                    else
-                       do k = patches(l)%offset(3) + 1,                                      &
-                            patches(l)%offset(3) + patches(l)%patchSize(3)
-                          patches(l)%spongeStrength(i - patches(l)%offset(1) +               &
-                               patches(l)%patchSize(1) * (j - 1 - patches(l)%offset(2) +     &
-                               patches(l)%patchSize(2) * (k - 1 - patches(l)%offset(3)))) =  &
-                               sum(curveLengthIntegrand(k + 1 : kMax)) /                     &
-                               sum(curveLengthIntegrand(kMin + 1 : kMax))
-                       end do
-                    end if
-
-                 end do !... i = patches(l)%offset(1) + 1,                                   &
-                        !...       patches(l)%offset(1) + patches(l)%patchSize(1)
-              end do !... j = patches(l)%offset(2) + 1,                                      &
-                     !...       patches(l)%offset(2) + patches(l)%patchSize(2)
-
-           end select
-           patches(l)%spongeStrength = patches(l)%spongeAmount *                             &
-                (1.0_wp - patches(l)%spongeStrength) ** real(patches(l)%spongeExponent, wp)
-        end do
-     end if
-
-     SAFE_DEALLOCATE(curveLengthIntegrand)
-     SAFE_DEALLOCATE(globalArcLengthsAlongDirection)
-
-  end do
-
-end subroutine computeSpongeStrengths
-
-function computeQuadratureOnPatches(this, f, patches, patchType) result(quadratureOnPatches)
-
-  ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use Patch_type, only : t_Patch
-  use PatchDescriptor_type
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_Grid) :: this
-  SCALAR_TYPE, intent(in) :: f(:)
-  type(t_Patch), intent(in), allocatable :: patches(:)
-  integer, intent(in) :: patchType
-
-  ! <<< Result >>>
-  SCALAR_TYPE :: quadratureOnPatches
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l
-  SCALAR_TYPE, allocatable :: g(:)
-
-  assert(this%nGridPoints > 0)
-  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
-  assert(all(this%offset >= 0))
-
-  assert(size(f) == this%nGridPoints)
-
-  assert(allocated(this%iblank))
-  assert(size(this%iblank) == this%nGridPoints)
-
-  assert_key(patchType, ( \
-  SPONGE,         \
-  ACTUATOR,       \
-  CONTROL_TARGET, \
-  SOLENOIDAL_EXCITATION))
-
-  allocate(g(this%nGridPoints))
-  g = 0.0_wp
-
-  if (allocated(patches)) then
-     do l = 1, size(patches)
-        if (patches(l)%patchType /= patchType .or. patches(l)%gridIndex /= this%index) cycle
-
-        assert(all(patches(l)%gridLocalSize == this%localSize))
-        assert(all(patches(l)%gridOffset == this%offset))
-
-        do k = patches(l)%offset(3) + 1, patches(l)%offset(3) + patches(l)%patchSize(3)
-           do j = patches(l)%offset(2) + 1, patches(l)%offset(2) + patches(l)%patchSize(2)
-              do i = patches(l)%offset(1) + 1, patches(l)%offset(1) + patches(l)%patchSize(1)
-                 g(i - this%offset(1) + this%localSize(1) * (j - 1 - this%offset(2) +        &
-                      this%localSize(2) * (k - 1 - this%offset(3)))) = 1.0_wp
-              end do
-           end do
-        end do
-
-     end do !... l = 1, size(patches)
-  end if !... allocated(patches)
-
-  where (this%iblank == 0)
-     g = 0.0_wp
-  end where
-
-  quadratureOnPatches = this%computeInnerProduct(f, g)
-
-  SAFE_DEALLOCATE(g)
-
-end function computeQuadratureOnPatches
