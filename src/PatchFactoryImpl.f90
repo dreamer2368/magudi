@@ -19,7 +19,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
 
   ! <<< Arguments >>>
   class(t_PatchFactory) :: this
-  class(*), pointer, intent(out) :: patchTarget
+  class(t_Patch), pointer, intent(out) :: patchTarget
   character(len = *), intent(in), optional :: patchType
   logical, intent(in), optional :: createNew
 
