@@ -7,7 +7,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use Patch_factory, only : t_PatchFactory
   use SpongePatch_mod, only : t_SpongePatch
   ! use ActuatorPatch_mod, only : t_ActuatorPatch
-  ! use AdiabaticWall_mod, only : t_AdiabaticWall
+  use AdiabaticWall_mod, only : t_AdiabaticWall
   use FarFieldPatch_mod, only : t_FarFieldPatch
   use IsothermalWall_mod, only : t_IsothermalWall
   ! use CostTargetPatch_mod, only : t_CostTargetPatch
@@ -44,8 +44,8 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
      ! case ('ACTUATOR')
      !    allocate(t_ActuatorPatch :: this%patch)
 
-     ! case ('SAT_ADIABATIC_WALL')
-     !    allocate(t_AdiabaticWall :: this%patch)
+     case ('SAT_ADIABATIC_WALL')
+        allocate(t_AdiabaticWall :: this%patch)
 
      case ('SAT_FAR_FIELD')
         allocate(t_FarFieldPatch :: this%patch)

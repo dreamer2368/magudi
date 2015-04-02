@@ -136,6 +136,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ImpenetrableWallImpl.f90
   ${PROJECT_SOURCE_DIR}/include/IsothermalWall.f90
   ${PROJECT_SOURCE_DIR}/src/IsothermalWallImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/AdiabaticWall.f90
+  ${PROJECT_SOURCE_DIR}/src/AdiabaticWallImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c
