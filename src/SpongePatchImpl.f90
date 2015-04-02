@@ -146,7 +146,7 @@ end subroutine addDamping
 
 function verifySpongePatchUsage(this, patchDescriptor, gridSize, normalDirection,            &
      extent, simulationFlags, success, message) result(isPatchUsed)
-  
+
   ! <<< Derived types >>>
   use SpongePatch_mod, only : t_SpongePatch
   use PatchDescriptor_mod, only : t_PatchDescriptor
@@ -189,7 +189,7 @@ function verifySpongePatchUsage(this, patchDescriptor, gridSize, normalDirection
         write(message, '(A)') "Invalid extent!"
         return
      end if
-     if (extent((i-1)*2+1) == extent((i-1)*2+2)) n = n - 1        
+     if (extent((i-1)*2+1) == extent((i-1)*2+2)) n = n - 1
   end do
 
   if (n /= size(gridSize)) then

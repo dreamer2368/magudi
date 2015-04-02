@@ -132,6 +132,10 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/SpongePatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/FarFieldPatch.f90
   ${PROJECT_SOURCE_DIR}/src/FarFieldPatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ImpenetrableWall.f90
+  ${PROJECT_SOURCE_DIR}/src/ImpenetrableWallImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/IsothermalWall.f90
+  ${PROJECT_SOURCE_DIR}/src/IsothermalWallImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

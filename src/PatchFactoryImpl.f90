@@ -9,9 +9,9 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   ! use ActuatorPatch_mod, only : t_ActuatorPatch
   ! use AdiabaticWall_mod, only : t_AdiabaticWall
   use FarFieldPatch_mod, only : t_FarFieldPatch
-  ! use IsothermalWall_mod, only : t_IsothermalWall
+  use IsothermalWall_mod, only : t_IsothermalWall
   ! use CostTargetPatch_mod, only : t_CostTargetPatch
-  ! use ImpenetrableWall_mod, only : t_ImpenetrableWall
+  use ImpenetrableWall_mod, only : t_ImpenetrableWall
   ! use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   ! use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
 
@@ -50,14 +50,14 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
      case ('SAT_FAR_FIELD')
         allocate(t_FarFieldPatch :: this%patch)
 
-     ! case ('SAT_ISOTHERMAL_WALL')
-     !    allocate(t_IsothermalWall :: this%patch)
+     case ('SAT_ISOTHERMAL_WALL')
+        allocate(t_IsothermalWall :: this%patch)
 
      ! case ('COST_TARGET')
      !    allocate(t_CostTargetPatch :: this%patch)
 
-     ! case ('SAT_IMPENETRABLE_WALL')
-     !    allocate(t_ImpenetrableWall :: this%patch)
+     case ('SAT_SLIP_WALL')
+        allocate(t_ImpenetrableWall :: this%patch)
 
      ! case ('SAT_BLOCK_INTERFACE')
      !    allocate(t_BlockInterfacePatch :: this%patch)
@@ -443,6 +443,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   use Patch_factory, only : t_PatchFactory
   use FarFieldPatch_mod, only : t_FarFieldPatch
   use SolverOptions_mod, only : t_SolverOptions
+  use IsothermalWall_mod, only : t_IsothermalWall
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
@@ -470,7 +471,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  if (simulationFlags%viscosityOn) then
+  if (simulationFlags%viscosityOn .and. simulationFlags%useTargetState) then
 
      flag = queryPatchTypeExists(patchFactories, 'SAT_ISOTHERMAL_WALL', grid%index)
      call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
@@ -487,15 +488,19 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
            if (.not. associated(patch)) cycle
            if (patch%gridIndex /= grid%index) cycle
 
-           ! select type (patch)
-           ! class is (t_IsothermalWall)
-           !    call patch%collect(targetTemperature, patch%wallTemperature)
-           ! end select
+           select type (patch)
+           class is (t_IsothermalWall)
+              call patch%collect(targetTemperature, patch%temperature)
+           end select
 
         end do
      end if
 
      SAFE_DEALLOCATE(targetTemperature)
+
+  end if
+
+  if (simulationFlags%viscosityOn) then
 
      flag = queryPatchTypeExists(patchFactories, 'SAT_FAR_FIELD', grid%index)
      call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)

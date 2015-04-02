@@ -30,14 +30,14 @@ module StencilOperator_mod
 
   interface
 
-     subroutine setupOperator(this, identifier)
+     subroutine setupOperator(this, stencilScheme)
 
        !> Sets up a stencil operator.
 
        import :: t_StencilOperator
 
        class(t_StencilOperator) :: this
-       character(len = *), intent(in) :: identifier
+       character(len = *), intent(in) :: stencilScheme
 
      end subroutine setupOperator
 

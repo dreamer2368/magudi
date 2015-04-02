@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,                            &  
+subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,                            &
      grid, simulationFlags, solverOptions)
 
   ! <<< Derived types >>>
@@ -96,7 +96,7 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
 
   ! <<< Internal modules >>>
   use CNSHelper
-  use MPITimingsHelper, only : startTiming, endTiming  
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
@@ -181,20 +181,20 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
            select case (mode)
            case (FORWARD)
 
-              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &            
+              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
                    this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &
                    state%conservedVariables(gridIndex,:) - localTargetState)
 
               if (simulationFlags%viscosityOn) then
-                 state%rightHandSide(gridIndex,2:nUnknowns) =                                &      
-                      state%rightHandSide(gridIndex,2:nUnknowns) +                           &      
+                 state%rightHandSide(gridIndex,2:nUnknowns) =                                &
+                      state%rightHandSide(gridIndex,2:nUnknowns) +                           &
                       this%viscousPenaltyAmount * (this%viscousFluxes(patchIndex,:) -        &
                       this%targetViscousFluxes(patchIndex,:))
               end if
 
            case (ADJOINT)
 
-              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &            
+              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &
                    this%inviscidPenaltyAmount *                                              &
                    matmul(transpose(incomingJacobianOfInviscidFlux),                         &
                    state%adjointVariables(gridIndex,:))
@@ -218,7 +218,7 @@ end subroutine addFarFieldPenalty
 
 function verifyFarFieldPatchUsage(this, patchDescriptor, gridSize, normalDirection,          &
      extent, simulationFlags, success, message) result(isPatchUsed)
-  
+
   ! <<< Derived types >>>
   use FarFieldPatch_mod, only : t_FarFieldPatch
   use PatchDescriptor_mod, only : t_PatchDescriptor

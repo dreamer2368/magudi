@@ -626,7 +626,7 @@ contains
 
 end module StencilOperatorImpl
 
-subroutine setupOperator(this, identifier)
+subroutine setupOperator(this, stencilScheme)
 
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
@@ -638,13 +638,13 @@ subroutine setupOperator(this, identifier)
 
   ! <<< Arguments >>>
   class(t_StencilOperator) :: this
-  character(len = *), intent(in) :: identifier
+  character(len = *), intent(in) :: stencilScheme
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: x1, x2, x3
 
-  assert_key(identifier, (     \
+  assert_key(stencilScheme, (  \
   'SBP 1-2 first derivative',  \
   'SBP 1-2 second derivative', \
   'SBP 1-2 dissipation',       \
@@ -661,7 +661,7 @@ subroutine setupOperator(this, identifier)
 
   call this%cleanup()
 
-  if (trim(identifier) == "SBP 1-2 first derivative") then
+  if (trim(stencilScheme) == "SBP 1-2 first derivative") then
 
      this%symmetryType = SKEW_SYMMETRIC
      this%interiorWidth = 3
@@ -676,7 +676,7 @@ subroutine setupOperator(this, identifier)
 
      this%rhsBoundary1(1:2,1) = (/ -1.0_wp, 1.0_wp /)
 
-  else if (trim(identifier) == "SBP 1-2 second derivative") then
+  else if (trim(stencilScheme) == "SBP 1-2 second derivative") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 3
@@ -691,7 +691,7 @@ subroutine setupOperator(this, identifier)
 
      this%rhsBoundary1(1:3,1) = (/ 1.0_wp, -2.0_wp, 1.0_wp /)
 
-  else if (trim(identifier) == "SBP 1-2 dissipation") then
+  else if (trim(stencilScheme) == "SBP 1-2 dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 3
@@ -709,7 +709,7 @@ subroutine setupOperator(this, identifier)
 
      this%rhsBoundary1 = this%rhsBoundary1 / 2.0_wp
 
-  else if (trim(identifier) == "SBP 2-4 first derivative") then
+  else if (trim(stencilScheme) == "SBP 2-4 first derivative") then
 
      this%symmetryType = SKEW_SYMMETRIC
      this%interiorWidth = 5
@@ -744,7 +744,7 @@ subroutine setupOperator(this, identifier)
                                     32.0_wp / 49.0_wp, &
                                     -4.0_wp / 49.0_wp /)
 
-  else if (trim(identifier) == "SBP 2-4 second derivative") then
+  else if (trim(stencilScheme) == "SBP 2-4 second derivative") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 5
@@ -779,7 +779,7 @@ subroutine setupOperator(this, identifier)
                                      64.0_wp / 49.0_wp, &
                                      -4.0_wp / 49.0_wp /)
 
-  else if (trim(identifier) == "SBP 2-4 dissipation") then
+  else if (trim(stencilScheme) == "SBP 2-4 dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 5
@@ -816,7 +816,7 @@ subroutine setupOperator(this, identifier)
 
      this%rhsBoundary1 = this%rhsBoundary1 / 16.0_wp
 
-  else if (trim(identifier) == "SBP 3-6 first derivative") then
+  else if (trim(stencilScheme) == "SBP 3-6 first derivative") then
 
      this%symmetryType = SKEW_SYMMETRIC
      this%interiorWidth = 7
@@ -877,7 +877,7 @@ subroutine setupOperator(this, identifier)
                                      -6480.0_wp /  43801.0_wp, &
                                        720.0_wp /  43801.0_wp /)
 
-  else if (trim(identifier) == "SBP 3-6 second derivative") then
+  else if (trim(stencilScheme) == "SBP 3-6 second derivative") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 7
@@ -941,7 +941,7 @@ subroutine setupOperator(this, identifier)
                                      -6480.0_wp /  43801.0_wp, &
                                        480.0_wp /  43801.0_wp /)
 
-  else if (trim(identifier) == "SBP 3-6 dissipation") then
+  else if (trim(stencilScheme) == "SBP 3-6 dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 7
@@ -999,7 +999,7 @@ subroutine setupOperator(this, identifier)
 
      this%rhsBoundary1 = this%rhsBoundary1 / 64.0_wp
 
-  else if (trim(identifier) == "SBP 4-8 first derivative") then
+  else if (trim(stencilScheme) == "SBP 4-8 first derivative") then
 
      this%symmetryType = SKEW_SYMMETRIC
      this%interiorWidth = 9
@@ -1158,7 +1158,7 @@ subroutine setupOperator(this, identifier)
      this%rhsBoundary1(11,8) = 193536.0_wp / 5127739.0_wp
      this%rhsBoundary1(12,8) = -18144.0_wp / 5127739.0_wp
 
-  else if (trim(identifier) == "SBP 4-8 second derivative") then
+  else if (trim(stencilScheme) == "SBP 4-8 second derivative") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 9
@@ -1255,7 +1255,7 @@ subroutine setupOperator(this, identifier)
                                             129024.0_wp /       5127739.0_wp, &
                                              -9072.0_wp /       5127739.0_wp /)
 
-  else if (trim(identifier) == "SBP 4-8 dissipation") then
+  else if (trim(stencilScheme) == "SBP 4-8 dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 9
@@ -1341,7 +1341,7 @@ subroutine setupOperator(this, identifier)
 
      this%rhsBoundary1 = this%rhsBoundary1 / 256.0_wp
 
-  else if (trim(identifier) == "null matrix") then
+  else if (trim(stencilScheme) == "null matrix") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 0

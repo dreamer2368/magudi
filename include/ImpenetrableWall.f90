@@ -1,31 +1,29 @@
 #include "config.h"
 
-module SpongePatch_mod
+module ImpenetrableWall_mod
 
   use Patch_mod, only : t_Patch
 
   implicit none
   private
 
-  type, extends(t_Patch), public :: t_SpongePatch
+  type, extends(t_Patch), public :: t_ImpenetrableWall
 
-     real(SCALAR_KIND) :: spongeAmount
-     integer :: spongeExponent
-     real(SCALAR_KIND), allocatable :: spongeStrength(:)
+     real(SCALAR_KIND) :: inviscidPenaltyAmount
 
    contains
 
-     procedure, pass :: setup => setupSpongePatch
-     procedure, pass :: cleanup => cleanupSpongePatch
-     procedure, pass :: update => updateSpongePatch
-     procedure, pass :: verifyUsage => verifySpongePatchUsage
-     procedure, pass :: updateRhs => addDamping
+     procedure, pass :: setup => setupImpenetrableWall
+     procedure, pass :: cleanup => cleanupImpenetrableWall
+     procedure, pass :: update => updateImpenetrableWall
+     procedure, pass :: verifyUsage => verifyImpenetrableWallUsage
+     procedure, pass :: updateRhs => addImpenetrableWallPenalty
 
-  end type t_SpongePatch
+  end type t_ImpenetrableWall
 
   interface
 
-     subroutine setupSpongePatch(this, index, comm, patchDescriptor,                         &
+     subroutine setupImpenetrableWall(this, index, comm, patchDescriptor,                    &
           grid, simulationFlags, solverOptions)
 
        use Grid_mod, only : t_Grid
@@ -33,63 +31,63 @@ module SpongePatch_mod
        use PatchDescriptor_mod, only : t_PatchDescriptor
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_SpongePatch
+       import :: t_ImpenetrableWall
 
-       class(t_SpongePatch) :: this
+       class(t_ImpenetrableWall) :: this
        integer, intent(in) :: index, comm
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        class(t_Grid), intent(in) :: grid
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
 
-     end subroutine setupSpongePatch
+     end subroutine setupImpenetrableWall
 
   end interface
 
   interface
 
-     subroutine cleanupSpongePatch(this)
+     subroutine cleanupImpenetrableWall(this)
 
-       import :: t_SpongePatch
+       import :: t_ImpenetrableWall
 
-       class(t_SpongePatch) :: this
+       class(t_ImpenetrableWall) :: this
 
-     end subroutine cleanupSpongePatch
+     end subroutine cleanupImpenetrableWall
 
   end interface
 
   interface
 
-     subroutine updateSpongePatch(this, simulationFlags, solverOptions, grid, state)
+     subroutine updateImpenetrableWall(this, simulationFlags, solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_SpongePatch
+       import :: t_ImpenetrableWall
 
-       class(t_SpongePatch) :: this
+       class(t_ImpenetrableWall) :: this
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid), intent(in) :: grid
        class(t_State), intent(in) :: state
 
-     end subroutine updateSpongePatch
+     end subroutine updateImpenetrableWall
 
   end interface
 
   interface
 
-     function verifySpongePatchUsage(this, patchDescriptor, gridSize, normalDirection,       &
+     function verifyImpenetrableWallUsage(this, patchDescriptor, gridSize, normalDirection,  &
           extent, simulationFlags, success, message) result(isPatchUsed)
 
        use PatchDescriptor_mod, only : t_PatchDescriptor
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_SpongePatch
+       import :: t_ImpenetrableWall
 
-       class(t_SpongePatch) :: this
+       class(t_ImpenetrableWall) :: this
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        integer, intent(in) :: gridSize(:), normalDirection, extent(6)
        type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -98,30 +96,31 @@ module SpongePatch_mod
 
        logical :: isPatchUsed
 
-     end function verifySpongePatchUsage
+     end function verifyImpenetrableWallUsage
 
   end interface
 
   interface
 
-     subroutine addDamping(this, mode, simulationFlags, solverOptions, grid, state)
+     subroutine addImpenetrableWallPenalty(this, mode, simulationFlags,                      &
+          solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_SpongePatch
+       import :: t_ImpenetrableWall
 
-       class(t_SpongePatch) :: this
+       class(t_ImpenetrableWall) :: this
        integer, intent(in) :: mode
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid), intent(in) :: grid
        class(t_State) :: state
 
-     end subroutine addDamping
+     end subroutine addImpenetrableWallPenalty
 
   end interface
 
-end module SpongePatch_mod
+end module ImpenetrableWall_mod

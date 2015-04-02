@@ -572,7 +572,7 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
   ! Advection.
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
-     ! assert(real(temperature(i), wp) > 0.0_wp)
+     assert(real(temperature(i), wp) > 0.0_wp)
      gridSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))     &
           * sqrt(sum(real(metrics(i,:), wp) ** 2)) ! ... scaled speed of sound.
      gridVelocity = 0.0_wp
