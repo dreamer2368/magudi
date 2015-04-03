@@ -20,15 +20,16 @@ module TimeIntegrator_factory
 
   interface
 
-     subroutine connectTimeIntegrator(this, timeIntegrator, integrationScheme)
+     subroutine connectTimeIntegrator(this, timeIntegratorTarget, timeIntegratorType, createNew)
 
        use TimeIntegrator_mod, only : t_TimeIntegrator
 
        import :: t_TimeIntegratorFactory
 
        class(t_TimeIntegratorFactory) :: this
-       class(t_TimeIntegrator), pointer, intent(out) :: timeIntegrator
-       character(len = *), intent(in) :: integrationScheme
+       class(t_TimeIntegrator), pointer, intent(out) :: timeIntegratorTarget
+       character(len = *), intent(in), optional :: timeIntegratorType
+       logical, intent(in), optional :: createNew
 
      end subroutine connectTimeIntegrator
 

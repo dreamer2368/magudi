@@ -23,7 +23,7 @@ program main
 
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, timestep, nTimesteps, saveInterval, procRank, numProcs, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
+  character(len = STRING_LENGTH) :: filename, outputPrefix, str, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
@@ -90,9 +90,15 @@ program main
   write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
   call region%saveData(QOI_METRICS, filename)
 
-  ! Setup the RK4 integrator.
-  call timeIntegratorFactory%connect(timeIntegrator,                                         &
-       getOption("time_integration_scheme", "RK4"))
+  ! Get a time integrator from factory.
+  str = getOption("time_integration_scheme", "RK4")
+  call timeIntegratorFactory%connect(timeIntegrator, trim(str), .true.)
+  if (.not. associated(timeIntegrator)) then
+     write(message, '(3A)') "Invalid time integration scheme '", trim(str), "'!"
+     call gracefulExit(MPI_COMM_WORLD, message)
+  end if
+
+  ! Setup the time integrator.
   call timeIntegrator%setup(region)
 
   ! Initialize the solver.

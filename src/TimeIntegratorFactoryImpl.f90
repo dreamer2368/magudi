@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine connectTimeIntegrator(this, timeIntegrator, integrationScheme)
+subroutine connectTimeIntegrator(this, timeIntegratorTarget, timeIntegratorType, createNew)
 
   ! <<< Derived types >>>
   use RK4Integrator_mod, only : t_RK4Integrator
@@ -12,16 +12,25 @@ subroutine connectTimeIntegrator(this, timeIntegrator, integrationScheme)
 
   ! <<< Arguments >>>
   class(t_TimeIntegratorFactory) :: this
-  class(t_TimeIntegrator), pointer, intent(out) :: timeIntegrator
-  character(len = *), intent(in) :: integrationScheme
+  class(t_TimeIntegrator), pointer, intent(out) :: timeIntegratorTarget
+  character(len = *), intent(in), optional :: timeIntegratorType
+  logical, intent(in), optional :: createNew
 
-  assert_key(trim(integrationScheme), ( \
-  'RK4', \
-  'JamesonRK3'))
+  ! <<< Local variables >>>
+  logical :: createNew_
 
-  if (.not. associated(this%timeIntegrator)) then
+  createNew_ = .false.
+  if (present(createNew)) createNew_ = createNew
 
-     select case (trim(integrationScheme))
+  if (present(timeIntegratorType) .and. .not. (associated(this%timeIntegrator) .and.         &
+       .not. createNew_)) then
+
+     if (associated(this%timeIntegrator)) deallocate(this%timeIntegrator)
+     nullify(this%timeIntegrator)
+
+     this%timeIntegratorType = timeIntegratorType
+
+     select case (trim(timeIntegratorType))
 
      case ('RK4')
         allocate(t_RK4Integrator :: this%timeIntegrator)
@@ -29,11 +38,16 @@ subroutine connectTimeIntegrator(this, timeIntegrator, integrationScheme)
      case ('JamesonRK3')
         allocate(t_JamesonRK3Integrator :: this%timeIntegrator)
 
+     case default
+        this%timeIntegratorType = ""
+
      end select
 
   end if
 
-  timeIntegrator => this%timeIntegrator
+  nullify(timeIntegratorTarget)
+  if (.not. associated(this%timeIntegrator)) return
+  timeIntegratorTarget => this%timeIntegrator
 
 end subroutine connectTimeIntegrator
 
