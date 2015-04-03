@@ -28,8 +28,6 @@ subroutine connectTimeIntegrator(this, timeIntegratorTarget, timeIntegratorType,
      if (associated(this%timeIntegrator)) deallocate(this%timeIntegrator)
      nullify(this%timeIntegrator)
 
-     this%timeIntegratorType = timeIntegratorType
-
      select case (trim(timeIntegratorType))
 
      case ('RK4')
@@ -37,9 +35,6 @@ subroutine connectTimeIntegrator(this, timeIntegratorTarget, timeIntegratorType,
 
      case ('JamesonRK3')
         allocate(t_JamesonRK3Integrator :: this%timeIntegrator)
-
-     case default
-        this%timeIntegratorType = ""
 
      end select
 
