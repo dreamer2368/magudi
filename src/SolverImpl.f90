@@ -522,7 +522,8 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   assert(associated(timeIntegrator))
   call timeIntegrator%setup(region)
 
-  call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                          &
+  if (.not. region%simulationFlags%steadyStateSimulation)                                    &
+       call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                     &     
        getOption("checkpointing_scheme", "uniform checkpointing"),                           &
        timestep - nTimesteps, timestep,                                                      &
        saveInterval, saveInterval * timeIntegrator%nStages)
@@ -532,7 +533,8 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
      verbose = (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0)
 
      if (region%simulationFlags%useConstantCfl) then
-        call migrateToSubstep(reverseMigrator, region, timeIntegrator, timestep_, 1)
+        if (.not. region%simulationFlags%steadyStateSimulation)                              &
+             call migrateToSubstep(reverseMigrator, region, timeIntegrator, timestep_, 1)
         do j = 1, size(region%states) !... update state
            call region%states(j)%update(region%grids(j), region%simulationFlags,             &
                 region%solverOptions)
