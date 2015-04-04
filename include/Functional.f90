@@ -7,10 +7,13 @@ module Functional_mod
 
   type, abstract, public :: t_Functional
 
+     SCALAR_TYPE :: cachedValue = real(0.0, SCALAR_KIND)
+
    contains
 
      procedure, non_overridable, pass :: setupBase => setupFunctional
      procedure, non_overridable, pass :: cleanupBase => cleanupFunctional
+     procedure, pass :: writeToFile => writeFunctionalToFile
 
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
@@ -128,6 +131,23 @@ module Functional_mod
        class(t_Functional) :: this
        
      end subroutine cleanupFunctional
+     
+  end interface
+
+  interface
+     
+     subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
+       
+       import :: t_Functional
+       
+       class(t_Functional) :: this
+       integer, intent(in) :: comm
+       character(len = *), intent(in) :: filename
+       integer, intent(in) :: timestep
+       real(SCALAR_KIND), intent(in) :: time
+       logical, intent(in), optional :: append
+       
+     end subroutine writeFunctionalToFile
      
   end interface
 

@@ -320,7 +320,6 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
   integer :: i, j, timestep_, reportInterval, residualInterval
-  logical :: verbose
   class(t_Functional), pointer :: functional => null()
   type(t_FunctionalFactory) :: functionalFactory
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
@@ -340,7 +339,6 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
   call region%saveData(QOI_FORWARD_STATE, filename)
 
-  verbose = .false.
   residualInterval = getOption("check_residuals_interval", -1)
   if (residualInterval == -1) then
      call getRequiredOption("report_interval", reportInterval)
@@ -362,8 +360,6 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   call timeIntegrator%setup(region)
 
   do timestep_ = timestep + 1, timestep + nTimesteps
-
-     verbose = (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0)
 
      do j = 1, size(region%states) !... update state
         call region%states(j)%update(region%grids(j), region%simulationFlags,                &
@@ -392,7 +388,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
      end do
 
-     if (verbose) then
+     if (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0) then
         if (region%simulationFlags%useConstantCfl) then
            write(str, '(2A,I8,3(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", timeStepSize, ", time = ", time,                                  &
@@ -403,6 +399,8 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
                 ", CFL = ", cfl, ", time = ", time, ", cost = ", instantaneousCostFunctional
         end if
         call writeAndFlush(region%comm, output_unit, str)
+        call functional%writeToFile(region%comm, trim(outputPrefix_) //                      &
+             ".cost_functional.txt", timestep_, time, timestep_ > timestep + reportInterval)
      end if
 
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
@@ -484,7 +482,6 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
   type(t_ReverseMigrator) :: reverseMigrator
   integer :: i, j, timestep_, reportInterval, residualInterval
-  logical :: verbose
   class(t_Functional), pointer :: functional => null()
   type(t_FunctionalFactory) :: functionalFactory
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
@@ -501,7 +498,6 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
   call region%saveData(QOI_ADJOINT_STATE, filename)
 
-  verbose = .false.
   residualInterval = getOption("check_residuals_interval", -1)
   if (residualInterval == -1) then
      call getRequiredOption("report_interval", reportInterval)
@@ -529,8 +525,6 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
        saveInterval, saveInterval * timeIntegrator%nStages)
 
   do timestep_ = timestep - 1, timestep - nTimesteps, -1
-
-     verbose = (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0)
 
      if (region%simulationFlags%useConstantCfl) then
         if (.not. region%simulationFlags%steadyStateSimulation)                              &
@@ -565,7 +559,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
 
      end do
 
-     if (verbose) then
+     if (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0) then
         if (region%simulationFlags%useConstantCfl) then
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", timeStepSize, ", time = ", time

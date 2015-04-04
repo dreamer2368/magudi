@@ -1209,8 +1209,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux1D(conservedVariables, metr
      end if
 
      ! Compute variations of specific volume, velocity and temperature.
-     deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
-          deltaConservedVariables_(1,:)
+     deltaSpecificVolume = - specificVolume_ ** 2 * deltaConservedVariables_(1,:)
      deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
           specificVolume_ * deltaConservedVariables(2,:)
      deltaTemperature = ratioOfSpecificHeats *                                               &
@@ -1438,8 +1437,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux2D(conservedVariables, metr
      end if
 
      ! Compute variations of specific volume, velocity and temperature.
-     deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
-          deltaConservedVariables_(1,:)
+     deltaSpecificVolume = - specificVolume_ ** 2 * deltaConservedVariables_(1,:)
      deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
           specificVolume_ * deltaConservedVariables_(2,:)
      deltaVelocity(2,:) = deltaSpecificVolume * conservedVariables(3) +                      &
@@ -1726,8 +1724,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux3D(conservedVariables, metr
      end if
 
      ! Compute variations of specific volume, velocity and temperature.
-     deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                            &
-          deltaConservedVariables_(1,:)
+     deltaSpecificVolume = - specificVolume_ ** 2 * deltaConservedVariables_(1,:)
      deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                      &
           specificVolume_ * deltaConservedVariables_(2,:)
      deltaVelocity(2,:) = deltaSpecificVolume * conservedVariables(3) +                      &

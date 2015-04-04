@@ -43,9 +43,9 @@ contains
                      (k - 1 - patch%offset(3)))
 
                 patch%adjointForcing(patchIndex,nDimensions+2) =                             &
-                     - grid%jacobian(gridIndex, 1) * (ratioOfSpecificHeats - 1.0_wp) *       &   
-                     sum(direction(1:nDimensions) *                                          &
-                     grid%metrics(gridIndex,abs(patch%normalDirection)::nDimensions))
+                     - grid%jacobian(gridIndex, 1) * sum(direction(1:nDimensions) *          &                                
+                     grid%metrics(gridIndex,abs(patch%normalDirection)::nDimensions)) *      &
+                     (ratioOfSpecificHeats - 1.0_wp)
                 patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * &
                      patch%adjointForcing(patchIndex,nDimensions+2)
                 patch%adjointForcing(patchIndex,1) =                                         &
@@ -200,6 +200,8 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
      call MPI_Bcast(instantaneousFunctional, 1, SCALAR_TYPE_MPI,                             &
           0, region%grids(i)%comm, ierror)
   end do
+
+  this%cachedValue = instantaneousFunctional
 
 end function computeDragCoefficient
 

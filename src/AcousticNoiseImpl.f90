@@ -199,6 +199,8 @@ function computeAcousticNoise(this, time, region) result(instantaneousFunctional
           0, region%grids(i)%comm, ierror)
   end do
 
+  this%cachedValue = instantaneousFunctional
+
 end function computeAcousticNoise
 
 subroutine computeAcousticNoiseAdjointForcing(this, region)
