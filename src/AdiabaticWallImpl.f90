@@ -26,7 +26,6 @@ subroutine setupAdiabaticWall(this, index, comm, patchDescriptor,               
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: key
-  SCALAR_TYPE :: wallTemperature
   integer :: i
 
   call this%t_ImpenetrableWall%setup(index, comm, patchDescriptor,                           &
@@ -74,7 +73,6 @@ subroutine addAdiabaticWallPenalty(this, mode, simulationFlags, solverOptions, g
   use State_mod, only : t_State
   use AdiabaticWall_mod, only : t_AdiabaticWall
   use SolverOptions_mod, only : t_SolverOptions
-  use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>

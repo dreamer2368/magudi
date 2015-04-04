@@ -11,7 +11,7 @@ module Patch_mod
 
      integer :: index, normalDirection, gridIndex, extent(6), nDimensions, patchSize(3),     &
           offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints, comm = MPI_COMM_NULL
-     logical :: isCurvilinear
+     logical :: isCurvilinear, penaltyInPhysicalCoordinates = .false.
 
    contains
 

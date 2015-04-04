@@ -87,7 +87,6 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
   use State_mod, only : t_State
   use IsothermalWall_mod, only : t_IsothermalWall
   use SolverOptions_mod, only : t_SolverOptions
-  use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>

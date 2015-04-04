@@ -64,7 +64,6 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   use State_mod, only : t_State
   use ImpenetrableWall_mod, only : t_ImpenetrableWall
   use SolverOptions_mod, only : t_SolverOptions
-  use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
@@ -270,7 +269,7 @@ function verifyImpenetrableWallUsage(this, patchDescriptor, gridSize, normalDire
   logical :: isPatchUsed
 
   ! <<< Local variables >>>
-  integer :: i, n
+  integer :: i
 
   isPatchUsed = .false.
 
@@ -279,8 +278,6 @@ function verifyImpenetrableWallUsage(this, patchDescriptor, gridSize, normalDire
      write(message, '(A)') "Normal direction is invalid!"
      return
   end if
-
-  n = size(gridSize)
 
   do i = 1, size(gridSize)
      if (extent((i-1)*2+1) < 0 .or. extent((i-1)*2+2) > gridSize(i) .or.                     &

@@ -16,7 +16,7 @@ module DragCoefficient_mod
      procedure, pass :: setup => setupDragCoefficient
      procedure, pass :: cleanup => cleanupDragCoefficient
      procedure, pass :: compute => computeDragCoefficient
-     procedure, pass :: addAdjointForcing => addDragCoefficientAdjointForcing
+     procedure, pass :: computeAdjointForcing => computeDragCoefficientAdjointForcing
 
   end type t_DragCoefficient
 
@@ -49,13 +49,14 @@ module DragCoefficient_mod
 
   interface
      
-     function computeDragCoefficient(this, region) result(instantaneousFunctional)
+     function computeDragCoefficient(this, time, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
        
        import :: t_DragCoefficient
        
        class(t_DragCoefficient) :: this
+       real(SCALAR_KIND), intent(in) :: time
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional
@@ -66,23 +67,16 @@ module DragCoefficient_mod
 
   interface
 
-     subroutine addDragCoefficientAdjointForcing(this, simulationFlags,                        &
-          solverOptions, grid, state)
+     subroutine computeDragCoefficientAdjointForcing(this, region)
 
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
+       use Region_mod, only : t_Region
 
        import :: t_DragCoefficient
 
        class(t_DragCoefficient) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State) :: state
+       class(t_Region) :: region
 
-     end subroutine addDragCoefficientAdjointForcing
+     end subroutine computeDragCoefficientAdjointForcing
 
   end interface
 

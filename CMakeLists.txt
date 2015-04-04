@@ -142,6 +142,11 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/IsothermalWallImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AdiabaticWall.f90
   ${PROJECT_SOURCE_DIR}/src/AdiabaticWallImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/CostTargetPatch.f90
+  ${PROJECT_SOURCE_DIR}/src/CostTargetPatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ActuatorPatch.f90
+  ${PROJECT_SOURCE_DIR}/src/ActuatorPatchImpl.f90
+
   ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
   ${PROJECT_SOURCE_DIR}/include/DragCoefficient.f90

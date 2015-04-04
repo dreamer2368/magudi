@@ -15,7 +15,7 @@ module Functional_mod
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
      procedure(compute), pass, deferred :: compute
-     procedure(addAdjointForcing), pass, deferred :: addAdjointForcing
+     procedure(computeAdjointForcing), pass, deferred :: computeAdjointForcing
 
   end type t_Functional
 
@@ -48,13 +48,14 @@ module Functional_mod
 
   abstract interface
      
-     function compute(this, region) result(instantaneousFunctional)
+     function compute(this, time, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
        
        import :: t_Functional
        
        class(t_Functional) :: this
+       real(SCALAR_KIND), intent(in) :: time
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional
@@ -65,22 +66,16 @@ module Functional_mod
 
   abstract interface
 
-     subroutine addAdjointForcing(this, simulationFlags, solverOptions, grid, state)
+     subroutine computeAdjointForcing(this, region)
 
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
+       use Region_mod, only : t_Region
 
        import :: t_Functional
 
        class(t_Functional) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State) :: state
+       class(t_Region) :: region
 
-     end subroutine addAdjointForcing
+     end subroutine computeAdjointForcing
 
   end interface
 

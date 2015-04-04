@@ -7,77 +7,57 @@ module AcousticNoiseImpl
 
 contains
 
-  subroutine loadMeanPressure(this, filename, region)
-
-    ! <<< External modules >>>
-    use MPI
-    use, intrinsic :: iso_fortran_env, only : output_unit
+  subroutine computeAdjointForcingOnPatch(patch, grid, velocity,                             &
+       pressure, meanPressure, ratioOfSpecificHeats)
 
     ! <<< Derived types >>>
-    use Region_mod, only : t_Region
-    use AcousticNoise_mod, only : t_AcousticNoise
-
-    ! <<< Internal modules >>>
-    use ErrorHandler, only : gracefulExit, writeAndFlush
-    use PLOT3DHelper, only : plot3dErrorMessage, plot3dGetOffset, plot3dReadSingleFunction
+    use Grid_mod, only : t_Grid
+    use Patch_mod, only : t_Patch
+    use CostTargetPatch_mod, only : t_CostTargetPatch
 
     ! <<< Arguments >>>
-    class(t_AcousticNoise) :: this
-    character(len = *), intent(in) :: filename
-    class(t_Region) :: region
+    class(t_Patch), pointer, intent(in) :: patch
+    class(t_Grid), intent(in) :: grid
+    SCALAR_TYPE, intent(in) :: velocity(:,:), pressure(:), meanPressure(:)
+    real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
 
     ! <<< Local variables >>>
-    character(len = STRING_LENGTH) :: message
-    logical :: success
-    integer :: i, j, errorRank, procRank, ierror
-    integer(kind = MPI_OFFSET_KIND) :: offset
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, nDimensions, gridIndex, patchIndex
 
-    assert(len_trim(filename) > 0)
+    nDimensions = grid%nDimensions
+    assert_key(nDimensions, (1, 2, 3))
 
-    write(message, '(3A)') "Reading '", trim(filename), "'..."
-    call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+    select type (patch)
+    type is (t_CostTargetPatch)
 
-    do i = 1, size(region%gridCommunicators)
+       do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+          do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+             do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+                gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *               &   
+                     (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                 &   
+                     (k - 1 - patch%gridOffset(3)))
+                if (grid%iblank(gridIndex) == 0) cycle
+                patchIndex = i - patch%offset(1) + patch%patchSize(1) *                      &   
+                     (j - 1 - patch%offset(2) + patch%patchSize(2) *                         &   
+                     (k - 1 - patch%offset(3)))
 
-       success = .true.
+                patch%adjointForcing(patchIndex,nDimensions+2) =                             &   
+                     - 2.0_wp * (ratioOfSpecificHeats - 1.0_wp) *                            &   
+                     (pressure(gridIndex) - meanPressure(gridIndex))
+                patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * &   
+                     patch%adjointForcing(patchIndex,nDimensions+2)
+                patch%adjointForcing(patchIndex,1) =                                         &
+                     0.5_wp * sum(velocity(gridIndex,:) ** 2) *                              &
+                     patch%adjointForcing(patchIndex,nDimensions+2)
 
-       do j = 1, size(region%grids)
-          if (region%grids(j)%index == i) then !... read one grid at a time
-             offset = plot3dGetOffset(region%gridCommunicators(i), filename, i, success)
-             if (.not. success) exit
-             call plot3dReadSingleFunction(region%grids(j)%comm, trim(filename), offset,     &
-                  region%grids(j)%mpiDerivedTypeScalarSubarray, region%grids(j)%globalSize,  &
-                  this%data_(j)%meanPressure, success)
-             exit
-          end if
-       end do
+             end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+          end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+       end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
 
-       call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL,                             &
-            MPI_LAND, region%comm, ierror)
-       if (.not. success) exit
-       call MPI_Barrier(region%comm, ierror)
-
-    end do
-
-    if (success) then
-       write(message, '(A)') " done!"
-    else
-       write(message, '(A)') " failed!"
-    end if
-    call writeAndFlush(region%comm, output_unit, message)
-
-    if (.not. success) then
-       call MPI_Comm_rank(region%comm, procRank, ierror)
-       errorRank = 0
-       if (len_trim(plot3dErrorMessage) > 0) errorRank = procRank
-       call MPI_Allreduce(MPI_IN_PLACE, errorRank, 1, MPI_INTEGER,                           &
-            MPI_MAX, region%comm, ierror)
-       call MPI_Bcast(plot3dErrorMessage, STRING_LENGTH, MPI_CHARACTER,                      &  
-            errorRank, region%comm, ierror)
-       call gracefulExit(region%comm, plot3dErrorMessage)
-    end if
-
-  end subroutine loadMeanPressure
+    end select
+    
+  end subroutine computeAdjointForcingOnPatch
 
 end module AcousticNoiseImpl
 
@@ -89,9 +69,6 @@ subroutine setupAcousticNoise(this, region)
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_DUMMY_FUNCTION
-
-  ! <<< Private members >>>
-  use AcousticNoiseImpl, only : loadMeanPressure
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeDependentVariables
@@ -164,7 +141,7 @@ subroutine cleanupAcousticNoise(this)
 
 end subroutine cleanupAcousticNoise
 
-function computeAcousticNoise(this, region) result(instantaneousFunctional)
+function computeAcousticNoise(this, time, region) result(instantaneousFunctional)
 
   ! <<< External modules >>>
   use MPI
@@ -175,6 +152,7 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
   ! <<< Arguments >>>
   class(t_AcousticNoise) :: this
+  real(SCALAR_KIND), intent(in) :: time
   class(t_Region), intent(in) :: region
 
   ! <<< Result >>>
@@ -223,20 +201,38 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
 end function computeAcousticNoise
 
-subroutine addAcousticNoiseAdjointForcing(this, simulationFlags, solverOptions, grid, state)
+subroutine computeAcousticNoiseAdjointForcing(this, region)
 
   ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use State_mod, only : t_State
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
   use AcousticNoise_mod, only : t_AcousticNoise
-  use SolverOptions_mod, only : t_SolverOptions
-  use SimulationFlags_mod, only : t_SimulationFlags
+  use CostTargetPatch_mod, only : t_CostTargetPatch
+
+  ! <<< Private members >>>
+  use AcousticNoiseImpl, only : computeAdjointForcingOnPatch
+
+  implicit none
 
   ! <<< Arguments >>>
   class(t_AcousticNoise) :: this
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
-  class(t_Grid), intent(in) :: grid
-  class(t_State) :: state
+  class(t_Region) :: region
 
-end subroutine addAcousticNoiseAdjointForcing
+  ! <<< Local variables >>>
+  integer :: i, j
+  class(t_Patch), pointer :: patch => null()
+  
+  if (.not. allocated(region%patchFactories)) return
+
+  do i = 1, size(region%grids)
+     do j = 1, size(region%patchFactories)
+        call region%patchFactories(j)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%gridIndex /= region%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
+        call computeAdjointForcingOnPatch(patch, region%grids(i),                            &
+             region%states(i)%velocity, region%states(i)%pressure(:,1),                      &
+             this%data_(i)%meanPressure(:,1), region%solverOptions%ratioOfSpecificHeats)
+     end do
+  end do
+
+end subroutine computeAcousticNoiseAdjointForcing

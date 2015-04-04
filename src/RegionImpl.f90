@@ -1041,10 +1041,6 @@ subroutine computeRhs(this, mode, time)
   if (this%simulationFlags%enableSolutionLimits) call checkSolutionLimits(this, mode)
 
   do i = 1, size(this%states)
-     this%states(i)%rightHandSide = 0.0_wp
-  end do
-
-  do i = 1, size(this%states)
 
      ! Semi-discrete right-hand-side operator.
      select case (mode)
@@ -1064,7 +1060,8 @@ subroutine computeRhs(this, mode, time)
         do j = 1, size(this%patchFactories)
            call this%patchFactories(j)%connect(patch)
            if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= this%grids(i)%index) cycle
+           if (patch%gridIndex /= this%grids(i)%index .or.                                   &
+                patch%penaltyInPhysicalCoordinates) cycle
            call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,              &
                 this%grids(i), this%states(i))
         end do
@@ -1082,6 +1079,20 @@ subroutine computeRhs(this, mode, time)
         end where
      end do
   end do
+
+  ! Patch source terms.
+  if (allocated(this%patchFactories)) then
+     do i = 1, size(this%states)
+        do j = 1, size(this%patchFactories)
+           call this%patchFactories(j)%connect(patch)
+           if (.not. associated(patch)) cycle
+           if (patch%gridIndex /= this%grids(i)%index .or.                                   &
+                .not. patch%penaltyInPhysicalCoordinates) cycle
+           call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,              &
+                this%grids(i), this%states(i))
+        end do
+     end do
+  end if
 
   ! Source terms.
   do i = 1, size(this%states)

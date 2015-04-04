@@ -58,7 +58,8 @@ contains
        call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
     end do
     if (mollifierNorm <= 0.0_wp)                                                             &
-         call gracefulExit(region%comm, "Control mollifying support is trivial!")
+         call gracefulExit(region%comm,                                                      &
+         "Control mollifying support is trivial! Is an actuator patch present?")
 
     do i = 1, size(region%grids)
        region%grids(i)%controlMollifier = region%grids(i)%controlMollifier / mollifierNorm
@@ -106,7 +107,7 @@ contains
        end if
        mollifierNorm = mollifierNorm +                                                       &
             real(computeQuadratureOnPatches(region%patchFactories,                           &
-            'FUNCTIONAL_TARGET', region%grids(i), region%grids(i)%targetMollifier(:,1)), wp)
+            'COST_TARGET', region%grids(i), region%grids(i)%targetMollifier(:,1)), wp)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                             &
@@ -117,7 +118,8 @@ contains
        call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
     end do
     if (mollifierNorm <= 0.0_wp)                                                             &
-         call gracefulExit(region%comm, "Target mollifying support is trivial!")
+         call gracefulExit(region%comm,                                                      &
+         "Target mollifying support is trivial! Is a cost target patch present?")
 
     do i = 1, size(region%grids)
        region%grids(i)%targetMollifier = region%grids(i)%targetMollifier / mollifierNorm
@@ -191,7 +193,6 @@ subroutine initializeSolver(region, restartFilename)
   ! <<< Enumerations >>>
   use Grid_enum
   use State_enum
-  use SolverOptions_enum, only : SOUND
 
   ! <<< Private members >>>
   use SolverImpl, only : normalizeControlMollifier, normalizeTargetMollifier
@@ -279,7 +280,7 @@ subroutine initializeSolver(region, restartFilename)
 
 end subroutine initializeSolver
 
-subroutine solveForward(region, integrator, time, timestep, nTimesteps,                      &
+subroutine solveForward(region, time, timestep, nTimesteps,                                  &
      saveInterval, outputPrefix, costFunctional)
 
   ! <<< External modules >>>
@@ -288,7 +289,10 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   ! <<< Derived types >>>
   use State_mod, only : t_State
   use Region_mod, only : t_Region
+  use Functional_mod, only : t_Functional
+  use Functional_factory, only : t_FunctionalFactory
   use TimeIntegrator_mod, only : t_TimeIntegrator
+  use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE
@@ -305,7 +309,6 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
 
   ! <<< Arguments >>>
   class(t_Region) :: region
-  class(t_TimeIntegrator) :: integrator
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps
@@ -318,6 +321,10 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
   integer :: i, j, timestep_, reportInterval, residualInterval
   logical :: verbose
+  class(t_Functional), pointer :: functional => null()
+  type(t_FunctionalFactory) :: functionalFactory
+  class(t_TimeIntegrator), pointer :: timeIntegrator => null()
+  type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   real(wp) :: timeStepSize, cfl, residuals(3)
   SCALAR_TYPE :: instantaneousCostFunctional
 
@@ -343,42 +350,57 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
      reportInterval = getOption("report_interval", 1)
   end if
 
+  if (.not. region%simulationFlags%predictionOnly) then
+     call functionalFactory%connect(functional, trim(region%solverOptions%costFunctionalType))
+     assert(associated(functional))
+     call functional%setup(region)
+  end if
+
+  call timeIntegratorFactory%connect(timeIntegrator,                                         &
+       trim(region%solverOptions%timeIntegratorType))
+  assert(associated(timeIntegrator))
+  call timeIntegrator%setup(region)
+
   do timestep_ = timestep + 1, timestep + nTimesteps
 
      verbose = (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0)
 
      do j = 1, size(region%states) !... update state
-        call region%states(j)%update(region%grids(j), region%simulationFlags, region%solverOptions)
+        call region%states(j)%update(region%grids(j), region%simulationFlags,                &
+             region%solverOptions)
      end do
      timeStepSize = region%getTimeStepSize()
 
-     do i = 1, integrator%nStages
+     do i = 1, timeIntegrator%nStages
 
-        call integrator%substepForward(region, time, timeStepSize, timestep_, i)
+        call timeIntegrator%substepForward(region, time, timeStepSize, timestep_, i)
 
-        if (i /= integrator%nStages) then
+        if (i /= timeIntegrator%nStages) then
            do j = 1, size(region%states) !... update state
-              call region%states(j)%update(region%grids(j), region%simulationFlags, &
+              call region%states(j)%update(region%grids(j), region%simulationFlags,          &
                    region%solverOptions)
            end do
         end if
 
-        if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then
-           ! instantaneousCostFunctional = 
-           costFunctional = costFunctional +                                                 &
-                integrator%norm(i) * timeStepSize * instantaneousCostFunctional
-        end if
+        if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then           
+           instantaneousCostFunctional = functional%compute(time, region)
+             costFunctional = costFunctional +                                               &
+                  timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
+          else
+             instantaneousCostFunctional = 0.0_wp
+          end if
 
      end do
 
      if (verbose) then
         if (region%simulationFlags%useConstantCfl) then
-           write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
-                ", dt = ", timeStepSize, ", time = ", time
+           write(str, '(2A,I8,3(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
+                ", dt = ", timeStepSize, ", time = ", time,                                  &
+                ", cost = ", instantaneousCostFunctional
         else
            cfl = region%getCfl()
-           write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
-                ", CFL = ", cfl, ", time = ", time
+           write(str, '(2A,I8,3(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
+                ", CFL = ", cfl, ", time = ", time, ", cost = ", instantaneousCostFunctional
         end if
         call writeAndFlush(region%comm, output_unit, str)
      end if
@@ -418,12 +440,14 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
 
   end do
 
+  call timeIntegratorFactory%cleanup()
+  call functionalFactory%cleanup()
+
   call endTiming("solveForward")
 
 end subroutine solveForward
 
-subroutine solveAdjoint(region, integrator, time, timestep,                                  &
-     nTimesteps, saveInterval, outputPrefix)
+subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, outputPrefix)
 
   ! <<< External modules >>>
   use iso_fortran_env, only : output_unit
@@ -431,8 +455,11 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
   ! <<< Derived types >>>
   use State_mod, only : t_State
   use Region_mod, only : t_Region
+  use Functional_mod, only : t_Functional
+  use Functional_factory, only : t_FunctionalFactory
   use TimeIntegrator_mod, only : t_TimeIntegrator
   use ReverseMigrator_type, only : t_ReverseMigrator
+  use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_ADJOINT_STATE
@@ -447,7 +474,6 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
 
   ! <<< Arguments >>>
   class(t_Region) :: region
-  class(t_TimeIntegrator) :: integrator
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps, saveInterval
@@ -459,6 +485,10 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
   type(t_ReverseMigrator) :: reverseMigrator
   integer :: i, j, timestep_, reportInterval, residualInterval
   logical :: verbose
+  class(t_Functional), pointer :: functional => null()
+  type(t_FunctionalFactory) :: functionalFactory
+  class(t_TimeIntegrator), pointer :: timeIntegrator => null()
+  type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   real(wp) :: timeStepSize, cfl, residuals(3)
 
   assert(timestep >= nTimesteps)
@@ -467,11 +497,6 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
 
   outputPrefix_ = PROJECT_NAME
   if (present(outputPrefix)) outputPrefix_ = outputPrefix
-
-  call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                          &
-       getOption("checkpointing_scheme", "uniform checkpointing"),                           &
-       timestep - nTimesteps, timestep,                                                      &
-       saveInterval, saveInterval * integrator%nStages)
 
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
   call region%saveData(QOI_ADJOINT_STATE, filename)
@@ -486,12 +511,28 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
      reportInterval = getOption("report_interval", 1)
   end if
 
+  if (.not. region%simulationFlags%predictionOnly) then
+     call functionalFactory%connect(functional, trim(region%solverOptions%costFunctionalType))
+     assert(associated(functional))
+     call functional%setup(region)
+  end if
+
+  call timeIntegratorFactory%connect(timeIntegrator,                                         &
+       trim(region%solverOptions%timeIntegratorType))
+  assert(associated(timeIntegrator))
+  call timeIntegrator%setup(region)
+
+  call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                          &
+       getOption("checkpointing_scheme", "uniform checkpointing"),                           &
+       timestep - nTimesteps, timestep,                                                      &
+       saveInterval, saveInterval * timeIntegrator%nStages)
+
   do timestep_ = timestep - 1, timestep - nTimesteps, -1
 
      verbose = (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0)
 
      if (region%simulationFlags%useConstantCfl) then
-        call migrateToSubstep(reverseMigrator, region, integrator, timestep_, 1)
+        call migrateToSubstep(reverseMigrator, region, timeIntegrator, timestep_, 1)
         do j = 1, size(region%states) !... update state
            call region%states(j)%update(region%grids(j), region%simulationFlags,             &
                 region%solverOptions)
@@ -499,15 +540,15 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
      end if
      timeStepSize = region%getTimeStepSize()
 
-     do i = integrator%nStages, 1, -1
+     do i = timeIntegrator%nStages, 1, -1
 
         if (.not. region%simulationFlags%steadyStateSimulation) then
            if (i == 1) then
               call migrateToSubstep(reverseMigrator, region,                                 &
-                   integrator, timestep_, integrator%nStages)
+                   timeIntegrator, timestep_, timeIntegrator%nStages)
            else
               call migrateToSubstep(reverseMigrator, region,                                 &
-                   integrator, timestep_ + 1, i - 1)
+                   timeIntegrator, timestep_ + 1, i - 1)
            end if
         end if
 
@@ -516,7 +557,9 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
                 region%solverOptions)
         end do
 
-        call integrator%substepAdjoint(region, time, timeStepSize, timestep_, i)
+        call functional%computeAdjointForcing(region)
+
+        call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep_, i)
 
      end do
 
@@ -564,6 +607,9 @@ subroutine solveAdjoint(region, integrator, time, timestep,                     
   end do
 
   call cleanupReverseMigrator(reverseMigrator)
+
+  call timeIntegratorFactory%cleanup()
+  call functionalFactory%cleanup()
 
   call endTiming("solveAdjoint")
 

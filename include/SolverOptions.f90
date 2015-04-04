@@ -1,17 +1,5 @@
 #include "config.h"
 
-module SolverOptions_enum
-
-  implicit none
-  public
-
-  integer, parameter ::                                                                      &
-       SOUND = 1,                                                                            &
-       LIFT  = 2,                                                                            &
-       DRAG  = 3
-  
-end module SolverOptions_enum
-
 module SolverOptions_mod
 
   implicit none
@@ -22,7 +10,8 @@ module SolverOptions_mod
      real(SCALAR_KIND) :: reynoldsNumberInverse, prandtlNumberInverse, ratioOfSpecificHeats, &
           powerLawExponent, bulkViscosityRatio, dissipationAmount, densityRange(2),          &
           temperatureRange(2), cfl, timeStepSize, convergenceTolerance(3)
-     integer :: costFunctionalType, nUnknowns
+     integer :: nUnknowns
+     character(len = STRING_LENGTH) :: timeintegratorType, costFunctionalType
 
    contains
 

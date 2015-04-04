@@ -1,46 +1,17 @@
 #include "config.h"
 
-module SolverOptionsImpl
-
-  implicit none
-  public
-
-contains
-
-  subroutine parseCostFunctionalType(costFunctionalTypeString, costFunctionalType)
-
-    ! <<< Enumerations >>>
-    use SolverOptions_enum
-
-    ! <<< Arguments >>>
-    character(len = *), intent(in) :: costFunctionalTypeString
-    integer, intent(out) :: costFunctionalType
-
-    costFunctionalType = -1
-
-    if (trim(costFunctionalTypeString) == "sound") then
-       costFunctionalType = SOUND
-    else if (trim(costFunctionalTypeString) == "lift") then
-       costFunctionalType = LIFT
-    else if (trim(costFunctionalTypeString) == "drag") then
-       costFunctionalType = DRAG
-    end if
-
-  end subroutine parseCostFunctionalType
-
-end module SolverOptionsImpl
-
 subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
+  use Functional_mod, only : t_Functional
   use SolverOptions_mod, only : t_SolverOptions
+  use Functional_factory, only : t_FunctionalFactory
+  use TimeIntegrator_mod, only : t_TimeIntegrator
   use SimulationFlags_mod, only : t_SimulationFlags
-
-  ! <<< Private members >>>
-  use SolverOptionsImpl, only : parseCostFunctionalType
+  use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
@@ -57,7 +28,11 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: comm_
-  character(len = STRING_LENGTH) :: str, message
+  character(len = STRING_LENGTH) :: message
+  type(t_TimeIntegratorFactory) :: timeIntegratorFactory
+  class(t_TimeIntegrator), pointer :: dummyTimeIntegrator => null()
+  type(t_FunctionalFactory) :: functionalFactory
+  class(t_Functional), pointer :: dummyFunctional => null()
 
   assert_key(nDimensions, (1, 2, 3))
 
@@ -100,11 +75,20 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call getRequiredOption("energy_convergence_tolerance",   this%convergenceTolerance(3))
   end if
 
+  call getRequiredOption("time_integration_scheme", this%timeIntegratorType)
+  call timeIntegratorFactory%connect(dummyTimeIntegrator, trim(this%timeIntegratorType))
+  if (.not. associated(dummyTimeIntegrator)) then
+     write(message, '(A)') "Invalid time integration scheme '",                              &
+          trim(this%timeIntegratorType), "'!"
+     call gracefulExit(comm_, message)
+  end if
+
   if (.not. simulationFlags%predictionOnly) then
-     call getRequiredOption("cost_functional_type", str)
-     call parseCostFunctionalType(str, this%costFunctionalType)
-     if (this%costFunctionalType == -1) then
-        write(message, '(A)') "Invalid cost functional type '", trim(str), "'!"
+     call getRequiredOption("cost_functional_type", this%costFunctionalType)
+     call functionalFactory%connect(dummyFunctional, trim(this%costFunctionalType))
+     if (.not. associated(dummyFunctional)) then
+        write(message, '(A)') "Invalid cost functional type '",                              &
+             trim(this%costFunctionalType), "'!"
         call gracefulExit(comm_, message)
      end if
   end if

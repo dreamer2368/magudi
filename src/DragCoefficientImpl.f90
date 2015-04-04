@@ -60,14 +60,11 @@ subroutine cleanupDragCoefficient(this)
   ! <<< Arguments >>>
   class(t_DragCoefficient) :: this
 
-  ! <<< Local variables >>>
-  integer :: i
-
   call this%cleanupBase()
 
 end subroutine cleanupDragCoefficient
 
-function computeDragCoefficient(this, region) result(instantaneousFunctional)
+function computeDragCoefficient(this, time, region) result(instantaneousFunctional)
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
@@ -75,27 +72,29 @@ function computeDragCoefficient(this, region) result(instantaneousFunctional)
 
   ! <<< Arguments >>>
   class(t_DragCoefficient) :: this
+  real(SCALAR_KIND), intent(in) :: time
   class(t_Region), intent(in) :: region
 
   ! <<< Result >>>
   SCALAR_TYPE :: instantaneousFunctional
 
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+
+  instantaneousFunctional = 0.0_wp
+
 end function computeDragCoefficient
 
-subroutine addDragCoefficientAdjointForcing(this, simulationFlags, solverOptions, grid, state)
+subroutine computeDragCoefficientAdjointForcing(this, region)
 
   ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use State_mod, only : t_State
-  use SolverOptions_mod, only : t_SolverOptions
+  use Region_mod, only : t_Region
   use DragCoefficient_mod, only : t_DragCoefficient
-  use SimulationFlags_mod, only : t_SimulationFlags
+
+  implicit none
 
   ! <<< Arguments >>>
   class(t_DragCoefficient) :: this
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
-  class(t_Grid), intent(in) :: grid
-  class(t_State) :: state
+  class(t_Region) :: region
 
-end subroutine addDragCoefficientAdjointForcing
+end subroutine computeDragCoefficientAdjointForcing

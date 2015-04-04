@@ -20,15 +20,12 @@ module Solver
 
   interface
 
-     subroutine solveForward(region, integrator, time, timestep, nTimesteps,                 &
+     subroutine solveForward(region, time, timestep, nTimesteps,                             &
           saveInterval, outputPrefix, costFunctional)
 
-       use State_mod, only : t_State
        use Region_mod, only : t_Region
-       use TimeIntegrator_mod, only : t_TimeIntegrator
 
        class(t_Region) :: region
-       class(t_TimeIntegrator) :: integrator
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps
@@ -42,15 +39,11 @@ module Solver
 
   interface
 
-     subroutine solveAdjoint(region, integrator, time, timestep,                             &
-          nTimesteps, saveInterval, outputPrefix)
+     subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, outputPrefix)
 
-       use State_mod, only : t_State
        use Region_mod, only : t_Region
-       use TimeIntegrator_mod, only : t_TimeIntegrator
 
        class(t_Region) :: region
-       class(t_TimeIntegrator) :: integrator
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps, saveInterval

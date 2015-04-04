@@ -88,7 +88,6 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
   use State_mod, only : t_State
   use FarFieldPatch_mod, only : t_FarFieldPatch
   use SolverOptions_mod, only : t_SolverOptions
-  use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
@@ -238,7 +237,7 @@ function verifyFarFieldPatchUsage(this, patchDescriptor, gridSize, normalDirecti
   logical :: isPatchUsed
 
   ! <<< Local variables >>>
-  integer :: i, n
+  integer :: i
 
   isPatchUsed = .false.
 
@@ -253,8 +252,6 @@ function verifyFarFieldPatchUsage(this, patchDescriptor, gridSize, normalDirecti
           "No target state available for enforcing far-field boundary conditions!"
      return
   end if
-
-  n = size(gridSize)
 
   do i = 1, size(gridSize)
      if (extent((i-1)*2+1) < 0 .or. extent((i-1)*2+2) > gridSize(i) .or.                     &

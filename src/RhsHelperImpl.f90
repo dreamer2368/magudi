@@ -29,6 +29,7 @@ subroutine computeRhsForward(time, simulationFlags,                             
   type(t_PatchFactory), allocatable :: patchFactories(:)
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
   class(t_Patch), pointer :: patch => null()
@@ -40,6 +41,8 @@ subroutine computeRhsForward(time, simulationFlags,                             
 
   allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
   allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+
+  state%rightHandSide = 0.0_wp
 
   ! Compute Cartesian form of inviscid fluxes.
   call computeCartesianInvsicidFluxes(nDimensions, state%conservedVariables,                 &
@@ -152,15 +155,7 @@ subroutine computeRhsAdjoint(time, simulationFlags,                             
 
   allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
 
-  ! Add dissipation if required.
-  if (simulationFlags%dissipationOn) then
-     do i = 1, nDimensions
-        temp1(:,:,i) = state%adjointVariables
-        call grid%dissipation(i)%apply(temp1(:,:,i), grid%localSize)
-     end do
-     state%rightHandSide = state%rightHandSide -                                             &
-          solverOptions%dissipationAmount * sum(temp1, dim = 3) !... update right-hand side.
-  end if
+  state%rightHandSide = 0.0_wp
 
   ! Partial derivatives of adjoint variables w.r.t. *computational* coordinates.
   do i = 1, nDimensions
@@ -331,6 +326,16 @@ subroutine computeRhsAdjoint(time, simulationFlags,                             
 
   SAFE_DEALLOCATE(localMetricsAlongDirection1)
   SAFE_DEALLOCATE(localVelocity)
+
+  ! Add dissipation if required.
+  if (simulationFlags%dissipationOn) then
+     do i = 1, nDimensions
+        temp1(:,:,i) = state%adjointVariables
+        call grid%dissipation(i)%apply(temp1(:,:,i), grid%localSize)
+     end do
+     state%rightHandSide = state%rightHandSide -                                             &
+          solverOptions%dissipationAmount * sum(temp1, dim = 3) !... update right-hand side.
+  end if
 
   SAFE_DEALLOCATE(temp1)
 

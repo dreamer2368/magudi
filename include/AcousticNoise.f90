@@ -20,7 +20,7 @@ module AcousticNoise_mod
      procedure, pass :: setup => setupAcousticNoise
      procedure, pass :: cleanup => cleanupAcousticNoise
      procedure, pass :: compute => computeAcousticNoise
-     procedure, pass :: addAdjointForcing => addAcousticNoiseAdjointForcing
+     procedure, pass :: computeAdjointForcing => computeAcousticNoiseAdjointForcing
 
   end type t_AcousticNoise
 
@@ -53,13 +53,14 @@ module AcousticNoise_mod
 
   interface
      
-     function computeAcousticNoise(this, region) result(instantaneousFunctional)
+     function computeAcousticNoise(this, time, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
        
        import :: t_AcousticNoise
        
        class(t_AcousticNoise) :: this
+       real(SCALAR_KIND), intent(in) :: time
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional
@@ -70,23 +71,16 @@ module AcousticNoise_mod
 
   interface
 
-     subroutine addAcousticNoiseAdjointForcing(this, simulationFlags,                        &
-          solverOptions, grid, state)
+     subroutine computeAcousticNoiseAdjointForcing(this, region)
 
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
+       use Region_mod, only : t_Region
 
        import :: t_AcousticNoise
 
        class(t_AcousticNoise) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State) :: state
+       class(t_Region) :: region
 
-     end subroutine addAcousticNoiseAdjointForcing
+     end subroutine computeAcousticNoiseAdjointForcing
 
   end interface
 

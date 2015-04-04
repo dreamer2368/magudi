@@ -14,9 +14,6 @@ contains
     use SolverOptions_mod, only : t_SolverOptions
     use SimulationFlags_mod, only : t_SimulationFlags
 
-    ! <<< Enumerations >>>
-    use SolverOptions_enum, only : SOUND
-
     ! <<< Arguments >>>
     class(t_State) :: this
     type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -248,9 +245,6 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
   logical, intent(out) :: success
-
-  ! <<< Local variables >>>
-  integer :: nDimensions
 
 #ifdef DEBUG
   if (quantityOfInterest == QOI_DUMMY_FUNCTION) then

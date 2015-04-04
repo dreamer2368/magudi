@@ -15,8 +15,8 @@ program vorticity_dilatation
 
   implicit none
 
-  integer :: i, j, startTimestep, endTimestep, saveInterval, procRank, ierror
-  character(len = STRING_LENGTH) :: filename, message, programName, outputPrefix
+  integer :: i, startTimestep, endTimestep, saveInterval, ierror
+  character(len = STRING_LENGTH) :: filename, outputPrefix
   logical :: success
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)

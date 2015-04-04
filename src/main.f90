@@ -6,7 +6,6 @@ program main
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   use Region_mod, only : t_Region
-  use TimeIntegrator_mod, only : t_TimeIntegrator
 
   use Grid_enum
   use State_enum
@@ -17,18 +16,15 @@ program main
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
-  use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, timestep, nTimesteps, saveInterval, procRank, numProcs, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, str, message
+  character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
-  type(t_TimeIntegratorFactory) :: timeIntegratorFactory
-  class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   real(wp) :: time
   SCALAR_TYPE :: costFunctional
 
@@ -90,17 +86,6 @@ program main
   write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
   call region%saveData(QOI_METRICS, filename)
 
-  ! Get a time integrator from factory.
-  str = getOption("time_integration_scheme", "RK4")
-  call timeIntegratorFactory%connect(timeIntegrator, trim(str), .true.)
-  if (.not. associated(timeIntegrator)) then
-     write(message, '(3A)') "Invalid time integration scheme '", trim(str), "'!"
-     call gracefulExit(MPI_COMM_WORLD, message)
-  end if
-
-  ! Setup the time integrator.
-  call timeIntegrator%setup(region)
-
   ! Initialize the solver.
   if (command_argument_count() == 1) then
      call get_command_argument(1, filename)
@@ -123,13 +108,12 @@ program main
   call MPI_Barrier(region%comm, ierror)
 
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
-     call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                   &
-          saveInterval, outputPrefix)
+     call solveForward(region, time, timestep, nTimesteps, saveInterval, outputPrefix)
   else
 
      ! Baseline forward.
      if (.not. region%simulationFlags%isBaselineAvailable) then
-        call solveForward(region, timeIntegrator, time, timestep, nTimesteps,                &
+        call solveForward(region, time, timestep, nTimesteps,                                &
              saveInterval, outputPrefix, costFunctional)
      else
         timestep = timestep + nTimesteps
@@ -140,12 +124,9 @@ program main
      end if
 
      ! Baseline adjoint.
-     call solveAdjoint(region, timeIntegrator, time, timestep,                               &
-          nTimesteps, saveInterval, outputPrefix)
+     call solveAdjoint(region, time, timestep, nTimesteps, saveInterval, outputPrefix)
 
   end if
-
-  call timeIntegratorFactory%cleanup()
 
   call region%cleanup()
 

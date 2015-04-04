@@ -6,11 +6,11 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use Patch_mod, only : t_Patch
   use Patch_factory, only : t_PatchFactory
   use SpongePatch_mod, only : t_SpongePatch
-  ! use ActuatorPatch_mod, only : t_ActuatorPatch
+  use ActuatorPatch_mod, only : t_ActuatorPatch
   use AdiabaticWall_mod, only : t_AdiabaticWall
   use FarFieldPatch_mod, only : t_FarFieldPatch
   use IsothermalWall_mod, only : t_IsothermalWall
-  ! use CostTargetPatch_mod, only : t_CostTargetPatch
+  use CostTargetPatch_mod, only : t_CostTargetPatch
   use ImpenetrableWall_mod, only : t_ImpenetrableWall
   ! use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   ! use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
@@ -41,8 +41,8 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
      case ('SPONGE')
         allocate(t_SpongePatch :: this%patch)
 
-     ! case ('ACTUATOR')
-     !    allocate(t_ActuatorPatch :: this%patch)
+     case ('ACTUATOR')
+        allocate(t_ActuatorPatch :: this%patch)
 
      case ('SAT_ADIABATIC_WALL')
         allocate(t_AdiabaticWall :: this%patch)
@@ -53,8 +53,8 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
      case ('SAT_ISOTHERMAL_WALL')
         allocate(t_IsothermalWall :: this%patch)
 
-     ! case ('COST_TARGET')
-     !    allocate(t_CostTargetPatch :: this%patch)
+     case ('COST_TARGET')
+        allocate(t_CostTargetPatch :: this%patch)
 
      case ('SAT_SLIP_WALL')
         allocate(t_ImpenetrableWall :: this%patch)
