@@ -7,13 +7,13 @@ module RK4Integrator_mod
   implicit none
   private
 
-  type, private :: t_RK4Temporary
+  type, private :: t_RK4IntegratorInternal
      SCALAR_TYPE, allocatable :: buffer1(:,:), buffer2(:,:)
-  end type t_RK4Temporary
+  end type t_RK4IntegratorInternal
 
   type, extends(t_TimeIntegrator), public :: t_RK4Integrator
 
-     type(t_RK4Temporary), allocatable :: temp_(:)
+     type(t_RK4IntegratorInternal), allocatable :: data_(:)
 
    contains
 

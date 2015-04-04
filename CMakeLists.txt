@@ -92,6 +92,8 @@ set(magudiObj_SOURCES
   # Factories.
   ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
   ${PROJECT_SOURCE_DIR}/src/PatchFactoryImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/FunctionalFactory.f90
+  ${PROJECT_SOURCE_DIR}/src/FunctionalFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegratorFactory.f90
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorFactoryImpl.f90
 
@@ -120,6 +122,8 @@ set(magudiObj_SOURCES
   # Abstract types.
   ${PROJECT_SOURCE_DIR}/include/Patch.f90
   ${PROJECT_SOURCE_DIR}/src/PatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/Functional.f90
+  ${PROJECT_SOURCE_DIR}/src/FunctionalImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegrator.f90
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorImpl.f90
 
@@ -138,6 +142,10 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/IsothermalWallImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AdiabaticWall.f90
   ${PROJECT_SOURCE_DIR}/src/AdiabaticWallImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
+  ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/DragCoefficient.f90
+  ${PROJECT_SOURCE_DIR}/src/DragCoefficientImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

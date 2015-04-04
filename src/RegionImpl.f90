@@ -752,6 +752,8 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
 
   do i = 1, size(this%gridCommunicators)
 
+     success = .true.
+
      do j = 1, size(this%grids)
         if (this%grids(j)%index == i) then !... read one grid at a time
 
@@ -773,7 +775,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
      end do
 
      call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL,                               &
-          MPI_LAND, MPI_COMM_WORLD, ierror)
+          MPI_LAND, this%comm, ierror)
      if (.not. success) exit
      call MPI_Barrier(this%comm, ierror)
 
@@ -820,6 +822,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   ! <<< Enumerations >>>
   use Grid_enum
+  use State_enum, only : QOI_DUMMY_FUNCTION
 
   ! <<< Internal modules >>>
   use State_mod, only : getFileType, getNumberOfScalars
@@ -837,7 +840,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: message
   logical :: success
-  integer :: i, j, fileType, errorRank, procRank, ierror
+  integer :: i, j, fileType, nScalars, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
 
   call startTiming("saveRegionData")
@@ -857,18 +860,41 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
           PLOT3D_FUNCTION_FILE, this%globalGridSizes, success,                               &
           size(this%globalGridSizes, 1) ** 2)
   case default
+
      fileType = getFileType(quantityOfInterest)
+
      if (fileType == PLOT3D_FUNCTION_FILE) then
+
+        if (quantityOfInterest == QOI_DUMMY_FUNCTION) then
+           nScalars = huge(1)
+           do i = 1, size(this%states)
+              assert(associated(this%states(i)%dummyFunction))
+              nScalars = min(nScalars, size(this%states(i)%dummyFunction, 2))
+           end do
+           call MPI_Allreduce(MPI_IN_PLACE, nScalars, 1,                                     &
+                MPI_INTEGER, MPI_MIN, this%comm, ierror)
+#ifdef DEBUG
+           do i = 1, size(this%states)
+              assert(size(this%states(i)%dummyFunction, 2) == nScalars)
+           end do
+#endif
+        else
+           nScalars = getNumberOfScalars(quantityOfInterest, size(this%globalGridSizes, 1))
+        end if
+
         call plot3dWriteSkeleton(this%comm, trim(filename), fileType, this%globalGridSizes,  &
-             success, getNumberOfScalars(quantityOfInterest,                                 &
-             size(this%globalGridSizes, 1)))
+             success, nScalars)
+
      else
         call plot3dWriteSkeleton(this%comm, trim(filename), fileType,                        &
              this%globalGridSizes, success)
      end if
+
   end select
 
   do i = 1, size(this%gridCommunicators)
+
+     success = .true.
 
      do j = 1, size(this%grids)
         if (this%grids(j)%index == i) then !... read one grid at a time.
@@ -891,7 +917,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
      end do
 
      call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL,                               &
-          MPI_LAND, MPI_COMM_WORLD, ierror)
+          MPI_LAND, this%comm, ierror)
      if (.not. success) exit
      call MPI_Barrier(this%comm, ierror)
 

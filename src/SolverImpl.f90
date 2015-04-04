@@ -125,80 +125,6 @@ contains
 
   end subroutine normalizeTargetMollifier
 
-  function instantaneousCostFunctional(region)
-
-    ! <<< External modules >>>
-    use MPI
-
-    ! <<< Derived types >>>
-    use Region_mod, only : t_Region
-    use SolverOptions_mod, only : t_SolverOptions
-
-    ! <<< Enumerations >>>
-    use SolverOptions_enum
-
-    ! <<< Arguments >>>
-    class(t_Region) :: region
-
-    ! <<< Result >>>
-    SCALAR_TYPE :: instantaneousCostFunctional
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, ierror
-    SCALAR_TYPE, allocatable :: F(:,:)
-
-    assert(allocated(region%grids))
-    assert(allocated(region%states))
-    assert(size(region%grids) == size(region%states))
-
-    assert_key(region%solverOptions%costFunctionalType, ( \
-    SOUND, \
-    LIFT,  \
-    DRAG))
-
-    instantaneousCostFunctional = 0.0_wp
-
-    do i = 1, size(region%grids)
-
-       assert(region%grids(i)%nGridPoints > 0)
-       assert(allocated(region%grids(i)%targetMollifier))
-       assert(size(region%grids(i)%targetMollifier, 1) == region%grids(i)%nGridPoints)
-       assert(size(region%grids(i)%targetMollifier, 2) == 1)
-
-       select case (region%solverOptions%costFunctionalType)
-
-       case (SOUND)
-
-          assert(allocated(region%states(i)%pressure))
-          assert(size(region%states(i)%pressure, 1) == region%grids(i)%nGridPoints)
-          assert(size(region%states(i)%pressure, 2) == 1)
-
-          assert(allocated(region%states(i)%meanPressure))
-          assert(size(region%states(i)%meanPressure, 1) == region%grids(i)%nGridPoints)
-          assert(size(region%states(i)%meanPressure, 2) == 1)
-
-          allocate(F(region%grids(i)%nGridPoints, 1))
-          F = region%states(i)%pressure - region%states(i)%meanPressure
-          instantaneousCostFunctional = instantaneousCostFunctional +                        &
-               region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
-          SAFE_DEALLOCATE(F)
-
-       end select
-
-    end do
-
-    if (region%commGridMasters /= MPI_COMM_NULL)                                             &
-         call MPI_Allreduce(MPI_IN_PLACE, instantaneousCostFunctional, 1,                    &
-         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
-
-    do i = 1, size(region%grids)
-       call MPI_Bcast(instantaneousCostFunctional, 1, SCALAR_TYPE_MPI,                       &
-            0, region%grids(i)%comm, ierror)
-    end do
-
-  end function instantaneousCostFunctional
-
   subroutine writeLine(comm, filename, line)
 
     ! <<< External modules >>>
@@ -349,29 +275,6 @@ subroutine initializeSolver(region, restartFilename)
      end if
      call normalizeTargetMollifier(region)
 
-     select case (region%solverOptions%costFunctionalType)
-     case (SOUND)
-
-        ! Mean pressure.
-        if (.not. region%simulationFlags%useTargetState) then
-           call getRequiredOption("mean_pressure_file", filename)
-           call region%loadData(QOI_MEAN_PRESSURE, filename)
-        else
-           filename = getOption("mean_pressure_file", "")
-           if (len_trim(filename) == 0) then
-              do i = 1, size(region%grids)
-                 call computeDependentVariables(size(region%globalGridSizes, 1),             &
-                      region%states(i)%targetState,                                          &
-                      region%solverOptions%ratioOfSpecificHeats,                             &
-                      pressure = region%states(i)%meanPressure(:,1))
-              end do
-           else
-              call region%loadData(QOI_MEAN_PRESSURE, filename)
-           end if
-        end if
-
-     end select
-
   end if
 
 end subroutine initializeSolver
@@ -391,7 +294,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   use State_enum, only : QOI_FORWARD_STATE
 
   ! <<< Private members >>>
-  use SolverImpl, only : instantaneousCostFunctional, writeLine
+  use SolverImpl, only : writeLine
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
@@ -416,7 +319,7 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
   integer :: i, j, timestep_, reportInterval, residualInterval
   logical :: verbose
   real(wp) :: timeStepSize, cfl, residuals(3)
-  SCALAR_TYPE :: instantaneousCostFunctional_
+  SCALAR_TYPE :: instantaneousCostFunctional
 
   assert(timestep >= 0)
 
@@ -461,9 +364,9 @@ subroutine solveForward(region, integrator, time, timestep, nTimesteps,         
         end if
 
         if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then
-           instantaneousCostFunctional_ = instantaneousCostFunctional(region)
+           ! instantaneousCostFunctional = 
            costFunctional = costFunctional +                                                 &
-                integrator%norm(i) * timeStepSize * instantaneousCostFunctional_
+                integrator%norm(i) * timeStepSize * instantaneousCostFunctional
         end if
 
      end do

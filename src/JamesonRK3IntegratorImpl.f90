@@ -25,13 +25,13 @@ subroutine setupJamesonRK3Integrator(this, region)
   call this%setupBase()
   this%norm = (/ 0.0_wp, 0.0_wp, 1.0_wp /)
 
-  allocate(this%temp_(size(region%states)))
-  do i = 1, size(this%temp_)
+  allocate(this%data_(size(region%states)))
+  do i = 1, size(this%data_)
      assert(region%grids(i)%nGridPoints > 0)
      assert(region%solverOptions%nUnknowns > 0)
-     allocate(this%temp_(i)%buffer1(region%grids(i)%nGridPoints,                             &
+     allocate(this%data_(i)%buffer1(region%grids(i)%nGridPoints,                             &
           region%solverOptions%nUnknowns))
-     allocate(this%temp_(i)%buffer2(region%grids(i)%nGridPoints,                             &
+     allocate(this%data_(i)%buffer2(region%grids(i)%nGridPoints,                             &
           region%solverOptions%nUnknowns))
   end do
 
@@ -52,13 +52,13 @@ subroutine cleanupJamesonRK3Integrator(this)
 
   call this%cleanupBase()
 
-  if (allocated(this%temp_)) then
-     do i = 1, size(this%temp_)
-        SAFE_DEALLOCATE(this%temp_(i)%buffer1)
-        SAFE_DEALLOCATE(this%temp_(i)%buffer2)
+  if (allocated(this%data_)) then
+     do i = 1, size(this%data_)
+        SAFE_DEALLOCATE(this%data_(i)%buffer1)
+        SAFE_DEALLOCATE(this%data_(i)%buffer2)
      end do
   end if
-  SAFE_DEALLOCATE(this%temp_)
+  SAFE_DEALLOCATE(this%data_)
 
 end subroutine cleanupJamesonRK3Integrator
 
@@ -106,15 +106,15 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
   case (1)
 
      do i = 1, size(region%states)
-        this%temp_(i)%buffer1 = region%states(i)%conservedVariables        
+        this%data_(i)%buffer1 = region%states(i)%conservedVariables        
      end do
 
      call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
-        region%states(i)%conservedVariables = this%temp_(i)%buffer1 +                        &
+        region%states(i)%conservedVariables = this%data_(i)%buffer1 +                        &
              timeStepSize * region%states(i)%rightHandSide
-        this%temp_(i)%buffer2 = region%states(i)%conservedVariables
+        this%data_(i)%buffer2 = region%states(i)%conservedVariables
      end do
 
   case (2)
@@ -123,7 +123,7 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
      call region%computeRhs(FORWARD, time)
 
      do i = 1, size(region%states)
-        region%states(i)%conservedVariables = (this%temp_(i)%buffer1 +                       &
+        region%states(i)%conservedVariables = (this%data_(i)%buffer1 +                       &
              region%states(i)%conservedVariables) / 2.0_wp +                                 &
              timeStepSize * region%states(i)%rightHandSide / 2.0_wp
      end do
@@ -135,7 +135,7 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
 
      do i = 1, size(region%states)
         region%states(i)%conservedVariables =                                                &
-             (this%temp_(i)%buffer1 + this%temp_(i)%buffer2) / 2.0_wp +                      &
+             (this%data_(i)%buffer1 + this%data_(i)%buffer2) / 2.0_wp +                      &
              timeStepSize * region%states(i)%rightHandSide / 2.0_wp
      end do
 

@@ -82,6 +82,7 @@ contains
     if (associated(node%left)) call deleteSubtree(node%left)
     if (associated(node%right)) call deleteSubtree(node%right)
     deallocate(node)
+    nullify(node)
 
   end subroutine deleteSubtree
 

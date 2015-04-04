@@ -51,10 +51,6 @@ contains
 
     if (.not. simulationFlags%predictionOnly) then
        allocate(this%adjointVariables(nGridPoints, solverOptions%nUnknowns))
-       select case (solverOptions%costFunctionalType)
-       case (SOUND)
-          allocate(this%meanPressure(nGridPoints, 1))
-       end select
     end if
 
   end subroutine allocateData
@@ -167,7 +163,6 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%velocityGradient)
   SAFE_DEALLOCATE(this%stressTensor)
   SAFE_DEALLOCATE(this%heatFlux)
-  SAFE_DEALLOCATE(this%meanPressure)
 
   this%adjointForcingFactor = 1.0_wp
 
@@ -217,10 +212,14 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
      call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
           this%adjointVariables, success)
-  case (QOI_MEAN_PRESSURE)
+  case (QOI_DUMMY_FUNCTION)
+     assert(associated(this%dummyFunction))
+     assert(size(this%dummyFunction, 1) == grid%nGridPoints)
+     assert(size(this%dummyFunction, 2) > 0)
      call plot3dReadSingleFunction(grid%comm, trim(filename), offset,                        &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%meanPressure, success)
+          this%dummyFunction, success)
+     nullify(this%dummyFunction)
   end select
 
 end subroutine loadStateData
@@ -254,6 +253,14 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
   ! <<< Local variables >>>
   integer :: nDimensions
   SCALAR_TYPE, allocatable :: f(:,:)
+
+#ifdef DEBUG
+  if (quantityOfInterest == QOI_DUMMY_FUNCTION) then
+     assert(associated(this%dummyFunction))
+     assert(size(this%dummyFunction, 1) == grid%nGridPoints)
+     assert(size(this%dummyFunction, 2) > 0)     
+  end if
+#endif
 
   if (quantityOfInterest == QOI_VORTICITY_DILATATION) then
 
@@ -300,10 +307,11 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
      call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
           this%adjointVariables, success)
-  case (QOI_MEAN_PRESSURE)
+  case (QOI_DUMMY_FUNCTION)
      call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                       &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%meanPressure, success)
+          this%dummyFunction, success)
+     nullify(this%dummyFunction)
   case (QOI_VORTICITY_DILATATION)
      call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                       &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize, f(:,1:2), success)
@@ -334,7 +342,7 @@ function getFileType(quantityOfInterest) result(fileType)
   select case (quantityOfInterest)
   case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE)
      fileType = PLOT3D_SOLUTION_FILE
-  case (QOI_MEAN_PRESSURE)
+  case (QOI_DUMMY_FUNCTION)
      fileType = PLOT3D_FUNCTION_FILE
   case (QOI_VORTICITY_DILATATION)
      fileType = PLOT3D_FUNCTION_FILE
@@ -358,8 +366,6 @@ function getNumberOfScalars(quantityOfInterest, nDimensions) result(nScalars)
   assert_key(nDimensions, (1, 2, 3))
 
   select case (quantityOfInterest)
-  case (QOI_MEAN_PRESSURE)
-     nScalars = 1
   case (QOI_VORTICITY_DILATATION)
      nScalars = 2
   end select

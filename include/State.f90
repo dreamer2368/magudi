@@ -10,7 +10,7 @@ module State_enum
        QOI_ADJOINT_STATE        =  101,                                                      &
        QOI_TARGET_STATE         =  102,                                                      &
        QOI_VORTICITY_DILATATION =  103,                                                      &
-       QOI_MEAN_PRESSURE        =  104
+       QOI_DUMMY_FUNCTION       =  104
 
 end module State_enum
 
@@ -57,7 +57,9 @@ module State_mod
      SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
           specificVolume, velocity, velocityGradient, stressTensor, pressure, temperature,   &
           heatFlux, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,      &
-          meanPressure, targetState, adjointVariables
+          targetState, adjointVariables
+
+     SCALAR_TYPE, dimension(:,:), pointer :: dummyFunction => null()
 
    contains
 

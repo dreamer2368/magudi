@@ -7,13 +7,13 @@ module JamesonRK3Integrator_mod
   implicit none
   private
 
-  type, private :: t_JamesonRK3Temporary
+  type, private :: t_JamesonRK3IntegratorInternal
      SCALAR_TYPE, allocatable :: buffer1(:,:), buffer2(:,:)
-  end type t_JamesonRK3Temporary
+  end type t_JamesonRK3IntegratorInternal
 
   type, extends(t_TimeIntegrator), public :: t_JamesonRK3Integrator
 
-     type(t_JamesonRK3Temporary), allocatable :: temp_(:)
+     type(t_JamesonRK3IntegratorInternal), allocatable :: data_(:)
 
    contains
 

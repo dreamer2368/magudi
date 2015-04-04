@@ -3,14 +3,12 @@
 program vorticity_dilatation
 
   use MPI
-  use, intrinsic :: iso_fortran_env
 
-  use Grid_enum
-  use State_enum
+  use Grid_enum, only : QOI_GRID
+  use State_enum, only : QOI_FORWARD_STATE
 
   use Region_mod, only : t_Region
 
-  use CNSHelper, only : computeDependentVariables
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
@@ -22,6 +20,19 @@ program vorticity_dilatation
   logical :: success
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
+
+  interface
+
+     subroutine saveVorticityDilatation(region, filename)
+
+       use Region_mod, only : t_Region
+
+       class(t_Region) :: region
+       character(len = *), intent(in) :: filename
+
+     end subroutine saveVorticityDilatation
+
+  end interface
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -53,12 +64,6 @@ program vorticity_dilatation
      call get_command_argument(1, filename)
      call region%loadData(QOI_FORWARD_STATE, filename)
 
-     ! Compute velocity
-     do i = 1, size(region%grids)
-        call computeDependentVariables(size(globalGridSizes, 1),                                &
-             region%states(i)%conservedVariables, velocity = region%states(i)%velocity)
-     end do
-     
      ! Save vorticity and dilatation
      i = len_trim(filename)
      if (filename(i-1:i) == ".q") then
@@ -66,7 +71,7 @@ program vorticity_dilatation
      else
         filename = PROJECT_NAME // ".vorticity_dilatation.f"
      end if
-     call region%saveData(QOI_VORTICITY_DILATATION, filename)
+     call saveVorticityDilatation(region, filename)
 
   else
 
@@ -81,15 +86,8 @@ program vorticity_dilatation
         write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".q"
         call region%loadData(QOI_FORWARD_STATE, filename)
 
-        ! Compute velocity
-        do j = 1, size(region%grids)
-           call computeDependentVariables(size(globalGridSizes, 1),                          &
-                region%states(j)%conservedVariables, velocity = region%states(j)%velocity)
-        end do
-     
-        ! Save vorticity and dilatation
-        write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, "..vorticity_dilatation.f"
-        call region%saveData(QOI_VORTICITY_DILATATION, filename)        
+        write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".vorticity_dilatation.f"
+        call saveVorticityDilatation(region, filename)
         
      end do
 
@@ -102,3 +100,78 @@ program vorticity_dilatation
   call MPI_Finalize(ierror)
 
 end program
+
+subroutine saveVorticityDilatation(region, filename)
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_DUMMY_FUNCTION
+
+  ! <<< Internal modules >>>
+  use CNSHelper, only : computeDependentVariables, computeVorticityMagnitudeAndDilatation
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Region) :: region
+  character(len = *), intent(in) :: filename
+
+  ! <<< Local variables >>>
+  type :: t_VorticityDilatationInternal
+     SCALAR_TYPE, pointer :: buffer(:,:) => null()
+  end type t_VorticityDilatationInternal
+  type(t_VorticityDilatationInternal), allocatable, save :: data_(:)
+  integer, save :: nDimensions = 0
+  integer :: i
+
+  assert(allocated(region%grids))
+  assert(allocated(region%states))
+  assert(size(region%grids) == size(region%states))
+
+  assert(allocated(region%globalGridSizes))
+
+  if (allocated(data_)) then
+     if (size(data_) /= size(region%grids) .or.                                              &
+          size(region%globalGridSizes, 1) /= nDimensions) then
+        do i = 1, size(data_)
+           if (associated(data_(i)%buffer)) deallocate(data_(i)%buffer)
+           nullify(data_(i)%buffer)
+        end do
+     end if
+     SAFE_DEALLOCATE(data_)
+  end if
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  if (.not. allocated(data_)) then
+     allocate(data_(size(region%grids)))     
+     do i = 1, size(data_)
+        allocate(data_(i)%buffer(region%grids(i)%nGridPoints, 2))
+     end do
+  end if
+
+  do i = 1, size(region%states)
+
+     if (.not. allocated(region%states(i)%velocity))                                         &
+          allocate(region%states(i)%velocity(region%grids(i)%nGridPoints, nDimensions))
+     if (.not. allocated(region%states(i)%velocityGradient))                                 &
+          allocate(region%states(i)%velocityGradient(region%grids(i)%nGridPoints,            &
+          nDimensions ** 2))
+     call computeDependentVariables(nDimensions, region%states(i)%conservedVariables,        &
+          velocity = region%states(i)%velocity)
+     call region%grids(i)%computeGradient(region%states(i)%velocity,                         &
+          region%states(i)%velocityGradient)
+     call computeVorticityMagnitudeAndDilatation(nDimensions,                                &
+          region%states(i)%velocityGradient, dilatation = data_(i)%buffer(:,1),              &
+          vorticityMagnitude = data_(i)%buffer(:,2))
+
+     region%states(i)%dummyFunction => data_(i)%buffer
+
+  end do
+
+  call region%saveData(QOI_DUMMY_FUNCTION, filename)
+
+end subroutine saveVorticityDilatation
