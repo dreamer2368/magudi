@@ -113,7 +113,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
         success = dummyFunctional%isPatchValid(this, globalGridSizes(:,this%gridIndex),      &
              this%normalDirection, extent, simulationFlags, str)
         if (.not. success) then
-           write(message, '(3A,I0.0,A)') "Patch '", trim(this%name), "' on grid ",           &      
+           write(message, '(3A,I0.0,2A)') "Patch '", trim(this%name), "' on grid ",          &
                 this%gridIndex, " reported: ", trim(str)
            errorCode = 2
            return
