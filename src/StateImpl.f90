@@ -237,7 +237,6 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
   use State_enum
 
   ! <<< Internal modules >>>
-  use CNSHelper, only : computeVorticityMagnitudeAndDilatation
   use PLOT3DHelper
 
   implicit none
@@ -252,7 +251,6 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
 
   ! <<< Local variables >>>
   integer :: nDimensions
-  SCALAR_TYPE, allocatable :: f(:,:)
 
 #ifdef DEBUG
   if (quantityOfInterest == QOI_DUMMY_FUNCTION) then
@@ -261,32 +259,6 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
      assert(size(this%dummyFunction, 2) > 0)     
   end if
 #endif
-
-  if (quantityOfInterest == QOI_VORTICITY_DILATATION) then
-
-     nDimensions = grid%nDimensions
-
-     if (.not. allocated(this%velocityGradient) .and.                                        &
-          .not. allocated(this%stressTensor)) then
-        allocate(f(grid%nGridPoints, max(2, nDimensions ** 2)))
-     else
-        allocate(f(grid%nGridPoints, 2))
-     end if
-
-     if (allocated(this%velocityGradient)) then
-        call computeVorticityMagnitudeAndDilatation(nDimensions, this%velocityGradient,      &
-             dilatation = f(:,1), vorticityMagnitude = f(:,2))
-     else if (allocated(this%stressTensor)) then
-        call grid%computeGradient(this%velocity, this%stressTensor)
-        call computeVorticityMagnitudeAndDilatation(nDimensions, this%stressTensor,          &
-             dilatation = f(:,1), vorticityMagnitude = f(:,2))
-     else
-        call grid%computeGradient(this%velocity, f)
-        call computeVorticityMagnitudeAndDilatation(nDimensions, f,                          &
-             dilatation = f(:,1), vorticityMagnitude = f(:,2))
-     end if
-
-  end if
 
   select case (quantityOfInterest)
   case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE)
@@ -312,65 +284,9 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
           this%dummyFunction, success)
      nullify(this%dummyFunction)
-  case (QOI_VORTICITY_DILATATION)
-     call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                       &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize, f(:,1:2), success)
   end select
-
-  SAFE_DEALLOCATE(f)
 
 end subroutine saveStateData
-
-function getFileType(quantityOfInterest) result(fileType)
-
-  ! <<< Derived types >>>
-  use PLOT3DDescriptor_type
-
-  ! <<< Enumerations >>>
-  use State_enum
-
-  implicit none
-
-  ! <<< Arguments >>>
-  integer, intent(in) :: quantityOfInterest
-
-  ! <<< Result >>>
-  integer :: fileType
-
-  fileType = -1
-
-  select case (quantityOfInterest)
-  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE)
-     fileType = PLOT3D_SOLUTION_FILE
-  case (QOI_DUMMY_FUNCTION)
-     fileType = PLOT3D_FUNCTION_FILE
-  case (QOI_VORTICITY_DILATATION)
-     fileType = PLOT3D_FUNCTION_FILE
-  end select
-
-end function getFileType
-
-function getNumberOfScalars(quantityOfInterest, nDimensions) result(nScalars)
-
-  ! <<< Enumerations >>>
-  use State_enum
-
-  implicit none
-
-  ! <<< Arguments >>>
-  integer, intent(in) :: quantityOfInterest, nDimensions
-
-  ! <<< Result >>>
-  integer :: nScalars
-
-  assert_key(nDimensions, (1, 2, 3))
-
-  select case (quantityOfInterest)
-  case (QOI_VORTICITY_DILATATION)
-     nScalars = 2
-  end select
-
-end function getNumberOfScalars
 
 subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
 

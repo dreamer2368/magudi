@@ -724,9 +724,9 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
 
   ! <<< Enumerations >>>
   use Grid_enum
+  use State_enum, only : QOI_DUMMY_FUNCTION
 
   ! <<< Internal modules >>>
-  use State_mod, only : getFileType
   use ErrorHandler, only : gracefulExit, writeAndFlush
   use PLOT3DHelper
   use MPITimingsHelper, only : startTiming, endTiming
@@ -743,12 +743,15 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   logical :: success
   integer :: i, j, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
+  logical :: isSolutionFile
   real(SCALAR_KIND) :: auxiliaryData(4)
 
   call startTiming("loadRegionData")
 
   write(message, '(3A)') "Reading '", trim(filename), "'..."
   call writeAndFlush(this%comm, output_unit, message, advance = 'no')
+
+  isSolutionFile = .false.
 
   do i = 1, size(this%gridCommunicators)
 
@@ -766,6 +769,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
               call this%grids(j)%loadData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default
+              isSolutionFile = (quantityOfInterest /= QOI_DUMMY_FUNCTION)
               call this%states(j)%loadData(this%grids(j), quantityOfInterest,                &
                    trim(filename), offset, success)
            end select
@@ -781,7 +785,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
 
   end do
 
-  if (getFileType(quantityOfInterest) == PLOT3D_SOLUTION_FILE) then
+  if (isSolutionFile) then
      auxiliaryData = real(this%states(1)%plot3dAuxiliaryData, SCALAR_KIND)
      call MPI_Bcast(auxiliaryData, 4, REAL_TYPE_MPI, 0, this%comm, ierror)
      do i = 1, 4
@@ -818,14 +822,13 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
-  use PLOT3DDescriptor_type, only : t_PLOT3DDescriptor, PLOT3D_GRID_FILE, PLOT3D_FUNCTION_FILE
+  use PLOT3DDescriptor_type
 
   ! <<< Enumerations >>>
   use Grid_enum
   use State_enum, only : QOI_DUMMY_FUNCTION
 
   ! <<< Internal modules >>>
-  use State_mod, only : getFileType, getNumberOfScalars
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper
   use MPITimingsHelper, only : startTiming, endTiming
@@ -840,7 +843,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: message
   logical :: success
-  integer :: i, j, fileType, nScalars, errorRank, procRank, ierror
+  integer :: i, j, nScalars, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
 
   call startTiming("saveRegionData")
@@ -859,37 +862,27 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
      call plot3dWriteSkeleton(this%comm, trim(filename),                                     &
           PLOT3D_FUNCTION_FILE, this%globalGridSizes, success,                               &
           size(this%globalGridSizes, 1) ** 2)
-  case default
 
-     fileType = getFileType(quantityOfInterest)
+  case (QOI_DUMMY_FUNCTION)
 
-     if (fileType == PLOT3D_FUNCTION_FILE) then
-
-        if (quantityOfInterest == QOI_DUMMY_FUNCTION) then
-           nScalars = huge(1)
-           do i = 1, size(this%states)
-              assert(associated(this%states(i)%dummyFunction))
-              nScalars = min(nScalars, size(this%states(i)%dummyFunction, 2))
-           end do
-           call MPI_Allreduce(MPI_IN_PLACE, nScalars, 1,                                     &
-                MPI_INTEGER, MPI_MIN, this%comm, ierror)
+     nScalars = huge(1)
+     do i = 1, size(this%states)
+        assert(associated(this%states(i)%dummyFunction))
+        nScalars = min(nScalars, size(this%states(i)%dummyFunction, 2))
+     end do
+     call MPI_Allreduce(MPI_IN_PLACE, nScalars, 1,                                           &
+          MPI_INTEGER, MPI_MIN, this%comm, ierror)
 #ifdef DEBUG
-           do i = 1, size(this%states)
-              assert(size(this%states(i)%dummyFunction, 2) == nScalars)
-           end do
+     do i = 1, size(this%states)
+        assert(size(this%states(i)%dummyFunction, 2) == nScalars)
+     end do
 #endif
-        else
-           nScalars = getNumberOfScalars(quantityOfInterest, size(this%globalGridSizes, 1))
-        end if
+     call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_FUNCTION_FILE,               &
+          this%globalGridSizes, success, nScalars)
 
-        call plot3dWriteSkeleton(this%comm, trim(filename), fileType, this%globalGridSizes,  &
-             success, nScalars)
-
-     else
-        call plot3dWriteSkeleton(this%comm, trim(filename), fileType,                        &
-             this%globalGridSizes, success)
-     end if
-
+  case default
+     call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_SOLUTION_FILE,               &
+          this%globalGridSizes, success)
   end select
 
   do i = 1, size(this%gridCommunicators)
@@ -935,7 +928,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
      errorRank = 0
      if (len_trim(plot3dErrorMessage) > 0) errorRank = procRank
      call MPI_Allreduce(MPI_IN_PLACE, errorRank, 1, MPI_INTEGER, MPI_MAX, this%comm, ierror)
-     call MPI_Bcast(plot3dErrorMessage, STRING_LENGTH, MPI_CHARACTER, &
+     call MPI_Bcast(plot3dErrorMessage, STRING_LENGTH, MPI_CHARACTER,                        &
           errorRank, this%comm, ierror)
      call gracefulExit(this%comm, plot3dErrorMessage)
   end if
