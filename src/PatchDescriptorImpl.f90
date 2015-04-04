@@ -4,9 +4,12 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
      simulationFlags, solverOptions, errorCode, message)
 
   ! <<< Derived types >>>
-  use Patch_mod, only : t_Patch
+  use Patch_mod, only : t_Patch  
   use Patch_factory, only : t_PatchFactory
+  use Functional_mod, only : t_Functional
   use SolverOptions_mod, only : t_SolverOptions
+  use Functional_factory, only : t_FunctionalFactory
+  use CostTargetPatch_mod, only : t_CostTargetPatch
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -22,11 +25,13 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   character(len = STRING_LENGTH), intent(out) :: message
 
   ! <<< Local variables >>>
-  type(t_PatchFactory) :: patchFactory
-  class(t_Patch), pointer :: dummyPatch => null()
   integer :: i, extent(6)
   logical :: isExtentValid, flag, success
+  type(t_PatchFactory) :: patchFactory
+  class(t_Patch), pointer :: dummyPatch => null()
   character(len = STRING_LENGTH) :: str
+  type(t_FunctionalFactory) :: functionalFactory
+  class(t_Functional), pointer :: dummyFunctional => null()
 
   assert(len_trim(this%patchType) > 0)
 
@@ -99,6 +104,23 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
      errorCode = 1
      return
   end if
+
+  select type (dummyPatch)
+  class is (t_CostTargetPatch)
+
+     call functionalFactory%connect(dummyFunctional, trim(solverOptions%costFunctionalType))
+     if (associated(dummyFunctional)) then
+        success = dummyFunctional%isPatchValid(this, globalGridSizes(:,this%gridIndex),      &
+             this%normalDirection, extent, simulationFlags, str)
+        if (.not. success) then
+           write(message, '(3A,I0.0,A)') "Patch '", trim(this%name), "' on grid ",           &      
+                this%gridIndex, " reported: ", trim(str)
+           errorCode = 2
+           return
+        end if
+     end if
+
+  end select
 
   call patchFactory%cleanup()
 

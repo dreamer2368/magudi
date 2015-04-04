@@ -90,6 +90,11 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   write(key, '(A,I3.3,A)') "grid", this%gridIndex, "/curvilinear"
   this%isCurvilinear = getOption(key, this%isCurvilinear)
 
+#ifdef SCALAR_TYPE_IS_binary128_IEEE754
+    call MPI_Comm_size(this%comm, nProcs, ierror)
+    allocate(this%mpiReduceBuffer(nProcs))
+#endif
+
 end subroutine setupPatch
 
 subroutine cleanupPatch(this)

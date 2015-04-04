@@ -16,6 +16,7 @@ module Functional_mod
      procedure(cleanup), pass, deferred :: cleanup
      procedure(compute), pass, deferred :: compute
      procedure(computeAdjointForcing), pass, deferred :: computeAdjointForcing
+     procedure(isPatchValid), pass, deferred :: isPatchValid
 
   end type t_Functional
 
@@ -76,6 +77,28 @@ module Functional_mod
        class(t_Region) :: region
 
      end subroutine computeAdjointForcing
+
+  end interface
+
+  abstract interface
+
+     function isPatchValid(this, patchDescriptor, gridSize, normalDirection,                 &
+          extent, simulationFlags, message)
+
+       use PatchDescriptor_mod, only : t_PatchDescriptor
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_Functional
+       
+       class(t_Functional) :: this
+       type(t_PatchDescriptor), intent(in) :: patchDescriptor
+       integer, intent(in) :: gridSize(:), normalDirection, extent(6)
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       character(len = STRING_LENGTH), intent(out) :: message
+
+       logical :: isPatchValid
+
+     end function isPatchValid
 
   end interface
 

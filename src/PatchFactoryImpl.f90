@@ -444,6 +444,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   use FarFieldPatch_mod, only : t_FarFieldPatch
   use SolverOptions_mod, only : t_SolverOptions
   use IsothermalWall_mod, only : t_IsothermalWall
+  use CostTargetPatch_mod, only : t_CostTargetPatch
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
@@ -470,6 +471,21 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
+
+  if (allocated(patchFactories)) then
+     do i = 1, size(patchFactories)
+
+        call patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%gridIndex /= grid%index) cycle
+
+        select type (patch)
+           class is (t_CostTargetPatch)
+           call patch%collect(grid%norm, patch%norm)
+        end select
+
+     end do
+  end if
 
   if (simulationFlags%viscosityOn .and. simulationFlags%useTargetState) then
 

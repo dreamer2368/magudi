@@ -9,7 +9,7 @@ module CostTargetPatch_mod
 
   type, extends(t_Patch), public :: t_CostTargetPatch
 
-     SCALAR_TYPE, allocatable :: adjointForcing(:,:)
+     SCALAR_TYPE, allocatable :: norm(:,:), adjointForcing(:,:)
 
    contains
 
@@ -18,6 +18,10 @@ module CostTargetPatch_mod
      procedure, pass :: update => updateCostTargetPatch
      procedure, pass :: verifyUsage => verifyCostTargetPatchUsage
      procedure, pass :: updateRhs => addAdjointForcing
+     generic :: computeInnerProduct => computeScalarInnerProductOnPatch,                     &
+          computeVectorInnerProductOnPatch
+     procedure, private, pass :: computeScalarInnerProductOnPatch
+     procedure, private, pass :: computeVectorInnerProductOnPatch
 
   end type t_CostTargetPatch
 
@@ -121,5 +125,39 @@ module CostTargetPatch_mod
      end subroutine addAdjointForcing
 
   end interface
+
+  interface computeInnerProduct
+
+     function computeScalarInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weightOnGrid) &        
+          result(innerProduct)
+
+       import :: t_CostTargetPatch
+
+       class(t_CostTargetPatch) :: this
+       SCALAR_TYPE, intent(in) :: fOnGrid(:), gOnGrid(:)
+       integer, intent(in) :: iblank(:)
+
+       SCALAR_TYPE, intent(in), optional :: weightOnGrid(:)
+
+       SCALAR_TYPE :: innerProduct
+
+     end function computeScalarInnerProductOnPatch
+
+     function computeVectorInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weightOnGrid) &        
+          result(innerProduct)
+
+       import :: t_CostTargetPatch
+
+       class(t_CostTargetPatch) :: this
+       SCALAR_TYPE, intent(in) :: fOnGrid(:,:), gOnGrid(:,:)
+       integer, intent(in) :: iblank(:)
+
+       SCALAR_TYPE, intent(in), optional :: weightOnGrid(:)
+
+       SCALAR_TYPE :: innerProduct
+
+     end function computeVectorInnerProductOnPatch
+
+  end interface computeInnerProduct
 
 end module CostTargetPatch_mod

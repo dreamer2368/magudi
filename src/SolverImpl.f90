@@ -16,7 +16,7 @@ contains
     use Region_mod, only : t_Region
 
     ! <<< Internal modules >>>
-    use ErrorHandler, only : gracefulExit
+    use ErrorHandler, only : gracefulExit, issueWarning
     use Patch_factory, only : computeQuadratureOnPatches
 
     ! <<< Arguments >>>
@@ -58,7 +58,7 @@ contains
        call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
     end do
     if (mollifierNorm <= 0.0_wp)                                                             &
-         call gracefulExit(region%comm,                                                      &
+         call issueWarning(region%comm,                                                      &
          "Control mollifying support is trivial! Is an actuator patch present?")
 
     do i = 1, size(region%grids)
@@ -76,7 +76,7 @@ contains
     use Region_mod, only : t_Region
 
     ! <<< Internal modules >>>
-    use ErrorHandler, only : gracefulExit
+    use ErrorHandler, only : gracefulExit, issueWarning
     use Patch_factory, only : computeQuadratureOnPatches
 
     ! <<< Arguments >>>
@@ -118,7 +118,7 @@ contains
        call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
     end do
     if (mollifierNorm <= 0.0_wp)                                                             &
-         call gracefulExit(region%comm,                                                      &
+         call issueWarning(region%comm,                                                      &
          "Target mollifying support is trivial! Is a cost target patch present?")
 
     do i = 1, size(region%grids)

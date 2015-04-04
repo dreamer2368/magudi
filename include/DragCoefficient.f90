@@ -17,6 +17,7 @@ module DragCoefficient_mod
      procedure, pass :: cleanup => cleanupDragCoefficient
      procedure, pass :: compute => computeDragCoefficient
      procedure, pass :: computeAdjointForcing => computeDragCoefficientAdjointForcing
+     procedure, pass :: isPatchValid => isDragCoefficientPatchValid
 
   end type t_DragCoefficient
 
@@ -77,6 +78,28 @@ module DragCoefficient_mod
        class(t_Region) :: region
 
      end subroutine computeDragCoefficientAdjointForcing
+
+  end interface
+
+  interface
+
+     function isDragCoefficientPatchValid(this, patchDescriptor, gridSize, normalDirection,  &               
+          extent, simulationFlags, message) result(isPatchValid)
+
+       use PatchDescriptor_mod, only : t_PatchDescriptor
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_DragCoefficient
+       
+       class(t_DragCoefficient) :: this
+       type(t_PatchDescriptor), intent(in) :: patchDescriptor
+       integer, intent(in) :: gridSize(:), normalDirection, extent(6)
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       character(len = STRING_LENGTH), intent(out) :: message
+
+       logical :: isPatchValid
+
+     end function isDragCoefficientPatchValid
 
   end interface
 

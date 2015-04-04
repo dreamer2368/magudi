@@ -21,6 +21,7 @@ module AcousticNoise_mod
      procedure, pass :: cleanup => cleanupAcousticNoise
      procedure, pass :: compute => computeAcousticNoise
      procedure, pass :: computeAdjointForcing => computeAcousticNoiseAdjointForcing
+     procedure, pass :: isPatchValid => isAcousticNoisePatchValid
 
   end type t_AcousticNoise
 
@@ -81,6 +82,28 @@ module AcousticNoise_mod
        class(t_Region) :: region
 
      end subroutine computeAcousticNoiseAdjointForcing
+
+  end interface
+
+  interface
+
+     function isAcousticNoisePatchValid(this, patchDescriptor, gridSize,                     &
+          normalDirection, extent, simulationFlags, message) result(isPatchValid)
+
+       use PatchDescriptor_mod, only : t_PatchDescriptor
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_AcousticNoise
+       
+       class(t_AcousticNoise) :: this
+       type(t_PatchDescriptor), intent(in) :: patchDescriptor
+       integer, intent(in) :: gridSize(:), normalDirection, extent(6)
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       character(len = STRING_LENGTH), intent(out) :: message
+
+       logical :: isPatchValid
+
+     end function isAcousticNoisePatchValid
 
   end interface
 

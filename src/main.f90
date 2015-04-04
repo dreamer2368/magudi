@@ -116,11 +116,19 @@ program main
         call solveForward(region, time, timestep, nTimesteps,                                &
              saveInterval, outputPrefix, costFunctional)
      else
-        timestep = timestep + nTimesteps
-        write(filename, '(2A,I8.8,A)')                                                       &
-             trim(outputPrefix), "-", timestep, ".q"
+
+        if (region%simulationFlags%steadyStateSimulation) then
+           timestep = nTimesteps
+           write(filename, '(2A)') trim(outputPrefix), ".steady_state.q"
+        else
+           timestep = timestep + nTimesteps
+           write(filename, '(2A,I8.8,A)')                                                       &
+                trim(outputPrefix), "-", timestep, ".q"
+        end if
+
         call region%loadData(QOI_FORWARD_STATE, filename)
         time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
+
      end if
 
      ! Baseline adjoint.

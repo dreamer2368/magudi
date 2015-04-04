@@ -236,3 +236,44 @@ subroutine computeAcousticNoiseAdjointForcing(this, region)
   end do
 
 end subroutine computeAcousticNoiseAdjointForcing
+
+function isAcousticNoisePatchValid(this, patchDescriptor, gridSize, normalDirection,         &             
+     extent, simulationFlags, message) result(isPatchValid)
+
+  ! <<< Derived types >>>
+  use AcousticNoise_mod, only : t_AcousticNoise
+  use PatchDescriptor_mod, only : t_PatchDescriptor
+  use SimulationFlags_mod, only : t_SimulationFlags
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_AcousticNoise) :: this
+  type(t_PatchDescriptor), intent(in) :: patchDescriptor
+  integer, intent(in) :: gridSize(:), normalDirection, extent(6)
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  character(len = STRING_LENGTH), intent(out) :: message
+
+  ! <<< Result >>>
+  logical :: isPatchValid
+
+  ! <<< Local variables >>>
+  integer :: i, n
+
+  isPatchValid = .false.
+
+  n = size(gridSize)
+
+  do i = 1, size(gridSize)
+     if (extent((i-1)*2+1) == extent((i-1)*2+2)) n = n - 1
+  end do
+
+  if (n /= size(gridSize)) then
+     write(message, '(2(A,I0.0),A)') "Expected a ", size(gridSize),                          &
+          "D patch, but extent represents a ", n, "D patch!"
+     return
+  end if
+
+  isPatchValid = .true.
+
+end function isAcousticNoisePatchValid

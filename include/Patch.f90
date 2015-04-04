@@ -12,6 +12,9 @@ module Patch_mod
      integer :: index, normalDirection, gridIndex, extent(6), nDimensions, patchSize(3),     &
           offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints, comm = MPI_COMM_NULL
      logical :: isCurvilinear, penaltyInPhysicalCoordinates = .false.
+#ifdef SCALAR_TYPE_IS_binary128_IEEE754
+     real(SCALAR_KIND), allocatable :: mpiReduceBuffer(:)
+#endif
 
    contains
 
