@@ -118,7 +118,6 @@ program main
      else
 
         if (region%simulationFlags%steadyStateSimulation) then
-           timestep = nTimesteps
            write(filename, '(2A)') trim(outputPrefix), ".steady_state.q"
         else
            timestep = timestep + nTimesteps
@@ -128,7 +127,9 @@ program main
 
         call region%loadData(QOI_FORWARD_STATE, filename)
         time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
-
+        if (region%simulationFlags%steadyStateSimulation)                                    &
+             timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
+        
      end if
 
      ! Baseline adjoint.
