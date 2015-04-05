@@ -8,7 +8,7 @@ module DragCoefficientImpl
 contains
 
   subroutine computeAdjointForcingOnPatch(patch, grid, velocity, pressure,                   &
-       ratioOfSpecificHeats, direction)
+       targetPressure, ratioOfSpecificHeats, forceDirection)
 
     ! <<< Derived types >>>
     use Grid_mod, only : t_Grid
@@ -18,18 +18,25 @@ contains
     ! <<< Arguments >>>
     class(t_Patch), pointer, intent(in) :: patch
     class(t_Grid), intent(in) :: grid
-    SCALAR_TYPE, intent(in) :: velocity(:,:), pressure(:)
-    real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats, direction(3)
+    SCALAR_TYPE, intent(in) :: velocity(:,:), pressure(:), targetPressure
+    real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats, forceDirection(3)
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, nDimensions, gridIndex, patchIndex
+    integer :: i, j, k, direction, nDimensions, gridIndex, patchIndex
+    real(SCALAR_KIND) :: normBoundaryFactor
+    SCALAR_TYPE, allocatable :: localMetricsAlongDirection(:)
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
 
+    allocate(localMetricsAlongDirection(nDimensions))
+
     select type (patch)
-    type is (t_CostTargetPatch)
+    class is (t_CostTargetPatch)
+
+       direction = abs(patch%normalDirection)
+       normBoundaryFactor = 1.0_wp / grid%firstDerivative(direction)%normBoundary(1)
 
        do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
           do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
@@ -38,14 +45,19 @@ contains
                      (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                 &   
                      (k - 1 - patch%gridOffset(3)))
                 if (grid%iblank(gridIndex) == 0) cycle
-                patchIndex = i - patch%offset(1) + patch%patchSize(1) *                      &   
-                     (j - 1 - patch%offset(2) + patch%patchSize(2) *                         &   
+                patchIndex = i - patch%offset(1) + patch%patchSize(1) *                      &
+                     (j - 1 - patch%offset(2) + patch%patchSize(2) *                         &
                      (k - 1 - patch%offset(3)))
 
+                localMetricsAlongDirection =                                                 &
+                     grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
+
                 patch%adjointForcing(patchIndex,nDimensions+2) =                             &
-                     - grid%jacobian(gridIndex, 1) * sum(direction(1:nDimensions) *          &                                
-                     grid%metrics(gridIndex,abs(patch%normalDirection)::nDimensions)) *      &
-                     (ratioOfSpecificHeats - 1.0_wp)
+                     - 2.0_wp * (ratioOfSpecificHeats - 1.0_wp) *                            &
+                     (pressure(gridIndex) - targetPressure) *                                &
+                     normBoundaryFactor * dot_product(forceDirection(1:nDimensions),         &
+                     localMetricsAlongDirection) ** 2 /                                      &
+                     sqrt(sum(localMetricsAlongDirection ** 2))
                 patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * &
                      patch%adjointForcing(patchIndex,nDimensions+2)
                 patch%adjointForcing(patchIndex,1) =                                         &
@@ -57,6 +69,8 @@ contains
        end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
 
     end select
+
+    SAFE_DEALLOCATE(localMetricsAlongDirection)
     
   end subroutine computeAdjointForcingOnPatch
 
@@ -167,24 +181,20 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
         call region%patchFactories(j)%connect(patch)
         if (.not. associated(patch)) return
         if (patch%gridIndex /= region%grids(i)%index) return
-
+        
         select type (patch)
         class is (t_CostTargetPatch)
 
            k = abs(patch%normalDirection)
 
            allocate(F(region%grids(i)%nGridPoints, 2))
-           F(:,1) = region%states(i)%pressure(:,1) - this%freeStreamPressure
-           F(:,2) = 0.0_wp
-           do k = 1, nDimensions
-              F(:,2) = F(:,2) + region%grids(i)%jacobian(:,1) * this%direction(k) *          &
-                   region%grids(i)%metrics(:,abs(patch%normalDirection)+nDimensions*(k-1))
-           end do
-
+           F(:,1) = (region%states(i)%pressure(:,1) - this%freeStreamPressure) *             &
+                matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),         &
+                this%direction(1:nDimensions))
+           F(:,2) = 1.0_wp /                                                                 &
+                sqrt(sum(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k) ** 2))
            instantaneousFunctional = instantaneousFunctional +                               &
-                patch%computeInnerProduct(F(:,1), F(:,2), region%grids(i)%iblank,  &          
-                region%grids(i)%targetMollifier(:,1))
-
+                patch%computeInnerProduct(region%grids(i), F(:,1), F(:,1), F(:,2))
            SAFE_DEALLOCATE(F)
 
         end select
@@ -213,6 +223,9 @@ subroutine computeDragCoefficientAdjointForcing(this, region)
   use DragCoefficient_mod, only : t_DragCoefficient
   use CostTargetPatch_mod, only : t_CostTargetPatch
 
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_DUMMY_FUNCTION
+
   ! <<< Private members >>>
   use DragCoefficientImpl, only : computeAdjointForcingOnPatch
 
@@ -223,20 +236,26 @@ subroutine computeDragCoefficientAdjointForcing(this, region)
   class(t_Region) :: region
 
   ! <<< Local variables >>>
-  integer :: i, j
+  integer :: i, j, nDimensions
   class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return
 
   do i = 1, size(region%grids)
+
+     nDimensions = region%grids(i)%nDimensions
+
      do j = 1, size(region%patchFactories)
         call region%patchFactories(j)%connect(patch)
         if (.not. associated(patch)) cycle
         if (patch%gridIndex /= region%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
-        call computeAdjointForcingOnPatch(patch, region%grids(i),                            &
-             region%states(i)%velocity, region%states(i)%pressure(:,1),                      &
+
+        call computeAdjointForcingOnPatch(patch, region%grids(i), region%states(i)%velocity, &
+             region%states(i)%pressure(:,1), this%freeStreamPressure,                        &
              region%solverOptions%ratioOfSpecificHeats, this%direction)
+
      end do
+
   end do
 
 end subroutine computeDragCoefficientAdjointForcing

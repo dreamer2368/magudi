@@ -128,31 +128,33 @@ module CostTargetPatch_mod
 
   interface computeInnerProduct
 
-     function computeScalarInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weightOnGrid) &        
-          result(innerProduct)
+     function computeScalarInnerProductOnPatch(this, grid, f, g, weight) result(innerProduct)
+
+       use Grid_mod, only : t_Grid
 
        import :: t_CostTargetPatch
 
        class(t_CostTargetPatch) :: this
-       SCALAR_TYPE, intent(in) :: fOnGrid(:), gOnGrid(:)
-       integer, intent(in) :: iblank(:)
+       class(t_Grid) :: grid
+       SCALAR_TYPE, intent(in) :: f(:), g(:)
 
-       SCALAR_TYPE, intent(in), optional :: weightOnGrid(:)
+       SCALAR_TYPE, intent(in), optional :: weight(:)
 
        SCALAR_TYPE :: innerProduct
 
      end function computeScalarInnerProductOnPatch
 
-     function computeVectorInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weightOnGrid) &        
-          result(innerProduct)
+     function computeVectorInnerProductOnPatch(this, grid, f, g, weight) result(innerProduct)
+
+       use Grid_mod, only : t_Grid
 
        import :: t_CostTargetPatch
 
        class(t_CostTargetPatch) :: this
-       SCALAR_TYPE, intent(in) :: fOnGrid(:,:), gOnGrid(:,:)
-       integer, intent(in) :: iblank(:)
+       class(t_Grid) :: grid
+       SCALAR_TYPE, intent(in) :: f(:,:), g(:,:)
 
-       SCALAR_TYPE, intent(in), optional :: weightOnGrid(:)
+       SCALAR_TYPE, intent(in), optional :: weight(:)
 
        SCALAR_TYPE :: innerProduct
 

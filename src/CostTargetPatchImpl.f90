@@ -95,7 +95,7 @@ subroutine addAdjointForcing(this, mode, simulationFlags, solverOptions, grid, s
                    (k - 1 - this%offset(3)))
 
               state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +          &
-                   state%adjointForcingFactor * grid%targetMollifier(gridIndex,1) *          &
+                   grid%targetMollifier(gridIndex,1) *          &
                    this%adjointForcing(patchIndex,l)
 
            end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
@@ -172,23 +172,23 @@ subroutine updateCostTargetPatch(this, simulationFlags, solverOptions, grid, sta
 
 end subroutine updateCostTargetPatch
 
-function computeScalarInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weightOnGrid)      &        
-     result(innerProduct)
+function computeScalarInnerProductOnPatch(this, grid, f, g, weight) result(innerProduct)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
   use CostTargetPatch_mod, only : t_CostTargetPatch
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_CostTargetPatch) :: this
-  SCALAR_TYPE, intent(in) :: fOnGrid(:), gOnGrid(:)
-  integer, intent(in) :: iblank(:)
-  SCALAR_TYPE, intent(in), optional :: weightOnGrid(:)
-
+  class(t_Grid) :: grid
+  SCALAR_TYPE, intent(in) :: f(:), g(:)
+  SCALAR_TYPE, intent(in), optional :: weight(:)
+  
   ! <<< Result >>>
   SCALAR_TYPE :: innerProduct
 
@@ -196,12 +196,13 @@ function computeScalarInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weight
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, gridIndex, patchIndex, ierror
 
-  assert(size(iblank) > 0)
-  assert(size(fOnGrid) == size(iblank))
-  assert(size(gOnGrid) == size(iblank))
+  assert(grid%nGridPoints > 0)
+  assert(size(grid%iblank) == grid%nGridPoints)
+  assert(size(f) == grid%nGridPoints)
+  assert(size(g) == grid%nGridPoints)
 #ifdef DEBUG
-  if (present(weightOnGrid)) then
-     assert(size(weightOnGrid) == size(iblank))
+  if (present(weight)) then
+     assert(size(weight) == grid%nGridPoints)
   end if
   if (this%nPatchPoints > 0) then
      assert(allocated(this%norm))
@@ -218,17 +219,17 @@ function computeScalarInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weight
            gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                      &
                 (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                        &
                 (k - 1 - this%gridOffset(3)))
-           if (iblank(gridIndex) == 0) cycle
+           if (grid%iblank(gridIndex) == 0) cycle
            patchIndex = i - this%offset(1) + this%patchSize(1) *                             &
                 (j - 1 - this%offset(2) + this%patchSize(2) *                                &
                 (k - 1 - this%offset(3)))
 
-           if (present(weightOnGrid)) then
-              innerProduct = innerProduct + fOnGrid(gridIndex) *                             &
-                   this%norm(patchIndex, 1) * gOnGrid(gridIndex) * weightOnGrid(gridIndex)
+           if (present(weight)) then
+              innerProduct = innerProduct + f(gridIndex) *                                   &
+                   this%norm(patchIndex, 1) * g(gridIndex) * weight(gridIndex)
            else
-              innerProduct = innerProduct + fOnGrid(gridIndex) *                             &
-                   this%norm(patchIndex, 1) * gOnGrid(gridIndex)
+              innerProduct = innerProduct + f(gridIndex) *                                   &
+                   this%norm(patchIndex, 1) * g(gridIndex)
            end if
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
@@ -247,23 +248,23 @@ function computeScalarInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weight
 
 end function computeScalarInnerProductOnPatch
 
-function computeVectorInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weightOnGrid)      &        
-     result(innerProduct)
+function computeVectorInnerProductOnPatch(this, grid, f, g, weight) result(innerProduct)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
   use CostTargetPatch_mod, only : t_CostTargetPatch
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_CostTargetPatch) :: this
-  SCALAR_TYPE, intent(in) :: fOnGrid(:,:), gOnGrid(:,:)
-  integer, intent(in) :: iblank(:)
-  SCALAR_TYPE, intent(in), optional :: weightOnGrid(:)
-
+  class(t_Grid) :: grid
+  SCALAR_TYPE, intent(in) :: f(:,:), g(:,:)
+  SCALAR_TYPE, intent(in), optional :: weight(:)
+  
   ! <<< Result >>>
   SCALAR_TYPE :: innerProduct
 
@@ -271,47 +272,49 @@ function computeVectorInnerProductOnPatch(this, fOnGrid, gOnGrid, iblank, weight
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, gridIndex, patchIndex, ierror
 
-  assert(size(iblank) > 0)
-  assert(size(fOnGrid, 1) == size(iblank))
-  assert(size(gOnGrid, 1) == size(iblank))
-  assert(size(gOnGrid, 2) == size(fOnGrid, 2))
+  assert(grid%nGridPoints > 0)
+  assert(size(grid%iblank) == grid%nGridPoints)
+  assert(size(f, 1) == grid%nGridPoints)
+  assert(size(g, 1) == grid%nGridPoints)
+  assert(size(f, 2) == size(g, 2))
 #ifdef DEBUG
-  if (present(weightOnGrid)) then
-     assert(size(weightOnGrid) == size(iblank))
+  if (present(weight)) then
+     assert(size(weight) == grid%nGridPoints)
   end if
   if (this%nPatchPoints > 0) then
      assert(allocated(this%norm))
      assert(size(this%norm) == this%nPatchPoints)
   end if
 #endif
+  assert(this%comm /= MPI_COMM_NULL)
 
   innerProduct = 0.0_wp
 
-  do l = 1, size(fOnGrid, 2)
+  do l = 1, size(f, 2)
      do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
         do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
            do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
               gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                   &
                    (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                     &
                    (k - 1 - this%gridOffset(3)))
-              if (iblank(gridIndex) == 0) cycle
+              if (grid%iblank(gridIndex) == 0) cycle
               patchIndex = i - this%offset(1) + this%patchSize(1) *                          &
                    (j - 1 - this%offset(2) + this%patchSize(2) *                             &
                    (k - 1 - this%offset(3)))
 
-              if (present(weightOnGrid)) then
-                 innerProduct = innerProduct + fOnGrid(gridIndex, l) *                       &
-                      this%norm(patchIndex, 1) * gOnGrid(gridIndex, l) *                     &
-                      weightOnGrid(gridIndex)
+              if (present(weight)) then
+                 innerProduct = innerProduct + f(gridIndex, l) *                             &
+                      this%norm(patchIndex, 1) * g(gridIndex, l) *                           &
+                      weight(gridIndex)
               else
-                 innerProduct = innerProduct + fOnGrid(gridIndex, l) *                       &
-                      this%norm(patchIndex, 1) * gOnGrid(gridIndex, l)
+                 innerProduct = innerProduct + f(gridIndex, l) *                             &
+                      this%norm(patchIndex, 1) * g(gridIndex, l)
               end if
 
            end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
         end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
      end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
-  end do !... l = 1, size(fOnGrid, 2)
+  end do !... l = 1, size(f, 2)
 
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
   assert(allocated(this%mpiReduceBuffer))

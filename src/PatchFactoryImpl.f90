@@ -462,10 +462,12 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   class(t_State) :: state
 
   ! <<< Local variables >>>
-  integer :: i, nDimensions, ierror
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions, ierror
   logical :: flag
   class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:), targetTemperature(:)
+  SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:), targetTemperature(:),              &
+       gridNorm(:,:)
 
   call startTiming("updatePatches")
 
@@ -477,12 +479,21 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
         call patchFactories(i)%connect(patch)
         if (.not. associated(patch)) cycle
-        if (patch%gridIndex /= grid%index) cycle
+        if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
+
+        allocate(gridNorm(grid%nGridPoints, 1))
 
         select type (patch)
-           class is (t_CostTargetPatch)
-           call patch%collect(grid%norm, patch%norm)
+        class is (t_CostTargetPatch)
+           gridNorm = 1.0_wp
+           do j = 1, nDimensions
+              if (j /= abs(patch%normalDirection))                                           &
+                   call grid%firstDerivative(j)%applyNorm(gridNorm, grid%localSize)
+           end do
+           call patch%collect(gridNorm, patch%norm)
         end select
+
+        SAFE_DEALLOCATE(gridNorm)
 
      end do
   end if

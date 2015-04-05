@@ -139,8 +139,8 @@ subroutine saveVorticityDilatation(region, filename)
            if (associated(data_(i)%buffer)) deallocate(data_(i)%buffer)
            nullify(data_(i)%buffer)
         end do
+        SAFE_DEALLOCATE(data_)
      end if
-     SAFE_DEALLOCATE(data_)
   end if
 
   nDimensions = size(region%globalGridSizes, 1)
