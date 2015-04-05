@@ -88,9 +88,9 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   integer :: i, j, k, l, nDimensions, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
        metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),                  &
-       inviscidPenalty(:), viscousPenalty(:), deltaNormalVelocity(:),                        &
+       inviscidPenalty(:), viscousPenalty(:), deltaNormalMomentum(:),                        &
        deltaInviscidPenalty(:,:), deltaIncomingJacobianOfInviscidFlux(:,:,:)
-  SCALAR_TYPE :: normalVelocity
+  SCALAR_TYPE :: normalMomentum
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -113,7 +113,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
   allocate(inviscidPenalty(nUnknowns))
   if (mode == ADJOINT) then
-     allocate(deltaNormalVelocity(nUnknowns))
+     allocate(deltaNormalMomentum(nUnknowns))
      allocate(deltaInviscidPenalty(nUnknowns, nUnknowns))
      allocate(deltaIncomingJacobianOfInviscidFlux(nUnknowns, nUnknowns, nUnknowns))
   end if
@@ -133,14 +133,13 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
            metricsAlongNormalDirection =                                                     &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
-           normalVelocity = dot_product(localConservedVariables(2:nDimensions+1) /           &
-                localConservedVariables(1), metricsAlongNormalDirection /                    &
-                sqrt(sum(metricsAlongNormalDirection ** 2)))
+           normalMomentum = dot_product(localConservedVariables(2:nDimensions+1),            &
+                metricsAlongNormalDirection / sqrt(sum(metricsAlongNormalDirection ** 2)))
            inviscidPenalty(1) = 0.0_wp
-           inviscidPenalty(2:nDimensions+1) = metricsAlongNormalDirection * normalVelocity / &
-                sqrt(sum(metricsAlongNormalDirection ** 2))
+           inviscidPenalty(2:nDimensions+1) = normalMomentum *                               &
+                metricsAlongNormalDirection / sqrt(sum(metricsAlongNormalDirection ** 2))
            inviscidPenalty(nDimensions+2) =                                                  &
-                0.5_wp * localConservedVariables(1) * normalVelocity ** 2
+                0.5_wp * state%specificVolume(gridIndex, 1) * normalMomentum ** 2
 
            select case (mode)
 
@@ -169,20 +168,22 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
 
            case (ADJOINT)
 
-              deltaNormalVelocity(1) = - normalVelocity / localConservedVariables(1)
-              deltaNormalVelocity(2:nDimensions+1) = metricsAlongNormalDirection /           &
-                sqrt(sum(metricsAlongNormalDirection ** 2)) / localConservedVariables(1)
-              deltaNormalVelocity(nDimensions+2) = 0.0_wp
+              deltaNormalMomentum(1) = 0.0_wp
+              deltaNormalMomentum(2:nDimensions+1) = metricsAlongNormalDirection /           &
+                sqrt(sum(metricsAlongNormalDirection ** 2))
+              deltaNormalMomentum(nDimensions+2) = 0.0_wp
+
               deltaInviscidPenalty(1,:) = 0.0_wp
               do l = 1, nDimensions
-                 deltaInviscidPenalty(l+1,:) =                                               &
-                      metricsAlongNormalDirection(l) * deltaNormalVelocity /                 &
+                 deltaInviscidPenalty(l+1,:) = deltaNormalMomentum *                         &
+                      metricsAlongNormalDirection(l) /                                       &
                       sqrt(sum(metricsAlongNormalDirection ** 2))
               end do
               deltaInviscidPenalty(nDimensions+2,:) =                                        &
-                   localConservedVariables(1) * normalVelocity * deltaNormalVelocity
+                   state%specificVolume(gridIndex, 1) * normalMomentum * deltaNormalMomentum
               deltaInviscidPenalty(nDimensions+2,1) =                                        &
-                   deltaInviscidPenalty(nDimensions+2,1) + 0.5_wp * normalVelocity ** 2
+                   deltaInviscidPenalty(nDimensions+2,1) - 0.5_wp * normalMomentum ** 2 *    &
+                   state%specificVolume(gridIndex, 1) ** 2                   
 
               select case (nDimensions)
               case (1)
@@ -237,7 +238,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   SAFE_DEALLOCATE(viscousPenalty)
   SAFE_DEALLOCATE(deltaIncomingJacobianOfInviscidFlux)
   SAFE_DEALLOCATE(deltaInviscidPenalty)
-  SAFE_DEALLOCATE(deltaNormalVelocity)
+  SAFE_DEALLOCATE(deltaNormalMomentum)
   SAFE_DEALLOCATE(inviscidPenalty)
   SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
