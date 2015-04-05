@@ -285,7 +285,8 @@ subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state
   SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux
   SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
 
-  if (this%nPatchPoints < 0) return !... MPI collective calls after this will deadlock.
+  ! No MPI collective calls after this (will deadlock).
+  if (this%nPatchPoints < 0 .or. .not. simulationFlags%viscosityOn) return
 
   nDimensions = this%nDimensions
   assert_key(nDimensions, (1, 2, 3))
