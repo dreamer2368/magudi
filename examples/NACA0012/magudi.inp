@@ -19,7 +19,7 @@ include_viscous_terms = true
 Reynolds_number = 200.
 
 # Adjoint optimization flags
-disable_adjoint_solver = false
+disable_adjoint_solver = true
 baseline_prediction_available = false
 cost_functional_type = "DRAG"
 

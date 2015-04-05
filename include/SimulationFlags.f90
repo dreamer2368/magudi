@@ -18,7 +18,8 @@ module SimulationFlags_mod
                 useConstantCfl        = .true.,  &
                 filterOn              = .false., &
                 steadyStateSimulation = .false., &
-                isBaselineAvailable   = .false.
+                isBaselineAvailable   = .false., &
+                useContinuousAdjoint  = .false.
 
    contains
 

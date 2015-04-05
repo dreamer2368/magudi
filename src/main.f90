@@ -121,7 +121,7 @@ program main
            write(filename, '(2A)') trim(outputPrefix), ".steady_state.q"
         else
            timestep = timestep + nTimesteps
-           write(filename, '(2A,I8.8,A)')                                                       &
+           write(filename, '(2A,I8.8,A)')                                                    &
                 trim(outputPrefix), "-", timestep, ".q"
         end if
 

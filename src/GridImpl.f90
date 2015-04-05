@@ -446,10 +446,11 @@ subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, succe
 
 end subroutine saveGridData
 
-subroutine setupSpatialDiscretization(this)
+subroutine setupSpatialDiscretization(this, simulationFlags)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use GridImpl, only : OVERLAP
@@ -462,10 +463,18 @@ subroutine setupSpatialDiscretization(this)
 
   ! <<< Arguments >>>
   class(t_Grid) :: this
+  type(t_SimulationFlags), intent(in), optional :: simulationFlags
 
   ! <<< Local variables >>>
+  type(t_SimulationFlags) :: simulationFlags_
   integer :: i
   character(len = STRING_LENGTH) :: key, val
+
+  if (present(simulationFlags)) then
+     simulationFlags_ = simulationFlags
+  else
+     call simulationFlags_%initialize()
+  end if
 
   do i = 1, this%nDimensions
 
@@ -475,21 +484,37 @@ subroutine setupSpatialDiscretization(this)
      if (this%globalSize(i) > 1) then
         val = getOption("defaults/first_derivative_scheme", "SBP 4-8")
         val = getOption(trim(key) // "first_derivative_scheme", trim(val))
-        call this%firstDerivative(i)%setup(trim(val) // " first derivative")
+        val = trim(val) // " first derivative"
      else
-        call this%firstDerivative(i)%setup("null matrix")
+        val = "null matrix"
      end if
+     call this%firstDerivative(i)%setup(trim(val))
      call this%firstDerivative(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
+
+     ! Adjoint first derivative operator.
+     if (allocated(this%adjointFirstDerivative)) then
+        if (simulationFlags_%useContinuousAdjoint) then
+           call this%adjointFirstDerivative(i)%setup(trim(val))
+           this%adjointFirstDerivative(i)%rhsInterior = -this%firstDerivative(i)%rhsInterior
+           this%adjointFirstDerivative(i)%rhsBoundary1 = -this%firstDerivative(i)%rhsBoundary1
+           this%adjointFirstDerivative(i)%rhsBoundary2 = -this%firstDerivative(i)%rhsBoundary2
+        else
+           call this%firstDerivative(i)%getAdjoint(this%adjointFirstDerivative(i))
+        end if
+        call this%adjointFirstDerivative(i)%update(this%comm,                                &
+             i, this%periodicityType(i) == OVERLAP)
+     end if
 
      ! Second derivative operators.
      if (allocated(this%secondDerivative)) then
         if (this%globalSize(i) > 1) then
            val = getOption("defaults/second_derivative_scheme", "SBP 4-8")
            val = getOption(trim(key) // "second_derivative_scheme", trim(val))
-           call this%secondDerivative(i)%setup(trim(val) // " second derivative")
+           val = trim(val) // " second derivative"
         else
-           call this%secondDerivative(i)%setup("null matrix")
+           val = "null matrix"
         end if
+        call this%secondDerivative(i)%setup(val)
         call this%secondDerivative(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
      end if
 
@@ -498,18 +523,12 @@ subroutine setupSpatialDiscretization(this)
         if (this%globalSize(i) > 1) then
            val = getOption("defaults/artificial_dissipation_scheme", "SBP 4-8")
            val = getOption(trim(key) // "artificial_dissipation_scheme", trim(val))
-           call this%dissipation(i)%setup(trim(val) // " dissipation")
+           val = trim(val) // " dissipation"
         else
-           call this%dissipation(i)%setup("null matrix")
+           val = "null matrix"
         end if
+        call this%dissipation(i)%setup(val)
         call this%dissipation(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
-     end if
-
-     ! Adjoint first derivative operator.
-     if (allocated(this%adjointFirstDerivative)) then
-        call this%firstDerivative(i)%getAdjoint(this%adjointFirstDerivative(i))
-        call this%adjointFirstDerivative(i)%update(this%comm,                                &
-             i, this%periodicityType(i) == OVERLAP)
      end if
 
   end do !... i = 1, this%nDimensions

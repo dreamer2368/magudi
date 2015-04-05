@@ -183,7 +183,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
                    state%specificVolume(gridIndex, 1) * normalMomentum * deltaNormalMomentum
               deltaInviscidPenalty(nDimensions+2,1) =                                        &
                    deltaInviscidPenalty(nDimensions+2,1) - 0.5_wp * normalMomentum ** 2 *    &
-                   state%specificVolume(gridIndex, 1) ** 2                   
+                   state%specificVolume(gridIndex, 1) ** 2
 
               select case (nDimensions)
               case (1)

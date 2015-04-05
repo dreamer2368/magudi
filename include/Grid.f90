@@ -135,11 +135,14 @@ module Grid_mod
 
   interface
 
-     subroutine setupSpatialDiscretization(this)
+     subroutine setupSpatialDiscretization(this, simulationFlags)
+
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Grid
 
        class(t_Grid) :: this
+       type(t_SimulationFlags), intent(in), optional :: simulationFlags
 
      end subroutine setupSpatialDiscretization
 

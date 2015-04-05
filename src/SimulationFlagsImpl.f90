@@ -25,5 +25,6 @@ subroutine initializeSimulationFlags(this)
   this%filterOn              = getOption("filter_solution", .false.)
   this%steadyStateSimulation = getOption("steady_state_simulation", .false.)
   this%isBaselineAvailable   = getOption("baseline_prediction_available", .false.)
+  this%useContinuousAdjoint  = getOption("use_continuous_adjoint", .false.)
 
 end subroutine initializeSimulationFlags

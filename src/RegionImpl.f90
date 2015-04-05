@@ -586,7 +586,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
   ! Setup spatial discretization.
   do i = 1, size(this%grids)
-     call this%grids(i)%setupSpatialDiscretization()
+     call this%grids(i)%setupSpatialDiscretization(this%simulationFlags)
   end do
   call MPI_Barrier(this%comm, ierror)
 

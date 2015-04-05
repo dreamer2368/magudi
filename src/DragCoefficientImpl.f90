@@ -53,7 +53,7 @@ contains
                      grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
                 patch%adjointForcing(patchIndex,nDimensions+2) =                             &
-                     - 2.0_wp * (ratioOfSpecificHeats - 1.0_wp) *                            &
+                     2.0_wp * (ratioOfSpecificHeats - 1.0_wp) *                            &
                      (pressure(gridIndex) - targetPressure) *                                &
                      normBoundaryFactor * dot_product(forceDirection(1:nDimensions),         &
                      localMetricsAlongDirection) ** 2 /                                      &
@@ -169,12 +169,12 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
 
   instantaneousFunctional = 0.0_wp
 
-  if (.not. allocated(region%patchFactories)) return
-
   do i = 1, size(region%grids)
 
      nDimensions = region%grids(i)%nDimensions
      assert_key(nDimensions, (1, 2, 3))
+
+     if (.not. allocated(region%patchFactories)) cycle
 
      do j = 1, size(region%patchFactories)
 

@@ -109,7 +109,8 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
+  integer :: i, j, k, nDimensions, nUnknowns, direction,                                     &
+       incomingDirection, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localTargetState(:), metricsAlongNormalDirection(:),           &
        incomingJacobianOfInviscidFlux(:,:)
 
@@ -129,6 +130,12 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
+
+  if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) then
+     incomingDirection = -this%normalDirection
+  else
+     incomingDirection = this%normalDirection
+  end if
 
   allocate(localTargetState(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
@@ -153,15 +160,15 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
            case (1)
               call computeIncomingJacobianOfInviscidFlux1D(localTargetState,                 &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
+                   incomingDirection, incomingJacobianOfInviscidFlux)
            case (2)
               call computeIncomingJacobianOfInviscidFlux2D(localTargetState,                 &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
+                   incomingDirection, incomingJacobianOfInviscidFlux)
            case (3)
               call computeIncomingJacobianOfInviscidFlux3D(localTargetState,                 &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
+                   incomingDirection, incomingJacobianOfInviscidFlux)
            end select !... nDimensions
 
            select case (mode)
@@ -180,10 +187,17 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
 
            case (ADJOINT)
 
-              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &
-                   this%inviscidPenaltyAmount *                                              &
-                   matmul(transpose(incomingJacobianOfInviscidFlux),                         &
-                   state%adjointVariables(gridIndex,:))
+              if (simulationFlags%useContinuousAdjoint) then
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
+                      this%inviscidPenaltyAmount *                                           &
+                      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
+                      state%adjointVariables(gridIndex,:))
+              else
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                      this%inviscidPenaltyAmount *                                           &
+                      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
+                      state%adjointVariables(gridIndex,:))
+              end if
 
               ! TODO: add viscous far-field penalties for adjoint variables.
 
