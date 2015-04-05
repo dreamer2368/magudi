@@ -75,7 +75,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call getRequiredOption("energy_convergence_tolerance",   this%convergenceTolerance(3))
   end if
 
-  call getRequiredOption("time_integration_scheme", this%timeIntegratorType)
+  this%timeIntegratorType = getOption("time_integration_scheme", "RK4")
   call timeIntegratorFactory%connect(dummyTimeIntegrator, trim(this%timeIntegratorType))
   if (.not. associated(dummyTimeIntegrator)) then
      write(message, '(A)') "Invalid time integration scheme '",                              &
