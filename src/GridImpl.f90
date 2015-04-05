@@ -4,7 +4,7 @@ module GridImpl
 
   implicit none
   public
-  
+
   integer, parameter, public ::                                                              &
        NONE    = 0,                                                                          &
        PLANE   = 1,                                                                          &
@@ -489,7 +489,7 @@ subroutine setupSpatialDiscretization(this)
            call this%secondDerivative(i)%setup(trim(val) // " second derivative")
         else
            call this%secondDerivative(i)%setup("null matrix")
-        end if        
+        end if
         call this%secondDerivative(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
      end if
 

@@ -55,7 +55,7 @@ module Patch_factory
 
        import :: t_PatchFactory
 
-       type(t_PatchFactory), allocatable :: patchFactories(:)  
+       type(t_PatchFactory), allocatable :: patchFactories(:)
        character(len = *), intent(in) :: patchType
 
        integer, intent(in), optional :: gridIndex, normalDirection

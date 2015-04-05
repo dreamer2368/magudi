@@ -71,7 +71,7 @@ module JamesonRK3Integrator_mod
 
   interface
 
-     subroutine substepAdjointJamesonRK3(this, region, time, timeStepSize, timestep, stage)       
+     subroutine substepAdjointJamesonRK3(this, region, time, timeStepSize, timestep, stage)
 
        use Region_mod, only : t_Region
 

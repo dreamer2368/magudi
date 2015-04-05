@@ -106,7 +106,7 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
   case (1)
 
      do i = 1, size(region%states)
-        this%data_(i)%buffer1 = region%states(i)%conservedVariables        
+        this%data_(i)%buffer1 = region%states(i)%conservedVariables
      end do
 
      call region%computeRhs(FORWARD, time)

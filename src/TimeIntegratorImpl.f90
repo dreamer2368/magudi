@@ -14,7 +14,7 @@ subroutine setupTimeIntegrator(this)
   integer, parameter :: wp = SCALAR_KIND
 
   call this%cleanupBase()
-  
+
   assert(this%nStages > 0)
 
   allocate(this%norm(this%nStages), source = 0.0_wp)

@@ -45,7 +45,7 @@ program stencil_coefficients
   call testStencilAccuracy(A, 2, 2, 1, success)
   call A%setup("SBP 1-2 dissipation")
   call testStencilAccuracy(A, 0, 2, 1, success)
-  
+
   call A%setup("SBP 2-4 first derivative")
   call testStencilAccuracy(A, 1, 4, 2, success)
   call A%setup("SBP 2-4 second derivative")

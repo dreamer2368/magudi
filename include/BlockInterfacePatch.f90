@@ -1,30 +1,31 @@
 #include "config.h"
 
-module ActuatorPatch_mod
+module BlockInterfacePatch_mod
 
   use Patch_mod, only : t_Patch
 
   implicit none
   private
 
-  type, extends(t_Patch), public :: t_ActuatorPatch
+  type, extends(t_Patch), public :: t_BlockInterfacePatch
 
-     SCALAR_TYPE, allocatable :: controlForcing(:)
-     SCALAR_TYPE, allocatable :: sensitivityGradient(:,:)
+     real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
+     SCALAR_TYPE, allocatable :: viscousFluxes(:,:), interfaceViscousFluxes(:,:),            &
+          interfaceConservedVariables(:,:)
 
    contains
 
-     procedure, pass :: setup => setupActuatorPatch
-     procedure, pass :: cleanup => cleanupActuatorPatch
-     procedure, pass :: update => updateActuatorPatch
-     procedure, pass :: verifyUsage => verifyActuatorPatchUsage
-     procedure, pass :: updateRhs => addControlForcing
+     procedure, pass :: setup => setupBlockInterfacePatch
+     procedure, pass :: cleanup => cleanupBlockInterfacePatch
+     procedure, pass :: update => updateBlockInterfacePatch
+     procedure, pass :: verifyUsage => verifyBlockInterfacePatchUsage
+     procedure, pass :: updateRhs => addBlockInterfacePenalty
 
-  end type t_ActuatorPatch
+  end type t_BlockInterfacePatch
 
   interface
 
-     subroutine setupActuatorPatch(this, index, comm, patchDescriptor,                       &
+     subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,                 &
           grid, simulationFlags, solverOptions)
 
        use Grid_mod, only : t_Grid
@@ -32,63 +33,64 @@ module ActuatorPatch_mod
        use PatchDescriptor_mod, only : t_PatchDescriptor
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_ActuatorPatch
+       import :: t_BlockInterfacePatch
 
-       class(t_ActuatorPatch) :: this
+       class(t_BlockInterfacePatch) :: this
        integer, intent(in) :: index, comm
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        class(t_Grid), intent(in) :: grid
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
 
-     end subroutine setupActuatorPatch
+     end subroutine setupBlockInterfacePatch
 
   end interface
 
   interface
 
-     subroutine cleanupActuatorPatch(this)
+     subroutine cleanupBlockInterfacePatch(this)
 
-       import :: t_ActuatorPatch
+       import :: t_BlockInterfacePatch
 
-       class(t_ActuatorPatch) :: this
+       class(t_BlockInterfacePatch) :: this
 
-     end subroutine cleanupActuatorPatch
+     end subroutine cleanupBlockInterfacePatch
 
   end interface
 
   interface
 
-     subroutine updateActuatorPatch(this, simulationFlags, solverOptions, grid, state)
+     subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_ActuatorPatch
+       import :: t_BlockInterfacePatch
 
-       class(t_ActuatorPatch) :: this
+       class(t_BlockInterfacePatch) :: this
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid), intent(in) :: grid
        class(t_State), intent(in) :: state
 
-     end subroutine updateActuatorPatch
+     end subroutine updateBlockInterfacePatch
 
   end interface
 
   interface
 
-     function verifyActuatorPatchUsage(this, patchDescriptor, gridSize, normalDirection,     &
-          extent, simulationFlags, success, message) result(isPatchUsed)
+     function verifyBlockInterfacePatchUsage(this, patchDescriptor, gridSize,                &
+          normalDirection, extent, simulationFlags,                                          &
+          success, message) result(isPatchUsed)
 
        use PatchDescriptor_mod, only : t_PatchDescriptor
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_ActuatorPatch
+       import :: t_BlockInterfacePatch
 
-       class(t_ActuatorPatch) :: this
+       class(t_BlockInterfacePatch) :: this
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        integer, intent(in) :: gridSize(:), normalDirection, extent(6)
        type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -97,30 +99,31 @@ module ActuatorPatch_mod
 
        logical :: isPatchUsed
 
-     end function verifyActuatorPatchUsage
+     end function verifyBlockInterfacePatchUsage
 
   end interface
 
   interface
 
-     subroutine addControlForcing(this, mode, simulationFlags, solverOptions, grid, state)
+     subroutine addBlockInterfacePenalty(this, mode, simulationFlags,                        &
+          solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_ActuatorPatch
+       import :: t_BlockInterfacePatch
 
-       class(t_ActuatorPatch) :: this
+       class(t_BlockInterfacePatch) :: this
        integer, intent(in) :: mode
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid), intent(in) :: grid
        class(t_State) :: state
 
-     end subroutine addControlForcing
+     end subroutine addBlockInterfacePenalty
 
   end interface
 
-end module ActuatorPatch_mod
+end module BlockInterfacePatch_mod

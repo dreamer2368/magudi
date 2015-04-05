@@ -71,7 +71,7 @@ module RK4Integrator_mod
 
   interface
 
-     subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)       
+     subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
 
        use Region_mod, only : t_Region
 

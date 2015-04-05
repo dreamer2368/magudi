@@ -1454,7 +1454,7 @@ subroutine getAdjointOperator(this, adjointOperator)
 
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
-  
+
   ! <<< Private members >>>
   use StencilOperatorImpl, only : SYMMETRIC, SKEW_SYMMETRIC, allocateData
 

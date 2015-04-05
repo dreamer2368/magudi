@@ -135,7 +135,7 @@ subroutine collectScalarAtPatch(this, gridArray, patchArray)
   integer :: i, j, k, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize >= 0) .and. size(patchArray, 1) == product(this%patchSize)) 
+  assert(all(this%patchSize >= 0) .and. size(patchArray, 1) == product(this%patchSize))
 
   call startTiming("collectAtPatch")
 

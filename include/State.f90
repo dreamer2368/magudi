@@ -113,7 +113,7 @@ module State_mod
 
        use MPI, only : MPI_OFFSET_KIND
        use Grid_mod, only : t_Grid
-       
+
        import :: t_State
 
        class(t_State) :: this
@@ -133,7 +133,7 @@ module State_mod
 
        use MPI, only : MPI_OFFSET_KIND
        use Grid_mod, only : t_Grid
-       
+
        import :: t_State
 
        class(t_State) :: this
@@ -167,7 +167,7 @@ module State_mod
 
      subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVariables)
 
-       use Grid_mod, only : t_Grid      
+       use Grid_mod, only : t_Grid
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
 

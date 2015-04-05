@@ -37,33 +37,33 @@ module DragCoefficient_mod
   end interface
 
   interface
-     
+
      subroutine cleanupDragCoefficient(this)
-       
+
        import :: t_DragCoefficient
-       
+
        class(t_DragCoefficient) :: this
-       
+
      end subroutine cleanupDragCoefficient
-     
+
   end interface
 
   interface
-     
+
      function computeDragCoefficient(this, time, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
-       
+
        import :: t_DragCoefficient
-       
+
        class(t_DragCoefficient) :: this
        real(SCALAR_KIND), intent(in) :: time
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional
-       
+
      end function computeDragCoefficient
-     
+
   end interface
 
   interface
@@ -83,14 +83,14 @@ module DragCoefficient_mod
 
   interface
 
-     function isDragCoefficientPatchValid(this, patchDescriptor, gridSize, normalDirection,  &               
+     function isDragCoefficientPatchValid(this, patchDescriptor, gridSize, normalDirection,  &
           extent, simulationFlags, message) result(isPatchValid)
 
        use PatchDescriptor_mod, only : t_PatchDescriptor
        use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_DragCoefficient
-       
+
        class(t_DragCoefficient) :: this
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        integer, intent(in) :: gridSize(:), normalDirection, extent(6)

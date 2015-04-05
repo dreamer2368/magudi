@@ -378,7 +378,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
            end do
         end if
 
-        if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then           
+        if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then
            instantaneousCostFunctional = functional%compute(time, region)
              costFunctional = costFunctional +                                               &
                   timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
@@ -406,7 +406,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
           mod(timestep_, residualInterval) == 0) then
         call region%computeResiduals(residuals)
-        write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &      
+        write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &
              ", momentum = ", residuals(2), ", energy = ", residuals(3)
         call writeAndFlush(region%comm, output_unit, str)
         if (all(residuals < region%solverOptions%convergenceTolerance)) then
@@ -519,7 +519,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   call timeIntegrator%setup(region)
 
   if (.not. region%simulationFlags%steadyStateSimulation)                                    &
-       call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                     &     
+       call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                     &
        getOption("checkpointing_scheme", "uniform checkpointing"),                           &
        timestep - nTimesteps, timestep,                                                      &
        saveInterval, saveInterval * timeIntegrator%nStages)
@@ -574,7 +574,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
           mod(timestep_, residualInterval) == 0) then
         call region%computeResiduals(residuals)
-        write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &      
+        write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &
              ", momentum = ", residuals(2), ", energy = ", residuals(3)
         call writeAndFlush(region%comm, output_unit, str)
         if (all(residuals < region%solverOptions%convergenceTolerance)) then

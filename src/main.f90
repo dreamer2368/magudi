@@ -129,7 +129,7 @@ program main
         time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
         if (region%simulationFlags%steadyStateSimulation)                                    &
              timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
-        
+
      end if
 
      ! Baseline adjoint.

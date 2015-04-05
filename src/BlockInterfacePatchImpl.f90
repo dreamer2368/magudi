@@ -1,11 +1,11 @@
 #include "config.h"
 
-subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,                            &
+subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,                      &
      grid, simulationFlags, solverOptions)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
-  use FarFieldPatch_mod, only : t_FarFieldPatch
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
@@ -16,7 +16,7 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FarFieldPatch) :: this
+  class(t_BlockInterfacePatch) :: this
   integer, intent(in) :: index, comm
   type(t_PatchDescriptor), intent(in) :: patchDescriptor
   class(t_Grid), intent(in) :: grid
@@ -34,7 +34,7 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   if (this%nPatchPoints > 0) then
      if (simulationFlags%viscosityOn) then
         allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
-        allocate(this%targetViscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
+        allocate(this%interfaceViscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
      end if
   end if
 
@@ -62,31 +62,31 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
      this%viscousPenaltyAmount = 0.0_wp
   end if
 
-end subroutine setupFarFieldPatch
+end subroutine setupBlockInterfacePatch
 
-subroutine cleanupFarFieldPatch(this)
+subroutine cleanupBlockInterfacePatch(this)
 
   ! <<< Derived types >>>
-  use FarFieldPatch_mod, only : t_FarFieldPatch
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FarFieldPatch) :: this
+  class(t_BlockInterfacePatch) :: this
 
   call this%cleanupBase()
 
   SAFE_DEALLOCATE(this%viscousFluxes)
-  SAFE_DEALLOCATE(this%targetViscousFluxes)
+  SAFE_DEALLOCATE(this%interfaceViscousFluxes)
 
-end subroutine cleanupFarFieldPatch
+end subroutine cleanupBlockInterfacePatch
 
-subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, state)
+subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, grid, state)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use FarFieldPatch_mod, only : t_FarFieldPatch
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -100,7 +100,7 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FarFieldPatch) :: this
+  class(t_BlockInterfacePatch) :: this
   integer, intent(in) :: mode
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
@@ -110,16 +110,15 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: localTargetState(:), metricsAlongNormalDirection(:),           &
+  SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
        incomingJacobianOfInviscidFlux(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
-  assert(allocated(state%targetState))
 
-  call startTiming("addFarFieldPenalty")
+  call startTiming("addBlockInterfacePenalty")
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -130,7 +129,7 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
 
-  allocate(localTargetState(nUnknowns))
+  allocate(localConservedVariables(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
   allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
 
@@ -145,23 +144,29 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                 (j - 1 - this%offset(2) + this%patchSize(2) *                                &
                 (k - 1 - this%offset(3)))
 
-           localTargetState = state%targetState(gridIndex,:)
+           localConservedVariables = state%conservedVariables(gridIndex,:)
            metricsAlongNormalDirection =                                                     &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
            select case (nDimensions)
            case (1)
-              call computeIncomingJacobianOfInviscidFlux1D(localTargetState,                 &
+              call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,          &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
+                   this%normalDirection, incomingJacobianOfInviscidFlux,                     &
+                   specificVolume = state%specificVolume(gridIndex, 1),                      &
+                   temperature = state%temperature(gridIndex, 1))
            case (2)
-              call computeIncomingJacobianOfInviscidFlux2D(localTargetState,                 &
+              call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,          &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
+                   this%normalDirection, incomingJacobianOfInviscidFlux,                     &
+                   specificVolume = state%specificVolume(gridIndex, 1),                      &
+                   temperature = state%temperature(gridIndex, 1))
            case (3)
-              call computeIncomingJacobianOfInviscidFlux3D(localTargetState,                 &
+              call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,          &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
+                   this%normalDirection, incomingJacobianOfInviscidFlux,                     &
+                   specificVolume = state%specificVolume(gridIndex, 1),                      &
+                   temperature = state%temperature(gridIndex, 1))
            end select !... nDimensions
 
            select case (mode)
@@ -169,23 +174,18 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
                    this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &
-                   state%conservedVariables(gridIndex,:) - localTargetState)
+                   localConservedVariables - this%interfaceConservedVariables(patchIndex,:))
 
               if (simulationFlags%viscosityOn) then
                  state%rightHandSide(gridIndex,2:nUnknowns) =                                &
                       state%rightHandSide(gridIndex,2:nUnknowns) +                           &
                       this%viscousPenaltyAmount * (this%viscousFluxes(patchIndex,:) -        &
-                      this%targetViscousFluxes(patchIndex,:))
+                      this%interfaceViscousFluxes(patchIndex,:))
               end if
 
            case (ADJOINT)
 
-              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &
-                   this%inviscidPenaltyAmount *                                              &
-                   matmul(transpose(incomingJacobianOfInviscidFlux),                         &
-                   state%adjointVariables(gridIndex,:))
-
-              ! TODO: add viscous far-field penalties for adjoint variables.
+              ! TODO.
 
            end select !... mode
 
@@ -195,24 +195,24 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
 
   SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
-  SAFE_DEALLOCATE(localTargetState)
+  SAFE_DEALLOCATE(localConservedVariables)
 
-  call endTiming("addFarFieldPenalty")
+  call endTiming("addBlockInterfacePenalty")
 
-end subroutine addFarFieldPenalty
+end subroutine addBlockInterfacePenalty
 
-function verifyFarFieldPatchUsage(this, patchDescriptor, gridSize, normalDirection,          &
+function verifyBlockInterfacePatchUsage(this, patchDescriptor, gridSize, normalDirection,    &
      extent, simulationFlags, success, message) result(isPatchUsed)
 
   ! <<< Derived types >>>
-  use FarFieldPatch_mod, only : t_FarFieldPatch
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FarFieldPatch) :: this
+  class(t_BlockInterfacePatch) :: this
   type(t_PatchDescriptor), intent(in) :: patchDescriptor
   integer, intent(in) :: gridSize(:), normalDirection, extent(6)
   type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -230,12 +230,6 @@ function verifyFarFieldPatchUsage(this, patchDescriptor, gridSize, normalDirecti
   success = .false.
   if (normalDirection > size(gridSize) .or. normalDirection == 0) then
      write(message, '(A)') "Normal direction is invalid!"
-     return
-  end if
-
-  if (.not. simulationFlags%useTargetState) then
-     write(message, '(A)')                                                                   &
-          "No target state available for enforcing far-field boundary conditions!"
      return
   end if
 
@@ -257,14 +251,14 @@ function verifyFarFieldPatchUsage(this, patchDescriptor, gridSize, normalDirecti
 
   isPatchUsed = .true.
 
-end function verifyFarFieldPatchUsage
+end function verifyBlockInterfacePatchUsage
 
-subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state)
+subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid, state)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use FarFieldPatch_mod, only : t_FarFieldPatch
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -274,7 +268,7 @@ subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FarFieldPatch) :: this
+  class(t_BlockInterfacePatch) :: this
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid), intent(in) :: grid
@@ -317,4 +311,4 @@ subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state
   SAFE_DEALLOCATE(stressTensor)
   SAFE_DEALLOCATE(velocity)
 
-end subroutine updateFarFieldPatch
+end subroutine updateBlockInterfacePatch

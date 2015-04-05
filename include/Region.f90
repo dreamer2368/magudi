@@ -38,7 +38,7 @@ module Region_mod
           gridCommunicators(:), patchCommunicators(:)
 
    contains
-     
+
      procedure, pass :: setup => setupRegion
      procedure, pass :: cleanup => cleanupRegion
      procedure, pass :: loadData => loadRegionData

@@ -4,7 +4,7 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
      simulationFlags, solverOptions, errorCode, message)
 
   ! <<< Derived types >>>
-  use Patch_mod, only : t_Patch  
+  use Patch_mod, only : t_Patch
   use Patch_factory, only : t_PatchFactory
   use Functional_mod, only : t_Functional
   use SolverOptions_mod, only : t_SolverOptions

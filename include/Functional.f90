@@ -39,33 +39,33 @@ module Functional_mod
   end interface
 
   abstract interface
-     
+
      subroutine cleanup(this)
-       
+
        import :: t_Functional
-       
+
        class(t_Functional) :: this
-       
+
      end subroutine cleanup
-     
+
   end interface
 
   abstract interface
-     
+
      function compute(this, time, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
-       
+
        import :: t_Functional
-       
+
        class(t_Functional) :: this
        real(SCALAR_KIND), intent(in) :: time
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional
-       
+
      end function compute
-     
+
   end interface
 
   abstract interface
@@ -92,7 +92,7 @@ module Functional_mod
        use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Functional
-       
+
        class(t_Functional) :: this
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        integer, intent(in) :: gridSize(:), normalDirection, extent(6)
@@ -123,32 +123,32 @@ module Functional_mod
   end interface
 
   interface
-     
+
      subroutine cleanupFunctional(this)
-       
+
        import :: t_Functional
-       
+
        class(t_Functional) :: this
-       
+
      end subroutine cleanupFunctional
-     
+
   end interface
 
   interface
-     
+
      subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
-       
+
        import :: t_Functional
-       
+
        class(t_Functional) :: this
        integer, intent(in) :: comm
        character(len = *), intent(in) :: filename
        integer, intent(in) :: timestep
        real(SCALAR_KIND), intent(in) :: time
        logical, intent(in), optional :: append
-       
+
      end subroutine writeFunctionalToFile
-     
+
   end interface
 
 end module Functional_mod

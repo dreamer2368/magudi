@@ -130,7 +130,7 @@ program operator_convergence
   call A%cleanup()
 
   call cleanupErrorHandler()
-  
+
   call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL,                                  &
        MPI_LAND, MPI_COMM_WORLD, ierror)
   call MPI_Finalize(ierror)

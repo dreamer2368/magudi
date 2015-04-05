@@ -80,7 +80,7 @@ program vorticity_dilatation
      call getRequiredOption("end_timestep", endTimestep)
 
      outputPrefix = getOption("output_prefix", PROJECT_NAME)
-     
+
      do i = startTimestep, endTimestep, saveInterval
 
         write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".q"
@@ -88,7 +88,7 @@ program vorticity_dilatation
 
         write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".vorticity_dilatation.f"
         call saveVorticityDilatation(region, filename)
-        
+
      end do
 
   end if
@@ -147,7 +147,7 @@ subroutine saveVorticityDilatation(region, filename)
   assert_key(nDimensions, (1, 2, 3))
 
   if (.not. allocated(data_)) then
-     allocate(data_(size(region%grids)))     
+     allocate(data_(size(region%grids)))
      do i = 1, size(data_)
         allocate(data_(i)%buffer(region%grids(i)%nGridPoints, 2))
      end do

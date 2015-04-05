@@ -59,36 +59,36 @@ module Patch_mod
   end interface
 
   abstract interface
-     
+
      subroutine cleanup(this)
-       
+
        import :: t_Patch
-       
+
        class(t_Patch) :: this
-       
+
      end subroutine cleanup
-     
+
   end interface
 
   abstract interface
-     
+
      subroutine update(this, simulationFlags, solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
-       
+
        import :: t_Patch
-       
+
        class(t_Patch) :: this
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid), intent(in) :: grid
        class(t_State), intent(in) :: state
-       
+
      end subroutine update
-     
+
   end interface
 
   abstract interface
@@ -100,7 +100,7 @@ module Patch_mod
        use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Patch
-       
+
        class(t_Patch) :: this
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        integer, intent(in) :: gridSize(:), normalDirection, extent(6)
@@ -160,15 +160,15 @@ module Patch_mod
   end interface
 
   interface
-     
+
      subroutine cleanupPatch(this)
-       
+
        import :: t_Patch
-       
+
        class(t_Patch) :: this
-       
+
      end subroutine cleanupPatch
-     
+
   end interface
 
   interface collectAtPatch

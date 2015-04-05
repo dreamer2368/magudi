@@ -122,7 +122,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
         temp(1) = getOption(trim(key) // "x", 0.0_wp)
         temp(2) = getOption(trim(key) // "y", 0.0_wp)
         temp(3) = getOption(trim(key) // "z", 0.0_wp)
-        call this%acousticSources(i)%setup(temp,                                             &     
+        call this%acousticSources(i)%setup(temp,                                             &
              getOption(trim(key) // "amplitude", 1.0_wp),                                    &
              getOption(trim(key) // "frequency", 1.0_wp),                                    &
              getOption(trim(key) // "radius", 1.0_wp),                                       &
@@ -250,7 +250,7 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
   if (quantityOfInterest == QOI_DUMMY_FUNCTION) then
      assert(associated(this%dummyFunction))
      assert(size(this%dummyFunction, 1) == grid%nGridPoints)
-     assert(size(this%dummyFunction, 2) > 0)     
+     assert(size(this%dummyFunction, 2) > 0)
   end if
 #endif
 

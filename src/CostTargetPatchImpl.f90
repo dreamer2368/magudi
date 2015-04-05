@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,                          &  
+subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,                          &
      grid, simulationFlags, solverOptions)
 
   ! <<< Derived types >>>
@@ -23,7 +23,7 @@ subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,             
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
   this%penaltyInPhysicalCoordinates = .true.
-  
+
   if (.not. simulationFlags%predictionOnly .and. this%nPatchPoints > 0) then
      allocate(this%norm(this%nPatchPoints, 1))
      allocate(this%adjointForcing(this%nPatchPoints, solverOptions%nUnknowns))
@@ -188,7 +188,7 @@ function computeScalarInnerProductOnPatch(this, grid, f, g, weight) result(inner
   class(t_Grid) :: grid
   SCALAR_TYPE, intent(in) :: f(:), g(:)
   SCALAR_TYPE, intent(in), optional :: weight(:)
-  
+
   ! <<< Result >>>
   SCALAR_TYPE :: innerProduct
 
@@ -264,7 +264,7 @@ function computeVectorInnerProductOnPatch(this, grid, f, g, weight) result(inner
   class(t_Grid) :: grid
   SCALAR_TYPE, intent(in) :: f(:,:), g(:,:)
   SCALAR_TYPE, intent(in), optional :: weight(:)
-  
+
   ! <<< Result >>>
   SCALAR_TYPE :: innerProduct
 

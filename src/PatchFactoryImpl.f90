@@ -102,7 +102,7 @@ function queryPatchTypeExists(patchFactories, patchType,                        
   implicit none
 
   ! <<< Arguments >>>
-  type(t_PatchFactory), allocatable :: patchFactories(:)  
+  type(t_PatchFactory), allocatable :: patchFactories(:)
   character(len = *), intent(in) :: patchType
   integer, intent(in), optional :: gridIndex, normalDirection
 
@@ -118,7 +118,7 @@ function queryPatchTypeExists(patchFactories, patchType,                        
      assert_key(normalDirection, (1, 2, 3))
   end if
 #endif
-  
+
   patchTypeExists = .false.
 
   if (allocated(patchFactories)) then
@@ -227,13 +227,13 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                  iMax = patch%extent(2)
 
                  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-                    do j = patch%offset(2) + 1,                                              &   
+                    do j = patch%offset(2) + 1,                                              &
                          patch%offset(2) + patch%patchSize(2)
 
                        do i = 1, grid%globalSize(1)
-                          curveLengthIntegrand(i) =                                          &   
-                               real(globalArcLengthsAlongDirection(i +                       &   
-                               grid%globalSize(1) * (j - 1 - grid%offset(2) +                &   
+                          curveLengthIntegrand(i) =                                          &
+                               real(globalArcLengthsAlongDirection(i +                       &
+                               grid%globalSize(1) * (j - 1 - grid%offset(2) +                &
                                grid%localSize(2) * (k - 1 - grid%offset(3))), 1), wp)
                        end do
 
@@ -243,7 +243,7 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                              patch%spongeStrength(i - patch%offset(1) +                      &
                                   patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
                                   patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
-                                  sum(curveLengthIntegrand(iMin : i - 1)) /                  &   
+                                  sum(curveLengthIntegrand(iMin : i - 1)) /                  &
                                   sum(curveLengthIntegrand(iMin : iMax - 1))
                           end do
                        else
@@ -252,7 +252,7 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                              patch%spongeStrength(i - patch%offset(1) +                      &
                                   patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
                                   patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
-                                  sum(curveLengthIntegrand(i + 1 : iMax)) /                  &   
+                                  sum(curveLengthIntegrand(i + 1 : iMax)) /                  &
                                   sum(curveLengthIntegrand(iMin + 1 : iMax))
                           end do
                        end if
@@ -272,9 +272,9 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                          patch%offset(1) + patch%patchSize(1)
 
                        do j = 1, grid%globalSize(2)
-                          curveLengthIntegrand(j) =                                          &   
-                               real(globalArcLengthsAlongDirection(i - grid%offset(1) +      &   
-                               grid%localSize(1) * (j - 1 +                                  &   
+                          curveLengthIntegrand(j) =                                          &
+                               real(globalArcLengthsAlongDirection(i - grid%offset(1) +      &
+                               grid%localSize(1) * (j - 1 +                                  &
                                grid%globalSize(2) * (k - 1 - grid%offset(3))), 1), wp)
                        end do
 
@@ -284,7 +284,7 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                              patch%spongeStrength(i - patch%offset(1) +                      &
                                   patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
                                   patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
-                                  sum(curveLengthIntegrand(jMin : j - 1)) /                  &   
+                                  sum(curveLengthIntegrand(jMin : j - 1)) /                  &
                                   sum(curveLengthIntegrand(jMin : jMax - 1))
                           end do
                        else
@@ -293,7 +293,7 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                              patch%spongeStrength(i - patch%offset(1) +                      &
                                   patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
                                   patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
-                                  sum(curveLengthIntegrand(j + 1 : jMax)) /                  &   
+                                  sum(curveLengthIntegrand(j + 1 : jMax)) /                  &
                                   sum(curveLengthIntegrand(jMin + 1 : jMax))
                           end do
                        end if
@@ -313,9 +313,9 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                          patch%offset(1) + patch%patchSize(1)
 
                        do k = 1, grid%globalSize(3)
-                          curveLengthIntegrand(k) =                                          &   
-                               real(globalArcLengthsAlongDirection(i - grid%offset(1) +      &   
-                               grid%localSize(1) * (j - 1 - grid%offset(2) +                 &   
+                          curveLengthIntegrand(k) =                                          &
+                               real(globalArcLengthsAlongDirection(i - grid%offset(1) +      &
+                               grid%localSize(1) * (j - 1 - grid%offset(2) +                 &
                                grid%localSize(2) * (k - 1)), 1), wp)
                        end do
 
@@ -325,7 +325,7 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                              patch%spongeStrength(i - patch%offset(1) +                      &
                                   patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
                                   patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
-                                  sum(curveLengthIntegrand(kMin : k - 1)) /                  &   
+                                  sum(curveLengthIntegrand(kMin : k - 1)) /                  &
                                   sum(curveLengthIntegrand(kMin : kMax - 1))
                           end do
                        else
@@ -334,7 +334,7 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                              patch%spongeStrength(i - patch%offset(1) +                      &
                                   patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
                                   patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
-                                  sum(curveLengthIntegrand(k + 1 : kMax)) /                  &   
+                                  sum(curveLengthIntegrand(k + 1 : kMax)) /                  &
                                   sum(curveLengthIntegrand(kMin + 1 : kMax))
                           end do
                        end if
@@ -450,7 +450,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeCartesianViscousFluxes, computeDependentVariables
   use Patch_factory, only : queryPatchTypeExists
-  use MPITimingsHelper, only : startTiming, endTiming  
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 

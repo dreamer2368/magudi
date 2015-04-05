@@ -52,7 +52,7 @@ subroutine cleanupTimeIntegratorFactory(this)
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   implicit none
-  
+
   ! <<< Arguments >>>
   class(t_TimeIntegratorFactory) :: this
 
@@ -61,5 +61,5 @@ subroutine cleanupTimeIntegratorFactory(this)
      deallocate(this%timeIntegrator)
   end if
   nullify(this%timeIntegrator)
-  
+
 end subroutine cleanupTimeIntegratorFactory

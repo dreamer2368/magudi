@@ -53,20 +53,8 @@ subroutine computeRhsForward(time, simulationFlags,                             
 
   if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
 
-     call computeCartesianViscousFluxes(nDimensions, state%velocity,                         & 
+     call computeCartesianViscousFluxes(nDimensions, state%velocity,                         &
           state%stressTensor, state%heatFlux, fluxes2)
-
-     if (allocated(patchFactories)) then
-        do i = 1, size(patchFactories)
-           call patchFactories(i)%connect(patch)
-           if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= grid%index) cycle
-
-           select type (patch)
-           end select
-
-        end do
-     end if
 
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
 
@@ -97,17 +85,13 @@ subroutine computeRhsForward(time, simulationFlags,                             
 
   SAFE_DEALLOCATE(fluxes2) !... no longer needed
 
-  ! Collect conserved variables on SAT block interfaces:
-
+  ! Update patches.
   if (allocated(patchFactories)) then
      do i = 1, size(patchFactories)
         call patchFactories(i)%connect(patch)
         if (.not. associated(patch)) cycle
-        if (patch%gridIndex /= grid%index) cycle
-
-        select type (patch)
-        end select
-
+        if (patch%gridIndex == grid%index) &
+             call patch%update(simulationFlags, solverOptions, grid, state)
      end do
   end if
 

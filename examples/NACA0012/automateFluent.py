@@ -26,7 +26,6 @@ file/set-batch-options no no yes no
 grid/modify-zones/zone-name 3 interior
 grid/modify-zones/zone-name 4 freestream
 grid/modify-zones/zone-name 5 airfoil
-define/models/viscous/inviscid yes
 define/models/energy yes
 """
 

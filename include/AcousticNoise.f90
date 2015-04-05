@@ -14,7 +14,7 @@ module AcousticNoise_mod
   type, extends(t_Functional), public :: t_AcousticNoise
 
      type(t_AcousticNoiseInternal), allocatable :: data_(:)
-     
+
    contains
 
      procedure, pass :: setup => setupAcousticNoise
@@ -41,33 +41,33 @@ module AcousticNoise_mod
   end interface
 
   interface
-     
+
      subroutine cleanupAcousticNoise(this)
-       
+
        import :: t_AcousticNoise
-       
+
        class(t_AcousticNoise) :: this
-       
+
      end subroutine cleanupAcousticNoise
-     
+
   end interface
 
   interface
-     
+
      function computeAcousticNoise(this, time, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
-       
+
        import :: t_AcousticNoise
-       
+
        class(t_AcousticNoise) :: this
        real(SCALAR_KIND), intent(in) :: time
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional
-       
+
      end function computeAcousticNoise
-     
+
   end interface
 
   interface
@@ -94,7 +94,7 @@ module AcousticNoise_mod
        use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_AcousticNoise
-       
+
        class(t_AcousticNoise) :: this
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        integer, intent(in) :: gridSize(:), normalDirection, extent(6)

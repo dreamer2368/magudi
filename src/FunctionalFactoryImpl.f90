@@ -57,7 +57,7 @@ subroutine cleanupFunctionalFactory(this)
   use Functional_factory, only : t_FunctionalFactory
 
   implicit none
-  
+
   ! <<< Arguments >>>
   class(t_FunctionalFactory) :: this
 
@@ -66,5 +66,5 @@ subroutine cleanupFunctionalFactory(this)
      deallocate(this%functional)
   end if
   nullify(this%functional)
-  
+
 end subroutine cleanupFunctionalFactory

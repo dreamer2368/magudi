@@ -263,7 +263,7 @@ contains
           i = i + 1
 
           ! Parse patch data.
-          read(line, *, iostat = istat) this%patchData(i)%name, this%patchData(i)%patchType, &                        
+          read(line, *, iostat = istat) this%patchData(i)%name, this%patchData(i)%patchType, &
                this%patchData(i)%gridIndex, this%patchData(i)%normalDirection,               &
                this%patchData(i)%iMin, this%patchData(i)%iMax,                               &
                this%patchData(i)%jMin, this%patchData(i)%jMax,                               &
@@ -324,7 +324,7 @@ contains
        this%patchData(i)%kMax = tempBuffer(i,8)
        call MPI_Bcast(this%patchData(i)%name, len(this%patchData(i)%name),                   &
             MPI_CHARACTER, 0, this%comm, ierror)
-       call MPI_Bcast(this%patchData(i)%patchType, len(this%patchData(i)%patchType),         &          
+       call MPI_Bcast(this%patchData(i)%patchType, len(this%patchData(i)%patchType),         &
             MPI_CHARACTER, 0, this%comm, ierror)
     end do
 
@@ -450,7 +450,7 @@ contains
     do i = 1, size(this%states)
 
        if (.not. this%grids(i)%isVariableWithinRange(this%states(i)%conservedVariables(:,1), &
-            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &               
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &
             minValue = this%solverOptions%densityRange(1),                                   &
             maxValue = this%solverOptions%densityRange(2))) then
           write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Density on grid ",              &
@@ -1056,14 +1056,14 @@ subroutine computeRhs(this, mode, time)
 
   ! Patch penalties.
   if (allocated(this%patchFactories)) then
-     do i = 1, size(this%states)
-        do j = 1, size(this%patchFactories)
-           call this%patchFactories(j)%connect(patch)
-           if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= this%grids(i)%index .or.                                   &
-                patch%penaltyInPhysicalCoordinates) cycle
-           call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,              &
-                this%grids(i), this%states(i))
+     do i = 1, size(this%patchFactories)
+        call this%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%penaltyInPhysicalCoordinates) cycle
+        do j = 1, size(this%states)
+           if (patch%gridIndex == this%grids(j)%index)                                       &
+                call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,         &
+                this%grids(j), this%states(j))
         end do
      end do
   end if
@@ -1082,14 +1082,14 @@ subroutine computeRhs(this, mode, time)
 
   ! Patch source terms.
   if (allocated(this%patchFactories)) then
-     do i = 1, size(this%states)
-        do j = 1, size(this%patchFactories)
-           call this%patchFactories(j)%connect(patch)
-           if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= this%grids(i)%index .or.                                   &
-                .not. patch%penaltyInPhysicalCoordinates) cycle
-           call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,              &
-                this%grids(i), this%states(i))
+     do i = 1, size(this%patchFactories)
+        call this%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (.not. patch%penaltyInPhysicalCoordinates) cycle
+        do j = 1, size(this%states)
+           if (patch%gridIndex == this%grids(j)%index)                                       &
+                call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,         &
+                this%grids(j), this%states(j))
         end do
      end do
   end if

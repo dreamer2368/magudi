@@ -43,7 +43,7 @@ module Grid_mod
      real(SCALAR_KIND) :: periodicLength(3)
 
    contains
-     
+
      procedure, pass :: setup => setupGrid
      procedure, pass :: cleanup => cleanupGrid
      procedure, pass :: loadData => loadGridData

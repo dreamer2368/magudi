@@ -41,8 +41,8 @@ contains
        do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
           do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
              do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-                gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *               &   
-                     (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                 &   
+                gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *               &
+                     (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                 &
                      (k - 1 - patch%gridOffset(3)))
                 if (grid%iblank(gridIndex) == 0) cycle
                 patchIndex = i - patch%offset(1) + patch%patchSize(1) *                      &
@@ -71,7 +71,7 @@ contains
     end select
 
     SAFE_DEALLOCATE(localMetricsAlongDirection)
-    
+
   end subroutine computeAdjointForcingOnPatch
 
 end module DragCoefficientImpl
@@ -175,13 +175,13 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
 
      nDimensions = region%grids(i)%nDimensions
      assert_key(nDimensions, (1, 2, 3))
-     
+
      do j = 1, size(region%patchFactories)
 
         call region%patchFactories(j)%connect(patch)
         if (.not. associated(patch)) return
         if (patch%gridIndex /= region%grids(i)%index) return
-        
+
         select type (patch)
         class is (t_CostTargetPatch)
 

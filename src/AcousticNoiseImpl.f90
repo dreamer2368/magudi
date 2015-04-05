@@ -34,18 +34,18 @@ contains
        do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
           do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
              do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-                gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *               &   
-                     (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                 &   
+                gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *               &
+                     (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                 &
                      (k - 1 - patch%gridOffset(3)))
                 if (grid%iblank(gridIndex) == 0) cycle
-                patchIndex = i - patch%offset(1) + patch%patchSize(1) *                      &   
-                     (j - 1 - patch%offset(2) + patch%patchSize(2) *                         &   
+                patchIndex = i - patch%offset(1) + patch%patchSize(1) *                      &
+                     (j - 1 - patch%offset(2) + patch%patchSize(2) *                         &
                      (k - 1 - patch%offset(3)))
 
-                patch%adjointForcing(patchIndex,nDimensions+2) =                             &   
-                     - 2.0_wp * (ratioOfSpecificHeats - 1.0_wp) *                            &   
+                patch%adjointForcing(patchIndex,nDimensions+2) =                             &
+                     - 2.0_wp * (ratioOfSpecificHeats - 1.0_wp) *                            &
                      (pressure(gridIndex) - meanPressure(gridIndex))
-                patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * &   
+                patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * &
                      patch%adjointForcing(patchIndex,nDimensions+2)
                 patch%adjointForcing(patchIndex,1) =                                         &
                      0.5_wp * sum(velocity(gridIndex,:) ** 2) *                              &
@@ -56,7 +56,7 @@ contains
        end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
 
     end select
-    
+
   end subroutine computeAdjointForcingOnPatch
 
 end module AcousticNoiseImpl
@@ -96,7 +96,7 @@ subroutine setupAcousticNoise(this, region)
      allocate(this%data_(i)%meanPressure(region%grids(i)%nGridPoints, 1))
      region%states(i)%dummyFunction => this%data_(i)%meanPressure
   end do
-  
+
   if (.not. region%simulationFlags%useTargetState) then
      call getRequiredOption("mean_pressure_file", filename)
      call loadRegionData(QOI_DUMMY_FUNCTION, filename)
@@ -223,7 +223,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, region)
   ! <<< Local variables >>>
   integer :: i, j
   class(t_Patch), pointer :: patch => null()
-  
+
   if (.not. allocated(region%patchFactories)) return
 
   do i = 1, size(region%grids)
@@ -239,7 +239,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, region)
 
 end subroutine computeAcousticNoiseAdjointForcing
 
-function isAcousticNoisePatchValid(this, patchDescriptor, gridSize, normalDirection,         &             
+function isAcousticNoisePatchValid(this, patchDescriptor, gridSize, normalDirection,         &
      extent, simulationFlags, message) result(isPatchValid)
 
   ! <<< Derived types >>>

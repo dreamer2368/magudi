@@ -27,7 +27,7 @@ module CostTargetPatch_mod
 
   interface
 
-     subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,                     &  
+     subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,                     &
           grid, simulationFlags, solverOptions)
 
        use Grid_mod, only : t_Grid
@@ -83,7 +83,7 @@ module CostTargetPatch_mod
 
   interface
 
-     function verifyCostTargetPatchUsage(this, patchDescriptor, gridSize, normalDirection,   &    
+     function verifyCostTargetPatchUsage(this, patchDescriptor, gridSize, normalDirection,   &
           extent, simulationFlags, success, message) result(isPatchUsed)
 
        use PatchDescriptor_mod, only : t_PatchDescriptor

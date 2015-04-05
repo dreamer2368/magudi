@@ -59,7 +59,7 @@ subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
 
   append_ = .false.
   if (present(append)) append_ = append
-  
+
   call MPI_Comm_rank(comm, procRank, ierror)
 
   if (procRank == 0) then
@@ -93,7 +93,7 @@ subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
      flush(fileUnit)
      close(fileUnit)
   end if
-  
+
   call MPI_Barrier(comm, ierror)
 
 end subroutine writeFunctionalToFile
