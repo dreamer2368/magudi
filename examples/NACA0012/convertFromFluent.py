@@ -20,7 +20,7 @@ if __name__ == '__main__':
     specificHeatAtConstantVolume = specificHeatAtConstantPressure - gasConstant
     ratioOfSpecificHeats = specificHeatAtConstantPressure / specificHeatAtConstantVolume
     freeStreamSpeedOfSound = np.sqrt(ratioOfSpecificHeats * freeStreamPressure / freeStreamDensity)
-    freeStreamMachNumber = 0.2
+    freeStreamMachNumber = 0.5
 
     a = np.loadtxt(outputPrefix + '_steady_ascii.txt', skiprows = 1, usecols = range(1, 7))
     x = a[:,0]

@@ -24,7 +24,7 @@ subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,             
 
   this%penaltyInPhysicalCoordinates = .true.
 
-  if (.not. simulationFlags%predictionOnly .and. this%nPatchPoints > 0) then
+  if (this%nPatchPoints > 0) then
      allocate(this%norm(this%nPatchPoints, 1))
      allocate(this%adjointForcing(this%nPatchPoints, solverOptions%nUnknowns))
   end if

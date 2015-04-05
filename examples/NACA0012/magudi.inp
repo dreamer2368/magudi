@@ -5,14 +5,18 @@
 # Filenames, etc.
 output_prefix = "NACA0012"
 grid_file = "NACA0012.xyz"
-initial_condition_file = "NACA0012.steady_state.bak.q"
+initial_condition_file = "NACA0012.ic.q"
 target_state_file = "NACA0012.target.q"
 boundary_condition_file = "bc.dat"
 
 # Simulation flags
-use_constant_CFL_mode = false
+use_constant_CFL_mode = true
 use_target_state = true
 steady_state_simulation = true
+include_viscous_terms = true
+
+# Physical constants
+Reynolds_number = 200.
 
 # Adjoint optimization flags
 disable_adjoint_solver = false
@@ -27,7 +31,7 @@ defaults/first_derivative_scheme = "SBP 2-4"
 
 # Time stepping options
 time_integration_scheme = 'RK4'
-time_step_size = 8e-5
+cfl = 0.5
 number_of_timesteps = 10000000
 report_interval = 100
 save_interval = 10000
