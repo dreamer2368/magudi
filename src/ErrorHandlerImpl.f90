@@ -67,7 +67,7 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
   integer, intent(in) :: lineNo
 
   ! <<< Local variables >>>
-  integer :: i, j, one = 1, flag, procRank, ierror
+  integer :: i, j, one = 1, flag = 0, procRank, ierror
   character(len = len_trim(conditionString)) :: str1
   character(len = len_trim(filename)) :: str2
 
@@ -91,11 +91,13 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
   if (.not. condition) then
 #ifdef DEBUG
      call MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, mpiWindow, ierror)
-     call MPI_Fetch_and_op(one, flag, MPI_INTEGER, 0, int(0, MPI_ADDRESS_KIND),              &
-          MPI_SUM, mpiWindow, ierror)
+
+     ! Disabling this due to poor portability (enable when MPI-3 is widely supported):
+
+     !# call MPI_Fetch_and_op(one, flag, MPI_INTEGER, 0, int(0, MPI_ADDRESS_KIND),           &
+     !#      MPI_SUM, mpiWindow, ierror)
+
      call MPI_Win_unlock(0, mpiWindow, ierror)
-#else
-     flag = 0
 #endif
      if (flag == 0) then
         write(error_unit, '(3A,I0.0,3A)') "AssertionError at ",                              &
