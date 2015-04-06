@@ -410,7 +410,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
         call residualManager%compute(region)
         call residualManager%writeToFile(region%comm, trim(outputPrefix_) //                 &
-             ".adjoint_residuals.txt", timestep_, time, timestep_ > timestep + reportInterval)
+             ".residuals.txt", timestep_, time, timestep_ > timestep + reportInterval)
 
         residuals(1) = residualManager%residuals(1)
         residuals(2) = maxval(residualManager%residuals(1:nDimensions))

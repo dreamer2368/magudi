@@ -15,6 +15,7 @@ if __name__ == '__main__':
     ratioOfSpecificHeats = specificHeatAtConstantPressure / specificHeatAtConstantVolume
     freeStreamPressure = 101325.
     freeStreamSpeedOfSound = np.sqrt(ratioOfSpecificHeats * freeStreamPressure / freeStreamDensity)
+    freeStreamMachNumber = 0.4
 
     journalFile = 'fluentScript.jou'
     f = open(journalFile, 'w')
@@ -26,11 +27,10 @@ file/set-batch-options no no yes no
 grid/modify-zones/zone-name 3 interior
 grid/modify-zones/zone-name 4 freestream
 grid/modify-zones/zone-name 5 airfoil
-define/models/viscous/inviscid yes
 define/models/energy yes
 """
 
-    print >>f, 'define/boundary-conditions/velocity-inlet freestream yes yes no %f no 1 no 0 no %f' % (0.2 * freeStreamSpeedOfSound, freeStreamPressure / (freeStreamDensity * gasConstant))
+    print >>f, 'define/boundary-conditions/velocity-inlet freestream yes yes no %f no 1 no 0 no %f' % (freeStreamMachNumber * freeStreamSpeedOfSound, freeStreamPressure / (freeStreamDensity * gasConstant))
 
     print >>f, """
 solve/initialize/compute-defaults/velocity-inlet freestream
