@@ -44,12 +44,20 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   this%nUnknowns = nDimensions + 2 !... extendable to reactive flows, for later.
 
   if (simulationFlags%viscosityOn) then
-     call getRequiredOption("Reynolds_number", this%reynoldsNumberInverse)
-     this%reynoldsNumberInverse = 1.0_wp / this%reynoldsNumberInverse
-     this%prandtlNumberInverse = getOption("Prandtl_number", 0.72_wp)
-     this%prandtlNumberInverse = 1.0_wp / this%prandtlNumberInverse
-     this%powerLawExponent = getOption("viscosity_power_law_exponent", 0.666_wp)
-     this%bulkViscosityRatio = getOption("bulk_viscosity_ratio", 0.6_wp)
+
+     this%reynoldsNumberInverse = max(0.0_wp, getOption("Reynolds_number", 0.0_wp))
+     this%prandtlNumberInverse = max(0.0_wp, getOption("Prandtl_number", 0.72_wp))
+
+     if (this%reynoldsNumberInverse <= 0.0_wp .or. this%prandtlNumberInverse <= 0.0_wp) then
+        this%powerLawExponent = 0.0_wp
+        this%bulkViscosityRatio = 0.0_wp
+     else
+        this%reynoldsNumberInverse = 1.0_wp / this%reynoldsNumberInverse
+        this%prandtlNumberInverse = 1.0_wp / this%prandtlNumberInverse
+        this%powerLawExponent = getOption("viscosity_power_law_exponent", 0.666_wp)
+        this%bulkViscosityRatio = getOption("bulk_viscosity_ratio", 0.6_wp)
+     end if
+
   end if
 
   if (simulationFlags%enableSolutionLimits) then

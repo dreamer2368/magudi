@@ -1,6 +1,6 @@
 #include "config.h"
 
-program impenetrable_wall_SAT
+program isothermal_wall_SAT
 
   use MPI
 
@@ -12,9 +12,9 @@ program impenetrable_wall_SAT
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
   use SolverOptions_mod, only : t_SolverOptions
+  use IsothermalWall_mod, only : t_IsothermalWall
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
-  use ImpenetrableWall_mod, only : t_ImpenetrableWall
 
   use Region_enum, only : FORWARD, ADJOINT
 
@@ -22,7 +22,7 @@ program impenetrable_wall_SAT
 
   implicit none
 
-  integer, parameter :: wp = SCALAR_KIND, n = 40
+  integer, parameter :: wp = SCALAR_KIND, n = 1
   real(SCALAR_KIND), parameter :: tolerance = sqrt(epsilon(0.0_wp))
   logical :: success
   integer :: i, j, k, direction, nDimensions, gridSize(3, 1),                                &
@@ -35,20 +35,21 @@ program impenetrable_wall_SAT
   type(t_Grid) :: grid
   type(t_State) :: state
   type(t_PatchDescriptor) :: patchDescriptor
-  type(t_ImpenetrableWall) :: patch
+  type(t_IsothermalWall) :: patch
 
   interface
 
-     subroutine applyForwardBoundaryConditions(patch, grid, state)
+     subroutine applyForwardBoundaryConditions(patch, grid, state, ratioOfSpecificHeats)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
-       use ImpenetrableWall_mod, only : t_ImpenetrableWall
+       use IsothermalWall_mod, only : t_IsothermalWall
 
        ! <<< Arguments >>>
-       type(t_ImpenetrableWall), intent(in) :: patch
+       type(t_IsothermalWall), intent(in) :: patch
        type(t_Grid), intent(in) :: grid
        type(t_State) :: state
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
 
      end subroutine applyForwardBoundaryConditions
 
@@ -56,10 +57,10 @@ program impenetrable_wall_SAT
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
-       use ImpenetrableWall_mod, only : t_ImpenetrableWall
+       use IsothermalWall_mod, only : t_IsothermalWall
 
        ! <<< Arguments >>>
-       type(t_ImpenetrableWall), intent(in) :: patch
+       type(t_IsothermalWall), intent(in) :: patch
        type(t_Grid), intent(in) :: grid
        type(t_State) :: state
 
@@ -70,10 +71,10 @@ program impenetrable_wall_SAT
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
-       use ImpenetrableWall_mod, only : t_ImpenetrableWall
+       use IsothermalWall_mod, only : t_IsothermalWall
 
        ! <<< Arguments >>>
-       type(t_ImpenetrableWall), intent(in) :: patch
+       type(t_IsothermalWall), intent(in) :: patch
        type(t_Grid), intent(in) :: grid
        type(t_State) :: state
        type(t_SolverOptions), intent(in) :: solverOptions
@@ -98,8 +99,9 @@ program impenetrable_wall_SAT
 
   call simulationFlags%initialize()
   simulationFlags%predictionOnly = .false.
+  simulationFlags%viscosityOn = .true.
 
-  do nDimensions = 1, 3
+  do nDimensions = 2, 2!1, 3
 
      do k = 1, n
 
@@ -113,6 +115,11 @@ program impenetrable_wall_SAT
         simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
 
         call solverOptions%initialize(nDimensions, simulationFlags)
+        solverOptions%reynoldsNumberInverse = random(1e-6_wp, 1e-2_wp)
+        solverOptions%prandtlNumberInverse = random(0.01_wp, 1e2_wp)
+        solverOptions%bulkViscosityRatio = random(0.0_wp, 10.0_wp)
+        solverOptions%powerLawExponent = random(0.0_wp, 2.0_wp)
+        
         call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
              simulationFlags = simulationFlags)
         call grid%setupSpatialDiscretization(simulationFlags)
@@ -130,7 +137,8 @@ program impenetrable_wall_SAT
            direction = -direction
         end if
 
-        patchDescriptor = t_PatchDescriptor("testPatch", "SAT_SLIP_WALL", 1, direction,      &
+        patchDescriptor = t_PatchDescriptor("testPatch",                                     &
+             "SAT_ISOTHERMAL_WALL", 1, direction,                                            &
              extent(1), extent(2), extent(3), extent(4), extent(5), extent(6))
 
         call patchDescriptor%validate(gridSize, simulationFlags,                             &
@@ -166,8 +174,14 @@ program impenetrable_wall_SAT
 
         assert(all(state%conservedVariables(:,1) > 0.0_wp))
 
+        ! Randomize wall temperature on patch.
+        do i = 1, patch%nPatchPoints
+           patch%temperature(i) = random(0.01_wp, 100.0_wp)
+        end do
+
         ! Apply forward boundary conditions.
-        call applyForwardBoundaryConditions(patch, grid, state)
+        call applyForwardBoundaryConditions(patch, grid, state,                              &
+             solverOptions%ratioOfSpecificHeats)
         call computeDependentVariables(nDimensions, state%conservedVariables,                &    
           solverOptions%ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,     &  
           state%pressure(:,1), state%temperature(:,1))
@@ -213,35 +227,32 @@ program impenetrable_wall_SAT
   if (.not. success) stop -1
   stop 0
 
-end program impenetrable_wall_SAT
+end program isothermal_wall_SAT
 
-subroutine applyForwardBoundaryConditions(patch, grid, state)
+subroutine applyForwardBoundaryConditions(patch, grid, state, ratioOfSpecificHeats)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use ImpenetrableWall_mod, only : t_ImpenetrableWall
+  use IsothermalWall_mod, only : t_IsothermalWall
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_ImpenetrableWall), intent(in) :: patch
+  type(t_IsothermalWall), intent(in) :: patch
   type(t_Grid), intent(in) :: grid
   type(t_State) :: state
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, gridIndex, patchIndex, direction, nDimensions
-  SCALAR_TYPE, allocatable :: unitNormal(:), localVelocity(:)
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   direction = patch%normalDirection
   assert(abs(direction) >= 1 .and. abs(direction) <= nDimensions)
-
-  allocate(unitNormal(nDimensions))
-  allocate(localVelocity(nDimensions))
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
@@ -254,32 +265,15 @@ subroutine applyForwardBoundaryConditions(patch, grid, state)
                 (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
-           unitNormal = grid%metrics(gridIndex, 1 + nDimensions * (abs(direction) - 1) :     &
-                nDimensions * abs(direction))
-           unitNormal = unitNormal / sqrt(sum(unitNormal ** 2))
-
-           localVelocity = state%conservedVariables(gridIndex,2:nDimensions+1) /             &
-                state%conservedVariables(gridIndex,1)
-
-           state%conservedVariables(gridIndex,2:nDimensions+1) =                             &
-                localVelocity - unitNormal * dot_product(localVelocity, unitNormal)
+           state%conservedVariables(gridIndex,2:nDimensions+1) = 0.0_wp
 
            state%conservedVariables(gridIndex,nDimensions+2) =                               &
-                state%conservedVariables(gridIndex,nDimensions+2) +                          &
-                0.5_wp * state%conservedVariables(gridIndex,1) *                             &
-                (sum(state%conservedVariables(gridIndex,2:nDimensions+1) ** 2 -              &
-                localVelocity ** 2))
-
-           state%conservedVariables(gridIndex,2:nDimensions+1) =                             &
-                state%conservedVariables(gridIndex,1) *                                      &
-                state%conservedVariables(gridIndex,2:nDimensions+1)
+                state%conservedVariables(gridIndex,1) * patch%temperature(patchIndex) /      &
+                ratioOfSpecificHeats
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-
-  SAFE_DEALLOCATE(unitNormal)
-  SAFE_DEALLOCATE(localVelocity)
 
 end subroutine applyForwardBoundaryConditions
 
@@ -288,12 +282,12 @@ subroutine applyAdjointBoundaryConditions(patch, grid, state)
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use ImpenetrableWall_mod, only : t_ImpenetrableWall
+  use IsothermalWall_mod, only : t_IsothermalWall
 
   implicit none
 
   ! <<< Arguments >>>
-  type(t_ImpenetrableWall), intent(in) :: patch
+  type(t_IsothermalWall), intent(in) :: patch
   type(t_Grid), intent(in) :: grid
   type(t_State) :: state
 
@@ -346,7 +340,7 @@ subroutine addSurfaceIntegralContribution(patch, grid, state, solverOptions)
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
   use SolverOptions_mod, only : t_SolverOptions
-  use ImpenetrableWall_mod, only : t_ImpenetrableWall
+  use IsothermalWall_mod, only : t_IsothermalWall
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -354,7 +348,7 @@ subroutine addSurfaceIntegralContribution(patch, grid, state, solverOptions)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_ImpenetrableWall), intent(in) :: patch
+  type(t_IsothermalWall), intent(in) :: patch
   type(t_Grid), intent(in) :: grid
   type(t_State) :: state
   type(t_SolverOptions), intent(in) :: solverOptions
