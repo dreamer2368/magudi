@@ -53,9 +53,9 @@ contains
                 metricsAlongNormalDirection =                                                &
                      grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
-                F = (ratioOfSpecificHeats - 1.0_wp) *                                        &
-                     (pressure(gridIndex) - targetPressure) *                                &
-                     sqrt(sum(metricsAlongNormalDirection ** 2)) * &
+                F = - (ratioOfSpecificHeats - 1.0_wp) *                                      &  
+                     dot_product(metricsAlongNormalDirection,                                &
+                     forceDirection(1:nDimensions)) *                                        &
                      grid%jacobian(gridIndex, 1) * normBoundaryFactor
 
                 patch%adjointForcing(patchIndex,1) =                                         &

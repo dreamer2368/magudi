@@ -20,7 +20,7 @@ if __name__ == '__main__':
     specificHeatAtConstantVolume = specificHeatAtConstantPressure - gasConstant
     ratioOfSpecificHeats = specificHeatAtConstantPressure / specificHeatAtConstantVolume
     freeStreamSpeedOfSound = np.sqrt(ratioOfSpecificHeats * freeStreamPressure / freeStreamDensity)
-    freeStreamMachNumber = 0.5
+    freeStreamMachNumber = 0.4
 
     a = np.loadtxt(outputPrefix + '_steady_ascii.txt', skiprows = 1, usecols = range(1, 7))
     x = a[:,0]
@@ -66,6 +66,6 @@ if __name__ == '__main__':
 
     # Target state.
     soln.Q[0][:,:,0,0] = 1.
-    soln.Q[0][:,:,0,1] = freeStreamMachNumber
+    soln.Q[0][:,1:,0,1] = 0. #freeStreamMachNumber
     soln.Q[0][:,:,0,-1] = 1. / ratioOfSpecificHeats / (ratioOfSpecificHeats - 1.) + 0.5 / soln.Q[0][:,:,0,0] * soln.Q[0][:,:,0,1] ** 2
     soln.Export(outputPrefix + '.target.q')
