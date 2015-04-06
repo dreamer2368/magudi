@@ -147,10 +147,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
                 dot_product(localConservedVariables(2:nDimensions+1), unitNormal)
 
            inviscidPenalty = 0.0_wp
-           if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) then
-              inviscidPenalty(3) = (state%pressure(gridIndex, 1) -                           &
-                   1.0_wp / solverOptions%ratioOfSpecificHeats) !... temporary hack.
-           else
+           if (mode /= ADJOINT .or. .not. simulationFlags%useContinuousAdjoint) then
               normalMomentum =                                                               &
                    dot_product(localConservedVariables(2:nDimensions+1), unitNormal)
               inviscidPenalty(2:nDimensions+1) = normalMomentum * unitNormal
@@ -227,11 +224,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
                       temperature = state%temperature(gridIndex, 1))
               end select !... nDimensions
 
-              if (simulationFlags%useContinuousAdjoint) then
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
-                      this%inviscidPenaltyAmount *                                           &
-                      matmul(transpose(incomingJacobianOfInviscidFlux), inviscidPenalty)
-              else
+              if (.not. simulationFlags%useContinuousAdjoint) then
                  do l = 1, nUnknowns
                     state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
                          this%inviscidPenaltyAmount *                                        &
