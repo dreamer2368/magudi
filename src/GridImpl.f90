@@ -160,15 +160,21 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   type(t_SimulationFlags), optional :: simulationFlags
 
   ! <<< Local variables >>>
+  type(t_SimulationFlags) :: simulationFlags_
   integer :: i, comm_, procRank, nProcs, ierror
   character(len = STRING_LENGTH) :: key, val
   integer, allocatable :: processDistribution_(:), processCoordinates(:)
   logical :: isPeriodic(3)
-  type(t_SimulationFlags) :: simulationFlags_
 
   assert(size(globalSize) > 0 .and. size(globalSize) <= 3)
   assert(index > 0)
   assert(all(globalSize > 0))
+
+  if (present(simulationFlags)) then
+     simulationFlags_ = simulationFlags
+  else
+     call simulationFlags_%initialize()
+  end if
 
   ! Clean slate.
   call this%cleanup()
@@ -262,18 +268,12 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   call MPI_Type_commit(this%mpiDerivedTypeIntegerSubarray, ierror)
 
   ! Is the grid curvilinear/rectangular?
-  this%isCurvilinear = getOption("defaults/curvilinear", .true.)
+  this%isCurvilinear = simulationFlags_%isDomainCurvilinear
   write(key, '(A,I3.3,A)') "grid", this%index, "/curvilinear"
   this%isCurvilinear = getOption(key, this%isCurvilinear)
 
   ! Allocate grid data.
-  if (present(simulationFlags)) then
-     call allocateData(this, simulationFlags)
-  else
-     call simulationFlags_%initialize()
-     call allocateData(this, simulationFlags_)
-  end if
-
+  call allocateData(this, simulationFlags_)
   call makeUnitCube(this)
 
   SAFE_DEALLOCATE(processCoordinates)
@@ -342,7 +342,8 @@ subroutine cleanupGrid(this)
        call MPI_Type_free(this%mpiDerivedTypeIntegerSubarray, ierror)
   if (this%mpiDerivedTypeScalarSubarray /= MPI_DATATYPE_NULL)                                &
        call MPI_Type_free(this%mpiDerivedTypeScalarSubarray, ierror)
-  if (this%comm /= MPI_COMM_NULL) call MPI_Comm_free(this%comm, ierror)
+  if (this%comm /= MPI_COMM_NULL .and. this%comm /= MPI_COMM_WORLD)                          &
+       call MPI_Comm_free(this%comm, ierror)
 
   this%comm = MPI_COMM_NULL
   this%mpiDerivedTypeScalarSubarray = MPI_DATATYPE_NULL
@@ -493,7 +494,7 @@ subroutine setupSpatialDiscretization(this, simulationFlags)
 
      ! Adjoint first derivative operator.
      if (allocated(this%adjointFirstDerivative)) then
-        if (simulationFlags_%useContinuousAdjoint) then
+        if (simulationFlags_%useContinuousAdjoint .or. trim(val) == "null matrix") then
            call this%adjointFirstDerivative(i)%setup(trim(val))
            this%adjointFirstDerivative(i)%rhsInterior = -this%firstDerivative(i)%rhsInterior
            this%adjointFirstDerivative(i)%rhsBoundary1 = -this%firstDerivative(i)%rhsBoundary1

@@ -85,8 +85,9 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, nDimensions, nUnknowns, direction, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: localConservedVariables(:),                                    &
+  integer :: i, j, k, l, nDimensions, nUnknowns, direction,                                  &
+       incomingDirection, gridIndex, patchIndex
+  SCALAR_TYPE, allocatable :: localConservedVariables(:), unitNormal(:),                     &
        metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),                  &
        inviscidPenalty(:), viscousPenalty(:), deltaNormalMomentum(:),                        &
        deltaInviscidPenalty(:,:), deltaIncomingJacobianOfInviscidFlux(:,:,:)
@@ -108,7 +109,14 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
 
+  if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) then
+     incomingDirection = -this%normalDirection
+  else
+     incomingDirection = this%normalDirection
+  end if
+
   allocate(localConservedVariables(nUnknowns))
+  allocate(unitNormal(nDimensions))
   allocate(metricsAlongNormalDirection(nDimensions))
   allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
   allocate(inviscidPenalty(nUnknowns))
@@ -132,14 +140,23 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
            localConservedVariables = state%conservedVariables(gridIndex,:)
            metricsAlongNormalDirection =                                                     &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
+           unitNormal = metricsAlongNormalDirection /                                        &
+                sqrt(sum(metricsAlongNormalDirection ** 2))
 
-           normalMomentum = dot_product(localConservedVariables(2:nDimensions+1),            &
-                metricsAlongNormalDirection / sqrt(sum(metricsAlongNormalDirection ** 2)))
-           inviscidPenalty(1) = 0.0_wp
-           inviscidPenalty(2:nDimensions+1) = normalMomentum *                               &
-                metricsAlongNormalDirection / sqrt(sum(metricsAlongNormalDirection ** 2))
-           inviscidPenalty(nDimensions+2) =                                                  &
-                0.5_wp * state%specificVolume(gridIndex, 1) * normalMomentum ** 2
+           normalMomentum =                                                                  &
+                dot_product(localConservedVariables(2:nDimensions+1), unitNormal)
+
+           inviscidPenalty = 0.0_wp
+           if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) then
+              inviscidPenalty(3) = (state%pressure(gridIndex, 1) -                           &
+                   1.0_wp / solverOptions%ratioOfSpecificHeats) !... temporary hack.
+           else
+              normalMomentum =                                                               &
+                   dot_product(localConservedVariables(2:nDimensions+1), unitNormal)
+              inviscidPenalty(2:nDimensions+1) = normalMomentum * unitNormal
+              inviscidPenalty(nDimensions+2) =                                               &
+                   0.5_wp * state%specificVolume(gridIndex, 1) * normalMomentum ** 2
+           end if
 
            select case (mode)
 
@@ -149,35 +166,36 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
               case (1)
                  call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,       &
                       metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      incomingDirection, incomingJacobianOfInviscidFlux,                     &
                       specificVolume = state%specificVolume(gridIndex, 1),                   &
                       temperature = state%temperature(gridIndex, 1))
               case (2)
                  call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,       &
                       metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      incomingDirection, incomingJacobianOfInviscidFlux,                     &
                       specificVolume = state%specificVolume(gridIndex, 1),                   &
                       temperature = state%temperature(gridIndex, 1))
               case (3)
                  call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,       &
                       metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      incomingDirection, incomingJacobianOfInviscidFlux,                     &
                       specificVolume = state%specificVolume(gridIndex, 1),                   &
                       temperature = state%temperature(gridIndex, 1))
               end select !... nDimensions
 
+              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
+                   this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &
+                   inviscidPenalty)
+
            case (ADJOINT)
 
               deltaNormalMomentum(1) = 0.0_wp
-              deltaNormalMomentum(2:nDimensions+1) = metricsAlongNormalDirection /           &
-                sqrt(sum(metricsAlongNormalDirection ** 2))
+              deltaNormalMomentum(2:nDimensions+1) = unitNormal
               deltaNormalMomentum(nDimensions+2) = 0.0_wp
 
               deltaInviscidPenalty(1,:) = 0.0_wp
               do l = 1, nDimensions
-                 deltaInviscidPenalty(l+1,:) = deltaNormalMomentum *                         &
-                      metricsAlongNormalDirection(l) /                                       &
-                      sqrt(sum(metricsAlongNormalDirection ** 2))
+                 deltaInviscidPenalty(l+1,:) = deltaNormalMomentum * unitNormal(l)
               end do
               deltaInviscidPenalty(nDimensions+2,:) =                                        &
                    state%specificVolume(gridIndex, 1) * normalMomentum * deltaNormalMomentum
@@ -189,45 +207,39 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
               case (1)
                  call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,       &
                       metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      incomingDirection, incomingJacobianOfInviscidFlux,                     &
                       deltaIncomingJacobianOfInviscidFlux,                                   &
                       specificVolume = state%specificVolume(gridIndex, 1),                   &
                       temperature = state%temperature(gridIndex, 1))
               case (2)
                  call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,       &
                       metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      incomingDirection, incomingJacobianOfInviscidFlux,                     &
                       deltaIncomingJacobianOfInviscidFlux,                                   &
                       specificVolume = state%specificVolume(gridIndex, 1),                   &
                       temperature = state%temperature(gridIndex, 1))
               case (3)
                  call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,       &
                       metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      this%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                      incomingDirection, incomingJacobianOfInviscidFlux,                     &
                       deltaIncomingJacobianOfInviscidFlux,                                   &
                       specificVolume = state%specificVolume(gridIndex, 1),                   &
                       temperature = state%temperature(gridIndex, 1))
               end select !... nDimensions
 
-           end select !... mode
-
-           select case (mode)
-
-           case (FORWARD)
-
-              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
-                   this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &
-                   inviscidPenalty)
-
-           case (ADJOINT)
-
-              do l = 1, nUnknowns
-                 state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +       &
+              if (simulationFlags%useContinuousAdjoint) then
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
                       this%inviscidPenaltyAmount *                                           &
-                      dot_product(state%adjointVariables(gridIndex,:),                       &
-                      matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l), inviscidPenalty) +  &
-                      matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)))
-              end do
+                      matmul(transpose(incomingJacobianOfInviscidFlux), inviscidPenalty)
+              else
+                 do l = 1, nUnknowns
+                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
+                         this%inviscidPenaltyAmount *                                        &
+                         dot_product(state%adjointVariables(gridIndex,:),                    &
+                         matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)) + &
+                         matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l), inviscidPenalty))
+                 end do
+              end if
 
            end select
 
@@ -242,6 +254,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   SAFE_DEALLOCATE(inviscidPenalty)
   SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
+  SAFE_DEALLOCATE(unitNormal)
   SAFE_DEALLOCATE(localConservedVariables)
 
   call endTiming("addImpenetrableWallPenalty")

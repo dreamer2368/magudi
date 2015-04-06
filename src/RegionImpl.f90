@@ -1046,10 +1046,10 @@ subroutine computeRhs(this, mode, time)
      select case (mode)
      case (FORWARD)
         call computeRhsForward(time, this%simulationFlags, this%solverOptions,               &
-             this%grids(i), this%states(i), this%patchFactories)
+             this%grids(i), this%states(i))
      case (ADJOINT)
         call computeRhsAdjoint(time, this%simulationFlags, this%solverOptions,               &
-             this%grids(i), this%states(i), this%patchFactories)
+             this%grids(i), this%states(i))
      end select
 
   end do
@@ -1062,6 +1062,8 @@ subroutine computeRhs(this, mode, time)
         if (patch%penaltyInPhysicalCoordinates) cycle
         do j = 1, size(this%states)
            if (patch%gridIndex == this%grids(j)%index)                                       &
+                call patch%update(this%simulationFlags, this%solverOptions,                  &
+                this%grids(j), this%states(j))
                 call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,         &
                 this%grids(j), this%states(j))
         end do
@@ -1088,6 +1090,8 @@ subroutine computeRhs(this, mode, time)
         if (.not. patch%penaltyInPhysicalCoordinates) cycle
         do j = 1, size(this%states)
            if (patch%gridIndex == this%grids(j)%index)                                       &
+                call patch%update(this%simulationFlags, this%solverOptions,                  &
+                this%grids(j), this%states(j))
                 call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,         &
                 this%grids(j), this%states(j))
         end do

@@ -84,7 +84,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   end if
 
   if (.not. simulationFlags%predictionOnly) then
-     call getRequiredOption("cost_functional_type", this%costFunctionalType)
+     this%costFunctionalType = getOption("cost_functional_type", "SOUND")
      call functionalFactory%connect(dummyFunctional, trim(this%costFunctionalType))
      if (.not. associated(dummyFunctional)) then
         write(message, '(A)') "Invalid cost functional type '",                              &

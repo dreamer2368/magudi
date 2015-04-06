@@ -113,7 +113,8 @@ subroutine cleanupPatch(this)
   ! <<< Local variables >>>
   integer :: ierror
 
-  if (this%comm /= MPI_COMM_NULL) call MPI_Comm_free(this%comm, ierror)
+  if (this%comm /= MPI_COMM_NULL .and. this%comm /= MPI_COMM_WORLD)                          &
+       call MPI_Comm_free(this%comm, ierror)
   this%comm = MPI_COMM_NULL
 
 end subroutine cleanupPatch

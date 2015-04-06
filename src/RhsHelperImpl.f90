@@ -1,7 +1,6 @@
 #include "config.h"
 
-subroutine computeRhsForward(time, simulationFlags,                                          &
-     solverOptions, grid, state, patchFactories)
+subroutine computeRhsForward(time, simulationFlags, solverOptions, grid, state)
 
   ! <<< External modules >>>
   use MPI
@@ -10,7 +9,6 @@ subroutine computeRhsForward(time, simulationFlags,                             
   use Grid_mod, only : t_Grid
   use Patch_mod, only : t_Patch
   use State_mod, only : t_State
-  use Patch_factory, only : t_PatchFactory
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -26,7 +24,6 @@ subroutine computeRhsForward(time, simulationFlags,                             
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid) :: grid
   class(t_State) :: state
-  type(t_PatchFactory), allocatable :: patchFactories(:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -85,28 +82,16 @@ subroutine computeRhsForward(time, simulationFlags,                             
 
   SAFE_DEALLOCATE(fluxes2) !... no longer needed
 
-  ! Update patches.
-  if (allocated(patchFactories)) then
-     do i = 1, size(patchFactories)
-        call patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        if (patch%gridIndex == grid%index) &
-             call patch%update(simulationFlags, solverOptions, grid, state)
-     end do
-  end if
-
   call endTiming("computeRhsForward")
 
 end subroutine computeRhsForward
 
-subroutine computeRhsAdjoint(time, simulationFlags,                                          &
-     solverOptions, grid, state, patchFactories)
+subroutine computeRhsAdjoint(time, simulationFlags, solverOptions, grid, state)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use Patch_mod, only : t_Patch
   use State_mod, only : t_State
-  use Patch_factory, only : t_PatchFactory
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -122,7 +107,6 @@ subroutine computeRhsAdjoint(time, simulationFlags,                             
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid) :: grid
   class(t_State) :: state
-  type(t_PatchFactory), allocatable, intent(in) :: patchFactories(:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND

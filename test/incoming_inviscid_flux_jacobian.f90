@@ -50,7 +50,7 @@ program incoming_inviscid_flux_jacobian
      allocate(incomingJacobianOfInviscidFlux1(nDimensions + 2, nDimensions + 2))
      allocate(incomingJacobianOfInviscidFlux2(nDimensions + 2, nDimensions + 2))
 
-     isDomainCurvilinear = (random(0, 2) == 0)
+     isDomainCurvilinear = (random(0, 1) == 0)
 
      do i = 1, n
 
@@ -62,6 +62,8 @@ program incoming_inviscid_flux_jacobian
              random(0.1_wp, 4.0_wp) / ratioOfSpecificHeats +                                 &
              0.5_wp / conservedVariables(i,1) *                                              &
              sum(conservedVariables(i,2:nDimensions+1) ** 2)
+
+        assert(conservedVariables(i,1) > 0.0_wp)
 
         if (isDomainCurvilinear) then
            do j = 1, nDimensions ** 2
@@ -79,6 +81,8 @@ program incoming_inviscid_flux_jacobian
      call computeDependentVariables(nDimensions, conservedVariables,                         &
           ratioOfSpecificHeats, specificVolume = specificVolume,                             &
           velocity = velocity, temperature = temperature)
+     assert(all(specificVolume > 0.0_wp))
+     assert(all(temperature > 0.0_wp))
 
      do i = 1, n
 

@@ -11,6 +11,7 @@ set(numprocs 1)
 add_mpi_test(stencil_coefficients "${numprocs}")
 add_mpi_test(options_parser "${numprocs}")
 add_mpi_test(inviscid_flux_jacobian "${numprocs}")
+add_mpi_test(impenetrable_wall_SAT "${numprocs}")
 
 find_package(LAPACK)
 if (LAPACK_FOUND)
