@@ -488,8 +488,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
   type(t_ReverseMigrator) :: reverseMigrator
-  integer :: i, j, nDimensions, timestep_, timemarchDirection,                               &
-       reportInterval, residualInterval
+  integer :: i, j, nDimensions, timestep_, timemarchDirection, reportInterval
   class(t_Functional), pointer :: functional => null()
   type(t_FunctionalFactory) :: functionalFactory
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
