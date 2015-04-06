@@ -53,7 +53,7 @@ program shear_layer
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
   ! Write out some useful information.
-  call reportGridDiagnostics(region)
+  call region%reportGridDiagnostics()
 
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)

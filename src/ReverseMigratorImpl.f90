@@ -132,7 +132,7 @@ subroutine migrateToSubstep(this, region, integrator, timestep, stage)
         end if
 
         write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep_, ".q"
-        call loadRegionData(region, QOI_FORWARD_STATE, filename)
+        call region%loadData(QOI_FORWARD_STATE, filename)
         time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
         this%loadedTimestep = timestep_
 
