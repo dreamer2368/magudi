@@ -18,6 +18,8 @@ program impenetrable_wall_SAT
 
   use Region_enum, only : FORWARD, ADJOINT
 
+  use CNSHelper, only : computeDependentVariables
+
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND, n = 40
@@ -166,7 +168,9 @@ program impenetrable_wall_SAT
 
         ! Apply forward boundary conditions.
         call applyForwardBoundaryConditions(patch, grid, state)
-        call state%update(grid, simulationFlags, solverOptions)
+        call computeDependentVariables(nDimensions, state%conservedVariables,                &    
+          solverOptions%ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,     &  
+          state%pressure(:,1), state%temperature(:,1))
         assert(all(state%specificVolume(:,1) > 0.0_wp))
         assert(all(state%temperature(:,1) > 0.0_wp))
 

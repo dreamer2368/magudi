@@ -99,11 +99,11 @@ subroutine setupAcousticNoise(this, region)
 
   if (.not. region%simulationFlags%useTargetState) then
      call getRequiredOption("mean_pressure_file", filename)
-     call loadRegionData(QOI_DUMMY_FUNCTION, filename)
+     call region%loadData(QOI_DUMMY_FUNCTION, filename)
   else
      filename = getOption("mean_pressure_file", "")
      if (len_trim(filename) > 0) then
-        call loadRegionData(QOI_DUMMY_FUNCTION, filename)
+        call region%loadData(QOI_DUMMY_FUNCTION, filename)
      else
         do i = 1, size(this%data_)
            assert(allocated(region%states(i)%targetState))
