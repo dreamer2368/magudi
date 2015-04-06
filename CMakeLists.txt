@@ -118,6 +118,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ResidualManager.f90
+  ${PROJECT_SOURCE_DIR}/src/ResidualManagerImpl.f90
 
   # Abstract types.
   ${PROJECT_SOURCE_DIR}/include/Patch.f90

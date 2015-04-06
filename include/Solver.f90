@@ -29,7 +29,7 @@ module Solver
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps
-       integer, intent(in), optional :: saveInterval
+       integer, intent(in) :: saveInterval
        character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
        SCALAR_TYPE, intent(out), optional :: costFunctional
 

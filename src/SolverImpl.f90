@@ -229,7 +229,7 @@ subroutine initializeSolver(region, restartFilename)
   ! Initialize conserved variables.
   if (present(restartFilename) .and. region%simulationFlags%predictionOnly) then
      call region%loadData(QOI_FORWARD_STATE, restartFilename)
-  else if (region%simulationFlags%predictionOnly .or. .not. &
+  else if (region%simulationFlags%predictionOnly .or. .not.                                  &
        region%simulationFlags%isBaselineAvailable) then
      if (region%simulationFlags%useTargetState) then
         filename = getOption("initial_condition_file", "")
@@ -292,6 +292,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   use Functional_mod, only : t_Functional
   use Functional_factory, only : t_FunctionalFactory
   use TimeIntegrator_mod, only : t_TimeIntegrator
+  use ResidualManager_mod, only : t_ResidualManager
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   ! <<< Enumerations >>>
@@ -312,18 +313,19 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps
-  integer, intent(in), optional :: saveInterval
+  integer, intent(in) :: saveInterval
   character(len = STRING_LENGTH), intent(in), optional :: outputPrefix
   SCALAR_TYPE, intent(out), optional :: costFunctional
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
-  integer :: i, j, timestep_, reportInterval, residualInterval
+  integer :: i, j, nDimensions, timestep_, reportInterval
   class(t_Functional), pointer :: functional => null()
   type(t_FunctionalFactory) :: functionalFactory
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
+  type(t_ResidualManager) :: residualManager
   real(wp) :: timeStepSize, cfl, residuals(3)
   SCALAR_TYPE :: instantaneousCostFunctional
 
@@ -339,14 +341,10 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
   call region%saveData(QOI_FORWARD_STATE, filename)
 
-  residualInterval = getOption("check_residuals_interval", -1)
-  if (residualInterval == -1) then
-     call getRequiredOption("report_interval", reportInterval)
-     residualInterval = reportInterval
-     if (residualInterval < 0) residualInterval = max(1, nint(1e-3_wp * real(nTimesteps, wp)))
-  else
-     reportInterval = getOption("report_interval", 1)
-  end if
+  reportInterval = getOption("report_interval", 1)
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
 
   if (.not. region%simulationFlags%predictionOnly) then
      call functionalFactory%connect(functional, trim(region%solverOptions%costFunctionalType))
@@ -358,6 +356,9 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
        trim(region%solverOptions%timeIntegratorType))
   assert(associated(timeIntegrator))
   call timeIntegrator%setup(region)
+
+  if (region%simulationFlags%steadyStateSimulation)                                          &
+       call residualManager%setup("", region)
 
   do timestep_ = timestep + 1, timestep + nTimesteps
 
@@ -388,7 +389,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
      end do
 
-     if (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0) then
+     if (reportInterval > 0 .and. mod(timestep_, max(1, reportInterval)) == 0) then
         if (region%simulationFlags%useConstantCfl) then
            write(str, '(2A,I8,3(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", timeStepSize, ", time = ", time,                                  &
@@ -404,40 +405,45 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
      end if
 
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
-          mod(timestep_, residualInterval) == 0) then
-        call region%computeResiduals(residuals)
+          residualManager%reportInterval > 0 .and.                                           &
+          mod(timestep_, max(1, residualManager%reportInterval)) == 0) then
+
+        call residualManager%compute(region)
+        call residualManager%writeToFile(region%comm, trim(outputPrefix_) //                 &
+             ".adjoint_residuals.txt", timestep_, time, timestep_ > timestep + reportInterval)
+
+        residuals(1) = residualManager%residuals(1)
+        residuals(2) = maxval(residualManager%residuals(1:nDimensions))
+        residuals(3) = residualManager%residuals(nDimensions+2)
+
         write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &
              ", momentum = ", residuals(2), ", energy = ", residuals(3)
         call writeAndFlush(region%comm, output_unit, str)
-        if (all(residuals < region%solverOptions%convergenceTolerance)) then
+
+        if (residualManager%hasSimulationConverged) then
            call writeAndFlush(region%comm, output_unit, "Solution has converged!")
-           call region%saveData(QOI_FORWARD_STATE,                                    &
+           call region%saveData(QOI_FORWARD_STATE,                                           &
                 trim(outputPrefix_) // ".steady_state.q")
            timestep = timestep_
            exit
         end if
+
      end if
 
-     if (present(saveInterval)) then
-        if (saveInterval > 0) then
-           if (mod(timestep_, saveInterval) == 0) then
-
-              do i = 1, size(region%states)
-                 region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
-                 region%states(i)%plot3dAuxiliaryData(4) = time
-              end do
-
-              write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
-              call region%saveData(QOI_FORWARD_STATE, filename)
-
-           end if
-        end if
+     if (saveInterval > 0 .and. mod(timestep_, max(1, saveInterval)) == 0) then
+        do i = 1, size(region%states)
+           region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
+           region%states(i)%plot3dAuxiliaryData(4) = time
+        end do
+        write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
+        call region%saveData(QOI_FORWARD_STATE, filename)
      end if
 
      if (timestep_ == timestep + nTimesteps) timestep = timestep_
 
   end do
 
+  call residualManager%cleanup()
   call timeIntegratorFactory%cleanup()
   call functionalFactory%cleanup()
 
@@ -456,6 +462,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   use Functional_mod, only : t_Functional
   use Functional_factory, only : t_FunctionalFactory
   use TimeIntegrator_mod, only : t_TimeIntegrator
+  use ResidualManager_mod, only : t_ResidualManager
   use ReverseMigrator_type, only : t_ReverseMigrator
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
@@ -481,14 +488,14 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
   type(t_ReverseMigrator) :: reverseMigrator
-  integer :: i, j, timestep_, timemarchDirection, reportInterval, residualInterval
+  integer :: i, j, nDimensions, timestep_, timemarchDirection,                               &
+       reportInterval, residualInterval
   class(t_Functional), pointer :: functional => null()
   type(t_FunctionalFactory) :: functionalFactory
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
+  type(t_ResidualManager) :: residualManager
   real(wp) :: timeStepSize, cfl, residuals(3)
-
-  assert(timestep >= nTimesteps)
 
   call startTiming("solveAdjoint")
 
@@ -498,14 +505,10 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
   call region%saveData(QOI_ADJOINT_STATE, filename)
 
-  residualInterval = getOption("check_residuals_interval", -1)
-  if (residualInterval == -1) then
-     call getRequiredOption("report_interval", reportInterval)
-     residualInterval = reportInterval
-     if (residualInterval < 0) residualInterval = max(1, nint(1e-3_wp * real(nTimesteps, wp)))
-  else
-     reportInterval = getOption("report_interval", 1)
-  end if
+  reportInterval = getOption("report_interval", 1)
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
 
   if (.not. region%simulationFlags%predictionOnly) then
      call functionalFactory%connect(functional, trim(region%solverOptions%costFunctionalType))
@@ -519,12 +522,14 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   call timeIntegrator%setup(region)
 
   if (region%simulationFlags%steadyStateSimulation) then
+     timestep = 0
      timemarchDirection = 1
+     call residualManager%setup("adjoint_residuals", region)
   else
      timemarchDirection = -1
-     call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                     &
-          getOption("checkpointing_scheme", "uniform checkpointing"),                           &
-          timestep - nTimesteps, timestep,                                                      &
+     call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                       &
+          getOption("checkpointing_scheme", "uniform checkpointing"),                        &
+          timestep - nTimesteps, timestep,                                                   &
           saveInterval, saveInterval * timeIntegrator%nStages)
   end if
 
@@ -564,7 +569,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
 
      end do
 
-     if (reportInterval > 0 .and. mod(timestep_, reportInterval) == 0) then
+     if (reportInterval > 0 .and. mod(timestep_, max(1, reportInterval)) == 0) then
         if (region%simulationFlags%useConstantCfl) then
            write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep_,        &
                 ", dt = ", timeStepSize, ", time = ", time
@@ -577,30 +582,39 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
      end if
 
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
-          mod(timestep_, residualInterval) == 0) then
-        call region%computeResiduals(residuals)
+          residualManager%reportInterval > 0 .and.                                           &
+          mod(timestep_, max(1, residualManager%reportInterval)) == 0) then
+
+        call residualManager%compute(region)
+        call residualManager%writeToFile(region%comm, trim(outputPrefix_) //                 &
+             ".adjoint_residuals.txt", timestep_, time, timestep_ > timestep + reportInterval)
+
+        residuals(1) = residualManager%residuals(1)
+        residuals(2) = maxval(residualManager%residuals(1:nDimensions))
+        residuals(3) = residualManager%residuals(nDimensions+2)
+
         write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),            &
              ", momentum = ", residuals(2), ", energy = ", residuals(3)
         call writeAndFlush(region%comm, output_unit, str)
-        if (all(residuals < region%solverOptions%convergenceTolerance)) then
+
+        if (residualManager%hasSimulationConverged) then
            call writeAndFlush(region%comm, output_unit, "Solution has converged!")
-           call region%saveData(QOI_ADJOINT_STATE,                                    &
+           call region%saveData(QOI_ADJOINT_STATE,                                           &
                 trim(outputPrefix_) // ".steady_state.adjoint.q")
            timestep = timestep_
            exit
         end if
+
      end if
 
-     if (saveInterval > 0) then
-        if (mod(timestep_, saveInterval) == 0) then
-           do i = 1, size(region%states)
-              region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
-              region%states(i)%plot3dAuxiliaryData(4) = time
-           end do
-           write(filename, '(2A,I8.8,A)')                                                    &
-                trim(outputPrefix_), "-", timestep_, ".adjoint.q"
-           call region%saveData(QOI_ADJOINT_STATE, filename)
-        end if
+     if (saveInterval > 0 .and. mod(timestep_, max(1, saveInterval)) == 0) then
+        do i = 1, size(region%states)
+           region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
+           region%states(i)%plot3dAuxiliaryData(4) = time
+        end do
+        write(filename, '(2A,I8.8,A)')                                                       &
+             trim(outputPrefix_), "-", timestep_, ".adjoint.q"
+        call region%saveData(QOI_ADJOINT_STATE, filename)
      end if
 
      if (timestep_ == timestep - nTimesteps) timestep = timestep_

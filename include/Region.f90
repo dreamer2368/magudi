@@ -47,7 +47,6 @@ module Region_mod
      procedure, pass :: getTimeStepSize
      procedure, pass :: reportGridDiagnostics
      procedure, pass :: computeRhs
-     procedure, pass :: computeResiduals
 
   end type t_Region
 
@@ -157,19 +156,6 @@ module Region_mod
        real(SCALAR_KIND), intent(in) :: time
 
      end subroutine computeRhs
-
-  end interface
-
-  interface
-
-     subroutine computeResiduals(this, residuals)
-
-       import :: t_Region
-
-       class(t_Region) :: this
-       real(SCALAR_KIND), intent(out) :: residuals(3)
-
-     end subroutine computeResiduals
 
   end interface
 
