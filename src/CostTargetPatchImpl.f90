@@ -95,7 +95,6 @@ subroutine addAdjointForcing(this, mode, simulationFlags, solverOptions, grid, s
                    (k - 1 - this%offset(3)))
 
               state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +          &
-                   grid%targetMollifier(gridIndex,1) *          &
                    this%adjointForcing(patchIndex,l)
 
            end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)

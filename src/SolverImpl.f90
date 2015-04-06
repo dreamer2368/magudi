@@ -481,7 +481,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix_, filename, str
   type(t_ReverseMigrator) :: reverseMigrator
-  integer :: i, j, timestep_, reportInterval, residualInterval
+  integer :: i, j, timestep_, timemarchDirection, reportInterval, residualInterval
   class(t_Functional), pointer :: functional => null()
   type(t_FunctionalFactory) :: functionalFactory
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
@@ -518,13 +518,18 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   assert(associated(timeIntegrator))
   call timeIntegrator%setup(region)
 
-  if (.not. region%simulationFlags%steadyStateSimulation)                                    &
-       call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                     &
-       getOption("checkpointing_scheme", "uniform checkpointing"),                           &
-       timestep - nTimesteps, timestep,                                                      &
-       saveInterval, saveInterval * timeIntegrator%nStages)
+  if (region%simulationFlags%steadyStateSimulation) then
+     timemarchDirection = 1
+  else
+     timemarchDirection = -1
+     call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                     &
+          getOption("checkpointing_scheme", "uniform checkpointing"),                           &
+          timestep - nTimesteps, timestep,                                                      &
+          saveInterval, saveInterval * timeIntegrator%nStages)
+  end if
 
-  do timestep_ = timestep - 1, timestep - nTimesteps, -1
+  do timestep_ = timestep + sign(1, timemarchDirection),                                     &
+       timestep + sign(nTimesteps, timemarchDirection), timemarchDirection
 
      if (region%simulationFlags%useConstantCfl) then
         if (.not. region%simulationFlags%steadyStateSimulation)                              &

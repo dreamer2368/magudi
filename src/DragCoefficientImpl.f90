@@ -25,12 +25,13 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, direction, nDimensions, gridIndex, patchIndex
     real(SCALAR_KIND) :: normBoundaryFactor
-    SCALAR_TYPE, allocatable :: localMetricsAlongDirection(:)
+    SCALAR_TYPE, allocatable :: metricsAlongNormalDirection(:)
+    SCALAR_TYPE :: F
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
 
-    allocate(localMetricsAlongDirection(nDimensions))
+    allocate(metricsAlongNormalDirection(nDimensions))
 
     select type (patch)
     class is (t_CostTargetPatch)
@@ -49,20 +50,18 @@ contains
                      (j - 1 - patch%offset(2) + patch%patchSize(2) *                         &
                      (k - 1 - patch%offset(3)))
 
-                localMetricsAlongDirection =                                                 &
+                metricsAlongNormalDirection =                                                &
                      grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
-                patch%adjointForcing(patchIndex,nDimensions+2) =                             &
-                     2.0_wp * (ratioOfSpecificHeats - 1.0_wp) *                              &
+                F = (ratioOfSpecificHeats - 1.0_wp) *                                        &
                      (pressure(gridIndex) - targetPressure) *                                &
-                     normBoundaryFactor * dot_product(forceDirection(1:nDimensions),         &
-                     localMetricsAlongDirection) ** 2 /                                      &
-                     sqrt(sum(localMetricsAlongDirection ** 2))
-                patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * &
-                     patch%adjointForcing(patchIndex,nDimensions+2)
+                     sqrt(sum(metricsAlongNormalDirection ** 2)) * &
+                     grid%jacobian(gridIndex, 1) * normBoundaryFactor
+
                 patch%adjointForcing(patchIndex,1) =                                         &
-                     0.5_wp * sum(velocity(gridIndex,:) ** 2) *                              &
-                     patch%adjointForcing(patchIndex,nDimensions+2)
+                     0.5_wp * sum(velocity(gridIndex,:) ** 2) * F
+                patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * F
+                patch%adjointForcing(patchIndex,nDimensions+2) = F
 
              end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
           end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
@@ -70,7 +69,7 @@ contains
 
     end select
 
-    SAFE_DEALLOCATE(localMetricsAlongDirection)
+    SAFE_DEALLOCATE(metricsAlongNormalDirection)
 
   end subroutine computeAdjointForcingOnPatch
 
