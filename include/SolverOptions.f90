@@ -9,7 +9,7 @@ module SolverOptions_mod
 
      real(SCALAR_KIND) :: reynoldsNumberInverse, prandtlNumberInverse, ratioOfSpecificHeats, &
           powerLawExponent, bulkViscosityRatio, dissipationAmount, densityRange(2),          &
-          temperatureRange(2), cfl, timeStepSize, convergenceTolerance(3)
+          temperatureRange(2), cfl, timeStepSize
      integer :: nUnknowns
      character(len = STRING_LENGTH) :: timeintegratorType, costFunctionalType
 

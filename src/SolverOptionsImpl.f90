@@ -69,12 +69,6 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call getRequiredOption("time_step_size", this%timeStepSize)
   end if
 
-  if (simulationFlags%steadyStateSimulation) then
-     call getRequiredOption("density_convergence_tolerance",  this%convergenceTolerance(1))
-     call getRequiredOption("momentum_convergence_tolerance", this%convergenceTolerance(2))
-     call getRequiredOption("energy_convergence_tolerance",   this%convergenceTolerance(3))
-  end if
-
   this%timeIntegratorType = getOption("time_integration_scheme", "RK4")
   call timeIntegratorFactory%connect(dummyTimeIntegrator, trim(this%timeIntegratorType))
   if (.not. associated(dummyTimeIntegrator)) then
