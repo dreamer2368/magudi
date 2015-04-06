@@ -42,7 +42,7 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
   if (.not. simulationFlags%useTargetState) then
      wallTemperature = getOption(trim(key) // "temperature",                                 &
           1.0_wp / (solverOptions%ratioOfSpecificHeats - 1.0_wp))
-     this%temperature(:) = wallTemperature
+     if (this%nPatchPoints > 0) this%temperature(:) = wallTemperature
   end if
 
   ! Viscous penalty amounts.
