@@ -153,6 +153,11 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
               inviscidPenalty(2:nDimensions+1) = normalMomentum * unitNormal
               inviscidPenalty(nDimensions+2) =                                               &
                    0.5_wp * state%specificVolume(gridIndex, 1) * normalMomentum ** 2
+           else
+              inviscidPenalty(2:nDimensions+1) =                                             &
+                   - (dot_product(state%adjointVariables(gridIndex,2:nDimensions+1),         &
+                   unitNormal) - (state%pressure(gridIndex,1) -                              &
+                   1.0_wp / solverOptions%ratioOfSpecificHeats)) * unitNormal
            end if
 
            select case (mode)
@@ -231,6 +236,10 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
                          dot_product(state%adjointVariables(gridIndex,:),                    &
                          matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)) + &
                          matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l), inviscidPenalty))
+                 else
+                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &      
+                         this%inviscidPenaltyAmount *                                        &
+                         matmul(transpose(incomingJacobianOfInviscidFlux), inviscidPenalty)
                  end do
               end if
 
@@ -311,9 +320,9 @@ subroutine updateImpenetrableWall(this, simulationFlags, solverOptions, grid, st
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use ImpenetrableWall_mod, only : t_ImpenetrableWall
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
+  use ImpenetrableWall_mod, only : t_ImpenetrableWall
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeCartesianViscousFluxes

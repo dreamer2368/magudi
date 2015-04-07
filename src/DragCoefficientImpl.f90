@@ -56,6 +56,7 @@ contains
                 F = - (ratioOfSpecificHeats - 1.0_wp) * grid%jacobian(gridIndex, 1) *        &
                      normBoundaryFactor * sqrt(sum(metricsAlongNormalDirection ** 2)) *      &
                      (pressure(gridIndex) - 1.0_wp / ratioOfSpecificHeats)
+                F = 0.0_wp
 
                 patch%adjointForcing(patchIndex,1) =                                         &
                      0.5_wp * sum(velocity(gridIndex,:) ** 2) * F
