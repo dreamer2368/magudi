@@ -42,6 +42,10 @@ subroutine setupResidualManager(this, prefix, region)
 
   this%tolerances(:) = getOption("residuals/convergence_limit", sqrt(epsilon(0.0_wp)))
 
+  do i = 1, size(this%tolerances)
+     this%tolerances(i) = getOption(trim(prefix) // "/convergence_limit", this%tolerances(i))
+  end do
+
   this%tolerances(1) = getOption("residuals/density_limit", this%tolerances(1))
   if (len_trim(prefix) > 0)                                                                  &
        this%tolerances(1) = getOption(trim(prefix) // "/density_limit", this%tolerances(1))
