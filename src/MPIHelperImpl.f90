@@ -182,6 +182,7 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
      call MPI_Irecv(receivedFromPreviousProcess, size(receivedFromPreviousProcess),          &
           SCALAR_TYPE_MPI, rankOfPreviousProcess, tagNext, cartesianCommunicator,            &
           request(1), ierror)
+
   end if
 
   if (numGhostPoints(2) > 0) then
@@ -248,7 +249,7 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
                  sentToNextProcess(numGhostPoints(2) + 1 - j, i +                            &
                  gridSizeWithGhostPoints(1) * (k - 1), l) =                                  &
                       arrayWithGhostPoints(i, gridSize(2) + 1 - j + numGhostPoints(1) -      &
-                      periodicOffset_(2), k, l)
+                      periodicOffset_(1), k, l)
               end do
            end do
         end do

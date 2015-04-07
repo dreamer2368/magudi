@@ -7,6 +7,7 @@ program operator_convergence
   use StencilOperator_mod, only : t_StencilOperator
 
   use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
+  use RandomNumber, only : initializeRandomNumberGenerator
 
   implicit none
 
@@ -85,6 +86,7 @@ program operator_convergence
   success = .true.
 
   call initializeErrorHandler()
+  call initializeRandomNumberGenerator()
 
   call A%setup("SBP 1-2 first derivative")
   do direction = 1, 3
@@ -150,6 +152,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
+  use RandomNumber, only : random
 
   ! <<< Arguments >>>
   type(t_StencilOperator) :: A
@@ -174,7 +177,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, n, startSize_, nLocal, offset, gridSize(3), nIterations_,                 &
        proc, nProcs, numProcesses(3), cartesianCommunicator, ierror
-  logical :: isPeriodic_(3)
+  logical :: isPeriodic_(3), isPeriodicityOverlapping
   SCALAR_TYPE :: x
   SCALAR_TYPE, allocatable :: y(:,:), yExact(:,:)
   real(wp) :: h, h_
@@ -200,6 +203,11 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
   isPeriodic_ = .false.
   if (present(isPeriodic)) isPeriodic_(direction) = isPeriodic
 
+  isPeriodicityOverlapping = .false.
+  if (isPeriodic_(direction)) isPeriodicityOverlapping = (random(0, 1) == 0)
+  isPeriodicityOverlapping = .true.
+  call MPI_Bcast(isPeriodicityOverlapping, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+
   nIterations_ = 40
   if (present(nIterations)) nIterations_ = nIterations
 
@@ -217,7 +225,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
   ! Create a Cartesian communicator.
   call MPI_Cart_create(MPI_COMM_WORLD, 3, numProcesses,                                      &
        isPeriodic_, .true., cartesianCommunicator, ierror)
-  call A%update(cartesianCommunicator, direction)
+  call A%update(cartesianCommunicator, direction, isPeriodicityOverlapping)
 
   if (present(startSize)) then
      startSize_ = startSize
@@ -234,7 +242,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
      gridSize(direction) = nLocal
 
      ! If periodic, then exclude the x = 1 plane.
-     if (isPeriodic_(direction)) then
+     if (isPeriodic_(direction) .and. .not. isPeriodicityOverlapping) then
         h = 1.0_wp / real(n, wp)
      else
         h = 1.0_wp / real(n - 1, wp)

@@ -32,7 +32,7 @@ contains
     call MPI_Comm_rank(this%comm, proc, ierror)
     call MPI_Comm_size(this%comm, nProcs, ierror)
 
-    write(message, "(2A)") "Reading MPI decomposition map from '", trim(filename), "'..."
+    write(message, "(3A)") "Reading MPI decomposition map from '", trim(filename), "'..."
     call writeAndFlush(this%comm, output_unit, message)
 
     ! Check if file exists.
@@ -49,7 +49,6 @@ contains
     ! Only the root process reads the file.
     if (proc == 0) then
        i = 0; lineNo = 0; istat = 0
-       open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old')
        do
 
           read(fileUnit, '(A)', iostat = istat) line
@@ -72,7 +71,7 @@ contains
           end if
 
           if (gridIndex /= i .or. gridIndex > size(this%processDistributions, 2) .or.        &
-               any(numProcsInGrid < 0) .or. sum(numProcsInGrid) > nProcs) then
+               any(numProcsInGrid < 0) .or. product(numProcsInGrid) > nProcs) then
              istat = -1
              write(message, "(2A,I0.0,A)") trim(filename),                                   &
                   ": Invalid process distribution on line ", lineNo, "!"
@@ -87,7 +86,7 @@ contains
              end if
           end if
 
-          this%processDistributions(i,:) = numProcsInGrid(1:size(this%processDistributions,1))
+          this%processDistributions(:,i) = numProcsInGrid(1:size(this%processDistributions,1))
 
        end do
        close(fileUnit)
@@ -107,7 +106,7 @@ contains
 
     ! Validate process distribution.
     if (sum(product(this%processDistributions, dim = 1)) /= nProcs) then
-       write(message, '(A,2(A,I0.0),A)') filename,                                           &
+       write(message, '(A,2(A,I0.0),A)') trim(filename),                                     &
             ": Invalid process distribution: expected a total of ", nProcs,                  &
             " processes, got ", sum(product(this%processDistributions, dim = 1)),            &
             " processes!"
@@ -560,7 +559,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   ! Distribute the grids between available MPI processes.
   if (this%simulationFlags%manualDomainDecomp .and.                                          &
        nProcs > size(this%globalGridSizes, 2)) then
-     call getRequiredOption("manual_decomposition_map_filename",                             &
+     call getRequiredOption("decomposition_map_file",                                        &
           decompositionMapFilename, this%comm)
      call readDecompositionMap(this, decompositionMapFilename)
   end if
