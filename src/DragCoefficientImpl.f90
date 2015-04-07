@@ -57,6 +57,7 @@ contains
                      dot_product(metricsAlongNormalDirection,                                &
                      forceDirection(1:nDimensions)) *                                        &
                      grid%jacobian(gridIndex, 1) * normBoundaryFactor
+                F = 0.0_wp
 
                 patch%adjointForcing(patchIndex,1) =                                         &
                      0.5_wp * sum(velocity(gridIndex,:) ** 2) * F

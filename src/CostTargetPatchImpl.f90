@@ -71,7 +71,9 @@ subroutine addAdjointForcing(this, mode, simulationFlags, solverOptions, grid, s
   class(t_State) :: state
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, gridIndex, patchIndex
+  real(SCALAR_KIND) :: forcingFactor
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -81,6 +83,12 @@ subroutine addAdjointForcing(this, mode, simulationFlags, solverOptions, grid, s
   if (mode == FORWARD) return
 
   call startTiming("addCostTargetPenalty")
+
+  if (simulationFlags%useContinuousAdjoint .or. simulationFlags%steadyStateSimulation) then
+     forcingFactor = 1.0_wp
+  else
+     forcingFactor = state%adjointForcingFactor
+  end if
 
   do l = 1, solverOptions%nUnknowns
      do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
@@ -95,7 +103,7 @@ subroutine addAdjointForcing(this, mode, simulationFlags, solverOptions, grid, s
                    (k - 1 - this%offset(3)))
 
               state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +          &
-                   this%adjointForcing(patchIndex,l)
+                   forcingFactor * this%adjointForcing(patchIndex,l)
 
            end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
         end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
