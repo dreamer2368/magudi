@@ -126,9 +126,10 @@ program main
         end if
 
         call region%loadData(QOI_FORWARD_STATE, filename)
-        time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
-        if (region%simulationFlags%steadyStateSimulation)                                    &
-             timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
+        if (.not. region%simulationFlags%steadyStateSimulation) then
+           time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
+           timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
+        end if
 
      end if
 

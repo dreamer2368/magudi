@@ -338,9 +338,6 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
   if (present(costFunctional)) costFunctional = 0.0_wp
 
-  write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
-  call region%saveData(QOI_FORWARD_STATE, filename)
-
   reportInterval = getOption("report_interval", 1)
 
   nDimensions = size(region%globalGridSizes, 1)
@@ -359,6 +356,9 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
   if (region%simulationFlags%steadyStateSimulation)                                          &
        call residualManager%setup("", region)
+
+  write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
+  call region%saveData(QOI_FORWARD_STATE, filename)
 
   do timestep_ = timestep + 1, timestep + nTimesteps
 
@@ -404,6 +404,15 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
              ".cost_functional.txt", timestep_, time, timestep_ > timestep + reportInterval)
      end if
 
+     if (saveInterval > 0 .and. mod(timestep_, max(1, saveInterval)) == 0) then
+        do i = 1, size(region%states)
+           region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
+           region%states(i)%plot3dAuxiliaryData(4) = time
+        end do
+        write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
+        call region%saveData(QOI_FORWARD_STATE, filename)
+     end if
+
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
           residualManager%reportInterval > 0 .and.                                           &
           mod(timestep_, max(1, residualManager%reportInterval)) == 0) then
@@ -428,15 +437,6 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
            exit
         end if
 
-     end if
-
-     if (saveInterval > 0 .and. mod(timestep_, max(1, saveInterval)) == 0) then
-        do i = 1, size(region%states)
-           region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
-           region%states(i)%plot3dAuxiliaryData(4) = time
-        end do
-        write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
-        call region%saveData(QOI_FORWARD_STATE, filename)
      end if
 
      if (timestep_ == timestep + nTimesteps) timestep = timestep_
@@ -501,9 +501,6 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   outputPrefix_ = PROJECT_NAME
   if (present(outputPrefix)) outputPrefix_ = outputPrefix
 
-  write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
-  call region%saveData(QOI_ADJOINT_STATE, filename)
-
   reportInterval = getOption("report_interval", 1)
 
   nDimensions = size(region%globalGridSizes, 1)
@@ -522,8 +519,13 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
 
   if (region%simulationFlags%steadyStateSimulation) then
      timestep = 0
+     time = 0.0_wp
      timemarchDirection = 1
      call residualManager%setup("adjoint_residuals", region)
+     do j = 1, size(region%states) !... update state
+        call region%states(j)%update(region%grids(j), region%simulationFlags,                &
+             region%solverOptions)
+     end do
   else
      timemarchDirection = -1
      call setupReverseMigrator(reverseMigrator, region, outputPrefix_,                       &
@@ -532,12 +534,15 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
           saveInterval, saveInterval * timeIntegrator%nStages)
   end if
 
+  write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".adjoint.q"
+  call region%saveData(QOI_ADJOINT_STATE, filename)
+
   do timestep_ = timestep + sign(1, timemarchDirection),                                     &
        timestep + sign(nTimesteps, timemarchDirection), timemarchDirection
 
-     if (region%simulationFlags%useConstantCfl) then
-        if (.not. region%simulationFlags%steadyStateSimulation)                              &
-             call migrateToSubstep(reverseMigrator, region, timeIntegrator, timestep_, 1)
+     if (region%simulationFlags%useConstantCfl .and.                                         &
+          .not. region%simulationFlags%steadyStateSimulation) then
+        call migrateToSubstep(reverseMigrator, region, timeIntegrator, timestep_, 1)
         do j = 1, size(region%states) !... update state
            call region%states(j)%update(region%grids(j), region%simulationFlags,             &
                 region%solverOptions)
@@ -555,12 +560,11 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
               call migrateToSubstep(reverseMigrator, region,                                 &
                    timeIntegrator, timestep_ + 1, i - 1)
            end if
+           do j = 1, size(region%states) !... update state
+              call region%states(j)%update(region%grids(j), region%simulationFlags,          &
+                   region%solverOptions)
+           end do
         end if
-
-        do j = 1, size(region%states) !... update state
-           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
-                region%solverOptions)
-        end do
 
         call functional%computeAdjointForcing(region)
 
@@ -578,6 +582,16 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
                 ", CFL = ", cfl, ", time = ", time
         end if
         call writeAndFlush(region%comm, output_unit, str)
+     end if
+
+     if (saveInterval > 0 .and. mod(timestep_, max(1, saveInterval)) == 0) then
+        do i = 1, size(region%states)
+           region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
+           region%states(i)%plot3dAuxiliaryData(4) = time
+        end do
+        write(filename, '(2A,I8.8,A)')                                                       &
+             trim(outputPrefix_), "-", timestep_, ".adjoint.q"
+        call region%saveData(QOI_ADJOINT_STATE, filename)
      end if
 
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
@@ -604,16 +618,6 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
            exit
         end if
 
-     end if
-
-     if (saveInterval > 0 .and. mod(timestep_, max(1, saveInterval)) == 0) then
-        do i = 1, size(region%states)
-           region%states(i)%plot3dAuxiliaryData(1) = real(timestep_, wp)
-           region%states(i)%plot3dAuxiliaryData(4) = time
-        end do
-        write(filename, '(2A,I8.8,A)')                                                       &
-             trim(outputPrefix_), "-", timestep_, ".adjoint.q"
-        call region%saveData(QOI_ADJOINT_STATE, filename)
      end if
 
      if (timestep_ == timestep - nTimesteps) timestep = timestep_
