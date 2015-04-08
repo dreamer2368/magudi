@@ -33,7 +33,7 @@ module SimulationFlags_mod
 
        import :: t_SimulationFlags
 
-       class(t_SimulationFlags), intent(out) :: this
+       class(t_SimulationFlags) :: this
 
      end subroutine initializeSimulationFlags
 

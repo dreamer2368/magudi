@@ -11,7 +11,7 @@ subroutine initializeSimulationFlags(this)
   implicit none
 
   ! <<< Arguments >>>
-  class(t_SimulationFlags), intent(out) :: this
+  class(t_SimulationFlags) :: this
 
   this%viscosityOn           = getOption("include_viscous_terms", .false.)
   this%predictionOnly        = getOption("disable_adjoint_solver", .true.)
