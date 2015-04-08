@@ -10,6 +10,9 @@ subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,             
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
+  ! <<< Internal modules >>>
+  use InputHelper, only : getOption
+
   implicit none
 
   ! <<< Arguments >>>
@@ -20,7 +23,21 @@ subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,             
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
 
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  character(len = STRING_LENGTH) :: key
+
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
+
+  write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
+
+  ! Inviscid penalty amount.
+  this%inviscidPenaltyAmount = getOption(trim(key) //                                        &
+       "inviscid_penalty_amount", 2.0_wp) !... for continuous-adjoint forcing.
+  this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                              &
+       real(this%normalDirection, wp))
+  this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                                  &
+       grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
 
   this%penaltyInPhysicalCoordinates = .true.
 

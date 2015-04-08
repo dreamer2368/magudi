@@ -109,11 +109,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
 
-  if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) then
-     incomingDirection = -this%normalDirection
-  else
-     incomingDirection = this%normalDirection
-  end if
+  incomingDirection = this%normalDirection
 
   allocate(localConservedVariables(nUnknowns))
   allocate(unitNormal(nDimensions))
@@ -136,6 +132,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
            patchIndex = i - this%offset(1) + this%patchSize(1) *                             &
                 (j - 1 - this%offset(2) + this%patchSize(2) *                                &
                 (k - 1 - this%offset(3)))
+           if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) exit
 
            localConservedVariables = state%conservedVariables(gridIndex,:)
            metricsAlongNormalDirection =                                                     &
@@ -146,19 +143,12 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
            normalMomentum =                                                                  &
                 dot_product(localConservedVariables(2:nDimensions+1), unitNormal)
 
-           inviscidPenalty = 0.0_wp
-           if (mode /= ADJOINT .or. .not. simulationFlags%useContinuousAdjoint) then
-              normalMomentum =                                                               &
-                   dot_product(localConservedVariables(2:nDimensions+1), unitNormal)
-              inviscidPenalty(2:nDimensions+1) = normalMomentum * unitNormal
-              inviscidPenalty(nDimensions+2) =                                               &
-                   0.5_wp * state%specificVolume(gridIndex, 1) * normalMomentum ** 2
-           else
-              inviscidPenalty(2:nDimensions+1) =                                             &
-                   - (dot_product(state%adjointVariables(gridIndex,2:nDimensions+1),         &
-                   unitNormal) - (state%pressure(gridIndex,1) -                              &
-                   1.0_wp / solverOptions%ratioOfSpecificHeats)) * unitNormal
-           end if
+           inviscidPenalty(1) = 0.0_wp
+           normalMomentum =                                                                  &
+                dot_product(localConservedVariables(2:nDimensions+1), unitNormal)
+           inviscidPenalty(2:nDimensions+1) = normalMomentum * unitNormal
+           inviscidPenalty(nDimensions+2) =                                                  &
+                0.5_wp * state%specificVolume(gridIndex, 1) * normalMomentum ** 2
 
            select case (mode)
 
@@ -229,19 +219,13 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
                       temperature = state%temperature(gridIndex, 1))
               end select !... nDimensions
 
-              if (.not. simulationFlags%useContinuousAdjoint) then
-                 do l = 1, nUnknowns
-                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
-                         this%inviscidPenaltyAmount *                                        &
-                         dot_product(state%adjointVariables(gridIndex,:),                    &
-                         matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)) + &
-                         matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l), inviscidPenalty))
-                 end do
-              else
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
-                      this%inviscidPenaltyAmount *                                           &
-                      matmul(transpose(incomingJacobianOfInviscidFlux), inviscidPenalty)
-              end if
+              do l = 1, nUnknowns
+                 state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
+                      this%inviscidPenaltyAmount *                                        &
+                      dot_product(state%adjointVariables(gridIndex,:),                    &
+                      matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)) + &
+                      matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l), inviscidPenalty))
+              end do
 
            end select
 

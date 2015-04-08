@@ -9,6 +9,7 @@ module CostTargetPatch_mod
 
   type, extends(t_Patch), public :: t_CostTargetPatch
 
+     real(SCALAR_KIND) :: inviscidPenaltyAmount
      SCALAR_TYPE, allocatable :: norm(:,:), adjointForcing(:,:)
 
    contains

@@ -130,7 +130,7 @@ function computeAcousticNoise(this, time, region) result(instantaneousFunctional
      assert(size(region%states(i)%pressure, 2) == 1)
 
      j = region%grids(i)%index
-     
+
      assert(associated(this%data_(j)%meanPressure))
      assert(size(this%data_(j)%meanPressure, 1) == region%grids(i)%nGridPoints)
      assert(size(this%data_(j)%meanPressure, 2) == 1)
@@ -181,6 +181,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: meanPressure(:)
+  SCALAR_TYPE :: F
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -200,15 +201,15 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
                 (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
-           patch%adjointForcing(patchIndex,nDimensions+2) =                                  &
-                - 2.0_wp * (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                   &
+           F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
+                (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
                 (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
+
+           patch%adjointForcing(patchIndex,nDimensions+2) = F
            patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
-                - state%velocity(gridIndex,:) *                                              &
-                patch%adjointForcing(patchIndex,nDimensions+2)
+                - state%velocity(gridIndex,:) * F
            patch%adjointForcing(patchIndex,1) =                                              &
-                0.5_wp * sum(state%velocity(gridIndex,:) ** 2) *                             & 
-                patch%adjointForcing(patchIndex,nDimensions+2)
+                0.5_wp * sum(state%velocity(gridIndex,:) ** 2) * F
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)

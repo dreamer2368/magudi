@@ -168,8 +168,8 @@ program impenetrable_wall_SAT
 
         ! Apply forward boundary conditions.
         call applyForwardBoundaryConditions(patch, grid, state)
-        call computeDependentVariables(nDimensions, state%conservedVariables,                &    
-          solverOptions%ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,     &  
+        call computeDependentVariables(nDimensions, state%conservedVariables,                &
+          solverOptions%ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,     &
           state%pressure(:,1), state%temperature(:,1))
         assert(all(state%specificVolume(:,1) > 0.0_wp))
         assert(all(state%temperature(:,1) > 0.0_wp))

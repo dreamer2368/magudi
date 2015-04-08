@@ -119,7 +119,7 @@ program isothermal_wall_SAT
         solverOptions%prandtlNumberInverse = random(0.01_wp, 1e2_wp)
         solverOptions%bulkViscosityRatio = random(0.0_wp, 10.0_wp)
         solverOptions%powerLawExponent = random(0.0_wp, 2.0_wp)
-        
+
         call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
              simulationFlags = simulationFlags)
         call grid%setupSpatialDiscretization(simulationFlags)
@@ -182,8 +182,8 @@ program isothermal_wall_SAT
         ! Apply forward boundary conditions.
         call applyForwardBoundaryConditions(patch, grid, state,                              &
              solverOptions%ratioOfSpecificHeats)
-        call computeDependentVariables(nDimensions, state%conservedVariables,                &    
-          solverOptions%ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,     &  
+        call computeDependentVariables(nDimensions, state%conservedVariables,                &
+          solverOptions%ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,     &
           state%pressure(:,1), state%temperature(:,1))
         assert(all(state%specificVolume(:,1) > 0.0_wp))
         assert(all(state%temperature(:,1) > 0.0_wp))

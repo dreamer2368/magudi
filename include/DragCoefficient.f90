@@ -9,7 +9,7 @@ module DragCoefficient_mod
 
   type, extends(t_Functional), public :: t_DragCoefficient
 
-     real(SCALAR_KIND) :: freeStreamPressure, direction(3)
+     real(SCALAR_KIND) :: direction(3)
 
    contains
 

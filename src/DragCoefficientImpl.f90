@@ -28,23 +28,15 @@ subroutine setupDragCoefficient(this, region)
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
-  this%freeStreamPressure = getOption("free_stream_pressure",                                &
-       1.0_wp / region%solverOptions%ratioOfSpecificHeats)
-  if (this%freeStreamPressure <= 0.0_wp) then
-     write(message, '(A,E11.2,A)') "Free stream pressure is invalid: ",                      &
-          this%freeStreamPressure, " <= 0!"
-     call gracefulExit(region%comm, message)
-  end if
-
   this%direction = 0.0_wp
 
-  this%direction(1) = getOption("free_stream_velocity_x", 0.0_wp)
-  if (nDimensions >= 2) this%direction(2) = getOption("free_stream_velocity_y", 0.0_wp)
-  if (nDimensions == 3) this%direction(3) = getOption("free_stream_velocity_z", 0.0_wp)
+  this%direction(1) = getOption("drag_direction_x", 1.0_wp)
+  if (nDimensions >= 2) this%direction(2) = getOption("drag_direction_y", 0.0_wp)
+  if (nDimensions == 3) this%direction(3) = getOption("drag_direction_z", 0.0_wp)
 
   if (sum(this%direction ** 2) <= epsilon(0.0_wp)) then
-     write(message, '(A)') "Unable to determine a unit vector along the free stream flow &
-          &direction required for computing the drag coefficient!"
+     write(message, '(A)')                                                                   &
+          "Unable to determine a unit vector for computing the drag coefficient!"
      call gracefulExit(region%comm, message)
   end if
 
@@ -112,7 +104,8 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
            k = abs(patch%normalDirection)
 
            allocate(F(region%grids(i)%nGridPoints, 2))
-           F(:,1) = (region%states(i)%pressure(:,1) - this%freeStreamPressure) *             &
+           F(:,1) = (region%states(i)%pressure(:,1) -                                        &
+                1.0_wp / region%solverOptions%ratioOfSpecificHeats) *                        &
                 matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),         &
                 this%direction(1:nDimensions))
            F(:,2) = 1.0_wp /                                                                 &
@@ -150,6 +143,9 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use SimulationFlags_mod, only : t_SimulationFlags
 
+  ! <<< Internal modules >>>
+  use CNSHelper
+
   implicit none
 
   ! <<< Arguments >>>
@@ -162,19 +158,24 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, direction, nDimensions, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: metricsAlongNormalDirection(:)
-  real(SCALAR_KIND) :: normBoundaryFactor
+  integer :: i, j, k, direction, nDimensions, nUnknowns, gridIndex, patchIndex
+  SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
+       unitNormal(:), incomingJacobianOfInviscidFlux(:,:)
   SCALAR_TYPE :: F
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  allocate(metricsAlongNormalDirection(nDimensions))
-
   direction = abs(patch%normalDirection)
+  assert(direction >= 1 .and. direction <= nDimensions)
 
-  normBoundaryFactor = 1.0_wp / grid%firstDerivative(direction)%normBoundary(1)
+  nUnknowns = solverOptions%nUnknowns
+  assert(nUnknowns == nDimensions + 2)
+
+  allocate(localConservedVariables(nUnknowns))
+  allocate(unitNormal(nDimensions))
+  allocate(metricsAlongNormalDirection(nDimensions))
+  allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
@@ -187,26 +188,61 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
                 (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
+           localConservedVariables = state%conservedVariables(gridIndex,:)
            metricsAlongNormalDirection =                                                     &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
+           unitNormal = metricsAlongNormalDirection /                                        &
+                sqrt(sum(metricsAlongNormalDirection ** 2))
 
-           F = - (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                             &
-                grid%jacobian(gridIndex, 1) * normBoundaryFactor *                           &
-                sqrt(sum(metricsAlongNormalDirection ** 2)) *                                &
-                (state%pressure(gridIndex, 1) -                                              &
-                1.0_wp / solverOptions%ratioOfSpecificHeats)
-           F = 0.0_wp
+           if (simulationFlags%useContinuousAdjoint) then
 
-           patch%adjointForcing(patchIndex,1) =                                              &
-                0.5_wp * sum(state%velocity(gridIndex,:) ** 2) * F
-           patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
-                - state%velocity(gridIndex,:) * F
-           patch%adjointForcing(patchIndex,nDimensions+2) = F
+              F = dot_product(state%adjointVariables(gridIndex,2:nDimensions+1) -            &
+                   this%direction(1:nDimensions), unitNormal)
+
+              select case (nDimensions)
+              case (1)
+                 call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,       &
+                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
+                      - patch%normalDirection, incomingJacobianOfInviscidFlux,               &
+                      specificVolume = state%specificVolume(gridIndex, 1),                   &
+                      temperature = state%temperature(gridIndex, 1))
+              case (2)
+                 call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,       &
+                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
+                      - patch%normalDirection, incomingJacobianOfInviscidFlux,               &
+                      specificVolume = state%specificVolume(gridIndex, 1),                   &
+                      temperature = state%temperature(gridIndex, 1))
+              case (3)
+                 call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,       &
+                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
+                      - patch%normalDirection, incomingJacobianOfInviscidFlux,               &
+                      specificVolume = state%specificVolume(gridIndex, 1),                   &
+                      temperature = state%temperature(gridIndex, 1))
+              end select !... nDimensions
+
+              patch%adjointForcing(patchIndex,:) = patch%inviscidPenaltyAmount * F *         &
+                   matmul(transpose(incomingJacobianOfInviscidFlux(2:nDimensions+1,:)),      &
+                   unitNormal)
+
+           else
+
+              F = (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                            &
+                   grid%jacobian(gridIndex, 1) *                                             &
+                   dot_product(metricsAlongNormalDirection, this%direction(1:nDimensions))
+
+              patch%adjointForcing(patchIndex,1) =                                           &
+                   0.5_wp * sum(state%velocity(gridIndex,:) ** 2) * F
+              patch%adjointForcing(patchIndex,2:nDimensions+1) =                             &
+                   - state%velocity(gridIndex,:) * F
+              patch%adjointForcing(patchIndex,nDimensions+2) = F
+
+           end if
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
 
+  SAFE_DEALLOCATE(unitNormal)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
 
 end subroutine computeDragCoefficientAdjointForcing
