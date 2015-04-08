@@ -32,17 +32,27 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
   call this%t_ImpenetrableWall%setup(index, comm, patchDescriptor,                           &
        grid, simulationFlags, solverOptions)
 
-  if (this%nPatchPoints > 0) then
-     allocate(this%temperature(this%nPatchPoints))
-  end if
-
   write(key, '(A,I0.0)') "patches/" // trim(patchDescriptor%name) // "/"
 
-  ! Wall temperature (used only if target state is not present).
-  if (.not. simulationFlags%useTargetState) then
-     wallTemperature = getOption(trim(key) // "temperature",                                 &
-          1.0_wp / (solverOptions%ratioOfSpecificHeats - 1.0_wp))
-     if (this%nPatchPoints > 0) this%temperature(:) = wallTemperature
+  if (this%nPatchPoints > 0 .and. simulationFlags%viscosityOn) then
+
+     allocate(this%temperature(this%nPatchPoints))
+     allocate(this%dynamicViscosity(this%nPatchPoints))
+     allocate(this%secondCoefficientOfViscosity(this%nPatchPoints))
+     allocate(this%thermalDiffusivity(this%nPatchPoints))
+
+     ! Wall temperature (used only if target state is not present).
+     if (.not. simulationFlags%useTargetState) then
+        wallTemperature = getOption(trim(key) // "temperature",                              &   
+             1.0_wp / (solverOptions%ratioOfSpecificHeats - 1.0_wp))
+        this%temperature(:) = wallTemperature
+        call computeTransportVariables(this%temperature, solverOptions%powerLawExponent,     &
+             solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,           &
+             solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,        &
+             this%dynamicViscosity, this%secondCoefficientOfViscosity,                       &
+             this%thermalDiffusivity)
+     end if
+
   end if
 
   ! Viscous penalty amounts.
@@ -109,7 +119,8 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: metricsAlongNormalDirection(:), viscousPenalties(:,:)
+  SCALAR_TYPE, allocatable :: unitNormal(:), metricsAlongNormalDirection(:),                 &
+       viscousPenalties(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -134,6 +145,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
 
+  allocate(unitNormal(nDimensions))
   allocate(metricsAlongNormalDirection(nDimensions))
   allocate(viscousPenalties(nUnknowns - 1, 2))
 
@@ -150,6 +162,8 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
            metricsAlongNormalDirection =                                                     &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
+           unitNormal = metricsAlongNormalDirection /                                        &
+                sqrt(sum(metricsAlongNormalDirection ** 2))
 
            viscousPenalties(1:nDimensions+1,1) =                                             &
                 state%conservedVariables(gridIndex,2:nDimensions+2)
@@ -157,7 +171,15 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
                 state%conservedVariables(gridIndex,1) *                                      &
                 this%temperature(patchIndex) / solverOptions%ratioOfSpecificHeats
 
-           viscousPenalties(:,2) = 0.0_wp !... TODO: add dual-consistent no-slip penalty
+           viscousPenalties(1,2) = 0.0_wp
+           viscousPenalties(2:nDimensions+1,2) = (this%dynamicViscosity(patchIndex) +        &
+                this%secondCoefficientOfViscosity(patchIndex)) *                             &
+                dot_product(state%velocity(gridIndex,:), unitNormal) * unitNormal +          &
+                this%dynamicViscosity(patchIndex) * state%velocity(gridIndex,:)
+           viscousPenalties(nDimensions+2,2) = this%thermalDiffusivity(patchIndex) *         &
+                (state%temperature(gridIndex, 1) - this%temperature(patchIndex))
+           viscousPenalties(:,2) = viscousPenalties(:,2) *                                   &
+                grid%jacobian(gridIndex, 1) * sum(metricsAlongNormalDirection ** 2)
 
            select case (mode)
            case (FORWARD)
@@ -179,6 +201,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
   SAFE_DEALLOCATE(viscousPenalties)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
+  SAFE_DEALLOCATE(unitNormal)
 
   call endTiming("addIsothermalWallPenalty")
 

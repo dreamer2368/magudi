@@ -81,6 +81,7 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, ierror
   class(t_Patch), pointer :: patch => null()
+  real(SCALAR_KIND) :: normBoundaryFactor
   SCALAR_TYPE, allocatable :: F(:,:)
 
   instantaneousFunctional = 0.0_wp
@@ -102,16 +103,15 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
         class is (t_CostTargetPatch)
 
            k = abs(patch%normalDirection)
+           normBoundaryFactor = 1.0_wp / region%grids(i)%firstDerivative(k)%normBoundary(1)
 
            allocate(F(region%grids(i)%nGridPoints, 2))
            F(:,1) = (region%states(i)%pressure(:,1) -                                        &
-                1.0_wp / region%solverOptions%ratioOfSpecificHeats) *                        &
-                matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),         &
-                this%direction(1:nDimensions))
-           F(:,2) = 1.0_wp /                                                                 &
-                sqrt(sum(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k) ** 2))
+                1.0_wp / region%solverOptions%ratioOfSpecificHeats)
+           F(:,2) = matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),     &
+                this%direction(1:nDimensions)) * normBoundaryFactor
            instantaneousFunctional = instantaneousFunctional +                               &
-                patch%computeInnerProduct(region%grids(i), F(:,1), F(:,1), F(:,2))
+                patch%computeInnerProduct(region%grids(i), F(:,1), F(:,2))
            SAFE_DEALLOCATE(F)
 
         end select
@@ -196,7 +196,8 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
 
            if (simulationFlags%useContinuousAdjoint) then
 
-              F = dot_product(state%adjointVariables(gridIndex,2:nDimensions+1) -            &
+              F = grid%jacobian(gridIndex, 1) *                                              &
+                   dot_product(state%adjointVariables(gridIndex,2:nDimensions+1) -           &
                    this%direction(1:nDimensions), unitNormal)
 
               select case (nDimensions)
@@ -220,7 +221,7 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
                       temperature = state%temperature(gridIndex, 1))
               end select !... nDimensions
 
-              patch%adjointForcing(patchIndex,:) = patch%inviscidPenaltyAmount * F *         &
+              patch%adjointForcing(patchIndex,:) = - patch%inviscidPenaltyAmount * F *       &
                    matmul(transpose(incomingJacobianOfInviscidFlux(2:nDimensions+1,:)),      &
                    unitNormal)
 

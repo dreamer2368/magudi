@@ -10,7 +10,8 @@ module IsothermalWall_mod
   type, extends(t_ImpenetrableWall), public :: t_IsothermalWall
 
      real(SCALAR_KIND) :: viscousPenaltyAmounts(2)
-     SCALAR_TYPE, allocatable :: temperature(:)
+     SCALAR_TYPE, allocatable :: temperature(:), dynamicViscosity(:),                        &
+          secondCoefficientOfViscosity(:), thermalDiffusivity(:)
 
    contains
 

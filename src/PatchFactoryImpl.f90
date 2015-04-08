@@ -448,7 +448,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use CNSHelper, only : computeCartesianViscousFluxes, computeDependentVariables
+  use CNSHelper
   use Patch_factory, only : queryPatchTypeExists
   use MPITimingsHelper, only : startTiming, endTiming
 
@@ -518,6 +518,11 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
            select type (patch)
            class is (t_IsothermalWall)
               call patch%collect(targetTemperature, patch%temperature)
+              call computeTransportVariables(patch%temperature,                              &
+                   solverOptions%powerLawExponent, solverOptions%bulkViscosityRatio,         &
+                   solverOptions%ratioOfSpecificHeats, solverOptions%reynoldsNumberInverse,  &
+                   solverOptions%prandtlNumberInverse, patch%dynamicViscosity,               &
+                   patch%secondCoefficientOfViscosity, patch%thermalDiffusivity)
            end select
 
         end do
