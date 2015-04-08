@@ -1,80 +1,5 @@
 #include "config.h"
 
-module DragCoefficientImpl
-
-  implicit none
-  public
-
-contains
-
-  subroutine computeAdjointForcingOnPatch(patch, grid, velocity, pressure,                   &
-       targetPressure, ratioOfSpecificHeats, forceDirection)
-
-    ! <<< Derived types >>>
-    use Grid_mod, only : t_Grid
-    use Patch_mod, only : t_Patch
-    use CostTargetPatch_mod, only : t_CostTargetPatch
-
-    ! <<< Arguments >>>
-    class(t_Patch), pointer, intent(in) :: patch
-    class(t_Grid), intent(in) :: grid
-    SCALAR_TYPE, intent(in) :: velocity(:,:), pressure(:), targetPressure
-    real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats, forceDirection(3)
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, direction, nDimensions, gridIndex, patchIndex
-    real(SCALAR_KIND) :: normBoundaryFactor
-    SCALAR_TYPE, allocatable :: metricsAlongNormalDirection(:)
-    SCALAR_TYPE :: F
-
-    nDimensions = grid%nDimensions
-    assert_key(nDimensions, (1, 2, 3))
-
-    allocate(metricsAlongNormalDirection(nDimensions))
-
-    select type (patch)
-    class is (t_CostTargetPatch)
-
-       direction = abs(patch%normalDirection)
-       normBoundaryFactor = 1.0_wp / grid%firstDerivative(direction)%normBoundary(1)
-
-       do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-          do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-             do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-                gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *               &
-                     (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                 &
-                     (k - 1 - patch%gridOffset(3)))
-                if (grid%iblank(gridIndex) == 0) cycle
-                patchIndex = i - patch%offset(1) + patch%patchSize(1) *                      &
-                     (j - 1 - patch%offset(2) + patch%patchSize(2) *                         &
-                     (k - 1 - patch%offset(3)))
-
-                metricsAlongNormalDirection =                                                &
-                     grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
-
-                F = - (ratioOfSpecificHeats - 1.0_wp) * grid%jacobian(gridIndex, 1) *        &
-                     normBoundaryFactor * sqrt(sum(metricsAlongNormalDirection ** 2)) *      &
-                     (pressure(gridIndex) - 1.0_wp / ratioOfSpecificHeats)
-                F = 0.0_wp
-
-                patch%adjointForcing(patchIndex,1) =                                         &
-                     0.5_wp * sum(velocity(gridIndex,:) ** 2) * F
-                patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * F
-                patch%adjointForcing(patchIndex,nDimensions+2) = F
-
-             end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-          end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-       end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-
-    end select
-
-    SAFE_DEALLOCATE(metricsAlongNormalDirection)
-
-  end subroutine computeAdjointForcingOnPatch
-
-end module DragCoefficientImpl
-
 subroutine setupDragCoefficient(this, region)
 
   ! <<< Derived types >>>
@@ -214,48 +139,75 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
 
 end function computeDragCoefficient
 
-subroutine computeDragCoefficientAdjointForcing(this, region)
+subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOptions,        &
+     grid, state, patch)
 
   ! <<< Derived types >>>
-  use Patch_mod, only : t_Patch
-  use Region_mod, only : t_Region
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
   use DragCoefficient_mod, only : t_DragCoefficient
+  use SolverOptions_mod, only : t_SolverOptions
   use CostTargetPatch_mod, only : t_CostTargetPatch
-
-  ! <<< Enumerations >>>
-  use State_enum, only : QOI_DUMMY_FUNCTION
-
-  ! <<< Private members >>>
-  use DragCoefficientImpl, only : computeAdjointForcingOnPatch
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_DragCoefficient) :: this
-  class(t_Region) :: region
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+  class(t_Grid), intent(in) :: grid
+  class(t_State), intent(in) :: state
+  class(t_CostTargetPatch) :: patch
 
   ! <<< Local variables >>>
-  integer :: i, j, nDimensions
-  class(t_Patch), pointer :: patch => null()
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, direction, nDimensions, gridIndex, patchIndex
+  SCALAR_TYPE, allocatable :: metricsAlongNormalDirection(:)
+  real(SCALAR_KIND) :: normBoundaryFactor
+  SCALAR_TYPE :: F
 
-  if (.not. allocated(region%patchFactories)) return
+  nDimensions = grid%nDimensions
+  assert_key(nDimensions, (1, 2, 3))
 
-  do i = 1, size(region%grids)
+  allocate(metricsAlongNormalDirection(nDimensions))
 
-     nDimensions = region%grids(i)%nDimensions
+  direction = abs(patch%normalDirection)
 
-     do j = 1, size(region%patchFactories)
-        call region%patchFactories(j)%connect(patch)
-        if (.not. associated(patch)) cycle
-        if (patch%gridIndex /= region%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
+  normBoundaryFactor = 1.0_wp / grid%firstDerivative(direction)%normBoundary(1)
 
-        call computeAdjointForcingOnPatch(patch, region%grids(i), region%states(i)%velocity, &
-             region%states(i)%pressure(:,1), this%freeStreamPressure,                        &
-             region%solverOptions%ratioOfSpecificHeats, this%direction)
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+     do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+           gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
+                (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
+                (k - 1 - patch%gridOffset(3)))
+           if (grid%iblank(gridIndex) == 0) cycle
+           patchIndex = i - patch%offset(1) + patch%patchSize(1) *                           &
+                (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
+                (k - 1 - patch%offset(3)))
 
-     end do
+           metricsAlongNormalDirection =                                                     &
+                grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
-  end do
+           F = - (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                             &
+                grid%jacobian(gridIndex, 1) * normBoundaryFactor *                           &
+                sqrt(sum(metricsAlongNormalDirection ** 2)) *                                &
+                (state%pressure(gridIndex, 1) -                                              &
+                1.0_wp / solverOptions%ratioOfSpecificHeats)
+           F = 0.0_wp
+
+           patch%adjointForcing(patchIndex,1) =                                              &
+                0.5_wp * sum(state%velocity(gridIndex,:) ** 2) * F
+           patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
+                - state%velocity(gridIndex,:) * F
+           patch%adjointForcing(patchIndex,nDimensions+2) = F
+
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+
+  SAFE_DEALLOCATE(metricsAlongNormalDirection)
 
 end subroutine computeDragCoefficientAdjointForcing
 
@@ -263,14 +215,14 @@ function isDragCoefficientPatchValid(this, patchDescriptor, gridSize, normalDire
      extent, simulationFlags, message) result(isPatchValid)
 
   ! <<< Derived types >>>
-  use AcousticNoise_mod, only : t_AcousticNoise
+  use DragCoefficient_mod, only : t_DragCoefficient
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_AcousticNoise) :: this
+  class(t_DragCoefficient) :: this
   type(t_PatchDescriptor), intent(in) :: patchDescriptor
   integer, intent(in) :: gridSize(:), normalDirection, extent(6)
   type(t_SimulationFlags), intent(in) :: simulationFlags

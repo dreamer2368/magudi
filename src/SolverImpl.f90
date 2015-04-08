@@ -566,7 +566,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
            end do
         end if
 
-        call functional%computeAdjointForcing(region)
+        call functional%updateAdjointForcing(region)
 
         call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep_, i)
 

@@ -14,6 +14,7 @@ module Functional_mod
      procedure, non_overridable, pass :: setupBase => setupFunctional
      procedure, non_overridable, pass :: cleanupBase => cleanupFunctional
      procedure, pass :: writeToFile => writeFunctionalToFile
+     procedure, pass :: updateAdjointForcing
 
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
@@ -70,14 +71,23 @@ module Functional_mod
 
   abstract interface
 
-     subroutine computeAdjointForcing(this, region)
+     subroutine computeAdjointForcing(this, simulationFlags,                                 &
+          solverOptions, grid, state, patch)
 
-       use Region_mod, only : t_Region
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+       use SolverOptions_mod, only : t_SolverOptions
+       use CostTargetPatch_mod, only : t_CostTargetPatch
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Functional
 
        class(t_Functional) :: this
-       class(t_Region) :: region
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_Grid), intent(in) :: grid
+       class(t_State), intent(in) :: state
+       class(t_CostTargetPatch) :: patch
 
      end subroutine computeAdjointForcing
 
@@ -131,6 +141,21 @@ module Functional_mod
        class(t_Functional) :: this
 
      end subroutine cleanupFunctional
+
+  end interface
+
+  interface
+
+     subroutine updateAdjointForcing(this, region)
+
+       use Region_mod, only : t_Region
+
+       import :: t_Functional
+
+       class(t_Functional) :: this
+       class(t_Region) :: region
+
+     end subroutine updateAdjointForcing
 
   end interface
 

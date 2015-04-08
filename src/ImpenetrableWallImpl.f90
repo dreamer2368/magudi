@@ -5,10 +5,10 @@ subroutine setupImpenetrableWall(this, index, comm, patchDescriptor,            
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
-  use ImpenetrableWall_mod, only : t_ImpenetrableWall
   use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
+  use ImpenetrableWall_mod, only : t_ImpenetrableWall
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
@@ -62,9 +62,9 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use ImpenetrableWall_mod, only : t_ImpenetrableWall
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
+  use ImpenetrableWall_mod, only : t_ImpenetrableWall
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT
@@ -236,11 +236,11 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
                          dot_product(state%adjointVariables(gridIndex,:),                    &
                          matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)) + &
                          matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l), inviscidPenalty))
-                 else
-                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &      
-                         this%inviscidPenaltyAmount *                                        &
-                         matmul(transpose(incomingJacobianOfInviscidFlux), inviscidPenalty)
                  end do
+              else
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                      this%inviscidPenaltyAmount *                                           &
+                      matmul(transpose(incomingJacobianOfInviscidFlux), inviscidPenalty)
               end if
 
            end select
@@ -267,9 +267,9 @@ function verifyImpenetrableWallUsage(this, patchDescriptor, gridSize, normalDire
      extent, simulationFlags, success, message) result(isPatchUsed)
 
   ! <<< Derived types >>>
-  use ImpenetrableWall_mod, only : t_ImpenetrableWall
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
+  use ImpenetrableWall_mod, only : t_ImpenetrableWall
 
   implicit none
 

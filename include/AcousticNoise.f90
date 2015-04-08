@@ -72,14 +72,23 @@ module AcousticNoise_mod
 
   interface
 
-     subroutine computeAcousticNoiseAdjointForcing(this, region)
+     subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags,                    &
+          solverOptions, grid, state, patch)
 
-       use Region_mod, only : t_Region
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+       use SolverOptions_mod, only : t_SolverOptions
+       use CostTargetPatch_mod, only : t_CostTargetPatch
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_AcousticNoise
 
        class(t_AcousticNoise) :: this
-       class(t_Region) :: region
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_Grid), intent(in) :: grid
+       class(t_State), intent(in) :: state
+       class(t_CostTargetPatch) :: patch
 
      end subroutine computeAcousticNoiseAdjointForcing
 

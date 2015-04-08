@@ -33,6 +33,56 @@ subroutine cleanupFunctional(this)
 
 end subroutine cleanupFunctional
 
+subroutine updateAdjointForcing(this, region)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use Functional_mod, only : t_Functional
+  use CostTargetPatch_mod, only : t_CostTargetPatch
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Functional) :: this
+  class(t_Region) :: region
+
+  ! <<< Local variables >>>
+  integer :: i, j, nDimensions
+  class(t_Patch), pointer :: patch => null()
+  class(t_CostTargetPatch), pointer :: costTargetPatch => null()
+
+  if (.not. allocated(region%patchFactories)) return
+
+  do i = 1, size(region%grids)
+
+     nDimensions = region%grids(i)%nDimensions
+
+     do j = 1, size(region%patchFactories)
+
+        call region%patchFactories(j)%connect(patch)
+        if (.not. associated(patch)) cycle
+
+        nullify(costTargetPatch)
+        select type (patch)
+        type is (t_CostTargetPatch)
+           costTargetPatch => patch
+        end select
+
+        if (.not. associated(costTargetPatch)) cycle
+
+        if (costTargetPatch%gridIndex /= region%grids(i)%index .or.                          &
+             costTargetPatch%nPatchPoints <= 0) cycle
+
+        call this%computeAdjointForcing(region%simulationFlags, region%solverOptions,        &
+             region%grids(i), region%states(i), costTargetPatch)
+
+     end do !... j = 1, size(region%patchFactories)
+
+  end do !... i = 1, size(region%grids)
+
+end subroutine updateAdjointForcing
+
 subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
 
   ! <<< External modules >>>

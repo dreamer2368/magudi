@@ -5,18 +5,14 @@
 # Filenames, etc.
 output_prefix = "NACA0012"
 grid_file = "NACA0012.xyz"
-#initial_condition_file = "NACA0012.ic.q"
-#target_state_file = "NACA0012.target.q"
+initial_condition_file = "NACA0012.ic.q"
+target_state_file = "NACA0012.target.q"
 boundary_condition_file = "bc.dat"
 
 # Simulation flags
 use_constant_CFL_mode = true
 use_target_state = true
-steady_state_simulation = false
-include_viscous_terms = true
-
-# Physical constants
-Reynolds_number = 200.
+steady_state_simulation = true
 
 # Adjoint optimization flags
 disable_adjoint_solver = true
@@ -27,18 +23,18 @@ cost_functional_type = "DRAG"
 grid001/dir1/periodicity_type = 'OVERLAP'
 
 # Derivative schemes
-defaults/first_derivative_scheme = "SBP 1-2"
+defaults/first_derivative_scheme = "SBP 4-8"
 
 # Time stepping options
 time_integration_scheme = 'RK4'
-cfl = 0.5
+cfl = 0.8
 number_of_timesteps = 1000
 report_interval = 10
 save_interval = 100
 
 # Artificial dissipation
 add_dissipation = false
-defaults/artificial_dissipation_scheme = "SBP 1-2"
+defaults/artificial_dissipation_scheme = "SBP 4-8"
 dissipation_amount = 0.01
 
 # Sponge options

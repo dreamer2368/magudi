@@ -1,67 +1,9 @@
 #include "config.h"
 
-module AcousticNoiseImpl
-
-  implicit none
-  public
-
-contains
-
-  subroutine computeAdjointForcingOnPatch(patch, grid, velocity,                             &
-       pressure, meanPressure, ratioOfSpecificHeats)
-
-    ! <<< Derived types >>>
-    use Grid_mod, only : t_Grid
-    use Patch_mod, only : t_Patch
-    use CostTargetPatch_mod, only : t_CostTargetPatch
-
-    ! <<< Arguments >>>
-    class(t_Patch), pointer, intent(in) :: patch
-    class(t_Grid), intent(in) :: grid
-    SCALAR_TYPE, intent(in) :: velocity(:,:), pressure(:), meanPressure(:)
-    real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, nDimensions, gridIndex, patchIndex
-
-    nDimensions = grid%nDimensions
-    assert_key(nDimensions, (1, 2, 3))
-
-    select type (patch)
-    type is (t_CostTargetPatch)
-
-       do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-          do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-             do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-                gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *               &
-                     (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                 &
-                     (k - 1 - patch%gridOffset(3)))
-                if (grid%iblank(gridIndex) == 0) cycle
-                patchIndex = i - patch%offset(1) + patch%patchSize(1) *                      &
-                     (j - 1 - patch%offset(2) + patch%patchSize(2) *                         &
-                     (k - 1 - patch%offset(3)))
-
-                patch%adjointForcing(patchIndex,nDimensions+2) =                             &
-                     - 2.0_wp * (ratioOfSpecificHeats - 1.0_wp) *                            &
-                     (pressure(gridIndex) - meanPressure(gridIndex))
-                patch%adjointForcing(patchIndex,2:nDimensions+1) = - velocity(gridIndex,:) * &
-                     patch%adjointForcing(patchIndex,nDimensions+2)
-                patch%adjointForcing(patchIndex,1) =                                         &
-                     0.5_wp * sum(velocity(gridIndex,:) ** 2) *                              &
-                     patch%adjointForcing(patchIndex,nDimensions+2)
-
-             end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-          end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-       end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-
-    end select
-
-  end subroutine computeAdjointForcingOnPatch
-
-end module AcousticNoiseImpl
-
 subroutine setupAcousticNoise(this, region)
+
+  ! <<< External modules >>>
+  use MPI
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
@@ -81,7 +23,7 @@ subroutine setupAcousticNoise(this, region)
   class(t_Region) :: region
 
   ! <<< Local variables >>>
-  integer :: i
+  integer :: i, j, ierror
   character(len = STRING_LENGTH) :: filename
 
   assert(allocated(region%states))
@@ -91,10 +33,17 @@ subroutine setupAcousticNoise(this, region)
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
-  allocate(this%data_(size(region%states)))
+  allocate(this%data_(size(region%globalGridSizes, 2)))
+
   do i = 1, size(this%data_)
-     allocate(this%data_(i)%meanPressure(region%grids(i)%nGridPoints, 1))
-     region%states(i)%dummyFunction => this%data_(i)%meanPressure
+     do j = 1, size(region%grids)
+        if (region%grids(j)%index == i) then
+           allocate(this%data_(i)%meanPressure(region%grids(j)%nGridPoints, 1))
+           region%states(j)%dummyFunction => this%data_(i)%meanPressure
+           exit
+        end if
+     end do
+     call MPI_Barrier(region%comm, ierror)
   end do
 
   if (.not. region%simulationFlags%useTargetState) then
@@ -105,11 +54,12 @@ subroutine setupAcousticNoise(this, region)
      if (len_trim(filename) > 0) then
         call region%loadData(QOI_DUMMY_FUNCTION, filename)
      else
-        do i = 1, size(this%data_)
+        do i = 1, size(region%states)
            assert(allocated(region%states(i)%targetState))
+           j = region%grids(i)%index
            call computeDependentVariables(region%grids(i)%nDimensions,                       &
                 region%states(i)%targetState, region%solverOptions%ratioOfSpecificHeats,     &
-                pressure = this%data_(i)%meanPressure(:,1))
+                pressure = this%data_(j)%meanPressure(:,1))
         end do
      end if
   end if
@@ -160,7 +110,7 @@ function computeAcousticNoise(this, time, region) result(instantaneousFunctional
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, ierror
+  integer :: i, j, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
 
   assert(allocated(region%grids))
@@ -178,12 +128,15 @@ function computeAcousticNoise(this, time, region) result(instantaneousFunctional
      assert(allocated(region%states(i)%pressure))
      assert(size(region%states(i)%pressure, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%pressure, 2) == 1)
-     assert(associated(this%data_(i)%meanPressure))
-     assert(size(this%data_(i)%meanPressure, 1) == region%grids(i)%nGridPoints)
-     assert(size(this%data_(i)%meanPressure, 2) == 1)
+
+     j = region%grids(i)%index
+     
+     assert(associated(this%data_(j)%meanPressure))
+     assert(size(this%data_(j)%meanPressure, 1) == region%grids(i)%nGridPoints)
+     assert(size(this%data_(j)%meanPressure, 2) == 1)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
-     F = region%states(i)%pressure - this%data_(i)%meanPressure
+     F = region%states(i)%pressure - this%data_(j)%meanPressure
      instantaneousFunctional = instantaneousFunctional +                                     &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
      SAFE_DEALLOCATE(F)
@@ -203,39 +156,65 @@ function computeAcousticNoise(this, time, region) result(instantaneousFunctional
 
 end function computeAcousticNoise
 
-subroutine computeAcousticNoiseAdjointForcing(this, region)
+subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptions,          &
+     grid, state, patch)
 
   ! <<< Derived types >>>
-  use Patch_mod, only : t_Patch
-  use Region_mod, only : t_Region
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
   use AcousticNoise_mod, only : t_AcousticNoise
+  use SolverOptions_mod, only : t_SolverOptions
   use CostTargetPatch_mod, only : t_CostTargetPatch
-
-  ! <<< Private members >>>
-  use AcousticNoiseImpl, only : computeAdjointForcingOnPatch
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_AcousticNoise) :: this
-  class(t_Region) :: region
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+  class(t_Grid), intent(in) :: grid
+  class(t_State), intent(in) :: state
+  class(t_CostTargetPatch) :: patch
 
   ! <<< Local variables >>>
-  integer :: i, j
-  class(t_Patch), pointer :: patch => null()
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, nDimensions, gridIndex, patchIndex
+  SCALAR_TYPE, allocatable :: meanPressure(:)
 
-  if (.not. allocated(region%patchFactories)) return
+  nDimensions = grid%nDimensions
+  assert_key(nDimensions, (1, 2, 3))
 
-  do i = 1, size(region%grids)
-     do j = 1, size(region%patchFactories)
-        call region%patchFactories(j)%connect(patch)
-        if (.not. associated(patch)) cycle
-        if (patch%gridIndex /= region%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
-        call computeAdjointForcingOnPatch(patch, region%grids(i),                            &
-             region%states(i)%velocity, region%states(i)%pressure(:,1),                      &
-             this%data_(i)%meanPressure(:,1), region%solverOptions%ratioOfSpecificHeats)
-     end do
-  end do
+  allocate(meanPressure(patch%nPatchPoints))
+  i = grid%index
+  call patch%collect(this%data_(i)%meanPressure(:,1), meanPressure)
+
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+     do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+           gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
+                (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
+                (k - 1 - patch%gridOffset(3)))
+           if (grid%iblank(gridIndex) == 0) cycle
+           patchIndex = i - patch%offset(1) + patch%patchSize(1) *                           &
+                (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
+                (k - 1 - patch%offset(3)))
+
+           patch%adjointForcing(patchIndex,nDimensions+2) =                                  &
+                - 2.0_wp * (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                   &
+                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
+           patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
+                - state%velocity(gridIndex,:) *                                              &
+                patch%adjointForcing(patchIndex,nDimensions+2)
+           patch%adjointForcing(patchIndex,1) =                                              &
+                0.5_wp * sum(state%velocity(gridIndex,:) ** 2) *                             & 
+                patch%adjointForcing(patchIndex,nDimensions+2)
+
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+
+  SAFE_DEALLOCATE(meanPressure)
 
 end subroutine computeAcousticNoiseAdjointForcing
 
