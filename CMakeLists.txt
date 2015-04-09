@@ -167,3 +167,32 @@ add_executable(magudi $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/src/main
 enable_testing()
 add_subdirectory(test)
 add_subdirectory(utils)
+
+set(magudi_BUILD_FILES
+
+  # CMake-generated files
+  ${PROJECT_BINARY_DIR}/CMakeCache.txt
+  ${PROJECT_BINARY_DIR}/CMakeFiles
+  ${PROJECT_BINARY_DIR}/cmake_install.cmake
+  ${PROJECT_BINARY_DIR}/CTestTestfile.cmake
+  ${PROJECT_BINARY_DIR}/Makefile
+
+  # Compiled Python sources
+  ${PROJECT_BINARY_DIR}/PLOT3D.pyc
+  ${PROJECT_BINARY_DIR}/MatplotlibHelper.pyc
+
+  # Build directories
+  ${PROJECT_BINARY_DIR}/include
+  ${PROJECT_BINARY_DIR}/modules
+  ${PROJECT_BINARY_DIR}/test
+  ${PROJECT_BINARY_DIR}/Testing
+  ${PROJECT_BINARY_DIR}/utils
+
+  )
+
+set(magudi_BUILD_FILES_STRING "")
+foreach(file ${magudi_BUILD_FILES})
+  file(TO_NATIVE_PATH ${file} file)
+  set(magudi_BUILD_FILES_STRING "${magudi_BUILD_FILES_STRING} ${file}")
+endforeach()
+add_custom_target(purge make clean COMMAND echo ${magudi_BUILD_FILES_STRING} | xargs rm -rf VERBATIM)
