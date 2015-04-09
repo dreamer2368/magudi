@@ -908,7 +908,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
 
   SAFE_DEALLOCATE(jacobianMatrixInverse)
 
-  hasNegativeJacobian_ = .not. this%isVariableWithinRange(this%jacobian(:,1), &
+  hasNegativeJacobian_ = .not. this%isVariableWithinRange(this%jacobian(:,1),                &
        jacobianOutsideRange, i, j, k, minValue = 0.0_wp)
   call MPI_Allreduce(MPI_IN_PLACE, hasNegativeJacobian_, 1,                                  &
        MPI_LOGICAL, MPI_LOR, this%comm, ierror)

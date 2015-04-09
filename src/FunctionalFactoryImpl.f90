@@ -22,7 +22,7 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
   createNew_ = .false.
   if (present(createNew)) createNew_ = createNew
 
-  if (present(functionalType) .and. .not. (associated(this%functional) .and.         &
+  if (present(functionalType) .and. .not. (associated(this%functional) .and.                 &
        .not. createNew_)) then
 
      if (associated(this%functional)) deallocate(this%functional)

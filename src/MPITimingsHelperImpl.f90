@@ -9,7 +9,7 @@ module MPITimingsHelperImpl
 
   type, public :: t_MPITimer
      character(len = STRING_LENGTH) :: name
-     real(kind = real64) :: numCalls = 0.0_real64, startTimeOfLastCall = 0.0_real64, &
+     real(kind = real64) :: numCalls = 0.0_real64, startTimeOfLastCall = 0.0_real64,         &
           accumulatedTime = 0.0_real64
      type(t_MPITimer), pointer :: left => null(), right => null()
   end type t_MPITimer

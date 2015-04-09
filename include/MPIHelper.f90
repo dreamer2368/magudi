@@ -44,7 +44,7 @@ module MPIHelper
 
   interface
 
-     subroutine fillGhostPoints(comm, arrayWithGhostPoints,                              &
+     subroutine fillGhostPoints(comm, arrayWithGhostPoints,                                  &
           direction, numGhostPoints, periodicOffset)
 
        !> The first `numGhostPoints(1)` and last `numGhostPoints(2)` points along dimension

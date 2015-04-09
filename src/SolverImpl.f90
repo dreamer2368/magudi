@@ -101,7 +101,7 @@ contains
        call MPI_Allreduce(MPI_IN_PLACE, hasNegativeMollifier, 1,                             &
             MPI_LOGICAL, MPI_LOR, region%grids(i)%comm, ierror)
        if (hasNegativeMollifier) then
-          write(str, '(A,I0.0,A)') "Target mollifying support function on grid ",           &
+          write(str, '(A,I0.0,A)') "Target mollifying support function on grid ",            &
                region%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(region%grids(i)%comm, str)
        end if

@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine setupSolenoidalExcitation(this, comm, nModes, location, &
+subroutine setupSolenoidalExcitation(this, comm, nModes, location,                           &
      speed, amplitude, mostUnstableFrequency, radius, seed)
 
   ! <<< External modules >>>
@@ -21,7 +21,7 @@ subroutine setupSolenoidalExcitation(this, comm, nModes, location, &
   ! <<< Arguments >>>
   type(t_SolenoidalExcitation) :: this
   integer, intent(in) :: comm, nModes
-  real(SCALAR_KIND), intent(in) :: location(:), speed(:), &
+  real(SCALAR_KIND), intent(in) :: location(:), speed(:),                                    &
        amplitude, mostUnstableFrequency, radius
   integer, intent(in), optional :: seed
 

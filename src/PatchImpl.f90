@@ -28,7 +28,7 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
 
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: key
-  integer :: ierror
+  integer :: ierror, offset_(3)
 
   assert(index > 0)
 
@@ -107,10 +107,11 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
 
   ! Derived types describing subarrays on patch.
   if (this%comm /= MPI_COMM_NULL) then
-     call MPI_Type_create_subarray(3, this%globalSize, this%localSize, this%offset,          &
+     offset_ = this%offset - this%extent(1::2) + 1
+     call MPI_Type_create_subarray(3, this%globalSize, this%localSize, offset_,              &
           MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, this%mpiDerivedTypeScalarSubarray, ierror)
      call MPI_Type_commit(this%mpiDerivedTypeScalarSubarray, ierror)
-     call MPI_Type_create_subarray(3, this%globalSize, this%localSize, this%offset,          &
+     call MPI_Type_create_subarray(3, this%globalSize, this%localSize, offset_,              &
           MPI_ORDER_FORTRAN, MPI_INTEGER, this%mpiDerivedTypeIntegerSubarray, ierror)
      call MPI_Type_commit(this%mpiDerivedTypeIntegerSubarray, ierror)
   end if
@@ -401,7 +402,7 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
   allocate(mpiRequest(numProcs), source = MPI_REQUEST_NULL)
   allocate(mpiDerivedTypeScalarSubarray(numProcs), source = MPI_DATATYPE_NULL)
 
-  call MPI_Allgather(this%mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER, &
+  call MPI_Allgather(this%mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER,                      &
        mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER, this%comm, ierror)
 
   if (procRank == 0) then

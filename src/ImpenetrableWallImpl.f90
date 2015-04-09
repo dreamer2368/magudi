@@ -220,10 +220,10 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
               end select !... nDimensions
 
               do l = 1, nUnknowns
-                 state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
-                      this%inviscidPenaltyAmount *                                        &
-                      dot_product(state%adjointVariables(gridIndex,:),                    &
-                      matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)) + &
+                 state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +       &
+                      this%inviscidPenaltyAmount *                                           &
+                      dot_product(state%adjointVariables(gridIndex,:),                       &
+                      matmul(incomingJacobianOfInviscidFlux, deltaInviscidPenalty(:,l)) +    &
                       matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l), inviscidPenalty))
               end do
 

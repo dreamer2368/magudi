@@ -5,7 +5,7 @@ module ReverseMigrator_type
   implicit none
   private
 
-  integer, parameter, public :: &
+  integer, parameter, public ::                                                              &
        UNIFORM_CHECKPOINTING = 1
 
   type, private :: t_IntermediateStorage

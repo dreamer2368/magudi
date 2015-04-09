@@ -10,7 +10,7 @@ module SolenoidalExcitation_type
   type, public :: t_SolenoidalExcitation
 
      integer :: nModes
-     real(SCALAR_KIND) :: location(3), speed(3), amplitude, &
+     real(SCALAR_KIND) :: location(3), speed(3), amplitude,                                  &
           gaussianFactor, mostUnstableFrequency
 
      real(real64), allocatable :: angularFrequencies(:), phases(:,:)
@@ -26,14 +26,14 @@ module SolenoidalExcitation_mod
 
   interface
 
-     subroutine setupSolenoidalExcitation(this, comm, nModes, location, &
+     subroutine setupSolenoidalExcitation(this, comm, nModes, location,                      &
           speed, amplitude, mostUnstableFrequency, radius, seed)
 
        use SolenoidalExcitation_type
 
        type(t_SolenoidalExcitation) :: this
        integer, intent(in) :: comm, nModes
-       real(SCALAR_KIND), intent(in) :: location(:), speed(:), &
+       real(SCALAR_KIND), intent(in) :: location(:), speed(:),                               &
             amplitude, mostUnstableFrequency, radius
 
        integer, intent(in), optional :: seed

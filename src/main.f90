@@ -40,7 +40,7 @@ program main
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
      write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-     write(message, '(A)') &
+     write(message, '(A)')                                                                   &
           "FILE is an optional restart file used if running in prediction-only mode."
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
      call cleanupErrorHandler()

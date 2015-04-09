@@ -45,7 +45,7 @@ module StencilOperator_mod
 
   interface
 
-     subroutine updateOperator(this, cartesianCommunicator, &
+     subroutine updateOperator(this, cartesianCommunicator,                                  &
           direction, isPeriodicityOverlapping)
 
        !> Attaches a Cartesian communicator to a stencil operator and specifies the direction

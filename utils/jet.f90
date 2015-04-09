@@ -120,7 +120,7 @@ contains
 
     call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
     if (nDimensions /= 3) then
-       write(errorMessage, '(A)') &
+       write(errorMessage, '(A)')                                                            &
             "Jet initial condition generator requires a three-dimensional grid!"
     end if
 

@@ -805,7 +805,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
      errorRank = 0
      if (len_trim(plot3dErrorMessage) > 0) errorRank = procRank
      call MPI_Allreduce(MPI_IN_PLACE, errorRank, 1, MPI_INTEGER, MPI_MAX, this%comm, ierror)
-     call MPI_Bcast(plot3dErrorMessage, STRING_LENGTH, MPI_CHARACTER, &
+     call MPI_Bcast(plot3dErrorMessage, STRING_LENGTH, MPI_CHARACTER,                        &
           errorRank, this%comm, ierror)
      call gracefulExit(this%comm, plot3dErrorMessage)
   end if
@@ -962,7 +962,7 @@ function getCfl(this) result(cfl)
   else
      cfl = 0.0_wp
      do i = 1, size(this%states)
-        cfl = max(cfl, this%states(i)%computeCfl(this%grids(i),                             &
+        cfl = max(cfl, this%states(i)%computeCfl(this%grids(i),                              &
              this%simulationFlags, this%solverOptions))
      end do
      call MPI_Allreduce(MPI_IN_PLACE, cfl, 1, REAL_TYPE_MPI, MPI_MAX, this%comm, ierror)

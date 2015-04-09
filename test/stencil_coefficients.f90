@@ -56,19 +56,19 @@ program stencil_coefficients
   call A%setup("SBP 3-6 first derivative")
   call testStencilAccuracy(A, 1, 6, 3, success)
   call A%setup("SBP 3-6 second derivative")
-  call testStencilAccuracy(A, 2, 6, 3, success,                                &
+  call testStencilAccuracy(A, 2, 6, 3, success,                                              &
        tolerance = epsilon(0.0_wp) * 2.0_wp) !... some schemes require a higher tolerance.
   call A%setup("SBP 3-6 dissipation")
   call testStencilAccuracy(A, 0, 6, 3, success)
 
   call A%setup("SBP 4-8 first derivative")
-  call testStencilAccuracy(A, 1, 8, 4, success,                                &
+  call testStencilAccuracy(A, 1, 8, 4, success,                                              &
        tolerance = epsilon(0.0_wp) * 300.0_wp)
   call A%setup("SBP 4-8 second derivative")
-  call testStencilAccuracy(A, 2, 8, 4, success,                                &
+  call testStencilAccuracy(A, 2, 8, 4, success,                                              &
        tolerance = epsilon(0.0_wp) * 4.0_wp)
   call A%setup("SBP 4-8 dissipation")
-  call testStencilAccuracy(A, 0, 8, 4, success,                                &
+  call testStencilAccuracy(A, 0, 8, 4, success,                                              &
        tolerance = epsilon(0.0_wp) * 20.0_wp)
 
   call A%cleanup()
