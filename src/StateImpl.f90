@@ -191,7 +191,7 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
   logical, intent(out) :: success
 
   select case (quantityOfInterest)
-  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE)
+  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE)
      call plot3dReadSingleAuxiliarySolutionData(grid%comm, trim(filename),                   &
           offset, this%plot3dAuxiliaryData, success)
   end select
@@ -209,6 +209,10 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
      call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
           this%adjointVariables, success)
+  case (QOI_RIGHT_HAND_SIDE)
+     call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
+          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
+          this%rightHandSide, success)
   case (QOI_DUMMY_FUNCTION)
      assert(associated(this%dummyFunction))
      assert(size(this%dummyFunction, 1) == grid%nGridPoints)
@@ -255,7 +259,7 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
 #endif
 
   select case (quantityOfInterest)
-  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE)
+  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_RIGHT_HAND_SIDE, QOI_ADJOINT_STATE)
      call plot3dWriteSingleAuxiliarySolutionData(grid%comm, trim(filename),                  &
           offset, this%plot3dAuxiliaryData, success)
   end select
@@ -273,6 +277,10 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
      call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
           this%adjointVariables, success)
+  case (QOI_RIGHT_HAND_SIDE)
+     call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
+          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
+          this%rightHandSide, success)
   case (QOI_DUMMY_FUNCTION)
      call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                       &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &

@@ -428,7 +428,7 @@ contains
     use Region_mod, only : t_Region
 
     ! <<< Enumerations >>>
-    use State_enum, only : QOI_FORWARD_STATE
+    use State_enum, only : QOI_FORWARD_STATE, QOI_RIGHT_HAND_SIDE
     use Region_enum, only : FORWARD
 
     ! <<< Internal modules >>>
@@ -492,6 +492,7 @@ contains
        case (FORWARD)
           call this%saveData(QOI_FORWARD_STATE, PROJECT_NAME // "-crashed.q")
        end select
+       call this%saveData(QOI_RIGHT_HAND_SIDE, PROJECT_NAME // "-crashed.rhs.q")
 
        call gracefulExit(this%comm, message)
 

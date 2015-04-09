@@ -7,10 +7,11 @@ module State_enum
 
   integer, parameter ::                                                                      &
        QOI_FORWARD_STATE        =  100,                                                      &
-       QOI_ADJOINT_STATE        =  101,                                                      &
-       QOI_TARGET_STATE         =  102,                                                      &
-       QOI_VORTICITY_DILATATION =  103,                                                      &
-       QOI_DUMMY_FUNCTION       =  104
+       QOI_TARGET_STATE         =  101,                                                      &
+       QOI_ADJOINT_STATE        =  102,                                                      &
+       QOI_RIGHT_HAND_SIDE      =  103,                                                      &
+       QOI_VORTICITY_DILATATION =  104,                                                      &
+       QOI_DUMMY_FUNCTION       =  105
 
 end module State_enum
 

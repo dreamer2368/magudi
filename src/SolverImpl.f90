@@ -296,7 +296,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   ! <<< Enumerations >>>
-  use State_enum, only : QOI_FORWARD_STATE
+  use State_enum, only : QOI_FORWARD_STATE, QOI_RIGHT_HAND_SIDE
 
   ! <<< Private members >>>
   use SolverImpl, only : writeLine
@@ -359,6 +359,8 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
   call region%saveData(QOI_FORWARD_STATE, filename)
+  write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".rhs.q"
+  call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
 
   do timestep_ = timestep + 1, timestep + nTimesteps
 
@@ -411,6 +413,8 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
         end do
         write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
         call region%saveData(QOI_FORWARD_STATE, filename)
+        write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".rhs.q"
+        call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
      end if
 
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
