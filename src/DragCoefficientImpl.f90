@@ -159,6 +159,7 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, direction, nDimensions, nUnknowns, gridIndex, patchIndex
+  real(SCALAR_KIND) :: normBoundaryFactor
   SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
        unitNormal(:), incomingJacobianOfInviscidFlux(:,:)
   SCALAR_TYPE :: F
@@ -171,6 +172,8 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
+
+  normBoundaryFactor = 1.0_wp / grid%firstDerivative(direction)%normBoundary(1)
 
   allocate(localConservedVariables(nUnknowns))
   allocate(unitNormal(nDimensions))
@@ -228,7 +231,7 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
            else
 
               F = (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                            &
-                   grid%jacobian(gridIndex, 1) *                                             &
+                   grid%jacobian(gridIndex, 1) * normBoundaryFactor *                        &
                    dot_product(metricsAlongNormalDirection, this%direction(1:nDimensions))
 
               patch%adjointForcing(patchIndex,1) =                                           &

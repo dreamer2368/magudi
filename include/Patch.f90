@@ -26,6 +26,8 @@ module Patch_mod
      generic :: collect => collectScalarAtPatch,                                             &
           collectVectorAtPatch, collectTensorAtPatch
      generic :: gatherData => gatherScalarOnPatch, gatherVectorOnPatch, gatherTensorOnPatch
+     generic :: scatterData => scatterScalarOnPatch, scatterVectorOnPatch,                   &
+          scatterTensorOnPatch
 
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
@@ -40,6 +42,10 @@ module Patch_mod
      procedure, private, pass :: gatherScalarOnPatch
      procedure, private, pass :: gatherVectorOnPatch
      procedure, private, pass :: gatherTensorOnPatch
+
+     procedure, private, pass :: scatterScalarOnPatch
+     procedure, private, pass :: scatterVectorOnPatch
+     procedure, private, pass :: scatterTensorOnPatch
 
   end type t_Patch
 
@@ -248,6 +254,40 @@ module Patch_mod
 
      end subroutine gatherTensorOnPatch
 
-  end interface
+  end interface gatherDataOnPatch
+
+  interface scatterDataOnPatch
+
+     subroutine scatterScalarOnPatch(this, patchGlobalArray, patchLocalArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:)
+       SCALAR_TYPE, intent(out) :: patchLocalArray(:)
+
+     end subroutine scatterScalarOnPatch
+
+     subroutine scatterVectorOnPatch(this, patchGlobalArray, patchLocalArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:,:)
+       SCALAR_TYPE, intent(out) :: patchLocalArray(:,:)
+
+     end subroutine scatterVectorOnPatch
+
+     subroutine scatterTensorOnPatch(this, patchGlobalArray, patchLocalArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:,:,:)
+       SCALAR_TYPE, intent(out) :: patchLocalArray(:,:,:)
+
+     end subroutine scatterTensorOnPatch
+
+  end interface scatterDataOnPatch
 
 end module Patch_mod
