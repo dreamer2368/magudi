@@ -409,7 +409,7 @@ contains
              color = MPI_UNDEFINED
           end if
           call MPI_Comm_split(this%grids(i)%comm, color, proc, comm, ierror)
-          if (comm /= MPI_COMM_NULL) this%patchCommunicators(j) = comm
+          this%patchCommunicators(j) = comm
           call MPI_Barrier(this%grids(i)%comm, ierror)
 
        end do

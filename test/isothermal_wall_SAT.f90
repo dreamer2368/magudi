@@ -254,15 +254,15 @@ subroutine applyForwardBoundaryConditions(patch, grid, state, ratioOfSpecificHea
   direction = patch%normalDirection
   assert(abs(direction) >= 1 .and. abs(direction) <= nDimensions)
 
-  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-     do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-        do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+     do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
            gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
                 (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
                 (k - 1 - patch%gridOffset(3)))
            if (grid%iblank(gridIndex) == 0) cycle
-           patchIndex = i - patch%offset(1) + patch%patchSize(1) *                           &
-                (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
+           patchIndex = i - patch%offset(1) + patch%localSize(1) *                           &
+                (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
            state%conservedVariables(gridIndex,2:nDimensions+1) = 0.0_wp
@@ -271,9 +271,9 @@ subroutine applyForwardBoundaryConditions(patch, grid, state, ratioOfSpecificHea
                 state%conservedVariables(gridIndex,1) * patch%temperature(patchIndex) /      &
                 ratioOfSpecificHeats
 
-        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
 end subroutine applyForwardBoundaryConditions
 
@@ -305,15 +305,15 @@ subroutine applyAdjointBoundaryConditions(patch, grid, state)
   allocate(unitNormal(nDimensions))
   allocate(localVelocity(nDimensions))
 
-  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-     do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-        do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+     do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
            gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
                 (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
                 (k - 1 - patch%gridOffset(3)))
            if (grid%iblank(gridIndex) == 0) cycle
-           patchIndex = i - patch%offset(1) + patch%patchSize(1) *                           &
-                (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
+           patchIndex = i - patch%offset(1) + patch%localSize(1) *                           &
+                (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
            unitNormal = grid%metrics(gridIndex, 1 + nDimensions * (abs(direction) - 1) :     &
@@ -325,9 +325,9 @@ subroutine applyAdjointBoundaryConditions(patch, grid, state)
            state%adjointVariables(gridIndex,2:nDimensions+1) =                               &
                 localVelocity - unitNormal * dot_product(localVelocity, unitNormal)
 
-        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
   SAFE_DEALLOCATE(unitNormal)
   SAFE_DEALLOCATE(localVelocity)
@@ -372,15 +372,15 @@ subroutine addSurfaceIntegralContribution(patch, grid, state, solverOptions)
   allocate(localMetricsAlongDirection(nDimensions))
   allocate(localFluxJacobian(nUnknowns, nUnknowns))
 
-  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-     do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-        do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+     do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
            gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
                 (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
                 (k - 1 - patch%gridOffset(3)))
            if (grid%iblank(gridIndex) == 0) cycle
-           patchIndex = i - patch%offset(1) + patch%patchSize(1) *                           &
-                (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
+           patchIndex = i - patch%offset(1) + patch%localSize(1) *                           &
+                (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
            localConservedVariables = state%conservedVariables(gridIndex,:)
@@ -407,9 +407,9 @@ subroutine addSurfaceIntegralContribution(patch, grid, state, solverOptions)
                 real(direction, wp)) * matmul(transpose(localFluxJacobian),                  &
                 state%adjointVariables(gridIndex,:))
 
-        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
   SAFE_DEALLOCATE(localFluxJacobian)
   SAFE_DEALLOCATE(localMetricsAlongDirection)

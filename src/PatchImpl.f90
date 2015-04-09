@@ -28,6 +28,7 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
 
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: key
+  integer :: ierror
 
   assert(index > 0)
 
@@ -49,13 +50,12 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   call this%cleanupBase()
 
   this%index = index
-  this%normalDirection = patchDescriptor%normalDirection
-  this%gridIndex = grid%index
+  this%comm = comm
   this%nDimensions = grid%nDimensions
 
-  this%extent = (/ patchDescriptor%iMin, patchDescriptor%iMax,                               &
-       patchDescriptor%jMin, patchDescriptor%jMax,                                           &
-       patchDescriptor%kMin, patchDescriptor%kMax /)
+  this%globalSize(1) = patchDescriptor%iMax - patchDescriptor%iMin + 1
+  this%globalSize(2) = patchDescriptor%jMax - patchDescriptor%jMin + 1
+  this%globalSize(3) = patchDescriptor%kMax - patchDescriptor%kMin + 1
 
   ! Zero-based index of first point on the patch belonging to the ``current'' process (this
   ! value has no meaning if the patch lies outside the part of the grid belonging to the
@@ -67,24 +67,34 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
 
   ! Extent of the patch belonging to the ``current'' process (this value has no meaning if the
   ! patch lies outside the part of the grid belonging to the ``current'' process).
-  this%patchSize(1) = max(patchDescriptor%iMax, grid%offset(1) + 1)
-  this%patchSize(2) = max(patchDescriptor%jMax, grid%offset(2) + 1)
-  this%patchSize(3) = max(patchDescriptor%kMax, grid%offset(3) + 1)
-  this%patchSize = min(this%patchSize, grid%offset + grid%localSize)
-  this%patchSize = this%patchSize - this%offset
+  this%localSize(1) = max(patchDescriptor%iMax, grid%offset(1) + 1)
+  this%localSize(2) = max(patchDescriptor%jMax, grid%offset(2) + 1)
+  this%localSize(3) = max(patchDescriptor%kMax, grid%offset(3) + 1)
+  this%localSize = min(this%localSize, grid%offset + grid%localSize)
+  this%localSize = this%localSize - this%offset
+
+#ifdef DEBUG
+  if (comm /= MPI_COMM_NULL) then
+     assert(all(this%localSize > 0))
+  end if
+#endif
 
   ! Reset size and offset if the patch lies outside the part of the grid belonging to the
   ! ``current'' process.
-  if (any(this%patchSize < 0)) then
+  if (any(this%localSize < 0)) then
      this%offset = 0
-     this%patchSize = 0
+     this%localSize = 0
   end if
+
+  this%nPatchPoints = product(this%localSize)
+  this%gridIndex = grid%index
+  this%normalDirection = patchDescriptor%normalDirection
+
+  this%extent = (/ patchDescriptor%iMin, patchDescriptor%iMax, patchDescriptor%jMin,         &
+       patchDescriptor%jMax, patchDescriptor%kMin, patchDescriptor%kMax /)
 
   this%gridLocalSize = grid%localSize
   this%gridOffset = grid%offset
-
-  this%nPatchPoints = product(this%patchSize)
-  this%comm = comm
 
   this%isCurvilinear = getOption("default/curvilinear", .true.)
   write(key, '(A,I3.3,A)') "grid", this%gridIndex, "/curvilinear"
@@ -94,6 +104,16 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
     call MPI_Comm_size(this%comm, nProcs, ierror)
     allocate(this%mpiReduceBuffer(nProcs))
 #endif
+
+  ! Derived types describing subarrays on patch.
+  if (this%comm /= MPI_COMM_NULL) then
+     call MPI_Type_create_subarray(3, this%globalSize, this%localSize, this%offset,          &
+          MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, this%mpiDerivedTypeScalarSubarray, ierror)
+     call MPI_Type_commit(this%mpiDerivedTypeScalarSubarray, ierror)
+     call MPI_Type_create_subarray(3, this%globalSize, this%localSize, this%offset,          &
+          MPI_ORDER_FORTRAN, MPI_INTEGER, this%mpiDerivedTypeIntegerSubarray, ierror)
+     call MPI_Type_commit(this%mpiDerivedTypeIntegerSubarray, ierror)
+  end if
 
 end subroutine setupPatch
 
@@ -113,9 +133,16 @@ subroutine cleanupPatch(this)
   ! <<< Local variables >>>
   integer :: ierror
 
+  if (this%mpiDerivedTypeIntegerSubarray /= MPI_DATATYPE_NULL)                               &
+       call MPI_Type_free(this%mpiDerivedTypeIntegerSubarray, ierror)
+  if (this%mpiDerivedTypeScalarSubarray /= MPI_DATATYPE_NULL)                                &
+       call MPI_Type_free(this%mpiDerivedTypeScalarSubarray, ierror)
   if (this%comm /= MPI_COMM_NULL .and. this%comm /= MPI_COMM_WORLD)                          &
        call MPI_Comm_free(this%comm, ierror)
+
   this%comm = MPI_COMM_NULL
+  this%mpiDerivedTypeScalarSubarray = MPI_DATATYPE_NULL
+  this%mpiDerivedTypeIntegerSubarray = MPI_DATATYPE_NULL
 
 end subroutine cleanupPatch
 
@@ -136,16 +163,16 @@ subroutine collectScalarAtPatch(this, gridArray, patchArray)
   integer :: i, j, k, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize >= 0) .and. size(patchArray, 1) == product(this%patchSize))
+  assert(all(this%localSize >= 0) .and. size(patchArray, 1) == product(this%localSize))
 
   call startTiming("collectAtPatch")
 
-  do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
-     do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-        do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+  do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+     do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+        do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
            patchIndex = i - this%offset(1) +                                                 &
-                this%patchSize(1) * (j - 1 - this%offset(2) +                                &
-                this%patchSize(2) * (k - 1 - this%offset(3)))
+                this%localSize(1) * (j - 1 - this%offset(2) +                                &
+                this%localSize(2) * (k - 1 - this%offset(3)))
            localIndex = i - this%gridOffset(1) +                                             &
                 this%gridLocalSize(1) * (j - 1 - this%gridOffset(2) +                        &
                 this%gridLocalSize(2) * (k - 1 - this%gridOffset(3)))
@@ -175,19 +202,19 @@ subroutine collectVectorAtPatch(this, gridArray, patchArray)
   integer :: i, j, k, l, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize >= 0) .and. size(patchArray, 1) == product(this%patchSize))
+  assert(all(this%localSize >= 0) .and. size(patchArray, 1) == product(this%localSize))
   assert(size(gridArray, 2) > 0)
   assert(size(patchArray, 2) == size(gridArray, 2))
 
   call startTiming("collectAtPatch")
 
   do l = 1, size(patchArray, 2)
-     do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
-        do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-           do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+     do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+        do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+           do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
               patchIndex = i - this%offset(1) +                                              &
-                   this%patchSize(1) * (j - 1 - this%offset(2) +                             &
-                   this%patchSize(2) * (k - 1 - this%offset(3)))
+                   this%localSize(1) * (j - 1 - this%offset(2) +                             &
+                   this%localSize(2) * (k - 1 - this%offset(3)))
               localIndex = i - this%gridOffset(1) +                                          &
                    this%gridLocalSize(1) * (j - 1 - this%gridOffset(2) +                     &
                    this%gridLocalSize(2) * (k - 1 - this%gridOffset(3)))
@@ -218,7 +245,7 @@ subroutine collectTensorAtPatch(this, gridArray, patchArray)
   integer :: i, j, k, l, m, patchIndex, localIndex
 
   assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
-  assert(all(this%patchSize >= 0) .and. size(patchArray, 1) == product(this%patchSize))
+  assert(all(this%localSize >= 0) .and. size(patchArray, 1) == product(this%localSize))
   assert(size(gridArray, 2) > 0)
   assert(size(patchArray, 2) == size(gridArray, 2))
   assert(size(gridArray, 3) > 0)
@@ -228,12 +255,12 @@ subroutine collectTensorAtPatch(this, gridArray, patchArray)
 
   do m = 1, size(patchArray, 3)
      do l = 1, size(patchArray, 2)
-        do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
-           do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-              do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+           do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+              do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
                  patchIndex = i - this%offset(1) +                                           &
-                      this%patchSize(1) * (j - 1 - this%offset(2) +                          &
-                      this%patchSize(2) * (k - 1 - this%offset(3)))
+                      this%localSize(1) * (j - 1 - this%offset(2) +                          &
+                      this%localSize(2) * (k - 1 - this%offset(3)))
                  localIndex = i - this%gridOffset(1) +                                       &
                       this%gridLocalSize(1) * (j - 1 - this%gridOffset(2) +                  &
                       this%gridLocalSize(2) * (k - 1 - this%gridOffset(3)))
@@ -247,3 +274,149 @@ subroutine collectTensorAtPatch(this, gridArray, patchArray)
   call endTiming("collectAtPatch")
 
 end subroutine collectTensorAtPatch
+
+subroutine gatherScalarOnPatch(this, patchLocalArray, patchGlobalArray)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Patch) :: this
+  SCALAR_TYPE, intent(in) :: patchLocalArray(:)
+  SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:)
+
+  ! <<< Local variables >>>
+  integer :: i, procRank, numProcs, ierror
+  integer, allocatable :: mpiRequest(:), mpiDerivedTypeScalarSubarray(:)
+
+  if (this%comm == MPI_COMM_NULL) return
+
+  call MPI_Comm_rank(this%comm, procRank, ierror)
+  call MPI_Comm_size(this%comm, numProcs, ierror)
+
+  if (procRank == 0)                                                                         &
+       allocate(patchGlobalArray(product(this%globalSize)))
+  allocate(mpiRequest(numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiDerivedTypeScalarSubarray(numProcs), source = MPI_DATATYPE_NULL)
+
+  call MPI_Allgather(this%mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER,                      &
+       mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER, this%comm, ierror)
+
+  if (procRank == 0) then
+     do i = 0, numProcs - 1
+        call MPI_Irecv(patchGlobalArray, 1, mpiDerivedTypeScalarSubarray(i+1),               &
+             i, i, this%comm, mpiRequest(i+1), ierror)
+     end do
+  end if
+
+  call MPI_Isend(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
+       this%comm, mpiRequest(procRank + 1), ierror)
+  call MPI_Waitall(numProcs, mpiRequest, MPI_STATUSES_IGNORE, ierror)
+
+  SAFE_DEALLOCATE(mpiDerivedTypeScalarSubarray)
+  SAFE_DEALLOCATE(mpiRequest)
+
+end subroutine gatherScalarOnPatch
+
+subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Patch) :: this
+  SCALAR_TYPE, intent(in) :: patchLocalArray(:,:)
+  SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:,:)
+
+  ! <<< Local variables >>>
+  integer :: i, procRank, numProcs, ierror
+  integer, allocatable :: mpiRequest(:), mpiDerivedTypeScalarSubarray(:)
+
+  if (this%comm == MPI_COMM_NULL) return
+
+  call MPI_Comm_rank(this%comm, procRank, ierror)
+  call MPI_Comm_size(this%comm, numProcs, ierror)
+
+  if (procRank == 0)                                                                         &
+       allocate(patchGlobalArray(product(this%globalSize), size(patchLocalArray, 2)))
+  allocate(mpiRequest(numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiDerivedTypeScalarSubarray(numProcs), source = MPI_DATATYPE_NULL)
+
+  call MPI_Allgather(this%mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER,                      &
+       mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER, this%comm, ierror)
+
+  if (procRank == 0) then
+     do i = 0, numProcs - 1
+        call MPI_Irecv(patchGlobalArray, size(patchGlobalArray, 2),                          &
+             mpiDerivedTypeScalarSubarray(i+1), i, i, this%comm, mpiRequest(i+1), ierror)
+     end do
+  end if
+
+  call MPI_Isend(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
+       this%comm, mpiRequest(procRank + 1), ierror)
+  call MPI_Waitall(numProcs, mpiRequest, MPI_STATUSES_IGNORE, ierror)
+
+  SAFE_DEALLOCATE(mpiDerivedTypeScalarSubarray)
+  SAFE_DEALLOCATE(mpiRequest)
+
+end subroutine gatherVectorOnPatch
+
+subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Patch) :: this
+  SCALAR_TYPE, intent(in) :: patchLocalArray(:,:,:)
+  SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:,:,:)
+
+  ! <<< Local variables >>>
+  integer :: i, nComponents, procRank, numProcs, ierror
+  integer, allocatable :: mpiRequest(:), mpiDerivedTypeScalarSubarray(:)
+
+  if (this%comm == MPI_COMM_NULL) return
+
+  call MPI_Comm_rank(this%comm, procRank, ierror)
+  call MPI_Comm_size(this%comm, numProcs, ierror)
+
+  if (procRank == 0)                                                                         &
+       allocate(patchGlobalArray(product(this%globalSize), size(patchLocalArray, 2),         &
+       size(patchLocalArray, 3)))
+  allocate(mpiRequest(numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiDerivedTypeScalarSubarray(numProcs), source = MPI_DATATYPE_NULL)
+
+  call MPI_Allgather(this%mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER, &
+       mpiDerivedTypeScalarSubarray, 1, MPI_INTEGER, this%comm, ierror)
+
+  if (procRank == 0) then
+     nComponents = size(patchGlobalArray, 2) * size(patchGlobalArray, 3)
+     do i = 0, numProcs - 1
+        call MPI_Irecv(patchGlobalArray, nComponents, mpiDerivedTypeScalarSubarray(i+1),     &
+             i, i, this%comm, mpiRequest(i+1), ierror)
+     end do
+  end if
+
+  call MPI_Isend(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
+       this%comm, mpiRequest(procRank + 1), ierror)
+  call MPI_Waitall(numProcs, mpiRequest, MPI_STATUSES_IGNORE, ierror)
+
+  SAFE_DEALLOCATE(mpiDerivedTypeScalarSubarray)
+  SAFE_DEALLOCATE(mpiRequest)
+
+end subroutine gatherTensorOnPatch

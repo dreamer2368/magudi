@@ -177,15 +177,15 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
   allocate(metricsAlongNormalDirection(nDimensions))
   allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
 
-  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-     do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-        do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+     do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
            gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
                 (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
                 (k - 1 - patch%gridOffset(3)))
            if (grid%iblank(gridIndex) == 0) cycle
-           patchIndex = i - patch%offset(1) + patch%patchSize(1) *                           &
-                (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
+           patchIndex = i - patch%offset(1) + patch%localSize(1) *                           &
+                (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
            localConservedVariables = state%conservedVariables(gridIndex,:)
@@ -239,9 +239,9 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
 
            end if
 
-        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
   SAFE_DEALLOCATE(unitNormal)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)

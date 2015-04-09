@@ -190,15 +190,15 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   i = grid%index
   call patch%collect(this%data_(i)%meanPressure(:,1), meanPressure)
 
-  do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-     do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-        do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+     do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
            gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
                 (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
                 (k - 1 - patch%gridOffset(3)))
            if (grid%iblank(gridIndex) == 0) cycle
-           patchIndex = i - patch%offset(1) + patch%patchSize(1) *                           &
-                (j - 1 - patch%offset(2) + patch%patchSize(2) *                              &
+           patchIndex = i - patch%offset(1) + patch%localSize(1) *                           &
+                (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
@@ -211,9 +211,9 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
            patch%adjointForcing(patchIndex,1) =                                              &
                 0.5_wp * sum(state%velocity(gridIndex,:) ** 2) * F
 
-        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
   SAFE_DEALLOCATE(meanPressure)
 

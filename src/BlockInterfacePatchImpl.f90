@@ -32,6 +32,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
   assert_key(this%nDimensions, (1, 2, 3))
 
   if (this%nPatchPoints > 0) then
+     allocate(this%interfaceConservedVariables(this%nPatchPoints, solverOptions%nUnknowns))
      if (simulationFlags%viscosityOn) then
         allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
         allocate(this%interfaceViscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
@@ -78,6 +79,7 @@ subroutine cleanupBlockInterfacePatch(this)
 
   SAFE_DEALLOCATE(this%viscousFluxes)
   SAFE_DEALLOCATE(this%interfaceViscousFluxes)
+  SAFE_DEALLOCATE(this%interfaceConservedVariables)
 
 end subroutine cleanupBlockInterfacePatch
 
@@ -133,15 +135,15 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   allocate(metricsAlongNormalDirection(nDimensions))
   allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
 
-  do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
-     do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-        do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+  do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+     do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+        do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
            gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                      &
                 (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                        &
                 (k - 1 - this%gridOffset(3)))
            if (grid%iblank(gridIndex) == 0) cycle
-           patchIndex = i - this%offset(1) + this%patchSize(1) *                             &
-                (j - 1 - this%offset(2) + this%patchSize(2) *                                &
+           patchIndex = i - this%offset(1) + this%localSize(1) *                             &
+                (j - 1 - this%offset(2) + this%localSize(2) *                                &
                 (k - 1 - this%offset(3)))
 
            localConservedVariables = state%conservedVariables(gridIndex,:)
@@ -189,9 +191,9 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
 
            end select !... mode
 
-        end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
-     end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-  end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+        end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+     end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+  end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
 
   SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)

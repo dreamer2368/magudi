@@ -12,7 +12,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use IsothermalWall_mod, only : t_IsothermalWall
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use ImpenetrableWall_mod, only : t_ImpenetrableWall
-  ! use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   ! use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
 
   implicit none
@@ -59,8 +59,8 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
      case ('SAT_SLIP_WALL')
         allocate(t_ImpenetrableWall :: this%patch)
 
-     ! case ('SAT_BLOCK_INTERFACE')
-     !    allocate(t_BlockInterfacePatch :: this%patch)
+     case ('SAT_BLOCK_INTERFACE')
+        allocate(t_BlockInterfacePatch :: this%patch)
 
      ! case ('SOLENOIDAL_EXCITATION')
      !    allocate(t_SolenoidalExcitation :: this%patch)
@@ -226,9 +226,9 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                  iMin = patch%extent(1)
                  iMax = patch%extent(2)
 
-                 do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+                 do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
                     do j = patch%offset(2) + 1,                                              &
-                         patch%offset(2) + patch%patchSize(2)
+                         patch%offset(2) + patch%localSize(2)
 
                        do i = 1, grid%globalSize(1)
                           curveLengthIntegrand(i) =                                          &
@@ -239,37 +239,37 @@ subroutine computeSpongeStrengths(patchFactories, grid)
 
                        if (patch%normalDirection > 0) then
                           do i = patch%offset(1) + 1,                                        &
-                               patch%offset(1) + patch%patchSize(1)
+                               patch%offset(1) + patch%localSize(1)
                              patch%spongeStrength(i - patch%offset(1) +                      &
-                                  patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
-                                  patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
+                                  patch%localSize(1) * (j - 1 - patch%offset(2) +            &
+                                  patch%localSize(2) * (k - 1 - patch%offset(3)))) =         &
                                   sum(curveLengthIntegrand(iMin : i - 1)) /                  &
                                   sum(curveLengthIntegrand(iMin : iMax - 1))
                           end do
                        else
                           do i = patch%offset(1) + 1,                                        &
-                               patch%offset(1) + patch%patchSize(1)
+                               patch%offset(1) + patch%localSize(1)
                              patch%spongeStrength(i - patch%offset(1) +                      &
-                                  patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
-                                  patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
+                                  patch%localSize(1) * (j - 1 - patch%offset(2) +            &
+                                  patch%localSize(2) * (k - 1 - patch%offset(3)))) =         &
                                   sum(curveLengthIntegrand(i + 1 : iMax)) /                  &
                                   sum(curveLengthIntegrand(iMin + 1 : iMax))
                           end do
                        end if
 
                     end do !... j = patch%offset(2) + 1,                                     &
-                    !...       patch%offset(2) + patch%patchSize(2)
+                    !...       patch%offset(2) + patch%localSize(2)
                  end do !... k = patch%offset(3) + 1,                                        &
-                 !...       patch%offset(3) + patch%patchSize(3)
+                 !...       patch%offset(3) + patch%localSize(3)
 
               case (2)
 
                  jMin = patch%extent(3)
                  jMax = patch%extent(4)
 
-                 do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
+                 do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
                     do i = patch%offset(1) + 1,                                              &
-                         patch%offset(1) + patch%patchSize(1)
+                         patch%offset(1) + patch%localSize(1)
 
                        do j = 1, grid%globalSize(2)
                           curveLengthIntegrand(j) =                                          &
@@ -280,37 +280,37 @@ subroutine computeSpongeStrengths(patchFactories, grid)
 
                        if (patch%normalDirection > 0) then
                           do j = patch%offset(2) + 1,                                        &
-                               patch%offset(2) + patch%patchSize(2)
+                               patch%offset(2) + patch%localSize(2)
                              patch%spongeStrength(i - patch%offset(1) +                      &
-                                  patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
-                                  patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
+                                  patch%localSize(1) * (j - 1 - patch%offset(2) +            &
+                                  patch%localSize(2) * (k - 1 - patch%offset(3)))) =         &
                                   sum(curveLengthIntegrand(jMin : j - 1)) /                  &
                                   sum(curveLengthIntegrand(jMin : jMax - 1))
                           end do
                        else
                           do j = patch%offset(2) + 1,                                        &
-                               patch%offset(2) + patch%patchSize(2)
+                               patch%offset(2) + patch%localSize(2)
                              patch%spongeStrength(i - patch%offset(1) +                      &
-                                  patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
-                                  patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
+                                  patch%localSize(1) * (j - 1 - patch%offset(2) +            &
+                                  patch%localSize(2) * (k - 1 - patch%offset(3)))) =         &
                                   sum(curveLengthIntegrand(j + 1 : jMax)) /                  &
                                   sum(curveLengthIntegrand(jMin + 1 : jMax))
                           end do
                        end if
 
                     end do !... i = patch%offset(1) + 1,                                     &
-                    !...       patch%offset(1) + patch%patchSize(1)
+                    !...       patch%offset(1) + patch%localSize(1)
                  end do !... k = patch%offset(3) + 1,                                        &
-                 !...       patch%offset(3) + patch%patchSize(3)
+                 !...       patch%offset(3) + patch%localSize(3)
 
               case (3)
 
                  kMin = patch%extent(5)
                  kMax = patch%extent(6)
 
-                 do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+                 do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
                     do i = patch%offset(1) + 1,                                              &
-                         patch%offset(1) + patch%patchSize(1)
+                         patch%offset(1) + patch%localSize(1)
 
                        do k = 1, grid%globalSize(3)
                           curveLengthIntegrand(k) =                                          &
@@ -321,26 +321,26 @@ subroutine computeSpongeStrengths(patchFactories, grid)
 
                        if (patch%normalDirection > 0) then
                           do k = patch%offset(3) + 1,                                        &
-                               patch%offset(3) + patch%patchSize(3)
+                               patch%offset(3) + patch%localSize(3)
                              patch%spongeStrength(i - patch%offset(1) +                      &
-                                  patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
-                                  patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
+                                  patch%localSize(1) * (j - 1 - patch%offset(2) +            &
+                                  patch%localSize(2) * (k - 1 - patch%offset(3)))) =         &
                                   sum(curveLengthIntegrand(kMin : k - 1)) /                  &
                                   sum(curveLengthIntegrand(kMin : kMax - 1))
                           end do
                        else
                           do k = patch%offset(3) + 1,                                        &
-                               patch%offset(3) + patch%patchSize(3)
+                               patch%offset(3) + patch%localSize(3)
                              patch%spongeStrength(i - patch%offset(1) +                      &
-                                  patch%patchSize(1) * (j - 1 - patch%offset(2) +            &
-                                  patch%patchSize(2) * (k - 1 - patch%offset(3)))) =         &
+                                  patch%localSize(1) * (j - 1 - patch%offset(2) +            &
+                                  patch%localSize(2) * (k - 1 - patch%offset(3)))) =         &
                                   sum(curveLengthIntegrand(k + 1 : kMax)) /                  &
                                   sum(curveLengthIntegrand(kMin + 1 : kMax))
                           end do
                        end if
 
-                    end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
-                 end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
+                    end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                 end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
 
               end select !... select case (direction)
 
@@ -409,9 +409,9 @@ function computeQuadratureOnPatches(patchFactories, patchType,                  
         assert(all(patch%gridLocalSize == grid%localSize))
         assert(all(patch%gridOffset == grid%offset))
 
-        do k = patch%offset(3) + 1, patch%offset(3) + patch%patchSize(3)
-           do j = patch%offset(2) + 1, patch%offset(2) + patch%patchSize(2)
-              do i = patch%offset(1) + 1, patch%offset(1) + patch%patchSize(1)
+        do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+           do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+              do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
                  mask(i - grid%offset(1) + grid%localSize(1) * (j - 1 - grid%offset(2) +     &
                       grid%localSize(2) * (k - 1 - grid%offset(3)))) = 1.0_wp
               end do

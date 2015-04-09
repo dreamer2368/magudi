@@ -100,42 +100,42 @@ subroutine addDamping(this, mode, simulationFlags, solverOptions, grid, state)
 
   case (FORWARD)
      do l = 1, solverOptions%nUnknowns
-        do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
-           do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-              do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+           do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+              do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
                  gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                &
                       (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                  &
                       (k - 1 - this%gridOffset(3)))
                  if (grid%iblank(gridIndex) == 0) cycle
-                 patchIndex = i - this%offset(1) + this%patchSize(1) *                       &
-                      (j - 1 - this%offset(2) + this%patchSize(2) *                          &
+                 patchIndex = i - this%offset(1) + this%localSize(1) *                       &
+                      (j - 1 - this%offset(2) + this%localSize(2) *                          &
                       (k - 1 - this%offset(3)))
                  state%rightHandSide(gridIndex, l) = state%rightHandSide(gridIndex, l) -     &
                       this%spongeStrength(patchIndex) *                                      &
                       (state%conservedVariables(gridIndex, l) -                              &
                       state%targetState(gridIndex, l))
-              end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
-           end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-        end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+              end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+           end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      end do !... l = 1, size(state%rightHandSide, 2)
 
   case (ADJOINT)
      do l = 1, solverOptions%nUnknowns
-        do k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
-           do j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-              do i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
+        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+           do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+              do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
                  gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                &
                       (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                  &
                       (k - 1 - this%gridOffset(3)))
                  if (grid%iblank(gridIndex) == 0) cycle
-                 patchIndex = i - this%offset(1) + this%patchSize(1) *                       &
-                      (j - 1 - this%offset(2) + this%patchSize(2) *                          &
+                 patchIndex = i - this%offset(1) + this%localSize(1) *                       &
+                      (j - 1 - this%offset(2) + this%localSize(2) *                          &
                       (k - 1 - this%offset(3)))
                  state%rightHandSide(gridIndex, l) = state%rightHandSide(gridIndex, l) +     &
                       this%spongeStrength(patchIndex) * state%adjointVariables(gridIndex, l)
-              end do !... i = this%offset(1) + 1, this%offset(1) + this%patchSize(1)
-           end do !... j = this%offset(2) + 1, this%offset(2) + this%patchSize(2)
-        end do !... k = this%offset(3) + 1, this%offset(3) + this%patchSize(3)
+              end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+           end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      end do !... l = 1, solverOptions%nUnknowns
 
   end select

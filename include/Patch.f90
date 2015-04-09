@@ -9,8 +9,11 @@ module Patch_mod
 
   type, abstract, public :: t_Patch
 
-     integer :: index, normalDirection, gridIndex, extent(6), nDimensions, patchSize(3),     &
-          offset(3), gridLocalSize(3), gridOffset(3), nPatchPoints, comm = MPI_COMM_NULL
+     integer :: index, comm = MPI_COMM_NULL, nDimensions, globalSize(3), localSize(3),       &
+          offset(3), nPatchPoints = 0, gridIndex, normalDirection, extent(6),                &
+          gridLocalSize(3), gridOffset(3)
+     integer :: mpiDerivedTypeScalarSubarray = MPI_DATATYPE_NULL,                            &
+          mpiDerivedTypeIntegerSubarray = MPI_DATATYPE_NULL
      logical :: isCurvilinear, penaltyInPhysicalCoordinates = .false.
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
      real(SCALAR_KIND), allocatable :: mpiReduceBuffer(:)
@@ -20,18 +23,23 @@ module Patch_mod
 
      procedure, non_overridable, pass :: setupBase => setupPatch
      procedure, non_overridable, pass :: cleanupBase => cleanupPatch
+     generic :: collect => collectScalarAtPatch,                                             &
+          collectVectorAtPatch, collectTensorAtPatch
+     generic :: gatherData => gatherScalarOnPatch, gatherVectorOnPatch, gatherTensorOnPatch
 
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
      procedure(update), pass, deferred :: update
      procedure(verifyUsage), pass, deferred :: verifyUsage
-     generic :: collect => collectScalarAtPatch,                                             &
-          collectVectorAtPatch, collectTensorAtPatch
      procedure(updateRhs), pass, deferred :: updateRhs
 
      procedure, private, pass :: collectScalarAtPatch
      procedure, private, pass :: collectVectorAtPatch
      procedure, private, pass :: collectTensorAtPatch
+
+     procedure, private, pass :: gatherScalarOnPatch
+     procedure, private, pass :: gatherVectorOnPatch
+     procedure, private, pass :: gatherTensorOnPatch
 
   end type t_Patch
 
@@ -207,5 +215,39 @@ module Patch_mod
      end subroutine collectTensorAtPatch
 
   end interface collectAtPatch
+
+  interface gatherDataOnPatch
+
+     subroutine gatherScalarOnPatch(this, patchLocalArray, patchGlobalArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       SCALAR_TYPE, intent(in) :: patchLocalArray(:)
+       SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:)
+
+     end subroutine gatherScalarOnPatch
+
+     subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       SCALAR_TYPE, intent(in) :: patchLocalArray(:,:)
+       SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:,:)
+
+     end subroutine gatherVectorOnPatch
+
+     subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+       SCALAR_TYPE, intent(in) :: patchLocalArray(:,:,:)
+       SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:,:,:)
+
+     end subroutine gatherTensorOnPatch
+
+  end interface
 
 end module Patch_mod
