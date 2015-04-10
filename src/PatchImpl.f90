@@ -50,7 +50,7 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   call this%cleanupBase()
 
   this%index = index
-  this%comm = comm
+  call MPI_Comm_dup(comm, this%comm, ierror)
   this%nDimensions = grid%nDimensions
 
   this%globalSize(1) = patchDescriptor%iMax - patchDescriptor%iMin + 1

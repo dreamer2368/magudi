@@ -52,7 +52,11 @@ module Region_mod
 
   interface
 
-     subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
+     subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,          &
+          simulationFlags, solverOptions)
+
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Region
 
@@ -60,6 +64,8 @@ module Region_mod
        integer, intent(in) :: comm, globalGridSizes(:,:)
 
        character(len = *), intent(in), optional :: boundaryConditionFilename
+       type(t_SimulationFlags), intent(in), optional :: simulationFlags
+       type(t_SolverOptions), intent(in), optional :: solverOptions
 
      end subroutine setupRegion
 

@@ -1410,7 +1410,7 @@ subroutine updateOperator(this, cartesianCommunicator, direction, isPeriodicityO
   ! Copy the communicator and direction.
   if (this%cartesianCommunicator /= MPI_COMM_NULL)                                           &
        call MPI_Comm_free(this%cartesianCommunicator, ierror)
-  this%cartesianCommunicator = cartesianCommunicator
+  call MPI_Comm_dup(cartesianCommunicator, this%cartesianCommunicator, ierror)
   this%direction = direction
 
   ! Set the number of ghost points.
@@ -1473,7 +1473,7 @@ subroutine getAdjointOperator(this, adjointOperator)
   assert(this%boundaryWidth > 0)
   assert(this%boundaryDepth > 0)
 
-call adjointOperator%cleanup()
+  call adjointOperator%cleanup()
 
   ! Copy basic information.
   adjointOperator%symmetryType = this%symmetryType

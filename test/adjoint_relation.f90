@@ -32,6 +32,7 @@ program adjoint_relation
   success = .true.
 
   call initializeErrorHandler()
+  call initializeRandomNumberGenerator()
 
   do i = 1, 10 !... test multiple times
      do direction = 1, 3
@@ -98,7 +99,7 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
-  use RandomNumber, only : initializeRandomNumberGenerator, random
+  use RandomNumber, only : random
 
   ! <<< Arguments >>>
   character(len = *), intent(in) :: identifier
@@ -131,8 +132,6 @@ subroutine testAdjointRelation(identifier, direction, success, isPeriodic, toler
 
   tolerance_ = epsilon(0.0_wp)
   if (present(tolerance)) tolerance_ = tolerance
-
-  call initializeRandomNumberGenerator()
 
   ! Find the number of processes in the communicator.
   call MPI_Comm_size(MPI_COMM_WORLD, nProcs, ierror)

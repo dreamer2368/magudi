@@ -502,7 +502,8 @@ contains
 
 end module RegionImpl
 
-subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
+subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,               &
+     simulationFlags, solverOptions)
 
   ! <<< External modules >>>
   use MPI
@@ -510,7 +511,9 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
+  use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_mod, only : t_PatchDescriptor
+  use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Private members >>>
   use RegionImpl
@@ -527,6 +530,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
   class(t_Region) :: this
   integer, intent(in) :: comm, globalGridSizes(:,:)
   character(len = *), intent(in), optional :: boundaryConditionFilename
+  type(t_SimulationFlags), intent(in), optional :: simulationFlags
+  type(t_SolverOptions), intent(in), optional :: solverOptions
 
   ! <<< Local variables >>>
   integer :: i, j, k, nPatches, color, procRank, nProcs, ierror
@@ -551,11 +556,19 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
        size(this%globalGridSizes, 2)), source = 0)
 
   ! Initialize simulation flags.
-  call this%simulationFlags%initialize()
+  if (present(simulationFlags)) then
+     this%simulationFlags = simulationFlags
+  else
+     call this%simulationFlags%initialize()
+  end if
 
   ! Initialize solver options.
-  call this%solverOptions%initialize(size(this%globalGridSizes, 1),                          &
-       this%simulationFlags, this%comm)
+  if (present(solverOptions)) then
+     this%solverOptions = solverOptions
+  else
+     call this%solverOptions%initialize(size(this%globalGridSizes, 1),                       &   
+          this%simulationFlags, this%comm)
+  end if
 
   ! Distribute the grids between available MPI processes.
   if (this%simulationFlags%manualDomainDecomp .and.                                          &
@@ -586,7 +599,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename)
 
   ! Setup spatial discretization.
   do i = 1, size(this%grids)
-     call this%grids(i)%setupSpatialDiscretization(this%simulationFlags)
+     call this%grids(i)%setupSpatialDiscretization(this%simulationFlags, this%solverOptions)
   end do
   call MPI_Barrier(this%comm, ierror)
 

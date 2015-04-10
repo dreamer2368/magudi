@@ -135,14 +135,17 @@ module Grid_mod
 
   interface
 
-     subroutine setupSpatialDiscretization(this, simulationFlags)
+     subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
 
+       use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Grid
 
        class(t_Grid) :: this
+
        type(t_SimulationFlags), intent(in), optional :: simulationFlags
+       type(t_SolverOptions), intent(in), optional :: solverOptions
 
      end subroutine setupSpatialDiscretization
 

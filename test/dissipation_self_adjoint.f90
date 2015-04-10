@@ -32,6 +32,7 @@ program dissipation_self_adjoint
   success = .true.
 
   call initializeErrorHandler()
+  call initializeRandomNumberGenerator()
 
   do i = 1, 10 !... test multiple times
      do direction = 1, 3
@@ -98,7 +99,9 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
-  use RandomNumber, only : initializeRandomNumberGenerator, random
+  use RandomNumber, only : random
+
+  implicit none
 
   ! <<< Arguments >>>
   character(len = *), intent(in) :: identifier
@@ -127,8 +130,6 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
 
   tolerance_ = epsilon(0.0_wp)
   if (present(tolerance)) tolerance_ = tolerance
-
-  call initializeRandomNumberGenerator()
 
   ! Find the rank and number of processes in the communicator.
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
@@ -160,7 +161,7 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   gridSize = 1; gridSize(direction) = nLocal
 
   ! Allocate process-level data.
-  allocate(f(nLocal, 1), u(nLocal, 1))
+  allocate(f(nLocal, 1), u(nLocal, 1), v(nLocal, 1))
 
   ! Initialize `f` to random values.
   call random_number(f)

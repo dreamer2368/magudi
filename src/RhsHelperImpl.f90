@@ -126,6 +126,7 @@ subroutine computeRhsAdjoint(time, simulationFlags, solverOptions, grid, state)
   do i = 1, nDimensions
      temp1(:,:,i) = state%adjointVariables
      call grid%adjointFirstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
+     print *, i, temp1(:,2,i)
   end do
 
   allocate(localFluxJacobian1(solverOptions%nUnknowns, solverOptions%nUnknowns))

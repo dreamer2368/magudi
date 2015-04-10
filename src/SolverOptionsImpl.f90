@@ -77,6 +77,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call getRequiredOption("time_step_size", this%timeStepSize)
   end if
 
+  this%discretizationType = getOption("defaults/discretization_scheme", "SBP 4-8")
+
   this%timeIntegratorType = getOption("time_integration_scheme", "RK4")
   call timeIntegratorFactory%connect(dummyTimeIntegrator, trim(this%timeIntegratorType))
   if (.not. associated(dummyTimeIntegrator)) then

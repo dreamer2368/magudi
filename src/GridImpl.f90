@@ -447,10 +447,11 @@ subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, succe
 
 end subroutine saveGridData
 
-subroutine setupSpatialDiscretization(this, simulationFlags)
+subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
+  use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Private members >>>
@@ -465,9 +466,11 @@ subroutine setupSpatialDiscretization(this, simulationFlags)
   ! <<< Arguments >>>
   class(t_Grid) :: this
   type(t_SimulationFlags), intent(in), optional :: simulationFlags
+  type(t_SolverOptions), intent(in), optional :: solverOptions
 
   ! <<< Local variables >>>
   type(t_SimulationFlags) :: simulationFlags_
+  type(t_SolverOptions) :: solverOptions_
   integer :: i
   character(len = STRING_LENGTH) :: key, val
 
@@ -477,13 +480,20 @@ subroutine setupSpatialDiscretization(this, simulationFlags)
      call simulationFlags_%initialize()
   end if
 
+  if (present(solverOptions)) then
+     solverOptions_ = solverOptions
+  else
+     call solverOptions_%initialize(this%nDimensions, simulationFlags_, this%comm)
+  end if
+
   do i = 1, this%nDimensions
 
      write(key, '(A,I3.3,A,I1.1,A)') "grid", this%index, "/dir", i, "/"
 
      ! First derivative operators.
      if (this%globalSize(i) > 1) then
-        val = getOption("defaults/first_derivative_scheme", "SBP 4-8")
+        val = getOption("defaults/first_derivative_scheme",                                  &
+             trim(solverOptions_%discretizationType))
         val = getOption(trim(key) // "first_derivative_scheme", trim(val))
         val = trim(val) // " first derivative"
      else
@@ -509,7 +519,8 @@ subroutine setupSpatialDiscretization(this, simulationFlags)
      ! Second derivative operators.
      if (allocated(this%secondDerivative)) then
         if (this%globalSize(i) > 1) then
-           val = getOption("defaults/second_derivative_scheme", "SBP 4-8")
+           val = getOption("defaults/second_derivative_scheme",                              &
+                trim(solverOptions_%discretizationType))
            val = getOption(trim(key) // "second_derivative_scheme", trim(val))
            val = trim(val) // " second derivative"
         else
@@ -522,7 +533,8 @@ subroutine setupSpatialDiscretization(this, simulationFlags)
      ! Artificial dissipation operators.
      if (allocated(this%dissipation)) then
         if (this%globalSize(i) > 1) then
-           val = getOption("defaults/artificial_dissipation_scheme", "SBP 4-8")
+           val = getOption("defaults/artificial_dissipation_scheme",                         &
+                trim(solverOptions_%discretizationType))
            val = getOption(trim(key) // "artificial_dissipation_scheme", trim(val))
            val = trim(val) // " dissipation"
         else

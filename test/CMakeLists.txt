@@ -13,6 +13,7 @@ add_mpi_test(options_parser "${numprocs}")
 add_mpi_test(inviscid_flux_jacobian "${numprocs}")
 add_mpi_test(impenetrable_wall_SAT "${numprocs}")
 add_mpi_test(isothermal_wall_SAT "${numprocs}")
+# add_mpi_test(drag_adjoint_forcing "${numprocs}")
 
 find_package(LAPACK)
 if (LAPACK_FOUND)
@@ -25,3 +26,5 @@ set(numprocs 1 2 4 8)
 add_mpi_test(operator_convergence "${numprocs}")
 add_mpi_test(adjoint_relation "${numprocs}")
 add_mpi_test(dissipation_self_adjoint "${numprocs}")
+
+add_mpi_test(SBP_property "${numprocs}")

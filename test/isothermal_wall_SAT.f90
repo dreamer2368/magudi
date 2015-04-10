@@ -122,7 +122,7 @@ program isothermal_wall_SAT
 
         call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
              simulationFlags = simulationFlags)
-        call grid%setupSpatialDiscretization(simulationFlags)
+        call grid%setupSpatialDiscretization(simulationFlags, solverOptions)
 
         call state%setup(grid, simulationFlags, solverOptions)
 
