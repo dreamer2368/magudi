@@ -115,7 +115,7 @@ contains
 
   end subroutine readDecompositionMap
 
-  subroutine distributeGrids(this)
+  subroutine distributeGrids(this, verbose)
 
     ! <<< External modules >>>
     use MPI
@@ -130,6 +130,7 @@ contains
 
     ! <<< Arguments >>>
     class(t_Region) :: this
+    logical, intent(in) :: verbose
 
     ! <<< Local variables >>>
     integer :: nProcs, ierror
@@ -139,9 +140,11 @@ contains
     ! Find the size of the communicator.
     call MPI_Comm_size(this%comm, nProcs, ierror)
 
-    write(message, "(2(A,I0.0),A)") "Distributing ", size(this%globalGridSizes, 2),          &
-         " grid(s) across ", nProcs, " process(es)..."
-    call writeAndFlush(this%comm, output_unit, message)
+    if (verbose) then
+       write(message, "(2(A,I0.0),A)") "Distributing ", size(this%globalGridSizes, 2),       &
+            " grid(s) across ", nProcs, " process(es)..."
+       call writeAndFlush(this%comm, output_unit, message)
+    end if
 
     ! Find the number of processes to be assigned to each grid: `numProcsInGrid(i)` is the
     ! number of processes assigned to grid `i`.
@@ -503,7 +506,7 @@ contains
 end module RegionImpl
 
 subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,               &
-     simulationFlags, solverOptions)
+     simulationFlags, solverOptions, verbose)
 
   ! <<< External modules >>>
   use MPI
@@ -532,9 +535,11 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
   character(len = *), intent(in), optional :: boundaryConditionFilename
   type(t_SimulationFlags), intent(in), optional :: simulationFlags
   type(t_SolverOptions), intent(in), optional :: solverOptions
+  logical, intent(in), optional :: verbose
 
   ! <<< Local variables >>>
   integer :: i, j, k, nPatches, color, procRank, nProcs, ierror
+  logical :: verbose_
   character(len = STRING_LENGTH) :: decompositionMapFilename
   type(t_PatchDescriptor) :: p
   integer, allocatable :: patchIndices(:)
@@ -546,6 +551,9 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
   call this%cleanup()
   this%comm = comm
   call MPI_Comm_size(this%comm, nProcs, ierror)
+
+  verbose_ = .true.
+  if (present(verbose)) verbose_ = verbose
 
   SAFE_DEALLOCATE(this%globalGridSizes)
   SAFE_DEALLOCATE(this%processDistributions)
@@ -566,7 +574,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
   if (present(solverOptions)) then
      this%solverOptions = solverOptions
   else
-     call this%solverOptions%initialize(size(this%globalGridSizes, 1),                       &   
+     call this%solverOptions%initialize(size(this%globalGridSizes, 1),                       &
           this%simulationFlags, this%comm)
   end if
 
@@ -577,7 +585,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
           decompositionMapFilename, this%comm)
      call readDecompositionMap(this, decompositionMapFilename)
   end if
-  call distributeGrids(this)
+  call distributeGrids(this, verbose_)
   call MPI_Barrier(this%comm, ierror)
 
   ! Setup grids:
