@@ -87,7 +87,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, nDimensions, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
-       unitNormal(:), inviscidPenalty(:), deltaPressure(:), deltaInviscidPenalty(:,:)
+       inviscidPenalty(:), deltaPressure(:), deltaInviscidPenalty(:,:)
   SCALAR_TYPE :: normalMomentum
 
   assert_key(mode, (FORWARD, ADJOINT))
@@ -110,7 +110,6 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
 
   allocate(localConservedVariables(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
-  allocate(unitNormal(nDimensions))
   allocate(inviscidPenalty(nUnknowns))
   if (mode == ADJOINT) then
      allocate(deltaPressure(nUnknowns))
@@ -131,11 +130,9 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
            localConservedVariables = state%conservedVariables(gridIndex,:)
            metricsAlongNormalDirection =                                                     &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
-           unitNormal = metricsAlongNormalDirection /                                        &
-                sqrt(sum(metricsAlongNormalDirection ** 2))
 
-           normalMomentum =                                                                  &
-                dot_product(localConservedVariables(2:nDimensions+1), unitNormal)
+           normalMomentum = dot_product(localConservedVariables(2:nDimensions+1),            &
+                metricsAlongNormalDirection)
 
            inviscidPenalty(1) = normalMomentum
            inviscidPenalty(2:nDimensions+1) = normalMomentum * state%velocity(gridIndex,:)
@@ -193,7 +190,6 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   SAFE_DEALLOCATE(deltaInviscidPenalty)
   SAFE_DEALLOCATE(deltaPressure)
   SAFE_DEALLOCATE(inviscidPenalty)
-  SAFE_DEALLOCATE(unitNormal)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
   SAFE_DEALLOCATE(localConservedVariables)
 
