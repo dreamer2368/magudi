@@ -20,9 +20,8 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
 
-  call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
-
   call this%cleanup()
+  call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
   this%penaltyInPhysicalCoordinates = .true.
 

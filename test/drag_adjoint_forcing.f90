@@ -21,7 +21,7 @@ program drag_adjoint_forcing
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  real(real64) :: testDuration = 3.0_real64
+  real(real64), parameter :: testDuration = 3.0_real64
   character(len = STRING_LENGTH), parameter :: discretizationTypes(*) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
   real(SCALAR_KIND), parameter :: tolerance = sqrt(epsilon(0.0_wp))

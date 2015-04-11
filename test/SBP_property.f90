@@ -13,7 +13,7 @@ program SBP_property
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  real(real64) :: testDuration = 2.0_real64
+  real(real64), parameter :: testDuration = 2.0_real64
   character(len = STRING_LENGTH), parameter :: discretizationTypes(*) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
   integer :: i, n, direction, nDimensions, cartesianCommunicator, numProcs, procRank, ierror

@@ -27,6 +27,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: key
 
+  call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
   assert_key(this%nDimensions, (1, 2, 3))

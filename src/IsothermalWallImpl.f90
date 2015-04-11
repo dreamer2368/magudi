@@ -29,6 +29,7 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
   SCALAR_TYPE :: wallTemperature
   integer :: i
 
+  call this%cleanup()
   call this%t_ImpenetrableWall%setup(index, comm, patchDescriptor,                           &
        grid, simulationFlags, solverOptions)
 

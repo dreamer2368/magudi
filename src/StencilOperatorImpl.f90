@@ -1433,6 +1433,9 @@ end subroutine updateOperator
 
 subroutine cleanupOperator(this)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
 
@@ -1441,10 +1444,17 @@ subroutine cleanupOperator(this)
   ! <<< Arguments >>>
   class(t_StencilOperator) :: this
 
+  ! <<< Local variables >>>
+  integer :: ierror
+
   SAFE_DEALLOCATE(this%rhsInterior)
   SAFE_DEALLOCATE(this%rhsBoundary1)
   SAFE_DEALLOCATE(this%rhsBoundary2)
   SAFE_DEALLOCATE(this%normBoundary)
+
+  if (this%cartesianCommunicator /= MPI_COMM_NULL)                                           &
+       call MPI_Comm_free(this%cartesianCommunicator, ierror)
+  this%cartesianCommunicator = MPI_COMM_NULL
 
 end subroutine cleanupOperator
 

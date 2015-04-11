@@ -12,8 +12,7 @@ module Patch_mod
      integer :: index, comm = MPI_COMM_NULL, nDimensions, globalSize(3), localSize(3),       &
           offset(3), nPatchPoints = 0, gridIndex, normalDirection, extent(6),                &
           gridLocalSize(3), gridOffset(3)
-     integer :: mpiDerivedTypeScalarSubarray = MPI_DATATYPE_NULL,                            &
-          mpiDerivedTypeIntegerSubarray = MPI_DATATYPE_NULL
+     integer, allocatable :: mpiAllScalarSubarrayTypes(:), mpiAllIntegerSubarrayTypes(:)
      logical :: isCurvilinear, penaltyInPhysicalCoordinates = .false.
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
      real(SCALAR_KIND), allocatable :: mpiReduceBuffer(:)
@@ -230,7 +229,7 @@ module Patch_mod
 
        class(t_Patch) :: this
        SCALAR_TYPE, intent(in) :: patchLocalArray(:)
-       SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:)
+       SCALAR_TYPE, allocatable :: patchGlobalArray(:)
 
      end subroutine gatherScalarOnPatch
 
@@ -240,7 +239,7 @@ module Patch_mod
 
        class(t_Patch) :: this
        SCALAR_TYPE, intent(in) :: patchLocalArray(:,:)
-       SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:,:)
+       SCALAR_TYPE, allocatable :: patchGlobalArray(:,:)
 
      end subroutine gatherVectorOnPatch
 
@@ -250,7 +249,7 @@ module Patch_mod
 
        class(t_Patch) :: this
        SCALAR_TYPE, intent(in) :: patchLocalArray(:,:,:)
-       SCALAR_TYPE, intent(out), allocatable :: patchGlobalArray(:,:,:)
+       SCALAR_TYPE, allocatable :: patchGlobalArray(:,:,:)
 
      end subroutine gatherTensorOnPatch
 

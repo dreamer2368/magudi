@@ -27,6 +27,7 @@ subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,             
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: key
 
+  call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"

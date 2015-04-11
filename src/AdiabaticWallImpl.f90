@@ -28,6 +28,7 @@ subroutine setupAdiabaticWall(this, index, comm, patchDescriptor,               
   character(len = STRING_LENGTH) :: key
   integer :: i
 
+  call this%cleanup()
   call this%t_ImpenetrableWall%setup(index, comm, patchDescriptor,                           &
        grid, simulationFlags, solverOptions)
 
