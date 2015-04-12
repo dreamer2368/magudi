@@ -140,6 +140,8 @@ subroutine addAdiabaticWallPenalty(this, mode, simulationFlags, solverOptions, g
 
            viscousPenalties(:,:) = 0.0_wp !... TODO: implement an adiabatic wall SAT
 
+           viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
+
            select case (mode)
            case (FORWARD)
 

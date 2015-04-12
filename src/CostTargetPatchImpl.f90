@@ -40,8 +40,6 @@ subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,             
   this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                                  &
        grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
 
-  this%penaltyInPhysicalCoordinates = .true.
-
   if (this%nPatchPoints > 0) then
      allocate(this%norm(this%nPatchPoints, 1))
      allocate(this%adjointForcing(this%nPatchPoints, solverOptions%nUnknowns))

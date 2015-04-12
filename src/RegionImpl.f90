@@ -583,87 +583,77 @@ contains
 
   end subroutine setupPatchInterfaces
 
-  subroutine checkSolutionLimits(this, mode)
+  subroutine exchangeInterfaceData(this)
 
     ! <<< External modules >>>
     use MPI
 
     ! <<< Derived types >>>
-    use State_mod, only : t_State
+    use Patch_mod, only : t_Patch
     use Region_mod, only : t_Region
-
-    ! <<< Enumerations >>>
-    use State_enum, only : QOI_FORWARD_STATE, QOI_RIGHT_HAND_SIDE
-    use Region_enum, only : FORWARD
-
-    ! <<< Internal modules >>>
-    use ErrorHandler, only : gracefulExit
+    use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
     ! <<< Arguments >>>
     class(t_Region) :: this
-    integer, intent(in) :: mode
 
     ! <<< Local variables >>>
-    integer :: i, iGlobal, jGlobal, kGlobal, rankReportingError, procRank, ierror
-    character(len = STRING_LENGTH) :: message
-    SCALAR_TYPE :: fOutsideRange
+    integer :: i, j, mpiSendTag, mpiRecvTag, procRank, ierror
+    class(t_Patch), pointer :: patch => null()
+    class(t_BlockInterfacePatch), pointer :: blockInterfacePatch => null()
 
-    rankReportingError = -1
+    if (.not. allocated(this%patchInterfaces)) return
+
+    assert(allocated(this%patchData))
+    assert(size(this%patchData) == size(this%patchInterfaces))
+
     call MPI_Comm_rank(this%comm, procRank, ierror)
+    
+    do i = 1, size(this%patchInterfaces)
+       if (any(this%patchMasterRanks == procRank) .and. this%patchInterfaces(i) > 0 .and.    &
+            allocated(this%patchFactories)) then
 
-    do i = 1, size(this%states)
+          nullify(blockInterfacePatch)
+          mpiSendTag = i + size(this%patchInterfaces) * (this%patchInterfaces(i) - 1)
+          mpiRecvTag = this%patchInterfaces(i) + size(this%patchInterfaces) * (i - 1)
 
-       if (.not. this%grids(i)%isVariableWithinRange(this%states(i)%conservedVariables(:,1), &
-            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &
-            minValue = this%solverOptions%densityRange(1),                                   &
-            maxValue = this%solverOptions%densityRange(2))) then
-          write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Density on grid ",              &
-               this%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, "): ",   &
-               fOutsideRange, " out of range (",                                             &
-               this%solverOptions%densityRange(1), ", ",                                     &
-               this%solverOptions%densityRange(2), ")!"
-          rankReportingError = procRank
-          exit
+          do j = 1, size(this%patchFactories)
+             call this%patchFactories(j)%connect(patch)
+             if (.not. associated(patch)) cycle
+             if (patch%index /= i) cycle
+             select type (patch)
+                class is (t_BlockInterfacePatch)
+                blockInterfacePatch => patch
+                exit
+             end select
+          end do
+
+          assert(associated(blockInterfacePatch))
+          call MPI_Sendrecv_replace(blockInterfacePatch%exchangeBuffer,                      &
+               size(blockInterfacePatch%exchangeBuffer), SCALAR_TYPE_MPI,                    &
+               this%patchMasterRanks(this%patchInterfaces(i)), mpiSendTag,                   &
+               this%patchMasterRanks(this%patchInterfaces(i)), mpiRecvTag,                   &
+               this%comm, MPI_STATUS_IGNORE, ierror)
+
        end if
-
-       if (.not. this%grids(i)%isVariableWithinRange(this%states(i)%temperature(:,1),        &
-            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &
-            minValue = this%solverOptions%temperatureRange(1),                               &
-            maxValue = this%solverOptions%temperatureRange(2))) then
-          write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Temperature on grid ",          &
-               this%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, "): ",   &
-               fOutsideRange, " out of range (",                                             &
-               this%solverOptions%temperatureRange(1), ", ",                                 &
-               this%solverOptions%temperatureRange(2), ")!"
-          rankReportingError = procRank
-          exit
-       end if
-
     end do
 
-    call MPI_Allreduce(MPI_IN_PLACE, rankReportingError, 1,                                  &
-         MPI_INTEGER, MPI_MAX, this%comm, ierror)
-
-    if (rankReportingError /= -1) then
-
-       if (procRank == 0 .and. rankReportingError /= 0)                                      &
-            call MPI_Recv(message, STRING_LENGTH, MPI_CHARACTER, rankReportingError,         &
-            rankReportingError, this%comm, MPI_STATUS_IGNORE, ierror)
-       if (procRank == rankReportingError .and. rankReportingError /= 0)                     &
-            call MPI_Send(message, STRING_LENGTH, MPI_CHARACTER, 0, procRank,                &
-            this%comm, ierror)
-
-       select case (mode)
-       case (FORWARD)
-          call this%saveData(QOI_FORWARD_STATE, PROJECT_NAME // "-crashed.q")
-       end select
-       call this%saveData(QOI_RIGHT_HAND_SIDE, PROJECT_NAME // "-crashed.rhs.q")
-
-       call gracefulExit(this%comm, message)
-
+    if (allocated(this%patchFactories)) then
+       do j = 1, size(this%patchFactories)
+          call this%patchFactories(j)%connect(patch)
+          if (.not. associated(patch)) cycle
+          select type (patch)
+             class is (t_BlockInterfacePatch)
+             blockInterfacePatch => patch
+             if (allocated(blockInterfacePatch%exchangeBuffer))                              &
+                  call blockInterfacePatch%reshapeExchangeBuffer(                            &
+                  this%interfaceIndexReorderings(:,blockInterfacePatch%index))
+          end select
+       end do
     end if
 
-  end subroutine checkSolutionLimits
+    call MPI_Barrier(this%comm, ierror)
+
+  end subroutine exchangeInterfaceData
 
 end module RegionImpl
 
@@ -1207,7 +1197,7 @@ subroutine computeRhs(this, mode, time)
   use Region_enum, only : FORWARD, ADJOINT
 
   ! <<< Private members >>>
-  use RegionImpl, only : checkSolutionLimits
+  use RegionImpl, only : exchangeInterfaceData
 
   ! <<< Internal modules >>>
   use RhsHelper, only : computeRhsForward, computeRhsAdjoint
@@ -1227,11 +1217,8 @@ subroutine computeRhs(this, mode, time)
 
   call startTiming("computeRhs")
 
-  if (this%simulationFlags%enableSolutionLimits) call checkSolutionLimits(this, mode)
-
+  ! Semi-discrete right-hand-side operator.
   do i = 1, size(this%states)
-
-     ! Semi-discrete right-hand-side operator.
      select case (mode)
      case (FORWARD)
         call computeRhsForward(time, this%simulationFlags, this%solverOptions,               &
@@ -1240,48 +1227,40 @@ subroutine computeRhs(this, mode, time)
         call computeRhsAdjoint(time, this%simulationFlags, this%solverOptions,               &
              this%grids(i), this%states(i))
      end select
-
   end do
 
-  ! Patch penalties.
+  ! Multiply by Jacobian.
+  do i = 1, size(this%states)
+     do j = 1, this%solverOptions%nUnknowns
+        this%states(i)%rightHandSide(:,j) = this%states(i)%rightHandSide(:,j) *              &
+                this%grids(i)%jacobian(:,1)
+     end do
+  end do
+
+  ! Update patches.
   if (allocated(this%patchFactories)) then
      do i = 1, size(this%patchFactories)
         call this%patchFactories(i)%connect(patch)
         if (.not. associated(patch)) cycle
-        if (patch%penaltyInPhysicalCoordinates) cycle
         do j = 1, size(this%states)
-           if (patch%gridIndex == this%grids(j)%index)                                       &
-                call patch%update(this%simulationFlags, this%solverOptions,                  &
-                this%grids(j), this%states(j))
-                call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,         &
+           if (patch%gridIndex /= this%grids(j)%index) cycle
+           call patch%update(this%simulationFlags, this%solverOptions,                       &
                 this%grids(j), this%states(j))
         end do
      end do
   end if
 
-  ! Multiply by Jacobian and zero-out at hole points.
-  do i = 1, size(this%states)
-     do j = 1, this%solverOptions%nUnknowns
-        where (this%grids(i)%iblank /= 0)
-           this%states(i)%rightHandSide(:,j) = this%states(i)%rightHandSide(:,j) *           &
-                this%grids(i)%jacobian(:,1)
-        elsewhere
-           this%states(i)%rightHandSide(:,j) = 0.0_wp
-        end where
-     end do
-  end do
+  ! Exchange data at block interfaces.
+  call exchangeInterfaceData(this)
 
-  ! Patch source terms.
+  ! Add patch penalties.
   if (allocated(this%patchFactories)) then
      do i = 1, size(this%patchFactories)
         call this%patchFactories(i)%connect(patch)
         if (.not. associated(patch)) cycle
-        if (.not. patch%penaltyInPhysicalCoordinates) cycle
         do j = 1, size(this%states)
-           if (patch%gridIndex == this%grids(j)%index)                                       &
-                call patch%update(this%simulationFlags, this%solverOptions,                  &
-                this%grids(j), this%states(j))
-                call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,         &
+           if (patch%gridIndex /= this%grids(j)%index) cycle
+           call patch%updateRhs(mode, this%simulationFlags, this%solverOptions,              &
                 this%grids(j), this%states(j))
         end do
      end do
@@ -1290,6 +1269,15 @@ subroutine computeRhs(this, mode, time)
   ! Source terms.
   do i = 1, size(this%states)
      call this%states(i)%addSources(mode, time, this%grids(i))
+  end do
+
+  ! Zero out right-hand-side in holes.
+  do i = 1, size(this%states)
+     do j = 1, this%solverOptions%nUnknowns
+        where (this%grids(i)%iblank == 0)
+           this%states(i)%rightHandSide(:,j) = 0.0_wp
+        end where
+     end do
   end do
 
   call endTiming("computeRhs")

@@ -176,13 +176,15 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
            case (FORWARD)
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
-                   this%inviscidPenaltyAmount * matmul(incomingJacobianOfInviscidFlux,       &
+                   this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *                &
+                   matmul(incomingJacobianOfInviscidFlux,                                    &
                    state%conservedVariables(gridIndex,:) - localTargetState)
 
               if (simulationFlags%viscosityOn) then
                  state%rightHandSide(gridIndex,2:nUnknowns) =                                &
                       state%rightHandSide(gridIndex,2:nUnknowns) +                           &
-                      this%viscousPenaltyAmount * (this%viscousFluxes(patchIndex,:) -        &
+                      this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
+                      (this%viscousFluxes(patchIndex,:) -                                    &
                       this%targetViscousFluxes(patchIndex,:))
               end if
 
@@ -190,12 +192,12 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
 
               if (simulationFlags%useContinuousAdjoint) then
                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
-                      this%inviscidPenaltyAmount *                                           &
+                      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       state%adjointVariables(gridIndex,:))
               else
                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
-                      this%inviscidPenaltyAmount *                                           &
+                      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       state%adjointVariables(gridIndex,:))
               end if

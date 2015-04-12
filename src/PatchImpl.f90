@@ -333,7 +333,7 @@ subroutine gatherScalarOnPatch(this, patchLocalArray, patchGlobalArray)
 
   ! <<< Local variables >>>
   integer :: i, procRank, numProcs, ierror
-  integer, allocatable :: mpiRequest(:)
+  integer, allocatable :: mpiRequests(:)
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -350,20 +350,20 @@ subroutine gatherScalarOnPatch(this, patchLocalArray, patchGlobalArray)
   end if
 #endif
 
-  allocate(mpiRequest(2 * numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiRequests(2 * numProcs), source = MPI_REQUEST_NULL)
 
   if (procRank == 0) then
      do i = 0, numProcs - 1
         call MPI_Irecv(patchGlobalArray, 1, this%mpiAllScalarSubarrayTypes(i+1),             &
-             i, i, this%comm, mpiRequest(i+1), ierror)
+             i, i, this%comm, mpiRequests(i+1), ierror)
      end do
   end if
 
   call MPI_Isend(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
-       this%comm, mpiRequest(numProcs + procRank + 1), ierror)
-  call MPI_Waitall(size(mpiRequest), mpiRequest, MPI_STATUSES_IGNORE, ierror)
+       this%comm, mpiRequests(numProcs + procRank + 1), ierror)
+  call MPI_Waitall(size(mpiRequests), mpiRequests, MPI_STATUSES_IGNORE, ierror)
 
-  SAFE_DEALLOCATE(mpiRequest)
+  SAFE_DEALLOCATE(mpiRequests)
 
 end subroutine gatherScalarOnPatch
 
@@ -384,7 +384,7 @@ subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
 
   ! <<< Local variables >>>
   integer :: i, procRank, numProcs, ierror
-  integer, allocatable :: mpiRequest(:)
+  integer, allocatable :: mpiRequests(:)
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -403,20 +403,20 @@ subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
   end if
 #endif
 
-  allocate(mpiRequest(2 * numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiRequests(2 * numProcs), source = MPI_REQUEST_NULL)
 
   if (procRank == 0) then
      do i = 0, numProcs - 1
         call MPI_Irecv(patchGlobalArray, size(patchGlobalArray, 2),                          &
-             this%mpiAllScalarSubarrayTypes(i+1), i, i, this%comm, mpiRequest(i+1), ierror)
+             this%mpiAllScalarSubarrayTypes(i+1), i, i, this%comm, mpiRequests(i+1), ierror)
      end do
   end if
 
   call MPI_Isend(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
-       this%comm, mpiRequest(numProcs + procRank + 1), ierror)
-  call MPI_Waitall(size(mpiRequest), mpiRequest, MPI_STATUSES_IGNORE, ierror)
+       this%comm, mpiRequests(numProcs + procRank + 1), ierror)
+  call MPI_Waitall(size(mpiRequests), mpiRequests, MPI_STATUSES_IGNORE, ierror)
 
-  SAFE_DEALLOCATE(mpiRequest)
+  SAFE_DEALLOCATE(mpiRequests)
 
 end subroutine gatherVectorOnPatch
 
@@ -437,7 +437,7 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
 
   ! <<< Local variables >>>
   integer :: i, nComponents, procRank, numProcs, ierror
-  integer, allocatable :: mpiRequest(:)
+  integer, allocatable :: mpiRequests(:)
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -458,21 +458,21 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
   end if
 #endif
 
-  allocate(mpiRequest(2 * numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiRequests(2 * numProcs), source = MPI_REQUEST_NULL)
 
   if (procRank == 0) then
      nComponents = size(patchGlobalArray, 2) * size(patchGlobalArray, 3)
      do i = 0, numProcs - 1
         call MPI_Irecv(patchGlobalArray, nComponents, this%mpiAllScalarSubarrayTypes(i+1),   &
-             i, i, this%comm, mpiRequest(i+1), ierror)
+             i, i, this%comm, mpiRequests(i+1), ierror)
      end do
   end if
 
   call MPI_Isend(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
-       this%comm, mpiRequest(numProcs + procRank + 1), ierror)
-  call MPI_Waitall(size(mpiRequest), mpiRequest, MPI_STATUSES_IGNORE, ierror)
+       this%comm, mpiRequests(numProcs + procRank + 1), ierror)
+  call MPI_Waitall(size(mpiRequests), mpiRequests, MPI_STATUSES_IGNORE, ierror)
 
-  SAFE_DEALLOCATE(mpiRequest)
+  SAFE_DEALLOCATE(mpiRequests)
 
 end subroutine gatherTensorOnPatch
 
@@ -493,7 +493,7 @@ subroutine scatterScalarOnPatch(this, patchGlobalArray, patchLocalArray)
 
   ! <<< Local variables >>>
   integer :: i, procRank, numProcs, ierror
-  integer, allocatable :: mpiRequest(:)
+  integer, allocatable :: mpiRequests(:)
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -510,20 +510,20 @@ subroutine scatterScalarOnPatch(this, patchGlobalArray, patchLocalArray)
   end if
 #endif
 
-  allocate(mpiRequest(2 * numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiRequests(2 * numProcs), source = MPI_REQUEST_NULL)
 
   if (procRank == 0) then
      do i = 0, numProcs - 1
         call MPI_Isend(patchGlobalArray, 1, this%mpiAllScalarSubarrayTypes(i+1),             &
-             i, i, this%comm, mpiRequest(i+1), ierror)
+             i, i, this%comm, mpiRequests(i+1), ierror)
      end do
   end if
 
   call MPI_Irecv(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
-       this%comm, mpiRequest(numProcs + procRank + 1), ierror)
-  call MPI_Waitall(size(mpiRequest), mpiRequest, MPI_STATUSES_IGNORE, ierror)
+       this%comm, mpiRequests(numProcs + procRank + 1), ierror)
+  call MPI_Waitall(size(mpiRequests), mpiRequests, MPI_STATUSES_IGNORE, ierror)
 
-  SAFE_DEALLOCATE(mpiRequest)
+  SAFE_DEALLOCATE(mpiRequests)
 
 end subroutine scatterScalarOnPatch
 
@@ -544,7 +544,7 @@ subroutine scatterVectorOnPatch(this, patchGlobalArray, patchLocalArray)
 
   ! <<< Local variables >>>
   integer :: i, procRank, numProcs, ierror
-  integer, allocatable :: mpiRequest(:)
+  integer, allocatable :: mpiRequests(:)
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -563,20 +563,20 @@ subroutine scatterVectorOnPatch(this, patchGlobalArray, patchLocalArray)
   end if
 #endif
 
-  allocate(mpiRequest(2 * numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiRequests(2 * numProcs), source = MPI_REQUEST_NULL)
 
   if (procRank == 0) then
      do i = 0, numProcs - 1
         call MPI_Isend(patchGlobalArray, size(patchGlobalArray, 2),                          &
-             this%mpiAllScalarSubarrayTypes(i+1), i, i, this%comm, mpiRequest(i+1), ierror)
+             this%mpiAllScalarSubarrayTypes(i+1), i, i, this%comm, mpiRequests(i+1), ierror)
      end do
   end if
 
   call MPI_Irecv(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
-       this%comm, mpiRequest(numProcs + procRank + 1), ierror)
-  call MPI_Waitall(size(mpiRequest), mpiRequest, MPI_STATUSES_IGNORE, ierror)
+       this%comm, mpiRequests(numProcs + procRank + 1), ierror)
+  call MPI_Waitall(size(mpiRequests), mpiRequests, MPI_STATUSES_IGNORE, ierror)
 
-  SAFE_DEALLOCATE(mpiRequest)
+  SAFE_DEALLOCATE(mpiRequests)
 
 end subroutine scatterVectorOnPatch
 
@@ -597,7 +597,7 @@ subroutine scatterTensorOnPatch(this, patchGlobalArray, patchLocalArray)
 
   ! <<< Local variables >>>
   integer :: i, nComponents, procRank, numProcs, ierror
-  integer, allocatable :: mpiRequest(:)
+  integer, allocatable :: mpiRequests(:)
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -617,20 +617,20 @@ subroutine scatterTensorOnPatch(this, patchGlobalArray, patchLocalArray)
   end if
 #endif
 
-  allocate(mpiRequest(2 * numProcs), source = MPI_REQUEST_NULL)
+  allocate(mpiRequests(2 * numProcs), source = MPI_REQUEST_NULL)
 
   if (procRank == 0) then
      nComponents = size(patchGlobalArray, 2) * size(patchGlobalArray, 3)
      do i = 0, numProcs - 1
         call MPI_Isend(patchGlobalArray, nComponents, this%mpiAllScalarSubarrayTypes(i+1),   &
-             i, i, this%comm, mpiRequest(i+1), ierror)
+             i, i, this%comm, mpiRequests(i+1), ierror)
      end do
   end if
 
   call MPI_Irecv(patchLocalArray, size(patchLocalArray), SCALAR_TYPE_MPI, 0, procRank,       &
-       this%comm, mpiRequest(numProcs + procRank + 1), ierror)
-  call MPI_Waitall(size(mpiRequest), mpiRequest, MPI_STATUSES_IGNORE, ierror)
+       this%comm, mpiRequests(numProcs + procRank + 1), ierror)
+  call MPI_Waitall(size(mpiRequests), mpiRequests, MPI_STATUSES_IGNORE, ierror)
 
-  SAFE_DEALLOCATE(mpiRequest)
+  SAFE_DEALLOCATE(mpiRequests)
 
 end subroutine scatterTensorOnPatch

@@ -3,6 +3,9 @@
 subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,                      &
      grid, simulationFlags, solverOptions)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
@@ -26,18 +29,31 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: key
+  integer :: nExchangedVariables, procRank, ierror
 
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
   assert_key(this%nDimensions, (1, 2, 3))
 
-  if (this%nPatchPoints > 0) then
+  if (this%comm /= MPI_COMM_NULL) then
+
+     assert(this%nPatchPoints > 0)
+
      allocate(this%interfaceConservedVariables(this%nPatchPoints, solverOptions%nUnknowns))
+     nExchangedVariables = solverOptions%nUnknowns
+
      if (simulationFlags%viscosityOn) then
         allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
         allocate(this%interfaceViscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
+        nExchangedVariables = nExchangedVariables + solverOptions%nUnknowns - 1
      end if
+
+     call MPI_Comm_rank(this%comm, procRank, ierror)
+     if (procRank == 0) then
+        allocate(this%exchangeBuffer(product(this%globalSize), nExchangedVariables))
+     end if
+
   end if
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
@@ -81,6 +97,7 @@ subroutine cleanupBlockInterfacePatch(this)
   SAFE_DEALLOCATE(this%viscousFluxes)
   SAFE_DEALLOCATE(this%interfaceViscousFluxes)
   SAFE_DEALLOCATE(this%interfaceConservedVariables)
+  SAFE_DEALLOCATE(this%exchangeBuffer)
 
 end subroutine cleanupBlockInterfacePatch
 
@@ -258,6 +275,9 @@ end function verifyBlockInterfacePatchUsage
 
 subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid, state)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
@@ -279,10 +299,11 @@ subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid,
 
   ! <<< Local variables >>>
   integer :: i, direction, nDimensions, nUnknowns
-  SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux
+  SCALAR_TYPE, dimension(:,:), allocatable :: velocity,                                      &
+       stressTensor, heatFlux, exchangeBuffer
   SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
 
-  if (this%nPatchPoints < 0) return !... MPI collective calls after this will deadlock.
+  if (this%comm == MPI_COMM_NULL) return
 
   nDimensions = this%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -291,6 +312,8 @@ subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid,
   assert(direction >= 1 .and. direction <= nDimensions)
 
   nUnknowns = solverOptions%nUnknowns
+
+  assert(this%nPatchPoints > 0)
 
   allocate(velocity(this%nPatchPoints, nDimensions))
   allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
@@ -314,4 +337,23 @@ subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid,
   SAFE_DEALLOCATE(stressTensor)
   SAFE_DEALLOCATE(velocity)
 
+  allocate(exchangeBuffer(this%nPatchPoints, 2 * nUnknowns - 1))
+  call this%collect(state%conservedVariables, exchangeBuffer(:,1:nUnknowns))
+  exchangeBuffer(:,nUnknowns+1:) = this%viscousFluxes
+  call this%gatherData(exchangeBuffer, this%exchangeBuffer)
+  SAFE_DEALLOCATE(exchangeBuffer)
+
 end subroutine updateBlockInterfacePatch
+
+subroutine reshapeExchangeBuffer(this, indexReordering)
+
+  ! <<< Derived types >>>
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_BlockInterfacePatch) :: this
+  integer, intent(in) :: indexReordering(3)
+
+end subroutine reshapeExchangeBuffer

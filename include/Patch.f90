@@ -13,7 +13,7 @@ module Patch_mod
           offset(3), nPatchPoints = 0, gridIndex, normalDirection, extent(6),                &
           gridLocalSize(3), gridOffset(3)
      integer, allocatable :: mpiAllScalarSubarrayTypes(:), mpiAllIntegerSubarrayTypes(:)
-     logical :: isCurvilinear, penaltyInPhysicalCoordinates = .false.
+     logical :: isCurvilinear
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
      real(SCALAR_KIND), allocatable :: mpiReduceBuffer(:)
 #endif

@@ -146,7 +146,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
            case (FORWARD)
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
-                   this%inviscidPenaltyAmount * inviscidPenalty
+                   this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) * inviscidPenalty
 
            case (ADJOINT)
 
@@ -179,7 +179,8 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
               end do
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &
-                   this%inviscidPenaltyAmount * matmul(transpose(deltaInviscidPenalty),      &
+                   this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *                &
+                   matmul(transpose(deltaInviscidPenalty),                                   &
                    state%adjointVariables(gridIndex,:))
 
            end select

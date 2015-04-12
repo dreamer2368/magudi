@@ -12,6 +12,7 @@ module BlockInterfacePatch_mod
      real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
      SCALAR_TYPE, allocatable :: viscousFluxes(:,:), interfaceViscousFluxes(:,:),            &
           interfaceConservedVariables(:,:)
+     SCALAR_TYPE, allocatable :: exchangeBuffer(:,:)
 
    contains
 
@@ -20,6 +21,7 @@ module BlockInterfacePatch_mod
      procedure, pass :: update => updateBlockInterfacePatch
      procedure, pass :: verifyUsage => verifyBlockInterfacePatchUsage
      procedure, pass :: updateRhs => addBlockInterfacePenalty
+     procedure, pass :: reshapeExchangeBuffer
 
   end type t_BlockInterfacePatch
 
@@ -123,6 +125,19 @@ module BlockInterfacePatch_mod
        class(t_State) :: state
 
      end subroutine addBlockInterfacePenalty
+
+  end interface
+
+  interface
+
+     subroutine reshapeExchangeBuffer(this, indexReordering)
+
+       import :: t_BlockInterfacePatch       
+
+       class(t_BlockInterfacePatch) :: this
+       integer, intent(in) :: indexReordering(3)
+
+     end subroutine reshapeExchangeBuffer
 
   end interface
 

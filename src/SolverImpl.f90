@@ -183,6 +183,90 @@ contains
 
   end subroutine writeLine
 
+  subroutine checkSolutionLimits(region, mode)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use State_mod, only : t_State
+    use Region_mod, only : t_Region
+
+    ! <<< Enumerations >>>
+    use State_enum, only : QOI_FORWARD_STATE, QOI_RIGHT_HAND_SIDE
+    use Region_enum, only : FORWARD
+
+    ! <<< Internal modules >>>
+    use ErrorHandler, only : gracefulExit
+
+    ! <<< Arguments >>>
+    class(t_Region) :: region
+    integer, intent(in) :: mode
+
+    ! <<< Local variables >>>
+    integer :: i, iGlobal, jGlobal, kGlobal, rankReportingError, procRank, ierror
+    character(len = STRING_LENGTH) :: message
+    SCALAR_TYPE :: fOutsideRange
+
+    rankReportingError = -1
+    call MPI_Comm_rank(region%comm, procRank, ierror)
+
+    do i = 1, size(region%states)
+
+       if (.not.                                                                             &  
+            region%grids(i)%isVariableWithinRange(region%states(i)%conservedVariables(:,1),  &  
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &  
+            minValue = region%solverOptions%densityRange(1),                                 &  
+            maxValue = region%solverOptions%densityRange(2))) then
+          write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Density on grid ",              &  
+               region%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, "): ", &  
+               fOutsideRange, " out of range (",                                             &  
+               region%solverOptions%densityRange(1), ", ",                                   &  
+               region%solverOptions%densityRange(2), ")!"
+          rankReportingError = procRank
+          exit
+       end if
+
+       if (.not.                                                                             &  
+            region%grids(i)%isVariableWithinRange(region%states(i)%temperature(:,1),         &  
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &  
+            minValue = region%solverOptions%temperatureRange(1),                             &  
+            maxValue = region%solverOptions%temperatureRange(2))) then
+          write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Temperature on grid ",          &  
+               region%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, "): ", &  
+               fOutsideRange, " out of range (",                                             &  
+               region%solverOptions%temperatureRange(1), ", ",                               &  
+               region%solverOptions%temperatureRange(2), ")!"
+          rankReportingError = procRank
+          exit
+       end if
+
+    end do
+
+    call MPI_Allreduce(MPI_IN_PLACE, rankReportingError, 1,                                  &  
+         MPI_INTEGER, MPI_MAX, region%comm, ierror)
+
+    if (rankReportingError /= -1) then
+
+       if (procRank == 0 .and. rankReportingError /= 0)                                      &  
+            call MPI_Recv(message, STRING_LENGTH, MPI_CHARACTER, rankReportingError,         &  
+            rankReportingError, region%comm, MPI_STATUS_IGNORE, ierror)
+       if (procRank == rankReportingError .and. rankReportingError /= 0)                     &  
+            call MPI_Send(message, STRING_LENGTH, MPI_CHARACTER, 0, procRank,                &  
+            region%comm, ierror)
+
+       select case (mode)
+       case (FORWARD)
+          call region%saveData(QOI_FORWARD_STATE, PROJECT_NAME // "-crashed.q")
+       end select
+       call region%saveData(QOI_RIGHT_HAND_SIDE, PROJECT_NAME // "-crashed.rhs.q")
+
+       call gracefulExit(region%comm, message)
+
+    end if
+
+  end subroutine checkSolutionLimits
+
 end module SolverImpl
 
 subroutine initializeSolver(region, restartFilename)
@@ -297,9 +381,10 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE, QOI_RIGHT_HAND_SIDE
+  use Region_enum, only : FORWARD
 
   ! <<< Private members >>>
-  use SolverImpl, only : writeLine
+  use SolverImpl, only : writeLine, checkSolutionLimits
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
@@ -371,6 +456,9 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
      timeStepSize = region%getTimeStepSize()
 
      do i = 1, timeIntegrator%nStages
+
+        if (region%simulationFlags%enableSolutionLimits)                                     &
+             call checkSolutionLimits(region, FORWARD)
 
         call timeIntegrator%substepForward(region, time, timeStepSize, timestep_, i)
 
@@ -473,6 +561,10 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_ADJOINT_STATE
+  use Region_enum, only : ADJOINT
+
+  ! <<< Private members >>>
+  use SolverImpl, only : checkSolutionLimits
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
@@ -574,6 +666,9 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
         call functional%updateAdjointForcing(region)
 
         call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep_, i)
+
+        if (region%simulationFlags%enableSolutionLimits)                                     &
+             call checkSolutionLimits(region, ADJOINT)
 
      end do
 

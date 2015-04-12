@@ -23,8 +23,6 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
-  this%penaltyInPhysicalCoordinates = .true.
-
   if (.not. simulationFlags%predictionOnly .and. this%nPatchPoints > 0) then
      allocate(this%controlForcing(this%nPatchPoints))
   end if
