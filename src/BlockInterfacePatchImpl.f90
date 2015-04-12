@@ -153,10 +153,16 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   assert(nUnknowns == nDimensions + 2)
 
   if (this%comm /= MPI_COMM_NULL) then
-     allocate(exchangeBuffer(this%nPatchPoints, 2 * nUnknowns - 1))
+     if (simulationFlags%viscosityOn) then
+        allocate(exchangeBuffer(this%nPatchPoints, 2 * nUnknowns - 1))
+     else
+        allocate(exchangeBuffer(this%nPatchPoints, nUnknowns))
+     end if
      call this%scatterData(this%exchangeBuffer, exchangeBuffer)
      this%interfaceConservedVariables = exchangeBuffer(:,1:nUnknowns)
-     this%interfaceViscousFluxes = exchangeBuffer(:,nUnknowns+1:)
+     if (simulationFlags%viscosityOn)                                                        &
+          this%interfaceViscousFluxes = exchangeBuffer(:,nUnknowns+1:)
+     SAFE_DEALLOCATE(exchangeBuffer)
   end if
 
   allocate(localConservedVariables(nUnknowns))
@@ -325,31 +331,40 @@ subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid,
 
   assert(this%nPatchPoints > 0)
 
-  allocate(velocity(this%nPatchPoints, nDimensions))
-  allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
-  allocate(heatFlux(this%nPatchPoints, nDimensions))
-  allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
+  if (simulationFlags%viscosityOn) then
 
-  call this%collect(state%velocity, velocity)
-  call this%collect(state%stressTensor, stressTensor)
-  call this%collect(state%heatFlux, heatFlux)
+     allocate(velocity(this%nPatchPoints, nDimensions))
+     allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
+     allocate(heatFlux(this%nPatchPoints, nDimensions))
+     allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
 
-  call computeCartesianViscousFluxes(nDimensions, velocity,                                  &
-       stressTensor, heatFlux, viscousFluxes)
+     call this%collect(state%velocity, velocity)
+     call this%collect(state%stressTensor, stressTensor)
+     call this%collect(state%heatFlux, heatFlux)
 
-  do i = 1, this%nPatchPoints
-     this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                        &
-          grid%metrics(i,1+nDimensions*(direction-1):nDimensions*direction))
-  end do
+     call computeCartesianViscousFluxes(nDimensions, velocity,                               &
+          stressTensor, heatFlux, viscousFluxes)
 
-  SAFE_DEALLOCATE(viscousFluxes)
-  SAFE_DEALLOCATE(heatFlux)
-  SAFE_DEALLOCATE(stressTensor)
-  SAFE_DEALLOCATE(velocity)
+     do i = 1, this%nPatchPoints
+        this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                     &
+             grid%metrics(i,1+nDimensions*(direction-1):nDimensions*direction))
+     end do
 
-  allocate(exchangeBuffer(this%nPatchPoints, 2 * nUnknowns - 1))
+     SAFE_DEALLOCATE(viscousFluxes)
+     SAFE_DEALLOCATE(heatFlux)
+     SAFE_DEALLOCATE(stressTensor)
+     SAFE_DEALLOCATE(velocity)
+
+  end if
+
+  if (simulationFlags%viscosityOn) then
+     allocate(exchangeBuffer(this%nPatchPoints, 2 * nUnknowns - 1))
+  else
+     allocate(exchangeBuffer(this%nPatchPoints, nUnknowns))
+  end if
+
   call this%collect(state%conservedVariables, exchangeBuffer(:,1:nUnknowns))
-  exchangeBuffer(:,nUnknowns+1:) = this%viscousFluxes
+  if (simulationFlags%viscosityOn) exchangeBuffer(:,nUnknowns+1:) = this%viscousFluxes
   call this%gatherData(exchangeBuffer, this%exchangeBuffer)
   SAFE_DEALLOCATE(exchangeBuffer)
 

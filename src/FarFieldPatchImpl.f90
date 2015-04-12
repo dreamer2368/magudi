@@ -303,7 +303,7 @@ subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state
   SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
 
   ! No MPI collective calls after this (will deadlock).
-  if (this%nPatchPoints < 0 .or. .not. simulationFlags%viscosityOn) return
+  if (this%nPatchPoints <= 0 .or. .not. simulationFlags%viscosityOn) return
 
   nDimensions = this%nDimensions
   assert_key(nDimensions, (1, 2, 3))

@@ -149,7 +149,7 @@ contains
     ! Find the number of processes to be assigned to each grid: `numProcsInGrid(i)` is the
     ! number of processes assigned to grid `i`.
     allocate(numProcsInGrid(size(this%globalGridSizes, 2)))
-    numProcsInGrid = sum(this%processDistributions, dim = 1)
+    numProcsInGrid = product(this%processDistributions, dim = 1)
     if (any(numProcsInGrid <= 0)) numProcsInGrid = 0
 
     ! `gridCommunicators(i)`: Communicator for grid `i`. If the current process does not
