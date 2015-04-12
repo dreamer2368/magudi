@@ -362,7 +362,7 @@ contains
 
     do i = 1, size(this%patchData)
 
-       write(key, '(A)') "patches/" // trim(this%patchData(i)%name) // "/interface"
+       write(key, '(A)') "patches/" // trim(this%patchData(i)%name) // "/conforms_with"
        str = getOption(key, "")
 
        if (len_trim(str) > 0) then
@@ -383,10 +383,15 @@ contains
                 write(key, '(A,I1)') "patches/" // trim(this%patchData(i)%name) //           &
                      "/interface_index", j
                 this%interfaceIndexReorderings(j,i) = getOption(trim(key), j)
+                if (j == 3 .and. this%interfaceIndexReorderings(j,i) /= 3) then
+                   write(message, '(3A)') "Interface index reordering for patch '",          &
+                        trim(this%patchData(i)%name), "' is currently not supported!"
+                   call gracefulExit(this%comm, message)
+                end if
              end if
           end do
 
-          if (.not. all(this%interfaceIndexReorderings(1:nDimensions,i) /= 0 .and. &
+          if (.not. all(this%interfaceIndexReorderings(1:nDimensions,i) /= 0 .and.           &
                abs(this%interfaceIndexReorderings(1:nDimensions,i)) <= nDimensions)) then
              write(message, '(3A)') "Invalid interface index reordering for patch '",        &
                   trim(this%patchData(i)%name), "'!"
@@ -607,7 +612,7 @@ contains
     assert(size(this%patchData) == size(this%patchInterfaces))
 
     call MPI_Comm_rank(this%comm, procRank, ierror)
-    
+
     do i = 1, size(this%patchInterfaces)
        if (any(this%patchMasterRanks == procRank) .and. this%patchInterfaces(i) > 0 .and.    &
             allocated(this%patchFactories)) then

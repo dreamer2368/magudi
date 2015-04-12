@@ -103,6 +103,9 @@ end subroutine cleanupBlockInterfacePatch
 
 subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, grid, state)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
@@ -130,8 +133,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
-       incomingJacobianOfInviscidFlux(:,:)
+  SCALAR_TYPE, allocatable :: exchangeBuffer(:,:), localConservedVariables(:),               &
+       metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -148,6 +151,13 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
+
+  if (this%comm /= MPI_COMM_NULL) then
+     allocate(exchangeBuffer(this%nPatchPoints, 2 * nUnknowns - 1))
+     call this%scatterData(this%exchangeBuffer, exchangeBuffer)
+     this%interfaceConservedVariables = exchangeBuffer(:,1:nUnknowns)
+     this%interfaceViscousFluxes = exchangeBuffer(:,nUnknowns+1:)
+  end if
 
   allocate(localConservedVariables(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
@@ -347,13 +357,116 @@ end subroutine updateBlockInterfacePatch
 
 subroutine reshapeExchangeBuffer(this, indexReordering)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_BlockInterfacePatch) :: this
   integer, intent(in) :: indexReordering(3)
+
+  ! <<< Local variables >>>
+  integer :: i, j, k, l, order(3), globalSize(3), nComponents
+  SCALAR_TYPE, allocatable :: tempBuffer(:,:)
+
+  if (this%comm == MPI_COMM_NULL .or. .not. allocated(this%exchangeBuffer)) return
+
+  assert(indexReordering(3) == 3)
+
+  if (indexReordering(1) == 1 .and. indexReordering(2) == 2) return
+
+  call startTiming("reshapeExchangeBuffer")
+
+  nComponents = size(this%exchangeBuffer, 2)
+  globalSize = this%globalSize
+
+  order = indexReordering
+
+  if (abs(order(1)) == 2 .and. abs(order(2)) == 1) then
+
+     allocate(tempBuffer(globalSize(2), globalSize(1)))
+
+     do l = 1, nComponents
+        do k = 1, globalSize(3)
+
+           do j = 1, globalSize(1)
+              do i = 1, globalSize(2)
+                 tempBuffer(i,j) = this%exchangeBuffer(i + globalSize(2) * (j - 1 +          &
+                      globalSize(1) * (k - 1)), l)
+              end do
+           end do
+
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%exchangeBuffer(i + globalSize(1) * (j - 1 +                            &
+                      globalSize(2) * (k - 1)), l) = tempBuffer(j,i)
+              end do
+           end do
+
+        end do
+     end do
+
+     i = order(2)
+     order(2) = order(1)
+     order(1) = i
+
+     SAFE_DEALLOCATE(tempBuffer)
+
+  end if
+
+  if (order(1) == -1 .and. order(2) == 2) then
+
+     do l = 1, nComponents
+        do k = 1, globalSize(3)
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%exchangeBuffer(i + globalSize(1) * (j - 1 +                            &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%exchangeBuffer(globalSize(1) + 1 - i +                            &
+                      globalSize(1) * (j - 1 + globalSize(2) * (k - 1)), l)
+              end do
+           end do
+        end do
+     end do
+
+  else if (order(1) == 1 .and. order(2) == -2) then
+
+     do l = 1, nComponents
+        do k = 1, globalSize(3)
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%exchangeBuffer(i + globalSize(1) * (j - 1 +                            &
+                      globalSize(2) * (k - 1)), l) = this%exchangeBuffer(i +                 &
+                      globalSize(1) * (globalSize(2) * k - j), l)
+              end do
+           end do
+        end do
+     end do
+
+  else if (order(1) == -1 .and. order(2) == -2) then
+
+     do l = 1, nComponents
+        do k = 1, globalSize(3)
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%exchangeBuffer(i + globalSize(1) * (j - 1 +                            &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%exchangeBuffer(globalSize(1) + 1 - i +                            &
+                      globalSize(1) * (globalSize(2) * k - j), l)
+              end do
+           end do
+        end do
+     end do
+
+  end if
+
+  call endTiming("reshapeExchangeBuffer")
 
 end subroutine reshapeExchangeBuffer

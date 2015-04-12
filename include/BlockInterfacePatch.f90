@@ -132,7 +132,7 @@ module BlockInterfacePatch_mod
 
      subroutine reshapeExchangeBuffer(this, indexReordering)
 
-       import :: t_BlockInterfacePatch       
+       import :: t_BlockInterfacePatch
 
        class(t_BlockInterfacePatch) :: this
        integer, intent(in) :: indexReordering(3)

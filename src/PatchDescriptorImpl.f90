@@ -208,7 +208,7 @@ subroutine validateInterfacePatchDescriptor(this, globalGridSizes, simulationFla
   do i = 1, nDimensions
      j = abs(interfaceIndexReordering(i))
      if (interfaceExtent(2+2*(j-1)) - interfaceExtent(1+2*(j-1)) /= &
-          extent(2+2*(i-1)) - interfaceExtent(1+2*(i-1))) then
+          extent(2+2*(i-1)) - extent(1+2*(i-1))) then
         write(message, '(2(3A,I0.0),A)') "Patch '", trim(this%name), "' on grid ",           &
              this%gridIndex, " does not conform with patch '",                               &
              trim(interfaceDescriptor%name), "' on grid ",                                   &
