@@ -35,7 +35,8 @@ module Region_mod
      type(t_PatchDescriptor), allocatable :: patchData(:)
      integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL
      integer, allocatable :: globalGridSizes(:,:), processDistributions(:,:),                &
-          gridCommunicators(:), patchCommunicators(:)
+          gridCommunicators(:), patchCommunicators(:), patchInterfaces(:),                   &
+          interfaceIndexReorderings(:,:), patchMasterRanks(:)
 
    contains
 

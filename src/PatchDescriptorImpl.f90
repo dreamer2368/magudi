@@ -88,6 +88,14 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   this%kMax = extent(6)
 
   call patchFactory%connect(dummyPatch, trim(this%patchType))
+
+  if (.not. associated(dummyPatch)) then
+     write(message, '(5A,I0.0)') "Unknown patch type '", trim(this%patchType),               &
+          "' for patch '", trim(this%name), "' on grid ", this%gridIndex
+     errorCode = 2
+     return
+  end if
+
   flag = dummyPatch%verifyUsage(this, globalGridSizes(:,this%gridIndex),                     &
        this%normalDirection, extent, simulationFlags, success, str)
 
@@ -125,3 +133,97 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   call patchFactory%cleanup()
 
 end subroutine validatePatchDescriptor
+
+subroutine validateInterfacePatchDescriptor(this, globalGridSizes, simulationFlags, &
+     solverOptions, interfaceIndexReordering, interfaceDescriptor, errorCode, message)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Patch_factory, only : t_PatchFactory
+  use SolverOptions_mod, only : t_SolverOptions
+  use Functional_factory, only : t_FunctionalFactory
+  use PatchDescriptor_mod, only : t_PatchDescriptor
+  use SimulationFlags_mod, only : t_SimulationFlags
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
+
+  ! <<< Internal modules >>>
+  use InputHelper, only : getOption
+
+  ! <<< Arguments >>>
+  class(t_PatchDescriptor) :: this
+  integer, intent(in) :: globalGridSizes(:,:)
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+  integer, intent(in) :: interfaceIndexReordering(3)
+  class(t_PatchDescriptor) :: interfaceDescriptor
+  integer, intent(out) :: errorCode
+  character(len = STRING_LENGTH), intent(out) :: message
+
+  ! <<< Local variables >>>
+  integer :: i, j, nDimensions, extent(6), interfaceExtent(6)
+  type(t_PatchFactory) :: patchFactory
+  class(t_Patch), pointer :: dummyPatch => null()
+
+  nDimensions = size(globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  errorCode = 0
+
+  extent = (/ this%iMin, this%iMax, this%jMin, this%jMax, this%kMin, this%kMax /)
+
+  interfaceExtent = (/ interfaceDescriptor%iMin, interfaceDescriptor%iMax,                   &
+       interfaceDescriptor%jMin, interfaceDescriptor%jMax,                                   &
+       interfaceDescriptor%kMin, interfaceDescriptor%kMax /)
+
+  call patchFactory%connect(dummyPatch, trim(this%patchType))
+  assert(associated(dummyPatch))
+
+  select type (dummyPatch)
+  class is (t_BlockInterfacePatch)
+  class default
+     write(message, '(3A,I0.0,3A)') "Invalid interface specification for patch '",           &
+          trim(this%name), "' on grid ", this%gridIndex, ", which is of type '",             &
+          trim(this%patchType), "'!"
+     errorCode = 2
+     return
+  end select
+
+  call patchFactory%cleanup()
+
+  call patchFactory%connect(dummyPatch, trim(interfaceDescriptor%patchType))
+  assert(associated(dummyPatch))
+
+  select type (dummyPatch)
+  class is (t_BlockInterfacePatch)
+  class default
+     write(message, '(3A,I0.0,3A)') "Invalid interface specification for patch '",           &
+          trim(interfaceDescriptor%name), "' on grid ", interfaceDescriptor%gridIndex,       &
+          ", which is of type '", trim(interfaceDescriptor%patchType), "'!"
+     errorCode = 2
+     return
+  end select
+
+  call patchFactory%cleanup()
+
+  do i = 1, nDimensions
+     j = abs(interfaceIndexReordering(i))
+     if (interfaceExtent(2+2*(j-1)) - interfaceExtent(1+2*(j-1)) /= &
+          extent(2+2*(i-1)) - interfaceExtent(1+2*(i-1))) then
+        write(message, '(2(3A,I0.0),A)') "Patch '", trim(this%name), "' on grid ",           &
+             this%gridIndex, " does not conform with patch '",                               &
+             trim(interfaceDescriptor%name), "' on grid ",                                   &
+             interfaceDescriptor%gridIndex, "!"
+        errorCode = 2
+        return
+     end if
+  end do
+
+  if (this%gridIndex == interfaceDescriptor%gridIndex) then
+     write(message, '(5A,I0.0,A)') "An interface has been specified between patches '",      &
+          trim(this%name), "' and '", trim(interfaceDescriptor%name),                        &
+          "' belonging to the same grid ", this%gridIndex, "!"
+     errorCode = 1
+     return
+  end if
+
+end subroutine validateInterfacePatchDescriptor

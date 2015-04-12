@@ -334,6 +334,101 @@ contains
 
   end subroutine readBoundaryConditions
 
+  subroutine readPatchInterfaceInformation(this)
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! <<< Internal modules >>>
+    use InputHelper, only : getOption
+    use ErrorHandler, only : gracefulExit
+
+    ! <<< Arguments >>>
+    class(t_Region) :: this
+
+    ! <<< Local variables >>>
+    integer :: i, j, k, l, nDimensions
+    character(len = STRING_LENGTH) :: key, str, message
+
+    SAFE_DEALLOCATE(this%patchInterfaces)
+    SAFE_DEALLOCATE(this%interfaceIndexReorderings)
+
+    allocate(this%patchInterfaces(size(this%patchData)), source = 0)
+    allocate(this%interfaceIndexReorderings(3, size(this%patchData)), source = 0)
+
+    nDimensions = size(this%globalGridSizes, 1)
+
+    ! Read interface information:
+
+    do i = 1, size(this%patchData)
+
+       write(key, '(A)') "patches/" // trim(this%patchData(i)%name) // "/interface"
+       str = getOption(key, "")
+
+       if (len_trim(str) > 0) then
+
+          do j = 1, size(this%patchData)
+             if (trim(str) == trim(this%patchData(j)%name)) this%patchInterfaces(i) = j
+          end do
+          if (this%patchInterfaces(i) == 0) then
+             write(message, '(5A)') "Invalid interface specification for patch '",           &
+                  trim(this%patchData(i)%name), "': no patch found matching the name '",     &
+                  trim(str), "'!"
+             call gracefulExit(this%comm, message)
+          end if
+
+          do j = 1, 3
+             this%interfaceIndexReorderings(j,i) = j
+             if (j <= nDimensions) then
+                write(key, '(A,I1)') "patches/" // trim(this%patchData(i)%name) //           &
+                     "/interface_index", j
+                this%interfaceIndexReorderings(j,i) = getOption(trim(key), j)
+             end if
+          end do
+
+          if (.not. all(this%interfaceIndexReorderings(1:nDimensions,i) /= 0 .and. &
+               abs(this%interfaceIndexReorderings(1:nDimensions,i)) <= nDimensions)) then
+             write(message, '(3A)') "Invalid interface index reordering for patch '",        &
+                  trim(this%patchData(i)%name), "'!"
+             call gracefulExit(this%comm, message)
+          end if
+
+       end if
+
+    end do
+
+    ! Commutativity of interfaces:
+
+    do i = 1, size(this%patchData)
+       if (this%patchInterfaces(i) == 0) cycle
+       j = this%patchInterfaces(i)
+
+       if (this%patchInterfaces(j) == 0) then
+
+          this%patchInterfaces(j) = i
+
+          do l = 1, 3
+             do k = 1, 3
+                if (abs(this%interfaceIndexReorderings(k,i)) == l) then
+                   this%interfaceIndexReorderings(l,j) =                                     &
+                        sign(k, this%interfaceIndexReorderings(k,i))
+                   exit
+                end if
+             end do
+          end do
+
+       else if (this%patchInterfaces(j) /= i) then
+
+          write(message, '(3A)') "Invalid interface specification for patch '",              &
+               trim(this%patchData(j)%name), "': violates commutativity!"
+          call gracefulExit(this%comm, message)
+
+       end if
+
+    end do
+
+  end subroutine readPatchInterfaceInformation
+
   subroutine validatePatches(this)
 
     ! <<< External modules >>>
@@ -349,7 +444,7 @@ contains
     class(t_Region) :: this
 
     ! <<< Local variables >>>
-    integer :: i, errorCode
+    integer :: i, j, errorCode
     character(len = STRING_LENGTH) :: message
 
     if (.not. allocated(this%patchData)) return
@@ -360,6 +455,20 @@ contains
     do i = 1, size(this%patchData)
        call this%patchData(i)%validate(this%globalGridSizes,                                 &
             this%simulationFlags, this%solverOptions, errorCode, message)
+       if (errorCode == 1) then
+          call issueWarning(this%comm, message)
+       else if (errorCode == 2) then
+          call gracefulExit(this%comm, message)
+       end if
+    end do
+
+    ! Validate interface connections.
+    do i = 1, size(this%patchData)
+       if (this%patchInterfaces(i) == 0) cycle
+       j = this%patchInterfaces(i)
+       call this%patchData(i)%validateInterface(this%globalGridSizes, this%simulationFlags,  &
+            this%solverOptions, this%interfaceIndexReorderings(:,i),                         &
+            this%patchData(j), errorCode, message)
        if (errorCode == 1) then
           call issueWarning(this%comm, message)
        else if (errorCode == 2) then
@@ -382,13 +491,17 @@ contains
     class(t_Region) :: this
 
     ! <<< Local variables >>>
-    integer :: i, j, gridOffset(3), gridLocalSize(3), gridIndex, color, comm, proc, ierror
+    integer :: i, j, gridOffset(3), gridLocalSize(3), gridIndex, color,                      &
+         comm, procRank, rankInPatchCommunicator, ierror
     type(t_PatchDescriptor) :: p
 
     if (.not. allocated(this%patchData)) return
 
     SAFE_DEALLOCATE(this%patchCommunicators)
+    SAFE_DEALLOCATE(this%patchMasterRanks)
+
     allocate(this%patchCommunicators(size(this%patchData)), source = MPI_COMM_NULL)
+    allocate(this%patchMasterRanks(size(this%patchData)), source = -1)
 
     do i = 1, size(this%grids)
 
@@ -396,7 +509,7 @@ contains
        gridOffset = this%grids(i)%offset
        gridLocalSize = this%grids(i)%localSize
 
-       call MPI_Comm_rank(this%grids(i)%comm, proc, ierror)
+       call MPI_Comm_rank(this%grids(i)%comm, procRank, ierror)
 
        do j = 1, size(this%patchData)
 
@@ -411,15 +524,64 @@ contains
                p%kMin > gridOffset(3) + gridLocalSize(3)) then
              color = MPI_UNDEFINED
           end if
-          call MPI_Comm_split(this%grids(i)%comm, color, proc, comm, ierror)
+          call MPI_Comm_split(this%grids(i)%comm, color, procRank, comm, ierror)
           this%patchCommunicators(j) = comm
+
+          if (comm /= MPI_COMM_NULL) then
+             call MPI_Comm_rank(comm, rankInPatchCommunicator, ierror)
+             if (rankInPatchCommunicator == 0) then
+                assert(this%patchMasterRanks(j) == -1)
+                this%patchMasterRanks(j) = procRank
+             end if
+          end if
+
           call MPI_Barrier(this%grids(i)%comm, ierror)
 
        end do
 
     end do
 
+    call MPI_Allreduce(MPI_IN_PLACE, this%patchMasterRanks, size(this%patchMasterRanks),     &
+         MPI_INTEGER, MPI_MAX, this%comm, ierror)
+
   end subroutine distributePatches
+
+  subroutine setupPatchInterfaces(this)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! <<< Internal modules >>>
+    use InputHelper, only : getOption
+
+    ! <<< Arguments >>>
+    class(t_Region) :: this
+
+    ! <<< Local variables >>>
+    integer :: i, j
+    character(len = STRING_LENGTH) :: key, str
+
+    if (.not. allocated(this%patchData)) return
+
+    SAFE_DEALLOCATE(this%patchInterfaces)
+    allocate(this%patchInterfaces(size(this%patchData)), source = 0)
+
+    this%patchInterfaces = 0
+
+    do i = 1, size(this%patchData)
+       write(key, '(A)') "patches/" // trim(this%patchData(i)%name) // "/interface"
+       str = getOption(key, "")
+       if (len_trim(str) > 0) then
+          do j = 1, size(this%patchData)
+             if (trim(str) == trim(this%patchData(j)%name)) this%patchInterfaces(i) = j
+          end do
+       end if
+    end do
+
+  end subroutine setupPatchInterfaces
 
   subroutine checkSolutionLimits(this, mode)
 
@@ -624,6 +786,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
   if (present(boundaryConditionFilename)) then
 
      call readBoundaryConditions(this, boundaryConditionFilename)
+     call readPatchInterfaceInformation(this)
      call validatePatches(this)
      call distributePatches(this)
      call MPI_Barrier(this%comm, ierror)
@@ -660,6 +823,8 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
         end do
 
      end if
+
+     call setupPatchInterfaces(this)
 
   end if
 
@@ -723,6 +888,9 @@ subroutine cleanupRegion(this)
   SAFE_DEALLOCATE(this%processDistributions)
   SAFE_DEALLOCATE(this%gridCommunicators)
   SAFE_DEALLOCATE(this%patchCommunicators)
+  SAFE_DEALLOCATE(this%patchInterfaces)
+  SAFE_DEALLOCATE(this%interfaceIndexReorderings)
+  SAFE_DEALLOCATE(this%patchMasterRanks)
 
   if (this%comm /= MPI_COMM_NULL .and. this%comm /= MPI_COMM_WORLD)                          &
        call MPI_Comm_free(this%comm, ierror)
