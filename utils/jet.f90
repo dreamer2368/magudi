@@ -146,10 +146,10 @@ contains
        speedOfSoundAtExit = sqrt(temperatureRatio)
 
        state%conservedVariables(i,1) = normalizedExitDensity / temperatureRatio
-       state%conservedVariables(i,2) = state%conservedVariables(i,1) *                       &
-            machNumber * normalizedExitVelocity
+       state%conservedVariables(i,2) = 0.0_wp
        state%conservedVariables(i,3) = 0.0_wp
-       state%conservedVariables(i,4) = 0.0_wp
+       state%conservedVariables(i,4) = state%conservedVariables(i,1) *                       &
+            machNumber * normalizedExitVelocity
        state%conservedVariables(i,5) =                                                       &
             1.0_wp / ratioOfSpecificHeats / (ratioOfSpecificHeats - 1.0_wp) +                &
             0.5_wp / state%conservedVariables(i,1) * state%conservedVariables(i,2) ** 2
