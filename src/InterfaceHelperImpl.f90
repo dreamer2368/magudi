@@ -133,7 +133,7 @@ subroutine exchangeInterfaceData(region)
   allocate(mpiRecvRequests(size(region%patchInterfaces)), source = MPI_REQUEST_NULL)
 
   do i = 1, size(region%patchInterfaces)
-     if (any(region%patchMasterRanks == procRank) .and. region%patchInterfaces(i) > 0 .and.  &
+     if (procRank == region%patchMasterRanks(i) .and. region%patchInterfaces(i) > 0 .and.    &
           allocated(region%patchFactories)) then
 
         nullify(blockInterfacePatch)
