@@ -334,106 +334,6 @@ contains
 
   end subroutine readBoundaryConditions
 
-  subroutine readPatchInterfaceInformation(this)
-
-    ! <<< Derived types >>>
-    use Region_mod, only : t_Region
-
-    ! <<< Internal modules >>>
-    use InputHelper, only : getOption
-    use ErrorHandler, only : gracefulExit
-
-    ! <<< Arguments >>>
-    class(t_Region) :: this
-
-    ! <<< Local variables >>>
-    integer :: i, j, k, l, nDimensions
-    character(len = STRING_LENGTH) :: key, str, message
-
-    SAFE_DEALLOCATE(this%patchInterfaces)
-    SAFE_DEALLOCATE(this%interfaceIndexReorderings)
-
-    allocate(this%patchInterfaces(size(this%patchData)), source = 0)
-    allocate(this%interfaceIndexReorderings(3, size(this%patchData)), source = 0)
-
-    nDimensions = size(this%globalGridSizes, 1)
-
-    ! Read interface information:
-
-    do i = 1, size(this%patchData)
-
-       write(key, '(A)') "patches/" // trim(this%patchData(i)%name) // "/conforms_with"
-       str = getOption(key, "")
-
-       if (len_trim(str) > 0) then
-
-          do j = 1, size(this%patchData)
-             if (trim(str) == trim(this%patchData(j)%name)) this%patchInterfaces(i) = j
-          end do
-          if (this%patchInterfaces(i) == 0) then
-             write(message, '(5A)') "Invalid interface specification for patch '",           &
-                  trim(this%patchData(i)%name), "': no patch found matching the name '",     &
-                  trim(str), "'!"
-             call gracefulExit(this%comm, message)
-          end if
-
-          do j = 1, 3
-             this%interfaceIndexReorderings(j,i) = j
-             if (j <= nDimensions) then
-                write(key, '(A,I1)') "patches/" // trim(this%patchData(i)%name) //           &
-                     "/interface_index", j
-                this%interfaceIndexReorderings(j,i) = getOption(trim(key), j)
-                if (j == 3 .and. this%interfaceIndexReorderings(j,i) /= 3) then
-                   write(message, '(3A)') "Interface index reordering for patch '",          &
-                        trim(this%patchData(i)%name), "' is currently not supported!"
-                   call gracefulExit(this%comm, message)
-                end if
-             end if
-          end do
-
-          if (.not. all(this%interfaceIndexReorderings(1:nDimensions,i) /= 0 .and.           &
-               abs(this%interfaceIndexReorderings(1:nDimensions,i)) <= nDimensions)) then
-             write(message, '(3A)') "Invalid interface index reordering for patch '",        &
-                  trim(this%patchData(i)%name), "'!"
-             call gracefulExit(this%comm, message)
-          end if
-
-       end if
-
-    end do
-
-    ! Commutativity of interfaces:
-
-    do i = 1, size(this%patchData)
-       if (this%patchInterfaces(i) == 0) cycle
-       j = this%patchInterfaces(i)
-
-       if (this%patchInterfaces(j) == 0) then
-
-          this%patchInterfaces(j) = i
-
-          do l = 1, 3
-             do k = 1, 3
-                if (abs(this%interfaceIndexReorderings(k,i)) == l) then
-                   this%interfaceIndexReorderings(l,j) =                                     &
-                        sign(k, this%interfaceIndexReorderings(k,i))
-                   exit
-                end if
-             end do
-          end do
-
-       else if (this%patchInterfaces(j) /= i) then
-
-          write(message, '(3A)') "Invalid interface specification for patch '",              &
-               trim(this%patchData(j)%name), "': violates commutativity!"
-          call gracefulExit(this%comm, message)
-
-       end if
-
-    end do
-
-  end subroutine readPatchInterfaceInformation
-
   subroutine validatePatches(this)
 
     ! <<< External modules >>>
@@ -551,115 +451,6 @@ contains
 
   end subroutine distributePatches
 
-  subroutine setupPatchInterfaces(this)
-
-    ! <<< External modules >>>
-    use MPI
-
-    ! <<< Derived types >>>
-    use Region_mod, only : t_Region
-
-    ! <<< Internal modules >>>
-    use InputHelper, only : getOption
-
-    ! <<< Arguments >>>
-    class(t_Region) :: this
-
-    ! <<< Local variables >>>
-    integer :: i, j
-    character(len = STRING_LENGTH) :: key, str
-
-    if (.not. allocated(this%patchData)) return
-
-    SAFE_DEALLOCATE(this%patchInterfaces)
-    allocate(this%patchInterfaces(size(this%patchData)), source = 0)
-
-    this%patchInterfaces = 0
-
-    do i = 1, size(this%patchData)
-       write(key, '(A)') "patches/" // trim(this%patchData(i)%name) // "/interface"
-       str = getOption(key, "")
-       if (len_trim(str) > 0) then
-          do j = 1, size(this%patchData)
-             if (trim(str) == trim(this%patchData(j)%name)) this%patchInterfaces(i) = j
-          end do
-       end if
-    end do
-
-  end subroutine setupPatchInterfaces
-
-  subroutine exchangeInterfaceData(this)
-
-    ! <<< External modules >>>
-    use MPI
-
-    ! <<< Derived types >>>
-    use Patch_mod, only : t_Patch
-    use Region_mod, only : t_Region
-    use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
-
-    ! <<< Arguments >>>
-    class(t_Region) :: this
-
-    ! <<< Local variables >>>
-    integer :: i, j, mpiSendTag, mpiRecvTag, procRank, ierror
-    class(t_Patch), pointer :: patch => null()
-    class(t_BlockInterfacePatch), pointer :: blockInterfacePatch => null()
-
-    if (.not. allocated(this%patchInterfaces)) return
-
-    assert(allocated(this%patchData))
-    assert(size(this%patchData) == size(this%patchInterfaces))
-
-    call MPI_Comm_rank(this%comm, procRank, ierror)
-
-    do i = 1, size(this%patchInterfaces)
-       if (any(this%patchMasterRanks == procRank) .and. this%patchInterfaces(i) > 0 .and.    &
-            allocated(this%patchFactories)) then
-
-          nullify(blockInterfacePatch)
-          mpiSendTag = i + size(this%patchInterfaces) * (this%patchInterfaces(i) - 1)
-          mpiRecvTag = this%patchInterfaces(i) + size(this%patchInterfaces) * (i - 1)
-
-          do j = 1, size(this%patchFactories)
-             call this%patchFactories(j)%connect(patch)
-             if (.not. associated(patch)) cycle
-             if (patch%index /= i) cycle
-             select type (patch)
-                class is (t_BlockInterfacePatch)
-                blockInterfacePatch => patch
-                exit
-             end select
-          end do
-
-          assert(associated(blockInterfacePatch))
-          call MPI_Sendrecv_replace(blockInterfacePatch%exchangeBuffer,                      &
-               size(blockInterfacePatch%exchangeBuffer), SCALAR_TYPE_MPI,                    &
-               this%patchMasterRanks(this%patchInterfaces(i)), mpiSendTag,                   &
-               this%patchMasterRanks(this%patchInterfaces(i)), mpiRecvTag,                   &
-               this%comm, MPI_STATUS_IGNORE, ierror)
-
-       end if
-    end do
-
-    if (allocated(this%patchFactories)) then
-       do j = 1, size(this%patchFactories)
-          call this%patchFactories(j)%connect(patch)
-          if (.not. associated(patch)) cycle
-          select type (patch)
-             class is (t_BlockInterfacePatch)
-             blockInterfacePatch => patch
-             if (allocated(blockInterfacePatch%exchangeBuffer))                              &
-                  call blockInterfacePatch%reshapeExchangeBuffer(                            &
-                  this%interfaceIndexReorderings(:,blockInterfacePatch%index))
-          end select
-       end do
-    end if
-
-    call MPI_Barrier(this%comm, ierror)
-
-  end subroutine exchangeInterfaceData
-
 end module RegionImpl
 
 subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,               &
@@ -683,6 +474,7 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
 
   ! <<< Internal modules >>>
   use InputHelper, only : getRequiredOption
+  use InterfaceHelper, only : readPatchInterfaceInformation
 
   implicit none
 
@@ -818,8 +610,6 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
         end do
 
      end if
-
-     call setupPatchInterfaces(this)
 
   end if
 
@@ -1201,11 +991,9 @@ subroutine computeRhs(this, mode, time)
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT
 
-  ! <<< Private members >>>
-  use RegionImpl, only : exchangeInterfaceData
-
   ! <<< Internal modules >>>
   use RhsHelper, only : computeRhsForward, computeRhsAdjoint
+  use InterfaceHelper, only : exchangeInterfaceData
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none

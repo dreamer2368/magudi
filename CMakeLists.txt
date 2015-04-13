@@ -89,6 +89,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/SolverImpl.f90
   ${PROJECT_SOURCE_DIR}/include/RhsHelper.f90
   ${PROJECT_SOURCE_DIR}/src/RhsHelperImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/InterfaceHelper.f90
+  ${PROJECT_SOURCE_DIR}/src/InterfaceHelperImpl.f90
 
   # Factories.
   ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
