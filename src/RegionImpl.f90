@@ -396,8 +396,8 @@ contains
     class(t_Region) :: this
 
     ! <<< Local variables >>>
-    integer :: i, j, gridOffset(3), gridLocalSize(3), gridIndex, color,                      &
-         comm, procRank, rankInPatchCommunicator, ierror
+    integer :: i, j, gridOffset(3), gridLocalSize(3), gridIndex, color, comm,                &
+         rankInGridCommunicator, rankInRegionCommunicator, rankInPatchCommunicator, ierror
     type(t_PatchDescriptor) :: p
 
     if (.not. allocated(this%patchData)) return
@@ -408,20 +408,23 @@ contains
     allocate(this%patchCommunicators(size(this%patchData)), source = MPI_COMM_NULL)
     allocate(this%patchMasterRanks(size(this%patchData)), source = -1)
 
+    call MPI_Comm_rank(this%comm, rankInRegionCommunicator, ierror)
+
     do i = 1, size(this%grids)
 
        gridIndex = this%grids(i)%index
        gridOffset = this%grids(i)%offset
        gridLocalSize = this%grids(i)%localSize
 
-       call MPI_Comm_rank(this%grids(i)%comm, procRank, ierror)
+       call MPI_Comm_rank(this%grids(i)%comm, rankInGridCommunicator, ierror)
 
        do j = 1, size(this%patchData)
 
+          if (this%patchData(j)%gridIndex /= gridIndex) cycle
+
           p = this%patchData(j)
           color = 1
-          if (p%gridIndex /= gridIndex .or.                                                  &
-               p%iMax < gridOffset(1) + 1 .or.                                               &
+          if (p%iMax < gridOffset(1) + 1 .or.                                                &
                p%iMin > gridOffset(1) + gridLocalSize(1) .or.                                &
                p%jMax < gridOffset(2) + 1 .or.                                               &
                p%jMin > gridOffset(2) + gridLocalSize(2) .or.                                &
@@ -429,14 +432,14 @@ contains
                p%kMin > gridOffset(3) + gridLocalSize(3)) then
              color = MPI_UNDEFINED
           end if
-          call MPI_Comm_split(this%grids(i)%comm, color, procRank, comm, ierror)
+          call MPI_Comm_split(this%grids(i)%comm, color, rankInGridCommunicator, comm, ierror)
           this%patchCommunicators(j) = comm
 
           if (comm /= MPI_COMM_NULL) then
              call MPI_Comm_rank(comm, rankInPatchCommunicator, ierror)
              if (rankInPatchCommunicator == 0) then
                 assert(this%patchMasterRanks(j) == -1)
-                this%patchMasterRanks(j) = procRank
+                this%patchMasterRanks(j) = rankInRegionCommunicator
              end if
           end if
 

@@ -29,4 +29,18 @@ module InterfaceHelper
 
   end interface
 
+  interface
+
+     subroutine checkInterfaceContinuity(region, tolerance, success)
+
+       use Region_mod, only : t_Region
+
+       class(t_Region) :: region
+       real(SCALAR_KIND), intent(in) :: tolerance
+       logical, intent(out) :: success
+
+     end subroutine checkInterfaceContinuity
+
+  end interface
+
 end module InterfaceHelper

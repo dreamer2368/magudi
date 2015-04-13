@@ -15,6 +15,7 @@ program main
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
+  use InterfaceHelper, only : checkInterfaceContinuity
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
   implicit none
@@ -68,6 +69,13 @@ program main
   ! Read the grid file.
   call getRequiredOption("grid_file", filename)
   call region%loadData(QOI_GRID, filename)
+
+  ! Check continuity of grid coordinates at block interfaces.
+  call checkInterfaceContinuity(region, sqrt(epsilon(0.0_wp)), success)
+  if (.not. success) then
+     write(message, '(A)') "Grid coordinates are discontinuous across block interfaces!"
+     call issueWarning(region%comm, message)
+  end if
 
   ! Update the grids by computing the Jacobian, metrics, and norm.
   do i = 1, size(region%grids)
