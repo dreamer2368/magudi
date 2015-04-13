@@ -14,7 +14,7 @@ program SBP_property
 
   integer, parameter :: wp = SCALAR_KIND
   real(real64), parameter :: testDuration = 2.0_real64
-  character(len = STRING_LENGTH), parameter :: discretizationTypes(*) =                      &
+  character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
   integer :: i, n, direction, nDimensions, cartesianCommunicator, numProcs, procRank, ierror
   integer, dimension(:), allocatable :: localSize, offset, globalSize,                       &

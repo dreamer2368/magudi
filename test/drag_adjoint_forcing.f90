@@ -22,7 +22,7 @@ program drag_adjoint_forcing
 
   integer, parameter :: wp = SCALAR_KIND
   real(real64), parameter :: testDuration = 3.0_real64
-  character(len = STRING_LENGTH), parameter :: discretizationTypes(*) =                      &
+  character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
   real(SCALAR_KIND), parameter :: tolerance = sqrt(epsilon(0.0_wp))
   integer :: i, direction, nDimensions, gridSize(3,1), extent(6), numProcs, ierror

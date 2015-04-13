@@ -32,14 +32,12 @@ program patch_collectives
 
   interface
 
-     subroutine testScatterAndGatherBack(grid, patch, success)
+     subroutine testScatterAndGatherBack(patch, success)
 
-       use Grid_mod, only : t_Grid
        use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
-       type(t_Grid), intent(in) :: grid
        type(t_BlockInterfacePatch) :: patch
-       logical, intent(in) :: success
+       logical, intent(out) :: success
 
      end subroutine testScatterAndGatherBack
 
@@ -121,7 +119,7 @@ program patch_collectives
         call patch%setup(1, patchCommunicator, patchDescriptor,                              &
              grid, simulationFlags, solverOptions)
 
-        call testScatterAndGatherBack(grid, patch, success_)
+        call testScatterAndGatherBack(patch, success_)
         success = success .and. success_
         call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL,                            &
              MPI_LAND, MPI_COMM_WORLD, ierror)
@@ -148,13 +146,12 @@ program patch_collectives
 
 end program patch_collectives
 
-subroutine testScatterAndGatherBack(grid, patch, success)
+subroutine testScatterAndGatherBack(patch, success)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
   ! <<< Internal modules >>>
@@ -163,7 +160,6 @@ subroutine testScatterAndGatherBack(grid, patch, success)
   implicit none
 
   ! <<< Arguments >>>
-  type(t_Grid), intent(in) :: grid
   type(t_BlockInterfacePatch) :: patch
   logical, intent(out) :: success
 
