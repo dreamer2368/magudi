@@ -12,8 +12,7 @@ if __name__ == '__main__':
 
     outputPrefix = 'NACA0012'
 
-    gridFile = outputPrefix + '_PLOT3D.x'
-    fluentCaseFile = outputPrefix + '.cas'
+    gridFile = 'Gridgen_' + outputPrefix + '_PLOT3D.x'
 
     chordLength = 2000.
     thicknessRatio = 0.12
@@ -27,12 +26,12 @@ if __name__ == '__main__':
     xTrailingEdge = xAirfoil[-1] - 0.5 * yAirfoil[-1] / airfoilProfileSlope(xAirfoil[-1], chordLength, thicknessRatio)
     xStart = 0.5 * chordLength
 
-    gridSize = [360, 360, 1]
-    minimumPercentSpacingAtTrailingEdge = 0.02
-    minimumPercentSpacingAtLeadingEdge = 0.04
+    gridSize = [180, 180, 1]
+    minimumPercentSpacingAtTrailingEdge = 0.04
+    minimumPercentSpacingAtLeadingEdge = 0.16
     minimumWallNormalPercentSpacing = 120.
-    stopHeight = 150. * chordLength
-    geometricStretchingRatio = 1.02
+    stopHeight = 75. * chordLength
+    geometricStretchingRatio = 1.04
 
     minimumSpacingAtTrailingEdge = chordLength * minimumPercentSpacingAtTrailingEdge / 100.
     minimumSpacingAtLeadingEdge = chordLength * minimumPercentSpacingAtLeadingEdge / 100.
@@ -43,12 +42,10 @@ if __name__ == '__main__':
 
     print >>f, """
 gg::memClear
-gg::aswSet "FLUENT" -dim 2
 gg::defReset
 gg::tolReset
 gg::dispViewReset
 set cwd [file dirname [info script]]
-set cfd_solver "FLUENT"
 """
 
     print >>f, 'gg::dbCurveBegin -type CUBIC'
@@ -129,33 +126,6 @@ gg::aswSetBC [list $freestream] "Velocity Inlet"
 set overlap [lindex [gg::conGetAll] 1]
 gg::aswSetBC [list $overlap] "Unspecified"
 """
-    print >>f, 'gg::domExport $dom_NACA [file join $cwd \"%s\"] -style PLOT3D -form UNFORMATTED -precision DOUBLE -endian BIG' % (gridFile)
-    
-    print >>f, """
-gg::conDelete $overlap -force
-gg::conDim $airfoil 500
-gg::conDim $freestream 2000
-gg::domBegin -type UNSTRUCTURED
-gg::edgeBegin
-gg::edgeAddCon $freestream
-gg::edgeEnd
-gg::edgeBegin
-gg::edgeAddCon $airfoil
-gg::edgeReorient
-gg::edgeEnd
-set dom_NACA [gg::domEnd]
-gg::blkBegin -type UNSTRUCTURED
-gg::faceBegin
-gg::faceAddDom $dom_NACA
-gg::faceEnd
-set blk_NACA [gg::blkEnd]
-gg::blkTransformBegin $blk_NACA -maintain_linkage
-gg::xformMirror Z
-gg::blkTransformEnd
-gg::aswSetBC [list $airfoil] "Wall"
-gg::aswSetBC [list $freestream] "Velocity Inlet"
-"""
-    
-    print >>f, 'gg::aswExport [file join $cwd \"%s\"]' % (fluentCaseFile)
+    print >>f, 'gg::domExport $dom_NACA [file join $cwd \"%s\"] -style PLOT3D -form UNFORMATTED -precision DOUBLE -endian NATIVE' % (gridFile)    
 
     f.close()

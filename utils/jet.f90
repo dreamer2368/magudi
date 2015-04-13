@@ -152,7 +152,7 @@ contains
             machNumber * normalizedExitVelocity
        state%conservedVariables(i,5) =                                                       &
             1.0_wp / ratioOfSpecificHeats / (ratioOfSpecificHeats - 1.0_wp) +                &
-            0.5_wp / state%conservedVariables(i,1) * state%conservedVariables(i,2) ** 2
+            0.5_wp / state%conservedVariables(i,1) * state%conservedVariables(i,4) ** 2
 
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)
 
