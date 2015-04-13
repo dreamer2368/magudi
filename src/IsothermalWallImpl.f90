@@ -11,6 +11,7 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
+  use CNSHelper, only : computeTransportVariables
   use InputHelper, only : getOption
 
   implicit none
