@@ -193,7 +193,7 @@ contains
     use Region_mod, only : t_Region
 
     ! <<< Enumerations >>>
-    use State_enum, only : QOI_FORWARD_STATE, QOI_RIGHT_HAND_SIDE
+    use State_enum, only : QOI_FORWARD_STATE
     use Region_enum, only : FORWARD
 
     ! <<< Internal modules >>>
@@ -258,7 +258,6 @@ contains
        case (FORWARD)
           call region%saveData(QOI_FORWARD_STATE, PROJECT_NAME // "-crashed.q")
        end select
-       call region%saveData(QOI_RIGHT_HAND_SIDE, PROJECT_NAME // "-crashed.rhs.q")
 
        call gracefulExit(region%comm, message)
 
@@ -379,7 +378,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   ! <<< Enumerations >>>
-  use State_enum, only : QOI_FORWARD_STATE, QOI_RIGHT_HAND_SIDE
+  use State_enum, only : QOI_FORWARD_STATE
   use Region_enum, only : FORWARD
 
   ! <<< Private members >>>
@@ -443,8 +442,6 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
   write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".q"
   call region%saveData(QOI_FORWARD_STATE, filename)
-  write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep, ".rhs.q"
-  call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
 
   do timestep_ = timestep + 1, timestep + nTimesteps
 
@@ -500,8 +497,6 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
         end do
         write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".q"
         call region%saveData(QOI_FORWARD_STATE, filename)
-        write(filename, '(2A,I8.8,A)') trim(outputPrefix_), "-", timestep_, ".rhs.q"
-        call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
      end if
 
      if (region%simulationFlags%steadyStateSimulation .and.                                  &
