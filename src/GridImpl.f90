@@ -777,19 +777,19 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         if (this%isCurvilinear) then
            this%metrics(:,1) = jacobianMatrixInverse(:,5) * jacobianMatrixInverse(:,9) -     &
                 jacobianMatrixInverse(:,8) * jacobianMatrixInverse(:,6)
-           this%metrics(:,2) = jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,6) -     &
+           this%metrics(:,4) = jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,6) -     &
                 jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,9)
-           this%metrics(:,3) = jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,8) -     &
+           this%metrics(:,7) = jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,8) -     &
                 jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,5)
-           this%metrics(:,4) = jacobianMatrixInverse(:,8) * jacobianMatrixInverse(:,3) -     &
+           this%metrics(:,2) = jacobianMatrixInverse(:,8) * jacobianMatrixInverse(:,3) -     &
                 jacobianMatrixInverse(:,2) * jacobianMatrixInverse(:,9)
            this%metrics(:,5) = jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,9) -     &
                 jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,3)
-           this%metrics(:,6) = jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,2) -     &
+           this%metrics(:,8) = jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,2) -     &
                 jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,8)
-           this%metrics(:,7) = jacobianMatrixInverse(:,2) * jacobianMatrixInverse(:,6) -     &
+           this%metrics(:,3) = jacobianMatrixInverse(:,2) * jacobianMatrixInverse(:,6) -     &
                 jacobianMatrixInverse(:,5) * jacobianMatrixInverse(:,3)
-           this%metrics(:,8) = jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,3) -     &
+           this%metrics(:,6) = jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,3) -     &
                 jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,6)
            this%metrics(:,9) = jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,5) -     &
                 jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,2)
@@ -825,33 +825,33 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         if (.not. this%isCurvilinear) then
            this%metrics(:,2) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
-           call this%firstDerivative(3)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,8) * this%coordinates(:,3)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,2) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,9) * this%coordinates(:,1)
-           call this%firstDerivative(2)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,2) = this%metrics(:,2) - F(:,1)
         end if
 
         if (.not. this%isCurvilinear) then
            this%metrics(:,3) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,4) * this%coordinates(:,2)
-           call this%firstDerivative(3)%apply(F, this%localSize)
-           this%metrics(:,3) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
+           F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
            call this%firstDerivative(2)%apply(F, this%localSize)
+           this%metrics(:,3) = F(:,1)
+           F(:,1) = jacobianMatrixInverse(:,5) * this%coordinates(:,3)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,3) = this%metrics(:,3) - F(:,1)
         end if
 
         if (.not. this%isCurvilinear) then
            this%metrics(:,4) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,8) * this%coordinates(:,3)
-           call this%firstDerivative(1)%apply(F, this%localSize)
-           this%metrics(:,4) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
+           F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
            call this%firstDerivative(3)%apply(F, this%localSize)
+           this%metrics(:,4) = F(:,1)
+           F(:,1) = jacobianMatrixInverse(:,9) * this%coordinates(:,1)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,4) = this%metrics(:,4) - F(:,1)
         end if
 
@@ -867,33 +867,33 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         if (.not. this%isCurvilinear) then
            this%metrics(:,6) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
-           call this%firstDerivative(1)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,3) * this%coordinates(:,1)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,6) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,1) * this%coordinates(:,2)
-           call this%firstDerivative(3)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,6) = this%metrics(:,6) - F(:,1)
         end if
 
         if (.not. this%isCurvilinear) then
            this%metrics(:,7) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
-           call this%firstDerivative(2)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,4) * this%coordinates(:,2)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,7) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,5) * this%coordinates(:,3)
-           call this%firstDerivative(1)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,7) = this%metrics(:,7) - F(:,1)
         end if
 
         if (.not. this%isCurvilinear) then
            this%metrics(:,8) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,3) * this%coordinates(:,1)
-           call this%firstDerivative(2)%apply(F, this%localSize)
-           this%metrics(:,8) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
+           F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
            call this%firstDerivative(1)%apply(F, this%localSize)
+           this%metrics(:,8) = F(:,1)
+           F(:,1) = jacobianMatrixInverse(:,1) * this%coordinates(:,2)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,8) = this%metrics(:,8) - F(:,1)
         end if
 
@@ -1110,9 +1110,13 @@ subroutine computeGradientOfScalar(this, f, gradF)
      gradF(:,1) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,1)
 
   case (2)
-     gradF(:,1) = f ; gradF(:,2) = f
+
+     gradF(:,1) = f
      call this%firstDerivative(1)%apply(gradF(:,1:1), this%localSize)
+
+     gradF(:,2) = f
      call this%firstDerivative(2)%apply(gradF(:,2:2), this%localSize)
+
      if (this%isCurvilinear) then
         temp(:,1) = gradF(:,1)
         gradF(:,1) = this%jacobian(:,1) * (this%metrics(:,1) *                               &
@@ -1125,10 +1129,16 @@ subroutine computeGradientOfScalar(this, f, gradF)
      end if
 
   case (3)
-     gradF(:,1) = f ; gradF(:,2) = f ; gradF(:,3) = f
+
+     gradF(:,1) = f
      call this%firstDerivative(1)%apply(gradF(:,1:1), this%localSize)
+
+     gradF(:,2) = f
      call this%firstDerivative(2)%apply(gradF(:,2:2), this%localSize)
+
+     gradF(:,3) = f
      call this%firstDerivative(3)%apply(gradF(:,3:3), this%localSize)
+
      if (this%isCurvilinear) then
         temp(:,1:2) = gradF(:,1:2)
         gradF(:,1) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,1) +                  &
@@ -1192,75 +1202,104 @@ subroutine computeGradientOfVector(this, f, gradF)
   assert(allocated(this%jacobian))
   assert(size(this%jacobian) == this%nGridPoints)
 
-  if (this%isCurvilinear .and. nDimensions > 1)                                              &
-       allocate(temp(this%nGridPoints, nDimensions - 1))
-
   select case (nDimensions)
 
   case (1)
+
      gradF = f
      call this%firstDerivative(1)%apply(gradF(:,1:1), this%localSize)
      gradF(:,1) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,1)
 
   case (2)
-     gradF(:,1:2) = f(:,1:2) ; gradF(:,3:4) = f(:,1:2)
+
+     gradF(:,1:2) = f(:,1:2)
      call this%firstDerivative(1)%apply(gradF(:,1:2), this%localSize)
+
+     gradF(:,3:4) = f(:,1:2)
      call this%firstDerivative(2)%apply(gradF(:,3:4), this%localSize)
+
      if (this%isCurvilinear) then
-        temp(:,1) = gradF(:,1)
+
+        allocate(temp(this%nGridPoints, 2), source = gradF(:,1:2))
+
         gradF(:,1) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,1) +                  &
              this%metrics(:,3) * gradF(:,3))
-        gradF(:,3) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,1) +                   &
+        gradF(:,2) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,1) +                   &
              this%metrics(:,4) * gradF(:,3))
-        temp(:,1) = gradF(:,2)
-        gradF(:,2) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,2) +                  &
+        gradF(:,3) = this%jacobian(:,1) * (this%metrics(:,1) * temp(:,2) +                   &
              this%metrics(:,3) * gradF(:,4))
-        gradF(:,4) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,1) +                   &
+        gradF(:,4) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,2) +                   &
              this%metrics(:,4) * gradF(:,4))
+
      else
+
+        allocate(temp(this%nGridPoints, 1), source = gradF(:,2:2))
+
         gradF(:,1) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,1)
-        gradF(:,2) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,2)
-        gradF(:,3) = this%jacobian(:,1) * this%metrics(:,4) * gradF(:,3)
+        gradF(:,2) = this%jacobian(:,1) * this%metrics(:,4) * gradF(:,3)
+        gradF(:,3) = this%jacobian(:,1) * this%metrics(:,1) * temp(:,1)
         gradF(:,4) = this%jacobian(:,1) * this%metrics(:,4) * gradF(:,4)
+
      end if
 
   case (3)
-     gradF(:,1:3) = f(:,1:3) ; gradF(:,4:6) = f(:,1:3) ; gradF(:,7:9) = f(:,1:3)
+
+     gradF(:,1:3) = f(:,1:3)
      call this%firstDerivative(1)%apply(gradF(:,1:3), this%localSize)
+
+     gradF(:,4:6) = f(:,1:3)
      call this%firstDerivative(2)%apply(gradF(:,4:6), this%localSize)
+
+     gradF(:,7:9) = f(:,1:3)
      call this%firstDerivative(3)%apply(gradF(:,7:9), this%localSize)
+
      if (this%isCurvilinear) then
-        temp(:,1) = gradF(:,1) ; temp(:,2) = gradF(:,4)
+
+        allocate(temp(this%nGridPoints, 3), source = gradF(:,1:3))
+
         gradF(:,1) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,1) +                  &
              this%metrics(:,4) * gradF(:,4) + this%metrics(:,7) * gradF(:,7))
-        gradF(:,4) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,1) +                   &
+        gradF(:,2) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,1) +                   &
              this%metrics(:,5) * gradF(:,4) + this%metrics(:,8) * gradF(:,7))
-        gradF(:,7) = this%jacobian(:,1) * (this%metrics(:,3) * temp(:,1) +                   &
-             this%metrics(:,6) * temp(:,2) + this%metrics(:,9) * gradF(:,7))
-        temp(:,1) = gradF(:,2) ; temp(:,2) = gradF(:,5)
-        gradF(:,2) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,2) +                  &
+        gradF(:,3) = this%jacobian(:,1) * (this%metrics(:,3) * temp(:,1) +                   &
+             this%metrics(:,6) * gradF(:,4) + this%metrics(:,9) * gradF(:,7))
+        gradF(:,4) = this%jacobian(:,1) * (this%metrics(:,1) * temp(:,2) +                   &
              this%metrics(:,4) * gradF(:,5) + this%metrics(:,7) * gradF(:,8))
-        gradF(:,5) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,1) +                   &
-             this%metrics(:,5) * gradF(:,5) + this%metrics(:,8) * gradF(:,8))
-        gradF(:,8) = this%jacobian(:,1) * (this%metrics(:,3) * temp(:,1) +                   &
-             this%metrics(:,6) * temp(:,2) + this%metrics(:,9) * gradF(:,8))
-        temp(:,1) = gradF(:,3) ; temp(:,2) = gradF(:,6)
-        gradF(:,3) = this%jacobian(:,1) * (this%metrics(:,1) * gradF(:,3) +                  &
+        gradF(:,7) = this%jacobian(:,1) * (this%metrics(:,1) * temp(:,3) +                   &
              this%metrics(:,4) * gradF(:,6) + this%metrics(:,7) * gradF(:,9))
-        gradF(:,6) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,1) +                   &
+
+        temp(:,1) = gradF(:,8)
+        gradF(:,8) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,3) +                   &
              this%metrics(:,5) * gradF(:,6) + this%metrics(:,8) * gradF(:,9))
-        gradF(:,9) = this%jacobian(:,1) * (this%metrics(:,3) * temp(:,1) +                   &
-             this%metrics(:,6) * temp(:,2) + this%metrics(:,9) * gradF(:,9))
+        gradF(:,9) = this%jacobian(:,1) * (this%metrics(:,3) * temp(:,3) +                   &
+             this%metrics(:,6) * gradF(:,6) + this%metrics(:,9) * gradF(:,9))
+
+        temp(:,3) = gradF(:,5)
+        gradF(:,5) = this%jacobian(:,1) * (this%metrics(:,2) * temp(:,2) +                   &
+             this%metrics(:,5) * gradF(:,5) + this%metrics(:,8) * temp(:,1))
+        gradF(:,6) = this%jacobian(:,1) * (this%metrics(:,3) * temp(:,2) +                   &
+             this%metrics(:,6) * temp(:,3) + this%metrics(:,9) * temp(:,1))
+
      else
+
+        allocate(temp(this%nGridPoints, 1))
+
         gradF(:,1) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,1)
-        gradF(:,2) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,2)
-        gradF(:,3) = this%jacobian(:,1) * this%metrics(:,1) * gradF(:,3)
-        gradF(:,4) = this%jacobian(:,1) * this%metrics(:,5) * gradF(:,4)
         gradF(:,5) = this%jacobian(:,1) * this%metrics(:,5) * gradF(:,5)
-        gradF(:,6) = this%jacobian(:,1) * this%metrics(:,5) * gradF(:,6)
-        gradF(:,7) = this%jacobian(:,1) * this%metrics(:,9) * gradF(:,7)
-        gradF(:,8) = this%jacobian(:,1) * this%metrics(:,9) * gradF(:,8)
         gradF(:,9) = this%jacobian(:,1) * this%metrics(:,9) * gradF(:,9)
+
+        temp(:,1) = gradF(:,2)
+        gradF(:,2) = this%jacobian(:,1) * this%metrics(:,5) * gradF(:,4)
+        gradF(:,4) = this%jacobian(:,1) * this%metrics(:,1) * temp(:,1)
+
+        temp(:,1) = gradF(:,3)
+        gradF(:,3) = this%jacobian(:,1) * this%metrics(:,9) * gradF(:,7)
+        gradF(:,7) = this%jacobian(:,1) * this%metrics(:,1) * temp(:,1)
+
+        temp(:,1) = gradF(:,6)
+        gradF(:,6) = this%jacobian(:,1) * this%metrics(:,9) * gradF(:,8)
+        gradF(:,8) = this%jacobian(:,1) * this%metrics(:,5) * temp(:,1)
+
      end if
 
   end select
