@@ -598,7 +598,7 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
         end do
         cfl = max(cfl, real(jacobian(i), wp) ** 2                                            &
              * max(2.0_wp * real(dynamicViscosity(i), wp),                                   &
-             real(thermalDiffusivity(i), wp)) * f * timeStepSize)
+             real(thermalDiffusivity(i), wp)) * f ** 2)
      end do
   end if
 
@@ -666,7 +666,7 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
         end do
         timeStepSize = min(timeStepSize, cfl / (real(jacobian(i), wp) ** 2                   &
              * max(2.0_wp * real(dynamicViscosity(i), wp),                                   &
-             real(thermalDiffusivity(i), wp)) * f))
+             real(thermalDiffusivity(i), wp)) * f ** 2))
      end do
   end if
 
