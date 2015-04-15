@@ -55,6 +55,8 @@ program main
   filename = PROJECT_NAME // ".inp"
   call parseInputFile(filename)
 
+  outputPrefix = getOption("output_prefix", PROJECT_NAME)
+
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
   call getRequiredOption("grid_file", filename)
@@ -88,7 +90,6 @@ program main
   call region%reportGridDiagnostics()
 
   ! Save the Jacobian and normalized metrics.
-  outputPrefix = getOption("output_prefix", PROJECT_NAME)
   write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
   call region%saveData(QOI_JACOBIAN, filename)
   write(filename, '(2A)') trim(outputPrefix), ".metrics.f"

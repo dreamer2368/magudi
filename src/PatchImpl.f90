@@ -316,6 +316,144 @@ subroutine collectTensorAtPatch(this, gridArray, patchArray)
 
 end subroutine collectTensorAtPatch
 
+subroutine disperseScalarFromPatch(this, patchArray, gridArray)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  ! <<< Arguments >>>
+  class(t_Patch) :: this
+  SCALAR_TYPE, intent(in) :: patchArray(:)
+  SCALAR_TYPE, intent(out) :: gridArray(:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, patchIndex, localIndex
+
+  assert(all(this%localSize >= 0) .and. size(patchArray, 1) == product(this%localSize))
+  assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
+
+  call startTiming("disperseFromPatch")
+
+  gridArray = 0.0_wp
+
+  do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+     do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+        do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+           patchIndex = i - this%offset(1) +                                                 &
+                this%localSize(1) * (j - 1 - this%offset(2) +                                &
+                this%localSize(2) * (k - 1 - this%offset(3)))
+           localIndex = i - this%gridOffset(1) +                                             &
+                this%gridLocalSize(1) * (j - 1 - this%gridOffset(2) +                        &
+                this%gridLocalSize(2) * (k - 1 - this%gridOffset(3)))
+           gridArray(localIndex) = patchArray(patchIndex)
+        end do
+     end do
+  end do
+
+  call endTiming("disperseFromPatch")
+
+end subroutine disperseScalarFromPatch
+
+subroutine disperseVectorFromPatch(this, patchArray, gridArray)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  ! <<< Arguments >>>
+  class(t_Patch) :: this
+  SCALAR_TYPE, intent(in) :: patchArray(:,:)
+  SCALAR_TYPE, intent(out) :: gridArray(:,:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, l, patchIndex, localIndex
+
+  assert(all(this%localSize >= 0) .and. size(patchArray, 1) == product(this%localSize))
+  assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
+  assert(size(patchArray, 2) > 0)
+  assert(size(gridArray, 2) == size(patchArray, 2))
+
+  call startTiming("disperseFromPatch")
+
+  gridArray = 0.0_wp
+
+  do l = 1, size(patchArray, 2)
+     do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+        do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+           do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+              patchIndex = i - this%offset(1) +                                              &
+                   this%localSize(1) * (j - 1 - this%offset(2) +                             &
+                   this%localSize(2) * (k - 1 - this%offset(3)))
+              localIndex = i - this%gridOffset(1) +                                          &
+                   this%gridLocalSize(1) * (j - 1 - this%gridOffset(2) +                     &
+                   this%gridLocalSize(2) * (k - 1 - this%gridOffset(3)))
+              gridArray(localIndex,l) = patchArray(patchIndex,l)
+           end do
+        end do
+     end do
+  end do
+
+  call endTiming("disperseFromPatch")
+
+end subroutine disperseVectorFromPatch
+
+subroutine disperseTensorFromPatch(this, patchArray, gridArray)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  ! <<< Arguments >>>
+  class(t_Patch) :: this
+  SCALAR_TYPE, intent(in) :: patchArray(:,:,:)
+  SCALAR_TYPE, intent(out) :: gridArray(:,:,:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, l, m, patchIndex, localIndex
+
+  assert(all(this%localSize >= 0) .and. size(patchArray, 1) == product(this%localSize))
+  assert(all(this%gridLocalSize > 0) .and. size(gridArray, 1) == product(this%gridLocalSize))
+  assert(size(patchArray, 2) > 0)
+  assert(size(gridArray, 2) == size(patchArray, 2))
+  assert(size(patchArray, 3) > 0)
+  assert(size(gridArray, 3) == size(patchArray, 3))
+
+  call startTiming("disperseFromPatch")
+
+  gridArray = 0.0_wp
+
+  do m = 1, size(patchArray, 3)
+     do l = 1, size(patchArray, 2)
+        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+           do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+              do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+                 patchIndex = i - this%offset(1) +                                           &
+                      this%localSize(1) * (j - 1 - this%offset(2) +                          &
+                      this%localSize(2) * (k - 1 - this%offset(3)))
+                 localIndex = i - this%gridOffset(1) +                                       &
+                      this%gridLocalSize(1) * (j - 1 - this%gridOffset(2) +                  &
+                      this%gridLocalSize(2) * (k - 1 - this%gridOffset(3)))
+                 gridArray(localIndex,l,m) = patchArray(patchIndex,l,m)
+              end do
+           end do
+        end do
+     end do
+  end do
+
+  call endTiming("disperseFromPatch")
+
+end subroutine disperseTensorFromPatch
+
 subroutine gatherScalarOnPatch(this, patchLocalArray, patchGlobalArray)
 
   ! <<< External modules >>>

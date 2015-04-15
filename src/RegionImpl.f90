@@ -1144,3 +1144,66 @@ subroutine reportGridDiagnostics(this)
   call writeAndFlush(this%comm, output_unit, "")
 
 end subroutine reportGridDiagnostics
+
+subroutine saveSpongeStrength(this, filename)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use SpongePatch_mod, only : t_SpongePatch
+
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_DUMMY_FUNCTION
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Region) :: this
+  character(len = *), intent(in) :: filename
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  type :: t_SpongeStrengthInternal
+     SCALAR_TYPE, allocatable :: buffer1(:)
+     SCALAR_TYPE, pointer :: buffer2(:,:) => null()
+  end type t_SpongeStrengthInternal
+  type(t_SpongeStrengthInternal), allocatable :: data(:)
+  integer :: i, j
+  class(t_Patch), pointer :: patch => null()
+
+  allocate(data(size(this%grids)))
+
+  if (allocated(this%patchFactories)) then
+     do i = 1, size(this%grids)
+        allocate(data(i)%buffer1(this%grids(i)%nGridPoints))
+        allocate(data(i)%buffer2(this%grids(i)%nGridPoints, 1))
+        data(i)%buffer2 = 0.0_wp
+
+        do j = 1, size(this%patchFactories)
+           call this%patchFactories(j)%connect(patch)
+
+           if (.not. associated(patch)) cycle
+           if (patch%gridIndex /= this%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
+
+           select type (patch)
+           class is (t_SpongePatch)
+              call patch%disperse(patch%spongeStrength, data(i)%buffer1)
+              data(i)%buffer2(:,1) = data(i)%buffer2(:,1) + data(i)%buffer1
+           end select
+
+        end do
+
+        this%states(i)%dummyFunction => data(i)%buffer2
+     end do
+  end if
+
+  call this%saveData(QOI_DUMMY_FUNCTION, trim(filename))
+
+  do i = 1, size(data)
+     SAFE_DEALLOCATE(data(i)%buffer1)
+     if (associated(data(i)%buffer2)) deallocate(data(i)%buffer2)
+     nullify(data(i)%buffer2)
+  end do
+  SAFE_DEALLOCATE(data)
+
+end subroutine saveSpongeStrength
