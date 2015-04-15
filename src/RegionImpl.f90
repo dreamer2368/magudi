@@ -1147,6 +1147,9 @@ end subroutine reportGridDiagnostics
 
 subroutine saveSpongeStrength(this, filename)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
@@ -1168,7 +1171,7 @@ subroutine saveSpongeStrength(this, filename)
      SCALAR_TYPE, pointer :: buffer2(:,:) => null()
   end type t_SpongeStrengthInternal
   type(t_SpongeStrengthInternal), allocatable :: data(:)
-  integer :: i, j
+  integer :: i, j, ierror
   class(t_Patch), pointer :: patch => null()
 
   allocate(data(size(this%grids)))
@@ -1194,6 +1197,8 @@ subroutine saveSpongeStrength(this, filename)
         end do
      end if
 
+    call MPI_Allreduce(MPI_IN_PLACE, data(i)%buffer2, size(data(i)%buffer2),                 &
+         SCALAR_TYPE_MPI, MPI_SUM, this%grids(i)%comm, ierror)
      this%states(i)%dummyFunction => data(i)%buffer2
   end do
 
