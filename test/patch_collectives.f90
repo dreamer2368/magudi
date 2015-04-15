@@ -92,13 +92,6 @@ program patch_collectives
         patchDescriptor = t_PatchDescriptor("testPatch", "SAT_BLOCK_INTERFACE", 1,           &
              direction, extent(1), extent(2), extent(3), extent(4), extent(5), extent(6))
 
-        ! if (procRank == 0) then
-        !    print *, "Grid size: ", gridSize
-        !    print *, "Extent: ", extent
-        !    print *, "Direction: ", direction
-        ! end if
-        ! print *, "Distribution: ", procRank, grid%offset + 1, grid%offset + grid%localSize
-
         call patchDescriptor%validate(gridSize, simulationFlags,                             &
              solverOptions, errorCode, str)
         success = success .and. (errorCode == 0)

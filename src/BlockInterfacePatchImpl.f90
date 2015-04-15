@@ -393,9 +393,14 @@ subroutine reshapeReceivedData(this, indexReordering)
 
   ! <<< Local variables >>>
   integer :: i, j, k, l, order(3), globalSize(3), nComponents
-  SCALAR_TYPE, allocatable :: tempBuffer(:,:)
 
   if (this%comm == MPI_COMM_NULL .or. .not. allocated(this%receiveBuffer)) return
+
+  assert(allocated(this%sendBuffer))
+  assert(all(this%globalSize > 0))
+  assert(size(this%sendBuffer, 1) == product(this%globalSize))
+  assert(size(this%sendBuffer, 2) > 0)
+  assert(all(shape(this%receiveBuffer) == shape(this%sendBuffer)))
 
   assert(indexReordering(3) == 3)
 
@@ -410,114 +415,77 @@ subroutine reshapeReceivedData(this, indexReordering)
 
   if (abs(order(1)) == 2 .and. abs(order(2)) == 1) then
 
-     allocate(tempBuffer(globalSize(2), globalSize(1)))
-
      do l = 1, nComponents
         do k = 1, globalSize(3)
-
-           do j = 1, globalSize(1)
-              do i = 1, globalSize(2)
-                 tempBuffer(i,j) = this%receiveBuffer(i + globalSize(2) * (j - 1 +           &
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%sendBuffer(i + globalSize(1) * (j - 1 +                                &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%receiveBuffer(j + globalSize(2) * (i - 1 +                        &
                       globalSize(1) * (k - 1)), l)
               end do
            end do
-
-           do j = 1, globalSize(2)
-              do i = 1, globalSize(1)
-                 this%receiveBuffer(i + globalSize(1) * (j - 1 +                             &
-                      globalSize(2) * (k - 1)), l) = tempBuffer(j,i)
-              end do
-           end do
-
         end do
      end do
+
+     this%receiveBuffer = this%sendBuffer
 
      i = order(2)
      order(2) = order(1)
      order(1) = i
 
-     SAFE_DEALLOCATE(tempBuffer)
-
   end if
 
   if (order(1) == -1 .and. order(2) == 2) then
 
-     allocate(tempBuffer(globalSize(1), globalSize(2)))
-
      do l = 1, nComponents
         do k = 1, globalSize(3)
-
            do j = 1, globalSize(2)
               do i = 1, globalSize(1)
-                 tempBuffer(i,j) = this%receiveBuffer(i + globalSize(1) * (j - 1 +           &
+                 this%sendBuffer(i + globalSize(1) * (j - 1 +                                &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%receiveBuffer(globalSize(1) + 1 - i + globalSize(1) * (j - 1 +    &
                       globalSize(2) * (k - 1)), l)
               end do
            end do
-
-           do j = 1, globalSize(2)
-              do i = 1, globalSize(1)
-                 this%receiveBuffer(i + globalSize(1) * (j - 1 +                             &
-                      globalSize(2) * (k - 1)), l) = tempBuffer(globalSize(1) + 1 - i, j)
-              end do
-           end do
-
         end do
      end do
 
-     SAFE_DEALLOCATE(tempBuffer)
+     this%receiveBuffer = this%sendBuffer
 
   else if (order(1) == 1 .and. order(2) == -2) then
 
-     allocate(tempBuffer(globalSize(1), globalSize(2)))
-
      do l = 1, nComponents
         do k = 1, globalSize(3)
-
            do j = 1, globalSize(2)
               do i = 1, globalSize(1)
-                 tempBuffer(i,j) = this%receiveBuffer(i + globalSize(1) * (j - 1 +           &
+                 this%sendBuffer(i + globalSize(1) * (j - 1 +                                &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%receiveBuffer(i + globalSize(1) * (globalSize(2) - j +            &
                       globalSize(2) * (k - 1)), l)
               end do
            end do
-
-           do j = 1, globalSize(2)
-              do i = 1, globalSize(1)
-                 this%receiveBuffer(i + globalSize(1) * (j - 1 +                             &
-                      globalSize(2) * (k - 1)), l) = tempBuffer(i, globalSize(2) + 1 - j)
-              end do
-           end do
-
         end do
      end do
 
-     SAFE_DEALLOCATE(tempBuffer)
+     this%receiveBuffer = this%sendBuffer
 
   else if (order(1) == -1 .and. order(2) == -2) then
 
-     allocate(tempBuffer(globalSize(1), globalSize(2)))
-
      do l = 1, nComponents
         do k = 1, globalSize(3)
-
            do j = 1, globalSize(2)
               do i = 1, globalSize(1)
-                 tempBuffer(i,j) = this%receiveBuffer(i + globalSize(1) * (j - 1 +           &
-                      globalSize(2) * (k - 1)), l)
+                 this%sendBuffer(i + globalSize(1) * (j - 1 +                                &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%receiveBuffer(globalSize(1) + 1 - i +                             &
+                      globalSize(1) * (globalSize(2) - j + globalSize(2) * (k - 1)), l)
               end do
            end do
-
-           do j = 1, globalSize(2)
-              do i = 1, globalSize(1)
-                 this%receiveBuffer(i + globalSize(1) * (j - 1 +                             &
-                      globalSize(2) * (k - 1)), l) = &
-                      tempBuffer(globalSize(1) + 1 - i, globalSize(2) + 1 - j)
-              end do
-           end do
-
         end do
      end do
 
-     SAFE_DEALLOCATE(tempBuffer)
+     this%receiveBuffer = this%sendBuffer
 
   end if
 
