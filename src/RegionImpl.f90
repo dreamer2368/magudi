@@ -1173,12 +1173,12 @@ subroutine saveSpongeStrength(this, filename)
 
   allocate(data(size(this%grids)))
 
-  if (allocated(this%patchFactories)) then
-     do i = 1, size(this%grids)
-        allocate(data(i)%buffer1(this%grids(i)%nGridPoints))
-        allocate(data(i)%buffer2(this%grids(i)%nGridPoints, 1))
-        data(i)%buffer2 = 0.0_wp
+  do i = 1, size(this%grids)
+     allocate(data(i)%buffer1(this%grids(i)%nGridPoints))
+     allocate(data(i)%buffer2(this%grids(i)%nGridPoints, 1))
+     data(i)%buffer2 = 0.0_wp
 
+     if (allocated(this%patchFactories)) then
         do j = 1, size(this%patchFactories)
            call this%patchFactories(j)%connect(patch)
 
@@ -1186,16 +1186,16 @@ subroutine saveSpongeStrength(this, filename)
            if (patch%gridIndex /= this%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
 
            select type (patch)
-           class is (t_SpongePatch)
+              class is (t_SpongePatch)
               call patch%disperse(patch%spongeStrength, data(i)%buffer1)
               data(i)%buffer2(:,1) = data(i)%buffer2(:,1) + data(i)%buffer1
            end select
 
         end do
+     end if
 
-        this%states(i)%dummyFunction => data(i)%buffer2
-     end do
-  end if
+     this%states(i)%dummyFunction => data(i)%buffer2
+  end do
 
   call this%saveData(QOI_DUMMY_FUNCTION, trim(filename))
 
