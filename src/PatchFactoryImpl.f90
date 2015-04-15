@@ -170,7 +170,6 @@ subroutine computeSpongeStrengths(patchFactories, grid)
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, dimension(:,:), allocatable :: coordinateDerivatives, arcLength,              &
        globalArcLengthsAlongDirection
-  SCALAR_TYPE, allocatable :: patchJacobian(:)
   real(wp), allocatable :: curveLengthIntegrand(:)
 
   nDimensions = grid%nDimensions
@@ -215,9 +214,6 @@ subroutine computeSpongeStrengths(patchFactories, grid)
                 abs(patch%normalDirection) /= direction) cycle
            select type (patch)
            class is (t_SpongePatch)
-
-              allocate(patchJacobian(patch%nPatchPoints))
-              call patch%collect(grid%jacobian(:,1), patchJacobian)
 
               select case (direction)
 
@@ -346,8 +342,6 @@ subroutine computeSpongeStrengths(patchFactories, grid)
 
               patch%spongeStrength = patch%spongeAmount *                                    &
                    (1.0_wp - patch%spongeStrength) ** real(patch%spongeExponent, wp)
-              patch%spongeStrength = patch%spongeStrength / patchJacobian
-              SAFE_DEALLOCATE(patchJacobian)
 
            end select !... select type (patch)
 
