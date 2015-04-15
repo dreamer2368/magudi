@@ -140,14 +140,14 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
 
   assert(all(shape(arrayWithGhostPoints) > 0))
 
-  call startTiming("fillGhostPoints")
-
   ! Get number of dimensions from communicator.
   call MPI_Cartdim_get(cartesianCommunicator, nDimensions, ierror)
   assert_key(nDimensions, (1, 2, 3))
   assert(direction >= 1 .and. direction <= nDimensions)
 
   if (all(numGhostPoints <= 0)) return
+
+  call startTiming("fillGhostPoints")
 
   ! Get process distribution, coordinates and periodicity.
   processDistribution = 1

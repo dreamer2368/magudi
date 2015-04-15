@@ -777,19 +777,19 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         if (this%isCurvilinear) then
            this%metrics(:,1) = jacobianMatrixInverse(:,5) * jacobianMatrixInverse(:,9) -     &
                 jacobianMatrixInverse(:,8) * jacobianMatrixInverse(:,6)
-           this%metrics(:,4) = jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,6) -     &
+           this%metrics(:,2) = jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,6) -     &
                 jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,9)
-           this%metrics(:,7) = jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,8) -     &
+           this%metrics(:,3) = jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,8) -     &
                 jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,5)
-           this%metrics(:,2) = jacobianMatrixInverse(:,8) * jacobianMatrixInverse(:,3) -     &
+           this%metrics(:,4) = jacobianMatrixInverse(:,8) * jacobianMatrixInverse(:,3) -     &
                 jacobianMatrixInverse(:,2) * jacobianMatrixInverse(:,9)
            this%metrics(:,5) = jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,9) -     &
                 jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,3)
-           this%metrics(:,8) = jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,2) -     &
+           this%metrics(:,6) = jacobianMatrixInverse(:,7) * jacobianMatrixInverse(:,2) -     &
                 jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,8)
-           this%metrics(:,3) = jacobianMatrixInverse(:,2) * jacobianMatrixInverse(:,6) -     &
+           this%metrics(:,7) = jacobianMatrixInverse(:,2) * jacobianMatrixInverse(:,6) -     &
                 jacobianMatrixInverse(:,5) * jacobianMatrixInverse(:,3)
-           this%metrics(:,6) = jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,3) -     &
+           this%metrics(:,8) = jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,3) -     &
                 jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,6)
            this%metrics(:,9) = jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,5) -     &
                 jacobianMatrixInverse(:,4) * jacobianMatrixInverse(:,2)
@@ -825,33 +825,33 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         if (.not. this%isCurvilinear) then
            this%metrics(:,2) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,8) * this%coordinates(:,3)
-           call this%firstDerivative(1)%apply(F, this%localSize)
-           this%metrics(:,2) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
+           F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
            call this%firstDerivative(3)%apply(F, this%localSize)
+           this%metrics(:,2) = F(:,1)
+           F(:,1) = jacobianMatrixInverse(:,9) * this%coordinates(:,1)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,2) = this%metrics(:,2) - F(:,1)
         end if
 
         if (.not. this%isCurvilinear) then
            this%metrics(:,3) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
-           call this%firstDerivative(2)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,4) * this%coordinates(:,2)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,3) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,5) * this%coordinates(:,3)
-           call this%firstDerivative(1)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,3) = this%metrics(:,3) - F(:,1)
         end if
 
         if (.not. this%isCurvilinear) then
            this%metrics(:,4) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
-           call this%firstDerivative(3)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,8) * this%coordinates(:,3)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,4) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,9) * this%coordinates(:,1)
-           call this%firstDerivative(2)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,4) = this%metrics(:,4) - F(:,1)
         end if
 
@@ -867,33 +867,33 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         if (.not. this%isCurvilinear) then
            this%metrics(:,6) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,3) * this%coordinates(:,1)
-           call this%firstDerivative(2)%apply(F, this%localSize)
-           this%metrics(:,6) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
+           F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
            call this%firstDerivative(1)%apply(F, this%localSize)
+           this%metrics(:,6) = F(:,1)
+           F(:,1) = jacobianMatrixInverse(:,1) * this%coordinates(:,2)
+           call this%firstDerivative(3)%apply(F, this%localSize)
            this%metrics(:,6) = this%metrics(:,6) - F(:,1)
         end if
 
         if (.not. this%isCurvilinear) then
            this%metrics(:,7) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,4) * this%coordinates(:,2)
-           call this%firstDerivative(3)%apply(F, this%localSize)
-           this%metrics(:,7) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
+           F(:,1) = jacobianMatrixInverse(:,2) * this%coordinates(:,3)
            call this%firstDerivative(2)%apply(F, this%localSize)
+           this%metrics(:,7) = F(:,1)
+           F(:,1) = jacobianMatrixInverse(:,5) * this%coordinates(:,3)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,7) = this%metrics(:,7) - F(:,1)
         end if
 
         if (.not. this%isCurvilinear) then
            this%metrics(:,8) = 0.0_wp
         else
-           F(:,1) = jacobianMatrixInverse(:,7) * this%coordinates(:,2)
-           call this%firstDerivative(1)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,3) * this%coordinates(:,1)
+           call this%firstDerivative(2)%apply(F, this%localSize)
            this%metrics(:,8) = F(:,1)
-           F(:,1) = jacobianMatrixInverse(:,1) * this%coordinates(:,2)
-           call this%firstDerivative(3)%apply(F, this%localSize)
+           F(:,1) = jacobianMatrixInverse(:,6) * this%coordinates(:,1)
+           call this%firstDerivative(1)%apply(F, this%localSize)
            this%metrics(:,8) = this%metrics(:,8) - F(:,1)
         end if
 
