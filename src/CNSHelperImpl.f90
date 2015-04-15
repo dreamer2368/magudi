@@ -591,6 +591,7 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
      assert(size(thermalDiffusivity) == size(iblank))
      do i = 1, size(iblank)
         if (iblank(i) == 0) cycle !... skip hole points.
+        assert(real(temperature(i), wp) > 0.0_wp)
         f = 0.0_wp
         do j = 1, nDimensions
            f = f + sqrt(sum(real(metrics(i,1+nDimensions*(j-1):nDimensions*j), wp) ** 2))
@@ -639,6 +640,7 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
   ! Advection.
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
+     assert(real(temperature(i), wp) > 0.0_wp)
      gridSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp)) *   &
           sqrt(sum(real(metrics(i,:), wp) ** 2)) ! ... scaled speed of sound.
      gridVelocity = 0.0_wp
@@ -664,7 +666,7 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
         end do
         timeStepSize = min(timeStepSize, cfl / (real(jacobian(i), wp) ** 2                   &
              * max(2.0_wp * real(dynamicViscosity(i), wp),                                   &
-             real(thermalDiffusivity(i), wp)) * f * timeStepSize))
+             real(thermalDiffusivity(i), wp)) * f))
      end do
   end if
 
