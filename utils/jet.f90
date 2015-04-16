@@ -113,7 +113,7 @@ contains
     real(wp) :: ratioOfSpecificHeats, machNumber, temperatureRatio,                          &
          axialCoordinateAtNozzleExit, momentumThicknessAtExit, slopeOfMomentumThickness,     &
          momentumThickness, radialCoordinate, normalizedExitVelocity,                        &
-         normalizedExitDensity, speedOfSoundAtExit, nozzleLipRadius
+         normalizedExitDensity, speedOfSoundAtExit, nozzleLipRadius, potentialCoreLength
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -129,8 +129,11 @@ contains
     momentumThicknessAtExit = getOption("nozzle_exit_momentum_thickness", 0.04_wp)
     slopeOfMomentumThickness = getOption("slope_of_momentum_thickness", 0.03_wp)
     axialCoordinateAtNozzleExit = getOption("axial_coordinate_at_nozzle_exit", 0.0_wp)
-    temperatureRatio = getOption("temperature_ratio", 0.7_wp)
+    temperatureRatio = getOption("temperature_ratio",                                        &
+         1.0_wp / (1.0_wp + 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * machNumber ** 2))
     nozzleLipRadius = getOption("nozzle_lip_radius", 0.5_wp)
+    potentialCoreLength = getOption("potential_core_length",                                 &
+         4.2_wp + 1.1_wp * machNumber ** 2)
 
     do i = 1, grid%nGridPoints
 
@@ -140,6 +143,9 @@ contains
             nozzleLipRadius + epsilon(0.0_wp)
        normalizedExitVelocity = 0.5_wp * (1.0_wp + tanh(0.25_wp / momentumThickness *        &
             (1.0_wp / radialCoordinate - radialCoordinate)))
+       if (grid%coordinates(i,3) > potentialCoreLength)                                      &
+            normalizedExitVelocity = normalizedExitVelocity * (1.0_wp -                      &  
+            exp(1.35_wp / (1.0_wp - grid%coordinates(i,3) / potentialCoreLength)))
        normalizedExitDensity = 1.0_wp / (0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *          &
             normalizedExitVelocity * (1.0_wp - normalizedExitVelocity) * machNumber ** 2 +   &
             normalizedExitVelocity + (1.0_wp - normalizedExitVelocity) / temperatureRatio)
@@ -149,7 +155,7 @@ contains
        state%conservedVariables(i,2) = 0.0_wp
        state%conservedVariables(i,3) = 0.0_wp
        state%conservedVariables(i,4) = state%conservedVariables(i,1) *                       &
-            machNumber * normalizedExitVelocity
+            machNumber * speedOfSoundAtExit * normalizedExitVelocity
        state%conservedVariables(i,5) =                                                       &
             1.0_wp / ratioOfSpecificHeats / (ratioOfSpecificHeats - 1.0_wp) +                &
             0.5_wp / state%conservedVariables(i,1) * state%conservedVariables(i,4) ** 2

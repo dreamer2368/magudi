@@ -193,7 +193,6 @@ subroutine exchangeInterfaceData(region)
              size(blockInterfacePatch%receiveBuffer), SCALAR_TYPE_MPI,                       &
              region%patchMasterRanks(region%patchInterfaces(i)),                             &
              mpiTag, region%comm, MPI_STATUS_IGNORE, ierror)
-        call blockInterfacePatch%reshapeReceivedData(region%interfaceIndexReorderings(:,i))
 
      end if
   end do
