@@ -120,8 +120,8 @@ subroutine exchangeInterfaceData(region)
   class(t_Region) :: region
 
   ! <<< Local variables >>>
-  integer :: i, j, mpiSendTag, mpiRecvTag, procRank, ierror
-  integer, allocatable :: mpiSendRequests(:), mpiRecvRequests(:)
+  integer :: i, j, iRequest, mpiTag, procRank, ierror
+  integer, allocatable :: mpiSendRequests(:)
   class(t_Patch), pointer :: patch => null()
   class(t_BlockInterfacePatch), pointer :: blockInterfacePatch => null()
 
@@ -129,16 +129,20 @@ subroutine exchangeInterfaceData(region)
 
   call MPI_Comm_rank(region%comm, procRank, ierror)
 
-  allocate(mpiSendRequests(size(region%patchInterfaces)), source = MPI_REQUEST_NULL)
-  allocate(mpiRecvRequests(size(region%patchInterfaces)), source = MPI_REQUEST_NULL)
+  if (any(region%patchMasterRanks == procRank))                                              &
+       allocate(mpiSendRequests(count(region%patchInterfaces > 0 .and.                       &
+       region%patchMasterRanks == procRank)), source = MPI_REQUEST_NULL)
+
+  iRequest = 0
 
   do i = 1, size(region%patchInterfaces)
-     if (procRank == region%patchMasterRanks(i) .and. region%patchInterfaces(i) > 0 .and.    &
-          allocated(region%patchFactories)) then
+     if (procRank == region%patchMasterRanks(i) .and. region%patchInterfaces(i) > 0) then
+
+        assert(allocated(region%patchFactories))
+
+        mpiTag = i + size(region%patchInterfaces) * (region%patchInterfaces(i) - 1)
 
         nullify(blockInterfacePatch)
-        mpiSendTag = i + size(region%patchInterfaces) * (region%patchInterfaces(i) - 1)
-        mpiRecvTag = region%patchInterfaces(i) + size(region%patchInterfaces) * (i - 1)
 
         do j = 1, size(region%patchFactories)
            call region%patchFactories(j)%connect(patch)
@@ -151,38 +155,51 @@ subroutine exchangeInterfaceData(region)
            end select
         end do
 
-        if (associated(blockInterfacePatch)) then
-           call MPI_Isend(blockInterfacePatch%sendBuffer,                                    &
-                size(blockInterfacePatch%sendBuffer), SCALAR_TYPE_MPI,                       &
-                region%patchMasterRanks(region%patchInterfaces(i)), mpiSendTag,              &
-                region%comm, mpiSendRequests(i), ierror)
-           call MPI_Irecv(blockInterfacePatch%receiveBuffer,                                 &
-                size(blockInterfacePatch%receiveBuffer), SCALAR_TYPE_MPI,                    &
-                region%patchMasterRanks(region%patchInterfaces(i)), mpiRecvTag,              &
-                region%comm, mpiRecvRequests(i), ierror)
-        end if
+        assert(associated(blockInterfacePatch))
+        assert(allocated(blockInterfacePatch%sendBuffer))
+
+        iRequest = iRequest + 1
+        call MPI_Isend(blockInterfacePatch%sendBuffer, size(blockInterfacePatch%sendBuffer), &
+             SCALAR_TYPE_MPI, region%patchMasterRanks(region%patchInterfaces(i)), mpiTag,    &
+             region%comm, mpiSendRequests(iRequest), ierror)
+
+     end if
+  end do
+
+  do i = 1, size(region%patchInterfaces)
+     if (procRank == region%patchMasterRanks(i) .and. region%patchInterfaces(i) > 0) then
+
+        assert(allocated(region%patchFactories))
+
+        mpiTag = region%patchInterfaces(i) + size(region%patchInterfaces) * (i - 1)
+
+        nullify(blockInterfacePatch)
+
+        do j = 1, size(region%patchFactories)
+           call region%patchFactories(j)%connect(patch)
+           if (.not. associated(patch)) cycle
+           if (patch%index /= i) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              blockInterfacePatch => patch
+              exit
+           end select
+        end do
+
+        assert(associated(blockInterfacePatch))
+        assert(allocated(blockInterfacePatch%receiveBuffer))
+
+        call MPI_Recv(blockInterfacePatch%receiveBuffer,                                     &
+             size(blockInterfacePatch%receiveBuffer), SCALAR_TYPE_MPI,                       &
+             region%patchMasterRanks(region%patchInterfaces(i)),                             &
+             mpiTag, region%comm, MPI_STATUS_IGNORE, ierror)
+        call blockInterfacePatch%reshapeReceivedData(region%interfaceIndexReorderings(:,i))
 
      end if
   end do
 
   call MPI_Waitall(size(mpiSendRequests), mpiSendRequests, MPI_STATUSES_IGNORE, ierror)
-  call MPI_Waitall(size(mpiRecvRequests), mpiRecvRequests, MPI_STATUSES_IGNORE, ierror)
 
-  if (allocated(region%patchFactories)) then
-     do j = 1, size(region%patchFactories)
-        call region%patchFactories(j)%connect(patch)
-        if (.not. associated(patch)) cycle
-        select type (patch)
-           class is (t_BlockInterfacePatch)
-           blockInterfacePatch => patch
-           if (allocated(blockInterfacePatch%receiveBuffer))                                 &
-                call blockInterfacePatch%reshapeReceivedData(                                &
-                region%interfaceIndexReorderings(:,blockInterfacePatch%index))
-        end select
-     end do
-  end if
-
-  SAFE_DEALLOCATE(mpiRecvRequests)
   SAFE_DEALLOCATE(mpiSendRequests)
 
   call MPI_Barrier(region%comm, ierror)
@@ -285,8 +302,7 @@ subroutine checkInterfaceContinuity(region, tolerance, success)
               allocate(patchCoordinates(blockInterfacePatch%nPatchPoints, nDimensions))
               call blockInterfacePatch%collect(region%grids(i)%coordinates, patchCoordinates)
 
-              if (any(abs(patchCoordinates - interfaceCoordinates) > tolerance))             &
-                   success = .false.
+              success = all(abs(patchCoordinates - interfaceCoordinates) < tolerance)
 
               SAFE_DEALLOCATE(patchCoordinates)
               SAFE_DEALLOCATE(interfaceCoordinates)
