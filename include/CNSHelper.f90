@@ -51,6 +51,20 @@ module CNSHelper
 
   interface
 
+     pure subroutine computeRoeAverage(nDimensions, conservedVariablesL,                     &
+          conservedVariablesR, ratioOfSpecificHeats, roeAverage)
+
+       integer, intent(in) :: nDimensions
+       SCALAR_TYPE, intent(in) :: conservedVariablesL(:), conservedVariablesR(:)
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+       SCALAR_TYPE, intent(out) :: roeAverage(:)
+
+     end subroutine computeRoeAverage
+
+  end interface
+
+  interface
+
      pure subroutine computeStressTensor(nDimensions, velocityGradient, dynamicViscosity,    &
           secondCoefficientOfViscosity, stressTensor)
 

@@ -144,7 +144,7 @@ contains
        normalizedExitVelocity = 0.5_wp * (1.0_wp + tanh(0.25_wp / momentumThickness *        &
             (1.0_wp / radialCoordinate - radialCoordinate)))
        if (grid%coordinates(i,3) > potentialCoreLength)                                      &
-            normalizedExitVelocity = normalizedExitVelocity * (1.0_wp -                      &  
+            normalizedExitVelocity = normalizedExitVelocity * (1.0_wp -                      &
             exp(1.35_wp / (1.0_wp - grid%coordinates(i,3) / potentialCoreLength)))
        normalizedExitDensity = 1.0_wp / (0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *          &
             normalizedExitVelocity * (1.0_wp - normalizedExitVelocity) * machNumber ** 2 +   &

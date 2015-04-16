@@ -176,6 +176,49 @@ PURE_SUBROUTINE computeTransportVariables(temperature, powerLawExponent, bulkVis
 
 end subroutine computeTransportVariables
 
+PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,                          &
+     conservedVariablesR, ratioOfSpecificHeats, roeAverage)
+
+  implicit none
+
+  ! <<< Arguments >>>
+  integer, intent(in) :: nDimensions
+  SCALAR_TYPE, intent(in) :: conservedVariablesL(:), conservedVariablesR(:)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(out) :: roeAverage(:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i
+  SCALAR_TYPE :: sqrtDensityL, sqrtDensityR, specificVolumeL, specificVolumeR,               &
+       enthalpyL, enthalpyR
+
+  sqrtDensityL = sqrt(conservedVariablesL(1))
+  sqrtDensityR = sqrt(conservedVariablesR(1))
+
+  specificVolumeL = 1.0_wp / conservedVariablesL(1)
+  specificVolumeR = 1.0_wp / conservedVariablesR(1)
+
+  enthalpyL = ratioOfSpecificHeats * conservedVariablesL(nDimensions+2) -                    &
+       0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * specificVolumeL *                          &
+       sum(conservedVariablesL(2:nDimensions+1) ** 2)
+  enthalpyR = ratioOfSpecificHeats * conservedVariablesR(nDimensions+2) -                    &
+       0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * specificVolumeR *                          &
+       sum(conservedVariablesR(2:nDimensions+1) ** 2)
+
+  roeAverage(1) = sqrtDensityL * sqrtDensityR
+  do i = 1, nDimensions
+     roeAverage(i+1) = (sqrtDensityR * conservedVariablesL(i+1) +                            &
+          sqrtDensityL * conservedVariablesR(i+1)) / (sqrtDensityL + sqrtDensityR)
+  end do
+
+  roeAverage(nDimensions+2) = ((sqrtDensityR * enthalpyL + sqrtDensityL * enthalpyR) /       &
+       (sqrtDensityL + sqrtDensityR) +                                                       &
+       0.5_wp * (ratioOfSpecificHeats - 1.0_wp) / roeAverage(1) *                            &
+       sum(roeAverage(2:nDimensions+1) ** 2)) / ratioOfSpecificHeats
+
+end subroutine computeRoeAverage
+
 PURE_SUBROUTINE computeStressTensor(nDimensions, velocityGradient, dynamicViscosity,         &
      secondCoefficientOfViscosity, stressTensor)
 

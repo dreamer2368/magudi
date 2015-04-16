@@ -136,7 +136,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: receivedData(:,:), localConservedVariables(:),                 &
-       metricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:)
+       localInterfaceConservedVariables(:), metricsAlongNormalDirection(:),                  &
+       incomingJacobianOfInviscidFlux(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -168,6 +169,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   end if
 
   allocate(localConservedVariables(nUnknowns))
+  allocate(localInterfaceConservedVariables(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
   allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
 
@@ -183,28 +185,27 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                 (k - 1 - this%offset(3)))
 
            localConservedVariables = state%conservedVariables(gridIndex,:)
+           localInterfaceConservedVariables = this%interfaceConservedVariables(patchIndex,:)
            metricsAlongNormalDirection =                                                     &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
+
+           call computeRoeAverage(nDimensions, localConservedVariables,                      &
+                localInterfaceConservedVariables, solverOptions%ratioOfSpecificHeats,        &
+                localConservedVariables)
 
            select case (nDimensions)
            case (1)
               call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,          &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux,                     &
-                   specificVolume = state%specificVolume(gridIndex, 1),                      &
-                   temperature = state%temperature(gridIndex, 1))
+                   this%normalDirection, incomingJacobianOfInviscidFlux)
            case (2)
               call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,          &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux,                     &
-                   specificVolume = state%specificVolume(gridIndex, 1),                      &
-                   temperature = state%temperature(gridIndex, 1))
+                   this%normalDirection, incomingJacobianOfInviscidFlux)
            case (3)
               call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,          &
                    metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   this%normalDirection, incomingJacobianOfInviscidFlux,                     &
-                   specificVolume = state%specificVolume(gridIndex, 1),                      &
-                   temperature = state%temperature(gridIndex, 1))
+                   this%normalDirection, incomingJacobianOfInviscidFlux)
            end select !... nDimensions
 
            select case (mode)
@@ -235,6 +236,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
 
   SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
+  SAFE_DEALLOCATE(localInterfaceConservedVariables)
   SAFE_DEALLOCATE(localConservedVariables)
 
   call endTiming("addBlockInterfacePenalty")
