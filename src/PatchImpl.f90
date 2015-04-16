@@ -598,7 +598,7 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
      end do
   end if
 
-  call MPI_Wait(mpiRequest, MPI_STATUSES_IGNORE, ierror)
+  call MPI_Wait(mpiRequest, MPI_STATUS_IGNORE, ierror)
 
 end subroutine gatherTensorOnPatch
 

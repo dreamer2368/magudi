@@ -198,11 +198,36 @@ subroutine exchangeInterfaceData(region)
      end if
   end do
 
-  call MPI_Waitall(size(mpiSendRequests), mpiSendRequests, MPI_STATUSES_IGNORE, ierror)
+  if (allocated(mpiSendRequests))                                                            &
+       call MPI_Waitall(size(mpiSendRequests), mpiSendRequests, MPI_STATUSES_IGNORE, ierror)
+
+  do i = 1, size(region%patchInterfaces)
+     if (procRank == region%patchMasterRanks(i) .and. region%patchInterfaces(i) > 0) then
+
+        assert(allocated(region%patchFactories))
+
+        nullify(blockInterfacePatch)
+
+        do j = 1, size(region%patchFactories)
+           call region%patchFactories(j)%connect(patch)
+           if (.not. associated(patch)) cycle
+           if (patch%index /= i) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              blockInterfacePatch => patch
+              exit
+           end select
+        end do
+
+        assert(associated(blockInterfacePatch))
+
+        call blockInterfacePatch%reshapeReceivedData(region%interfaceIndexReorderings(:,i))
+
+     end if
+     call MPI_Barrier(region%comm, ierror)
+  end do
 
   SAFE_DEALLOCATE(mpiSendRequests)
-
-  call MPI_Barrier(region%comm, ierror)
 
 end subroutine exchangeInterfaceData
 
