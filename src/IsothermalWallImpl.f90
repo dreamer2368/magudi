@@ -182,6 +182,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
                 (state%temperature(gridIndex, 1) - this%temperature(patchIndex))
            viscousPenalties(:,2) = viscousPenalties(:,2) *                                   &
                 grid%jacobian(gridIndex, 1) * sum(metricsAlongNormalDirection ** 2)
+           viscousPenalties(:,2) = 0.0_wp !... temporarily disabled.
 
            viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
