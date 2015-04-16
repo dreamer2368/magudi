@@ -61,7 +61,7 @@ def EmptyLabels(t):
     return t, [("") for t_ in t]
 
 def NiceLogLabels(t):
-    return t, [(r"$10^{%g}$" % t_) for t_ in log10(t)]
+    return t, [(r"$10^{%g}$" % t_ if t_ != 0 else r"$1$") for t_ in log10(t)]
 
 from matplotlib.collections import Collection
 from matplotlib.artist import allow_rasterization

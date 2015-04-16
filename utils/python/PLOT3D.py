@@ -335,20 +335,26 @@ class Solution(MultiBlockObject):
     def __init__(self):
         super(Solution, self).__init__()
         self._Q = []
+        self._auxiliaryData = []
 
     @property
     def Q(self):
         return self._Q
 
+    @property
+    def auxiliaryData(self):
+        return self._auxiliaryData
+
     def Update(self, gridIndex = None):
         if gridIndex is None:
-            self._Q = [ None for iGrid in range(self.nGrids) ]
+            self._Q = [ None ] * self.nGrids
+            self._auxiliaryData = [ np.zeros(4, dtype = self.scalarType) ] * self.nGrids
         else:
             gridSize = self.GetSize(gridIndex)
             self._Q[gridIndex] = np.zeros(gridSize + [5], dtype = self.scalarType)
         return None
 
-    def Export(self, filename, Q_header = None):
+    def Export(self, filename):
         f = open(filename, "wb")
         recordSize = self.integerType.itemsize
         f.write(struct.pack(self.offsetTypeStr, recordSize))
@@ -360,12 +366,10 @@ class Solution(MultiBlockObject):
             gridSize = np.array(self.GetSize(iGrid), dtype = self.integerType)
             f.write(gridSize.tostring())
         f.write(struct.pack(self.offsetTypeStr, recordSize))
-        if Q_header is None:
-            Q_header = np.zeros(4, dtype = self.scalarType)
         for iGrid in range(self.nGrids):
             recordSize = 4 * self.scalarType.itemsize
             f.write(struct.pack(self.offsetTypeStr, recordSize))
-            f.write(Q_header.tostring())
+            f.write(self._auxiliaryData[iGrid].tostring())
             f.write(struct.pack(self.offsetTypeStr, recordSize))
             recordSize = 5 * self.scalarType.itemsize * np.product(self.GetSize(iGrid))
             f.write(struct.pack(self.offsetTypeStr, recordSize))
@@ -383,7 +387,9 @@ class Solution(MultiBlockObject):
             self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
         f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize, 1)
+            f.seek(self.offsetType.itemsize, 1)
+            self._auxiliaryData[iGrid] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
+            f.seek(2 * self.offsetType.itemsize, 1)
             dtype = 5 * np.product(self.GetSize(iGrid)) * self.scalarType
             self._Q[iGrid][:,:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [5], order = 'F')
             f.seek(self.offsetType.itemsize, 1)
@@ -427,10 +433,13 @@ class Solution(MultiBlockObject):
         f = open(filename, "rb")
         f.seek(4 * self.offsetType.itemsize + (3 * self.nGrids + 1) * self.integerType.itemsize)
         for iGrid in range(self.nGrids):
-            f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize, 1)
             if iGrid != gridIndex:
-                f.seek(5 * np.product(self.GetSize(iGrid)) * self.scalarType.itemsize, 1)
+                f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize + 5 * np.product(self.GetSize(iGrid)) * self.scalarType.itemsize, 1)
             else:
+
+                f.seek(self.offsetType.itemsize, 1)
+                self._auxiliaryData[0] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
+                f.seek(2 * self.offsetType.itemsize, 1)
                 
                 if showProgress is True:
                     progressBar = ProgressBar(maxval = 5 * (endIndices[2] - startIndices[2] + 1) * (endIndices[1] - startIndices[1] + 1))
@@ -482,7 +491,9 @@ class Solution(MultiBlockObject):
             progressBar.start()
 
         for iGrid in range(self.nGrids):
-            f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize, 1)
+            f.seek(self.offsetType.itemsize, 1)
+            self._auxiliaryData[iGrid] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
+            f.seek(2 * self.offsetType.itemsize, 1)
             for l in range(5):
                 if axis == 0:
                     for k in range(gridSize[iGrid][2]):
