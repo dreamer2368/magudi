@@ -117,8 +117,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/RegionImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticSource.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
-  ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitation.f90
-  ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitationPatch.f90
+  ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationPatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ResidualManager.f90

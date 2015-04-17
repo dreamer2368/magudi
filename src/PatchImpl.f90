@@ -52,7 +52,6 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
 
   this%index = index
   if (comm /= MPI_COMM_NULL) call MPI_Comm_dup(comm, this%comm, ierror)
-  this%nDimensions = grid%nDimensions
 
   this%globalSize(1) = patchDescriptor%iMax - patchDescriptor%iMin + 1
   this%globalSize(2) = patchDescriptor%jMax - patchDescriptor%jMin + 1

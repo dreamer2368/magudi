@@ -30,8 +30,6 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
-  assert_key(this%nDimensions, (1, 2, 3))
-
   if (this%nPatchPoints > 0) then
      if (simulationFlags%viscosityOn) then
         allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
@@ -305,7 +303,7 @@ subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state
   ! No MPI collective calls after this (will deadlock).
   if (this%nPatchPoints <= 0 .or. .not. simulationFlags%viscosityOn) return
 
-  nDimensions = this%nDimensions
+  nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   direction = abs(this%normalDirection)

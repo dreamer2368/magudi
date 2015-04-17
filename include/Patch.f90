@@ -9,7 +9,7 @@ module Patch_mod
 
   type, abstract, public :: t_Patch
 
-     integer :: index, comm = MPI_COMM_NULL, nDimensions, globalSize(3), localSize(3),       &
+     integer :: index, comm = MPI_COMM_NULL, globalSize(3), localSize(3),                    &
           offset(3), nPatchPoints = 0, gridIndex, normalDirection, extent(6),                &
           gridLocalSize(3), gridOffset(3)
      integer, allocatable :: mpiAllScalarSubarrayTypes(:), mpiAllIntegerSubarrayTypes(:)

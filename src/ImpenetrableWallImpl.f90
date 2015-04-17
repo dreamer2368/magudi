@@ -30,8 +30,6 @@ subroutine setupImpenetrableWall(this, index, comm, patchDescriptor,            
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
-  assert_key(this%nDimensions, (1, 2, 3))
-
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
   ! Inviscid penalty amount.

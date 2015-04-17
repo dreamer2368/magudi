@@ -13,7 +13,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use ImpenetrableWall_mod, only : t_ImpenetrableWall
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
-  ! use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
+  use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
 
   implicit none
 
@@ -62,8 +62,8 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
      case ('SAT_BLOCK_INTERFACE')
         allocate(t_BlockInterfacePatch :: this%patch)
 
-     ! case ('SOLENOIDAL_EXCITATION')
-     !    allocate(t_SolenoidalExcitation :: this%patch)
+     case ('SOLENOIDAL_EXCITATION')
+        allocate(t_SolenoidalExcitationPatch :: this%patch)
 
      case default
         this%patchType = ""

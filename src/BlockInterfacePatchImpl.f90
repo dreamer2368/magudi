@@ -34,8 +34,6 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
-  assert_key(this%nDimensions, (1, 2, 3))
-
   if (this%comm /= MPI_COMM_NULL) then
 
      assert(this%nPatchPoints > 0)
@@ -329,7 +327,7 @@ subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid,
 
   if (this%comm == MPI_COMM_NULL) return
 
-  nDimensions = this%nDimensions
+  nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   direction = abs(this%normalDirection)
