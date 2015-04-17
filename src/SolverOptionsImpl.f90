@@ -61,20 +61,20 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   end if
 
   if (simulationFlags%enableSolutionLimits) then
-     call getRequiredOption("minimum_density", this%densityRange(1))
-     call getRequiredOption("maximum_density", this%densityRange(2))
-     call getRequiredOption("minimum_temperature", this%temperatureRange(1))
-     call getRequiredOption("maximum_temperature", this%temperatureRange(2))
+     call getRequiredOption("minimum_density", this%densityRange(1), comm)
+     call getRequiredOption("maximum_density", this%densityRange(2), comm)
+     call getRequiredOption("minimum_temperature", this%temperatureRange(1), comm)
+     call getRequiredOption("maximum_temperature", this%temperatureRange(2), comm)
   end if
 
   if (simulationFlags%dissipationOn) then
-     call getRequiredOption("dissipation_amount", this%dissipationAmount)
+     call getRequiredOption("dissipation_amount", this%dissipationAmount, comm)
   end if
 
   if (simulationFlags%useConstantCfl) then
      this%cfl = getOption("cfl", 0.5_wp)
   else
-     call getRequiredOption("time_step_size", this%timeStepSize)
+     call getRequiredOption("time_step_size", this%timeStepSize, comm)
   end if
 
   this%discretizationType = getOption("defaults/discretization_scheme", "SBP 4-8")

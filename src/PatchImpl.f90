@@ -14,7 +14,7 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption, getRequiredOption
+  use InputHelper, only : getOption
 
   implicit none
 

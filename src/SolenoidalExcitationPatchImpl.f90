@@ -48,7 +48,7 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
-  call getRequiredOption(trim(key) // "number_of_modes", this%nModes)
+  call getRequiredOption(trim(key) // "number_of_modes", this%nModes, this%comm)
   this%nModes = max(0, this%nModes)
 
   this%origin = 0.0_wp
@@ -59,9 +59,9 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
      this%speed(i) = getOption(trim(key) // "velocity_" // directions(i:i), 0.0_wp)
   end do
 
-  call getRequiredOption(trim(key) // "amplitude", this%amplitude)
-  call getRequiredOption(trim(key) // "frequency", this%frequency)
-  call getRequiredOption(trim(key) // "radius", this%gaussianFactor)
+  call getRequiredOption(trim(key) // "amplitude", this%amplitude, this%comm)
+  call getRequiredOption(trim(key) // "frequency", this%frequency, this%comm)
+  call getRequiredOption(trim(key) // "radius", this%gaussianFactor, this%comm)
   this%gaussianFactor = 9.0_wp / (2.0_wp * this%gaussianFactor ** 2)
 
   if (this%nModes > 0) then

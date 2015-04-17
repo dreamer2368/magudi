@@ -7,7 +7,7 @@ subroutine setupDragCoefficient(this, region)
   use DragCoefficient_mod, only : t_DragCoefficient
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption, getRequiredOption
+  use InputHelper, only : getOption
   use ErrorHandler, only : gracefulExit
 
   implicit none

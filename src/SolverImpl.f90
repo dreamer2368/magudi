@@ -268,7 +268,7 @@ subroutine initializeSolver(region, restartFilename)
            call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
         end if
      else
-        call getRequiredOption("initial_condition_file", filename)
+        call getRequiredOption("initial_condition_file", filename, region%comm)
         call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
      end if
   end if
@@ -334,7 +334,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   use SolverImpl, only : checkSolutionLimits
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption, getRequiredOption
+  use InputHelper, only : getOption
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
 
@@ -512,7 +512,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
   use SolverImpl, only : checkSolutionLimits
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption, getRequiredOption
+  use InputHelper, only : getOption
   use ErrorHandler, only : writeAndFlush
   use MPITimingsHelper, only : startTiming, endTiming
   use ReverseMigrator_mod

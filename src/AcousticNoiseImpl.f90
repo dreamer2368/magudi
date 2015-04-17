@@ -47,7 +47,7 @@ subroutine setupAcousticNoise(this, region)
   end do
 
   if (.not. region%simulationFlags%useTargetState) then
-     call getRequiredOption("mean_pressure_file", filename)
+     call getRequiredOption("mean_pressure_file", filename, region%comm)
      call region%loadData(QOI_DUMMY_FUNCTION, filename)
   else
      filename = getOption("mean_pressure_file", "")
