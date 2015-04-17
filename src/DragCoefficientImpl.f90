@@ -58,7 +58,7 @@ subroutine cleanupDragCoefficient(this)
 
 end subroutine cleanupDragCoefficient
 
-function computeDragCoefficient(this, time, region) result(instantaneousFunctional)
+function computeDragCoefficient(this, region) result(instantaneousFunctional)
 
   ! <<< External modules >>>
   use MPI
@@ -71,7 +71,6 @@ function computeDragCoefficient(this, time, region) result(instantaneousFunction
 
   ! <<< Arguments >>>
   class(t_DragCoefficient) :: this
-  real(SCALAR_KIND), intent(in) :: time
   class(t_Region), intent(in) :: region
 
   ! <<< Result >>>

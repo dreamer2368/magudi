@@ -171,7 +171,7 @@ program drag_adjoint_forcing
            end select
 
            ! Compute adjoint RHS.
-           call region(i)%computeRhs(ADJOINT, 0.0_wp)
+           call region(i)%computeRhs(ADJOINT)
            call zeroOutRhsOnOtherPatches(nDimensions, direction, gridSize(:,1),              &
                 region(i)%states(1)%rightHandSide)
 

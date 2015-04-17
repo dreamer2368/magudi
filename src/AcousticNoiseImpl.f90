@@ -91,7 +91,7 @@ subroutine cleanupAcousticNoise(this)
 
 end subroutine cleanupAcousticNoise
 
-function computeAcousticNoise(this, time, region) result(instantaneousFunctional)
+function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
   ! <<< External modules >>>
   use MPI
@@ -102,7 +102,6 @@ function computeAcousticNoise(this, time, region) result(instantaneousFunctional
 
   ! <<< Arguments >>>
   class(t_AcousticNoise) :: this
-  real(SCALAR_KIND), intent(in) :: time
   class(t_Region), intent(in) :: region
 
   ! <<< Result >>>

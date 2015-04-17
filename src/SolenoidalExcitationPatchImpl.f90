@@ -33,10 +33,11 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
   real(real64), parameter :: pi = 4.0_real64 * atan(1.0_real64)
   character(len = 3), parameter :: directions = "xyz"
   character(len = STRING_LENGTH) :: key
-  integer :: i, n, seed, ierror
+  integer :: i, j, k, gridIndex, patchIndex, nDimensions, n, seed, ierror
   integer, allocatable :: seed_(:)
 
-  assert_key(grid%nDimensions, (1, 2, 3))
+  nDimensions = grid%nDimensions
+  assert_key(nDimensions, (2, 3))
 
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
@@ -50,11 +51,11 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
   call getRequiredOption(trim(key) // "number_of_modes", this%nModes)
   this%nModes = max(0, this%nModes)
 
-  this%location = 0.0_wp
+  this%origin = 0.0_wp
   this%speed = 0.0_wp
 
-  do i = 1, grid%nDimensions
-     this%location(i) = getOption(trim(key) // "origin_" // directions(i:i), 0.0_wp)
+  do i = 1, 2
+     this%origin(i) = getOption(trim(key) // "origin_" // directions(i:i), 0.0_wp)
      this%speed(i) = getOption(trim(key) // "velocity_" // directions(i:i), 0.0_wp)
   end do
 
@@ -90,6 +91,28 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
 
   end if
 
+  if (this%nPatchPoints > 0) then
+
+     allocate(this%strength(this%nPatchPoints), source = 0.0_wp)
+
+     do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+        do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+           do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+              gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                   &
+                   (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                     &
+                   (k - 1 - this%gridOffset(3)))
+              if (grid%iblank(gridIndex) == 0) cycle
+              patchIndex = i - this%offset(1) + this%localSize(1) *                          &
+                   (j - 1 - this%offset(2) + this%localSize(2) *                             &
+                   (k - 1 - this%offset(3)))
+              this%strength(patchIndex) = this%amplitude * exp(- this%gaussianFactor *       &
+                   sum((grid%coordinates(gridIndex,1:2) - this%origin) ** 2))
+           end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+        end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+     end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+
+  end if
+
 end subroutine setupSolenoidalExcitationPatch
 
 subroutine cleanupSolenoidalExcitationPatch(this)
@@ -106,6 +129,7 @@ subroutine cleanupSolenoidalExcitationPatch(this)
 
   SAFE_DEALLOCATE(this%angularFrequencies)
   SAFE_DEALLOCATE(this%phases)
+  SAFE_DEALLOCATE(this%strength)
 
 end subroutine cleanupSolenoidalExcitationPatch
 
@@ -136,7 +160,8 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, gridIndex, patchIndex
+  integer :: i, j, k, l, nDimensions, gridIndex, patchIndex
+  real(SCALAR_KIND) :: excitationAmount, phaseAngles(2), temp(4)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -148,7 +173,7 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
   call startTiming("addSolenoidalExcitation")
 
   nDimensions = grid%nDimensions
-  assert_key(nDimensions, (1, 2, 3))
+  assert_key(nDimensions, (2, 3))
 
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -160,6 +185,25 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
            patchIndex = i - this%offset(1) + this%localSize(1) *                             &
                 (j - 1 - this%offset(2) + this%localSize(2) *                                &
                 (k - 1 - this%offset(3)))
+           
+           excitationAmount = this%strength(patchIndex)
+           phaseAngles = grid%coordinates(gridIndex,1:2) -                                   &
+                this%origin - this%speed * state%time
+
+           do l = 1, this%nModes
+              temp(1) = sin(this%angularFrequencies(l) * phaseAngles(1) + this%phases(l,1))
+              temp(2) = cos(this%angularFrequencies(l) * phaseAngles(1) + this%phases(l,1))
+              temp(3) = sin(this%angularFrequencies(l) * phaseAngles(2) + this%phases(l,2))
+              temp(4) = cos(this%angularFrequencies(l) * phaseAngles(2) + this%phases(l,2))
+              state%rightHandSide(gridIndex, 2) = state%rightHandSide(gridIndex, 2) +        &
+                   excitationAmount * temp(1) * (this%angularFrequencies(l) * temp(4)        &
+                   - 2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 2) -        &
+                   this%origin(2)) * temp(3))
+              state%rightHandSide(gridIndex, 3) = state%rightHandSide(gridIndex, 3) +        &
+                   excitationAmount * temp(3) * (this%angularFrequencies(l) * temp(2) -      &
+                   2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 1) -          &
+                   this%origin(1)) * temp(1))
+           end do
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -200,6 +244,13 @@ function verifySolenoidalExcitationPatchUsage(this, patchDescriptor, gridSize,  
 
   n = size(gridSize)
 
+  assert_key(n, (1, 2, 3))
+
+  if (n == 1) then
+     write(message, '(A)') "Can't be used with a 1D grid!"
+     return
+  end if
+  
   do i = 1, size(gridSize)
      if (extent((i-1)*2+1) < 0 .or. extent((i-1)*2+2) > gridSize(i) .or.                     &
           extent((i-1)*2+1) > extent((i-1)*2+2)) then

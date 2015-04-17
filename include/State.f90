@@ -52,7 +52,7 @@ module State_mod
 
      type(t_AcousticSource), allocatable :: acousticSources(:)
 
-     real(wp) :: adjointForcingFactor = 1.0_wp
+     real(wp) :: time, adjointForcingFactor = 1.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
@@ -230,7 +230,7 @@ module State_mod
 
   interface
 
-     subroutine addSources(this, mode, time, grid)
+     subroutine addSources(this, mode, grid)
 
        use Grid_mod, only : t_Grid
 
@@ -238,7 +238,6 @@ module State_mod
 
        class(t_State) :: this
        integer, intent(in) :: mode
-       real(SCALAR_KIND), intent(in) :: time
        class(t_Grid) :: grid
 
      end subroutine addSources

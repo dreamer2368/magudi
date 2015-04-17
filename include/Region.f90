@@ -156,13 +156,12 @@ module Region_mod
 
   interface
 
-     subroutine computeRhs(this, mode, time)
+     subroutine computeRhs(this, mode)
 
        import :: t_Region
 
        class(t_Region) :: this
        integer, intent(in) :: mode
-       real(SCALAR_KIND), intent(in) :: time
 
      end subroutine computeRhs
 

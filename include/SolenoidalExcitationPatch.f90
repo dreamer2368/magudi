@@ -12,10 +12,12 @@ module SolenoidalExcitationPatch_mod
   type, extends(t_Patch), public :: t_SolenoidalExcitationPatch
 
      integer :: nModes
-     real(SCALAR_KIND) :: location(3), speed(3), amplitude,                                  &
+     real(SCALAR_KIND) :: origin(2), speed(2), amplitude,                                    &
           gaussianFactor, frequency
 
      real(real64), allocatable :: angularFrequencies(:), phases(:,:)
+
+     real(SCALAR_KIND), allocatable :: strength(:)
 
    contains
 

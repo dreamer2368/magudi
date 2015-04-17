@@ -53,14 +53,13 @@ module Functional_mod
 
   abstract interface
 
-     function compute(this, time, region) result(instantaneousFunctional)
+     function compute(this, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
 
        import :: t_Functional
 
        class(t_Functional) :: this
-       real(SCALAR_KIND), intent(in) :: time
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional

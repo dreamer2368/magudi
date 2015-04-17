@@ -982,7 +982,7 @@ function getTimeStepSize(this) result(timeStepSize)
 
 end function getTimeStepSize
 
-subroutine computeRhs(this, mode, time)
+subroutine computeRhs(this, mode)
 
   ! <<< External modules >>>
   use MPI
@@ -1004,7 +1004,6 @@ subroutine computeRhs(this, mode, time)
   ! <<< Arguments >>>
   class(t_Region) :: this
   integer, intent(in) :: mode
-  real(SCALAR_KIND), intent(in) :: time
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -1017,10 +1016,10 @@ subroutine computeRhs(this, mode, time)
   do i = 1, size(this%states)
      select case (mode)
      case (FORWARD)
-        call computeRhsForward(time, this%simulationFlags, this%solverOptions,               &
+        call computeRhsForward(this%simulationFlags, this%solverOptions,                     &
              this%grids(i), this%states(i))
      case (ADJOINT)
-        call computeRhsAdjoint(time, this%simulationFlags, this%solverOptions,               &
+        call computeRhsAdjoint(this%simulationFlags, this%solverOptions,                     &
              this%grids(i), this%states(i))
      end select
   end do
@@ -1064,7 +1063,7 @@ subroutine computeRhs(this, mode, time)
 
   ! Source terms.
   do i = 1, size(this%states)
-     call this%states(i)%addSources(mode, time, this%grids(i))
+     call this%states(i)%addSources(mode, this%grids(i))
   end do
 
   ! Zero out right-hand-side in holes.

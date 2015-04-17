@@ -395,6 +395,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   do timestep_ = timestep + 1, timestep + nTimesteps
 
      do j = 1, size(region%states) !... update state
+        region%states(j)%time = time
         call region%states(j)%update(region%grids(j), region%simulationFlags,                &
              region%solverOptions)
      end do
@@ -409,13 +410,14 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
 
         if (i /= timeIntegrator%nStages) then
            do j = 1, size(region%states) !... update state
+              region%states(j)%time = time
               call region%states(j)%update(region%grids(j), region%simulationFlags,          &
                    region%solverOptions)
            end do
         end if
 
         if (.not. region%simulationFlags%predictionOnly .and. present(costFunctional)) then
-           instantaneousCostFunctional = functional%compute(time, region)
+           instantaneousCostFunctional = functional%compute(region)
              costFunctional = costFunctional +                                               &
                   timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
           else
@@ -563,6 +565,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
      timemarchDirection = 1
      call residualManager%setup("adjoint_residuals", region)
      do j = 1, size(region%states) !... update state
+        region%states(j)%time = time
         call region%states(j)%update(region%grids(j), region%simulationFlags,                &
              region%solverOptions)
      end do
@@ -584,6 +587,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
           .not. region%simulationFlags%steadyStateSimulation) then
         call migrateToSubstep(reverseMigrator, region, timeIntegrator, timestep_, 1)
         do j = 1, size(region%states) !... update state
+           region%states(j)%time = time
            call region%states(j)%update(region%grids(j), region%simulationFlags,             &
                 region%solverOptions)
         end do
@@ -601,6 +605,7 @@ subroutine solveAdjoint(region, time, timestep, nTimesteps, saveInterval, output
                    timeIntegrator, timestep_ + 1, i - 1)
            end if
            do j = 1, size(region%states) !... update state
+              region%states(j)%time = time
               call region%states(j)%update(region%grids(j), region%simulationFlags,          &
                    region%solverOptions)
            end do

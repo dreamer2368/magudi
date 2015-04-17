@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine computeRhsForward(time, simulationFlags, solverOptions, grid, state)
+subroutine computeRhsForward(simulationFlags, solverOptions, grid, state)
 
   ! <<< External modules >>>
   use MPI
@@ -18,7 +18,6 @@ subroutine computeRhsForward(time, simulationFlags, solverOptions, grid, state)
   implicit none
 
   ! <<< Arguments >>>
-  real(SCALAR_KIND), intent(in) :: time
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid) :: grid
@@ -84,7 +83,7 @@ subroutine computeRhsForward(time, simulationFlags, solverOptions, grid, state)
 
 end subroutine computeRhsForward
 
-subroutine computeRhsAdjoint(time, simulationFlags, solverOptions, grid, state)
+subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -99,7 +98,6 @@ subroutine computeRhsAdjoint(time, simulationFlags, solverOptions, grid, state)
   implicit none
 
   ! <<< Arguments >>>
-  real(SCALAR_KIND), intent(in) :: time
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid) :: grid

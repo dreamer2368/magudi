@@ -7,14 +7,13 @@ module RhsHelper
 
   interface
 
-     subroutine computeRhsForward(time, simulationFlags, solverOptions, grid, state)
+     subroutine computeRhsForward(simulationFlags, solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid) :: grid
@@ -26,14 +25,13 @@ module RhsHelper
 
   interface
 
-     subroutine computeRhsAdjoint(time, simulationFlags, solverOptions, grid, state)
+     subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       real(SCALAR_KIND), intent(in) :: time
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid) :: grid

@@ -54,14 +54,13 @@ module AcousticNoise_mod
 
   interface
 
-     function computeAcousticNoise(this, time, region) result(instantaneousFunctional)
+     function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
 
        import :: t_AcousticNoise
 
        class(t_AcousticNoise) :: this
-       real(SCALAR_KIND), intent(in) :: time
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional
