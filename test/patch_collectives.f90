@@ -159,7 +159,7 @@ subroutine testScatterAndGatherBack(patch, success)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(SCALAR_KIND), allocatable :: f(:,:,:)
-  SCALAR_TYPE, allocatable :: fLocal1(:), fGlobal1(:), fLocal2(:,:), fGlobal2(:,:), &
+  SCALAR_TYPE, allocatable :: fLocal1(:), fGlobal1(:), fLocal2(:,:), fGlobal2(:,:),          &
        fLocal3(:,:,:), fGlobal3(:,:,:)
   integer :: n, m, procRank, ierror
 

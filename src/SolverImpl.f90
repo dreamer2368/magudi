@@ -127,62 +127,6 @@ contains
 
   end subroutine normalizeTargetMollifier
 
-  subroutine writeLine(comm, filename, line)
-
-    ! <<< External modules >>>
-    use MPI
-
-    ! <<< Internal modules >>>
-    use ErrorHandler, only : gracefulExit
-
-    ! <<< Arguments >>>
-    integer, intent(in) :: comm
-    character(len = *), intent(in) :: filename, line
-
-    ! <<< Local variables >>>
-    integer :: fileUnit, ostat, procRank, ierror
-    logical, save :: firstCall = .true.
-    character(len = STRING_LENGTH) :: message
-
-    call MPI_Comm_rank(comm, procRank, ierror)
-
-    if (procRank == 0) then
-
-       if (firstCall) then
-          open(newunit = fileUnit, file = trim(filename), action = 'write',                  &
-               status = 'unknown', iostat = ostat)
-       else
-          open(newunit = fileUnit, file = trim(filename), action = 'write',                  &
-               status = 'old', position = 'append', iostat = ostat)
-       end if
-
-    end if
-
-    call MPI_Bcast(ostat, 1, MPI_INTEGER, 0, comm, ierror)
-    if (ostat /= 0) then
-       write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
-       call gracefulExit(comm, message)
-    end if
-
-    firstCall = .false.
-
-    if (procRank == 0) then
-       write(fileUnit, '(A)', iostat = ostat) trim(line)
-    end if
-
-    call MPI_Bcast(ostat, 1, MPI_INTEGER, 0, comm, ierror)
-    if (ostat /= 0) then
-       write(message, "(2A)") trim(filename), ": Error writing to file!"
-       call gracefulExit(comm, message)
-    end if
-
-    if (procRank == 0) then
-       flush(fileUnit)
-       close(fileUnit)
-    end if
-
-  end subroutine writeLine
-
   subroutine checkSolutionLimits(region, mode)
 
     ! <<< External modules >>>
@@ -332,9 +276,14 @@ subroutine initializeSolver(region, restartFilename)
   if (.not. region%simulationFlags%predictionOnly) then
 
      ! Initialize adjoint variables.
-     do i = 1, size(region%states)
-        region%states(i)%adjointVariables = 0.0_wp
-     end do
+     filename = getOption("adjoint_initial_condition_file", "")
+     if (len_trim(filename) == 0) then
+        do i = 1, size(region%states)
+           region%states(i)%adjointVariables = 0.0_wp
+        end do
+     else
+        call region%loadData(QOI_ADJOINT_STATE, filename)
+     end if
 
      ! Initialize control mollifier.
      filename = getOption("control_mollifier_file", "")
@@ -382,7 +331,7 @@ subroutine solveForward(region, time, timestep, nTimesteps,                     
   use Region_enum, only : FORWARD
 
   ! <<< Private members >>>
-  use SolverImpl, only : writeLine, checkSolutionLimits
+  use SolverImpl, only : checkSolutionLimits
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
