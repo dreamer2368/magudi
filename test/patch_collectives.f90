@@ -64,7 +64,7 @@ program patch_collectives
 
         gridSize(:,:) = 1
         do i = 1, nDimensions
-           gridSize(i,1) = random(numProcs, max(2 * numProcs, 60))
+           gridSize(i,1) = random(2 * numProcs, max(2 * numProcs, 60))
         end do
         call MPI_Bcast(gridSize, 3, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
 
