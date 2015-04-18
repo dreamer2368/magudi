@@ -43,15 +43,11 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state)
        state%velocity, state%pressure(:,1), fluxes1)
 
   ! Compute Cartesian form of viscous fluxes if viscous terms are included and computed using
-  ! repeated first derivatives:
-
+  ! repeated first derivatives.
   if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
-
      call computeCartesianViscousFluxes(nDimensions, state%velocity,                         &
           state%stressTensor, state%heatFlux, fluxes2)
-
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
-
   end if
 
   ! Transform fluxes from Cartesian to contravariant form: `fluxes1` has the Cartesian form of

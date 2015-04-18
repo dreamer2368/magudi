@@ -187,6 +187,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
            viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
            select case (mode)
+
            case (FORWARD)
 
               state%rightHandSide(gridIndex,2:nUnknowns) =                                   &

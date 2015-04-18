@@ -353,7 +353,7 @@ contains
 
   end subroutine applyOperatorAtInteriorPoints_3
 
-  PURE_SUBROUTINE applyOperatorAtBoundaryFace_1(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAtDomainBoundary_1(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -405,9 +405,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtBoundaryFace_1
+  end subroutine applyOperatorAtDomainBoundary_1
 
-  PURE_SUBROUTINE applyOperatorAtBoundaryFace_2(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAtDomainBoundary_2(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -461,9 +461,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtBoundaryFace_2
+  end subroutine applyOperatorAtDomainBoundary_2
 
-  PURE_SUBROUTINE applyOperatorAtBoundaryFace_3(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAtDomainBoundary_3(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -517,7 +517,7 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtBoundaryFace_3
+  end subroutine applyOperatorAtDomainBoundary_3
 
   PURE_SUBROUTINE applyOperatorNorm_1(this, x, gridSize)
 
@@ -1795,15 +1795,15 @@ PURE_SUBROUTINE applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSiz
 
 end subroutine applyOperatorAtInteriorPoints
 
-PURE_SUBROUTINE applyOperatorAtBoundaryFace(this, x, gridSize, faceOrientation)
+PURE_SUBROUTINE applyOperatorAtDomainBoundary(this, x, gridSize, faceOrientation)
 
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
-  use StencilOperatorImpl, only : applyOperatorAtBoundaryFace_1,                           &
-                                  applyOperatorAtBoundaryFace_2,                           &
-                                  applyOperatorAtBoundaryFace_3
+  use StencilOperatorImpl, only : applyOperatorAtDomainBoundary_1,                           &
+                                  applyOperatorAtDomainBoundary_2,                           &
+                                  applyOperatorAtDomainBoundary_3
 
   implicit none
 
@@ -1819,14 +1819,14 @@ PURE_SUBROUTINE applyOperatorAtBoundaryFace(this, x, gridSize, faceOrientation)
 
   select case (this%direction)
   case (1)
-     call applyOperatorAtBoundaryFace_1(this, x, gridSize, faceOrientation)
+     call applyOperatorAtDomainBoundary_1(this, x, gridSize, faceOrientation)
   case (2)
-     call applyOperatorAtBoundaryFace_2(this, x, gridSize, faceOrientation)
+     call applyOperatorAtDomainBoundary_2(this, x, gridSize, faceOrientation)
   case (3)
-     call applyOperatorAtBoundaryFace_3(this, x, gridSize, faceOrientation)
+     call applyOperatorAtDomainBoundary_3(this, x, gridSize, faceOrientation)
   end select
 
-end subroutine applyOperatorAtBoundaryFace
+end subroutine applyOperatorAtDomainBoundary
 
 PURE_SUBROUTINE applyOperatorNorm(this, x, gridSize)
 

@@ -208,6 +208,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
            end select !... nDimensions
 
            select case (mode)
+
            case (FORWARD)
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &

@@ -143,6 +143,7 @@ subroutine addAdiabaticWallPenalty(this, mode, simulationFlags, solverOptions, g
            viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
            select case (mode)
+
            case (FORWARD)
 
               state%rightHandSide(gridIndex,2:nUnknowns) =                                   &

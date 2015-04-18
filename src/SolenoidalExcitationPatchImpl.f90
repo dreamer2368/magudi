@@ -93,7 +93,8 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
 
   if (this%nPatchPoints > 0) then
 
-     allocate(this%strength(this%nPatchPoints), source = 0.0_wp)
+     allocate(this%strength(this%nPatchPoints))
+     this%strength = 0.0_wp
 
      do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
         do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -161,7 +162,8 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, nDimensions, gridIndex, patchIndex
-  real(SCALAR_KIND) :: excitationAmount, phaseAngles(2), temp(4)
+  real(SCALAR_KIND) :: excitationAmount
+  SCALAR_TYPE :: phaseAngles(2), temp(4)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)

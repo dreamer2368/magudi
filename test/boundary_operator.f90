@@ -112,7 +112,7 @@ program boundary_operator
         call A%apply(u, localSize)
 
         v = f
-        call A%applyAtBoundaryFace(v, localSize, faceOrientation)
+        call A%applyAtDomainBoundary(v, localSize, faceOrientation)
 
         GridLoop: do k = offset(3) + 1, offset(3) + localSize(3)
            do j = offset(2) + 1, offset(2) + localSize(2)
