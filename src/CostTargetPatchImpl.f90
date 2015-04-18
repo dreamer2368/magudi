@@ -32,13 +32,17 @@ subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,             
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
-  ! Inviscid penalty amount.
-  this%inviscidPenaltyAmount = getOption(trim(key) //                                        &
-       "inviscid_penalty_amount", 2.0_wp) !... for continuous-adjoint forcing.
-  this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                              &
-       real(this%normalDirection, wp))
-  this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                                  &
-       grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
+  if (abs(this%normalDirection) > 0) then
+
+     ! Inviscid penalty amount.
+     this%inviscidPenaltyAmount = getOption(trim(key) //                                     &
+          "inviscid_penalty_amount", 2.0_wp) !... for continuous-adjoint forcing.
+     this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                           &
+          real(this%normalDirection, wp))
+     this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                               &
+          grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
+
+  end if
 
   if (this%nPatchPoints > 0) then
      allocate(this%norm(this%nPatchPoints, 1))
