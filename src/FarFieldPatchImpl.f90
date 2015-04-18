@@ -132,25 +132,20 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
 
-  select case (mode)
+  if (simulationFlags%viscosityOn) then
+     select case (mode)
+     case (FORWARD)
+        call this%collectViscousFluxes(simulationFlags, solverOptions, grid, state)
+     case (ADJOINT)
+        call this%computeAdjointViscousPenalty(simulationFlags, solverOptions, grid, state)
+     end select
+  end if
 
-  case (FORWARD)
-
-     if (simulationFlags%viscosityOn)                                                        &
-          call this%collectViscousFluxes(simulationFlags, solverOptions, grid, state)
-
-  case (ADJOINT)
-
-     if (simulationFlags%viscosityOn)                                                        &
-          call this%computeAdjointViscousPenalty(simulationFlags, solverOptions, grid, state)
-
-     if (simulationFlags%useContinuousAdjoint) then
-        incomingDirection = -this%normalDirection
-     else
-        incomingDirection = +this%normalDirection
-     end if
-
-  end select
+  if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) then
+     incomingDirection = -this%normalDirection
+  else
+     incomingDirection = +this%normalDirection
+  end if
 
   allocate(localTargetState(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
