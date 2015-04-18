@@ -85,7 +85,7 @@ contains
           case (FORWARD)
              call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
                   ".cost_functional.txt", timestep, time,                                    &
-                  timestep - startTimestep >= this%reportInterval)
+                  timestep - startTimestep > this%reportInterval)
           end select
 
        end if
