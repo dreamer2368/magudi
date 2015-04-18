@@ -7,7 +7,8 @@ module SolverImpl
 
 contains
 
-  subroutine showProgress(this, region, mode, timestep, time, instantaneousFunctional)
+  subroutine showProgress(this, region, mode, startTimestep,                                 &
+       timestep, time, instantaneousFunctional)
 
     ! <<< External modules >>>
     use iso_fortran_env, only : output_unit
@@ -27,7 +28,7 @@ contains
     ! <<< Arguments >>>
     class(t_Solver) :: this
     class(t_Region) :: region
-    integer, intent(in) :: mode, timestep
+    integer, intent(in) :: mode, timestep, startTimestep
     real(SCALAR_KIND), intent(in) :: time, instantaneousFunctional
 
     ! <<< Local variables >>>
@@ -38,7 +39,8 @@ contains
     class(t_Functional), pointer :: functional => null()
 
     assert_key(mode, (FORWARD, ADJOINT))
-    assert(timestep >= 0)
+    assert(startTimestep >= 0)
+    assert(timestep >= startTimestep)
 
     nDimensions = size(region%globalGridSizes, 1)
     assert_key(nDimensions, (1, 2, 3))
@@ -83,7 +85,7 @@ contains
           case (FORWARD)
              call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
                   ".cost_functional.txt", timestep, time,                                    &
-                  timestep > timestep + this%reportInterval)
+                  timestep - startTimestep >= this%reportInterval)
           end select
 
        end if
@@ -466,7 +468,8 @@ function runForward(this, region, time, timestep, nTimesteps) result(costFunctio
 
      end do
 
-     call showProgress(this, region, FORWARD, timestep_, time, instantaneousCostFunctional)
+     call showProgress(this, region, FORWARD, timestep, timestep_,                           &
+          time, instantaneousCostFunctional)
 
      if (this%residualManager%hasSimulationConverged) then
         timestep = timestep_
@@ -615,7 +618,8 @@ function runAdjoint(this, region, time, timestep, nTimesteps) result(costSensiti
 
      end do
 
-     call showProgress(this, region, ADJOINT, timestep_, time, instantaneousCostSensitivity)
+     call showProgress(this, region, ADJOINT, timestep, timestep_,                           &
+          time, instantaneousCostSensitivity)
 
      if (this%residualManager%hasSimulationConverged) then
         timestep = timestep_
