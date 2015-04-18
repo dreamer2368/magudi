@@ -353,7 +353,7 @@ contains
 
   end subroutine applyOperatorAtInteriorPoints_3
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_1(this, x, gridSize, normalDirection)
+  PURE_SUBROUTINE applyOperatorAtBoundaryFace_1(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -361,7 +361,7 @@ contains
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
-    integer, intent(in) :: gridSize(3), normalDirection
+    integer, intent(in) :: gridSize(3), faceOrientation
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -369,7 +369,7 @@ contains
 
     n = this%boundaryWidth
 
-    if (normalDirection > 0) then
+    if (faceOrientation > 0) then
 
        ! Left boundary.
        if (this%hasDomainBoundary(1)) then
@@ -386,7 +386,7 @@ contains
           x = 0.0_wp
        end if
 
-    else if (normalDirection < 0) then
+    else if (faceOrientation < 0) then
 
        ! Right boundary.
        if (this%hasDomainBoundary(2)) then
@@ -405,9 +405,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_1
+  end subroutine applyOperatorAtBoundaryFace_1
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_2(this, x, gridSize, normalDirection)
+  PURE_SUBROUTINE applyOperatorAtBoundaryFace_2(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -415,7 +415,7 @@ contains
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
-    integer, intent(in) :: gridSize(3), normalDirection
+    integer, intent(in) :: gridSize(3), faceOrientation
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -424,7 +424,7 @@ contains
     n = this%boundaryWidth
     m = gridSize(1)
 
-    if (normalDirection > 0) then
+    if (faceOrientation > 0) then
 
        ! Left boundary.
        if (this%hasDomainBoundary(1)) then
@@ -442,7 +442,7 @@ contains
           x = 0.0_wp
        end if
 
-    else if (normalDirection < 0) then
+    else if (faceOrientation < 0) then
 
        ! Right boundary.
        if (this%hasDomainBoundary(2)) then
@@ -461,9 +461,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_2
+  end subroutine applyOperatorAtBoundaryFace_2
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_3(this, x, gridSize, normalDirection)
+  PURE_SUBROUTINE applyOperatorAtBoundaryFace_3(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -471,7 +471,7 @@ contains
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
     SCALAR_TYPE, intent(inout) :: x(:,:)
-    integer, intent(in) :: gridSize(3), normalDirection
+    integer, intent(in) :: gridSize(3), faceOrientation
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -480,7 +480,7 @@ contains
     n = this%boundaryWidth
     m = gridSize(1) * gridSize(2)
 
-    if (normalDirection > 0) then
+    if (faceOrientation > 0) then
 
        ! Left boundary.
        if (this%hasDomainBoundary(1)) then
@@ -498,7 +498,7 @@ contains
           x = 0.0_wp
        end if
 
-    else if (normalDirection < 0) then
+    else if (faceOrientation < 0) then
 
        ! Right boundary.
        if (this%hasDomainBoundary(2)) then
@@ -517,7 +517,7 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_3
+  end subroutine applyOperatorAtBoundaryFace_3
 
   PURE_SUBROUTINE applyOperatorNorm_1(this, x, gridSize)
 
@@ -1795,22 +1795,22 @@ PURE_SUBROUTINE applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSiz
 
 end subroutine applyOperatorAtInteriorPoints
 
-PURE_SUBROUTINE applyOperatorAtDomainBoundary(this, x, gridSize, normalDirection)
+PURE_SUBROUTINE applyOperatorAtBoundaryFace(this, x, gridSize, faceOrientation)
 
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
-  use StencilOperatorImpl, only : applyOperatorAtDomainBoundary_1,                           &
-                                  applyOperatorAtDomainBoundary_2,                           &
-                                  applyOperatorAtDomainBoundary_3
+  use StencilOperatorImpl, only : applyOperatorAtBoundaryFace_1,                           &
+                                  applyOperatorAtBoundaryFace_2,                           &
+                                  applyOperatorAtBoundaryFace_3
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_StencilOperator), intent(in) :: this
   SCALAR_TYPE, intent(out) :: x(:,:)
-  integer, intent(in) :: gridSize(3), normalDirection
+  integer, intent(in) :: gridSize(3), faceOrientation
 
   assert(size(x, 2) > 0)
   assert(all(gridSize > 0))
@@ -1819,14 +1819,14 @@ PURE_SUBROUTINE applyOperatorAtDomainBoundary(this, x, gridSize, normalDirection
 
   select case (this%direction)
   case (1)
-     call applyOperatorAtDomainBoundary_1(this, x, gridSize, normalDirection)
+     call applyOperatorAtBoundaryFace_1(this, x, gridSize, faceOrientation)
   case (2)
-     call applyOperatorAtDomainBoundary_2(this, x, gridSize, normalDirection)
+     call applyOperatorAtBoundaryFace_2(this, x, gridSize, faceOrientation)
   case (3)
-     call applyOperatorAtDomainBoundary_3(this, x, gridSize, normalDirection)
+     call applyOperatorAtBoundaryFace_3(this, x, gridSize, faceOrientation)
   end select
 
-end subroutine applyOperatorAtDomainBoundary
+end subroutine applyOperatorAtBoundaryFace
 
 PURE_SUBROUTINE applyOperatorNorm(this, x, gridSize)
 

@@ -25,6 +25,7 @@ module StencilOperator_mod
      procedure, pass :: applyAtInteriorPoints => applyOperatorAtInteriorPoints
      procedure, pass :: applyNorm => applyOperatorNorm
      procedure, pass :: applyNormInverse => applyOperatorNormInverse
+     procedure, pass :: applyAtBoundaryFace => applyOperatorAtBoundaryFace
 
   end type t_StencilOperator
 
@@ -126,19 +127,19 @@ module StencilOperator_mod
 
   interface
 
-     pure subroutine applyOperatorAtDomainBoundary(this, x, gridSize, normalDirection)
+     pure subroutine applyOperatorAtBoundaryFace(this, x, gridSize, faceOrientation)
 
        !> Applies a stencil operator to a real/complex semidiscrete vector only at points that
-       !> lie on the left (right) boundary of the computational domain if `normalDirection` is
-       !> greater (lesser) than zero.
+       !> lie on the left (right) boundary of the computational domain if `faceOrientation`
+       !> is greater (lesser) than zero.
 
        import :: t_StencilOperator
 
        class(t_StencilOperator), intent(in) :: this
        SCALAR_TYPE, intent(inout) :: x(:,:)
-       integer, intent(in) :: gridSize(3), normalDirection
+       integer, intent(in) :: gridSize(3), faceOrientation
 
-     end subroutine applyOperatorAtDomainBoundary
+     end subroutine applyOperatorAtBoundaryFace
 
   end interface
 
