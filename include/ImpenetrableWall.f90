@@ -15,7 +15,6 @@ module ImpenetrableWall_mod
 
      procedure, pass :: setup => setupImpenetrableWall
      procedure, pass :: cleanup => cleanupImpenetrableWall
-     procedure, pass :: update => updateImpenetrableWall
      procedure, pass :: verifyUsage => verifyImpenetrableWallUsage
      procedure, pass :: updateRhs => addImpenetrableWallPenalty
 
@@ -53,27 +52,6 @@ module ImpenetrableWall_mod
        class(t_ImpenetrableWall) :: this
 
      end subroutine cleanupImpenetrableWall
-
-  end interface
-
-  interface
-
-     subroutine updateImpenetrableWall(this, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_ImpenetrableWall
-
-       class(t_ImpenetrableWall) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine updateImpenetrableWall
 
   end interface
 

@@ -17,7 +17,6 @@ module SpongePatch_mod
 
      procedure, pass :: setup => setupSpongePatch
      procedure, pass :: cleanup => cleanupSpongePatch
-     procedure, pass :: update => updateSpongePatch
      procedure, pass :: verifyUsage => verifySpongePatchUsage
      procedure, pass :: updateRhs => addDamping
 
@@ -55,27 +54,6 @@ module SpongePatch_mod
        class(t_SpongePatch) :: this
 
      end subroutine cleanupSpongePatch
-
-  end interface
-
-  interface
-
-     subroutine updateSpongePatch(this, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_SpongePatch
-
-       class(t_SpongePatch) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine updateSpongePatch
 
   end interface
 

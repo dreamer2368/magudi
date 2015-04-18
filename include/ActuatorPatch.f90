@@ -16,7 +16,6 @@ module ActuatorPatch_mod
 
      procedure, pass :: setup => setupActuatorPatch
      procedure, pass :: cleanup => cleanupActuatorPatch
-     procedure, pass :: update => updateActuatorPatch
      procedure, pass :: verifyUsage => verifyActuatorPatchUsage
      procedure, pass :: updateRhs => addControlForcing
 
@@ -54,27 +53,6 @@ module ActuatorPatch_mod
        class(t_ActuatorPatch) :: this
 
      end subroutine cleanupActuatorPatch
-
-  end interface
-
-  interface
-
-     subroutine updateActuatorPatch(this, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_ActuatorPatch
-
-       class(t_ActuatorPatch) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine updateActuatorPatch
 
   end interface
 

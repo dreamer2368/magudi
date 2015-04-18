@@ -545,7 +545,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
            select type (patch)
            class is (t_FarFieldPatch)
-              call patch%update(simulationFlags, solverOptions, grid, state)
+              call patch%collectViscousFluxes(simulationFlags, solverOptions, grid, state)
               assert(allocated(patch%targetViscousFluxes))
               assert(allocated(patch%viscousFluxes))
               patch%targetViscousFluxes = patch%viscousFluxes

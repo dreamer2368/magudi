@@ -104,7 +104,7 @@ subroutine readPatchInterfaceInformation(region)
 
 end subroutine readPatchInterfaceInformation
 
-subroutine exchangeInterfaceData(region)
+subroutine exchangeInterfaceData(region, mode)
 
   ! <<< External modules >>>
   use MPI
@@ -118,6 +118,7 @@ subroutine exchangeInterfaceData(region)
 
   ! <<< Arguments >>>
   class(t_Region) :: region
+  integer, intent(in) :: mode
 
   ! <<< Local variables >>>
   integer :: i, j, iRequest, mpiTag, procRank, ierror
@@ -126,6 +127,25 @@ subroutine exchangeInterfaceData(region)
   class(t_BlockInterfacePatch), pointer :: blockInterfacePatch => null()
 
   if (.not. allocated(region%patchInterfaces)) return
+
+  if (allocated(region%patchFactories)) then
+
+     do i = 1, size(region%patchFactories)
+        call region%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+
+        do j = 1, size(region%states)
+           if (patch%gridIndex /= region%grids(j)%index) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              call patch%collectInterfaceData(mode, region%simulationFlags,                    &
+                   region%solverOptions, region%grids(j), region%states(j))
+           end select
+        end do
+
+     end do
+
+  end if
 
   call MPI_Comm_rank(region%comm, procRank, ierror)
 

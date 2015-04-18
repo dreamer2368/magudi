@@ -11,7 +11,7 @@ subroutine setupReverseMigrator(this, region, timeIntegrator, outputPrefix, star
   implicit none
 
   ! <<< Arguments >>>
-  class(t_ReverseMigrator) :: this  
+  class(t_ReverseMigrator) :: this
   class(t_Region), intent(in) :: region
   class(t_TimeIntegrator), intent(in) :: timeIntegrator
   character(len = *), intent(in) :: outputPrefix

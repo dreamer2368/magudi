@@ -15,7 +15,6 @@ module AdiabaticWall_mod
 
      procedure, pass :: setup => setupAdiabaticWall
      procedure, pass :: cleanup => cleanupAdiabaticWall
-     procedure, pass :: update => updateAdiabaticWall
      procedure, pass :: verifyUsage => verifyAdiabaticWallUsage
      procedure, pass :: updateRhs => addAdiabaticWallPenalty
 
@@ -53,27 +52,6 @@ module AdiabaticWall_mod
        class(t_AdiabaticWall) :: this
 
      end subroutine cleanupAdiabaticWall
-
-  end interface
-
-  interface
-
-     subroutine updateAdiabaticWall(this, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_AdiabaticWall
-
-       class(t_AdiabaticWall) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine updateAdiabaticWall
 
   end interface
 

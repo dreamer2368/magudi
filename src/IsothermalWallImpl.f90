@@ -237,25 +237,3 @@ function verifyIsothermalWallUsage(this, patchDescriptor, gridSize, normalDirect
        normalDirection, extent, simulationFlags, success, message)
 
 end function verifyIsothermalWallUsage
-
-subroutine updateIsothermalWall(this, simulationFlags, solverOptions, grid, state)
-
-  ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use State_mod, only : t_State
-  use IsothermalWall_mod, only : t_IsothermalWall
-  use SolverOptions_mod, only : t_SolverOptions
-  use SimulationFlags_mod, only : t_SimulationFlags
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_IsothermalWall) :: this
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
-  class(t_Grid), intent(in) :: grid
-  class(t_State), intent(in) :: state
-
-  call this%t_ImpenetrableWall%update(simulationFlags, solverOptions, grid, state)
-
-end subroutine updateIsothermalWall

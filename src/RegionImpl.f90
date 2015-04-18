@@ -1173,19 +1173,6 @@ subroutine computeRhs(this, mode)
      end do
   end do
 
-  ! Update patches.
-  if (allocated(this%patchFactories)) then
-     do i = 1, size(this%patchFactories)
-        call this%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        do j = 1, size(this%states)
-           if (patch%gridIndex /= this%grids(j)%index) cycle
-           call patch%update(this%simulationFlags, this%solverOptions,                       &
-                this%grids(j), this%states(j))
-        end do
-     end do
-  end if
-
   ! Exchange data at block interfaces.
   call exchangeInterfaceData(this)
 

@@ -16,9 +16,9 @@ module FarFieldPatch_mod
 
      procedure, pass :: setup => setupFarFieldPatch
      procedure, pass :: cleanup => cleanupFarFieldPatch
-     procedure, pass :: update => updateFarFieldPatch
      procedure, pass :: verifyUsage => verifyFarFieldPatchUsage
      procedure, pass :: updateRhs => addFarFieldPenalty
+     procedure, pass :: collectViscousFluxes => collectFarFieldViscousFluxes
 
   end type t_FarFieldPatch
 
@@ -54,27 +54,6 @@ module FarFieldPatch_mod
        class(t_FarFieldPatch) :: this
 
      end subroutine cleanupFarFieldPatch
-
-  end interface
-
-  interface
-
-     subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_FarFieldPatch
-
-       class(t_FarFieldPatch) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine updateFarFieldPatch
 
   end interface
 
@@ -120,6 +99,28 @@ module FarFieldPatch_mod
        class(t_State) :: state
 
      end subroutine addFarFieldPenalty
+
+  end interface
+
+  interface
+
+     subroutine collectFarFieldViscousFluxes(this, simulationFlags,                          &
+          solverOptions, grid, state)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_FarFieldPatch
+
+       class(t_FarFieldPatch) :: this
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_Grid), intent(in) :: grid
+       class(t_State) :: state
+
+     end subroutine collectFarFieldViscousFluxes
 
   end interface
 

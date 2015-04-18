@@ -23,7 +23,6 @@ module SolenoidalExcitationPatch_mod
 
      procedure, pass :: setup => setupSolenoidalExcitationPatch
      procedure, pass :: cleanup => cleanupSolenoidalExcitationPatch
-     procedure, pass :: update => updateSolenoidalExcitationPatch
      procedure, pass :: verifyUsage => verifySolenoidalExcitationPatchUsage
      procedure, pass :: updateRhs => addSolenoidalExcitation
 
@@ -61,28 +60,6 @@ module SolenoidalExcitationPatch_mod
        class(t_SolenoidalExcitationPatch) :: this
 
      end subroutine cleanupSolenoidalExcitationPatch
-
-  end interface
-
-  interface
-
-     subroutine updateSolenoidalExcitationPatch(this, simulationFlags,                       &
-          solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_SolenoidalExcitationPatch
-
-       class(t_SolenoidalExcitationPatch) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine updateSolenoidalExcitationPatch
 
   end interface
 

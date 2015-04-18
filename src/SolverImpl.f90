@@ -22,7 +22,7 @@ contains
     use Region_enum, only : FORWARD, ADJOINT
 
     ! <<< Internal modules >>>
-    use ErrorHandler, only : writeAndFlush  
+    use ErrorHandler, only : writeAndFlush
 
     ! <<< Arguments >>>
     class(t_Solver) :: this
@@ -52,10 +52,10 @@ contains
     if (this%reportInterval > 0 .and. mod(timestep, max(1, this%reportInterval)) == 0) then
 
        if (region%simulationFlags%useConstantCfl) then
-          write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep,          &  
+          write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep,          &
                ", dt = ", timeStepSize, ", time = ", abs(time)
        else
-          write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep,          &  
+          write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep,          &
                ", CFL = ", cfl, ", time = ", abs(time)
        end if
 
@@ -78,11 +78,11 @@ contains
 
           call this%functionalFactory%connect(functional)
           assert(associated(functional))
-          
+
           select case (mode)
           case (FORWARD)
-             call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &  
-                  ".cost_functional.txt", timestep, time,                                    &  
+             call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
+                  ".cost_functional.txt", timestep, time,                                    &
                   timestep > timestep + this%reportInterval)
           end select
 
@@ -108,8 +108,8 @@ contains
 
     end if
 
-    if (region%simulationFlags%steadyStateSimulation .and.                                   &  
-         this%residualManager%reportInterval > 0 .and.                                       &  
+    if (region%simulationFlags%steadyStateSimulation .and.                                   &
+         this%residualManager%reportInterval > 0 .and.                                       &
          mod(timestep, max(1, this%residualManager%reportInterval)) == 0) then
 
        call this%residualManager%compute(region)
@@ -117,12 +117,12 @@ contains
        select case (mode)
 
        case (FORWARD)
-          call this%residualManager%writeToFile(region%comm, trim(this%outputPrefix) //      &  
-               ".residuals.txt", timestep, time,                                             &  
+          call this%residualManager%writeToFile(region%comm, trim(this%outputPrefix) //      &
+               ".residuals.txt", timestep, time,                                             &
                timestep > timestep + this%residualManager%reportInterval)
        case (ADJOINT)
-          call this%residualManager%writeToFile(region%comm, trim(this%outputPrefix) //      &  
-               ".adjoint_residuals.txt", timestep, time,                                     &  
+          call this%residualManager%writeToFile(region%comm, trim(this%outputPrefix) //      &
+               ".adjoint_residuals.txt", timestep, time,                                     &
                timestep > timestep + this%residualManager%reportInterval)
        end select
 
@@ -130,7 +130,7 @@ contains
        residuals(2) = maxval(this%residualManager%residuals(1:nDimensions))
        residuals(3) = this%residualManager%residuals(nDimensions+2)
 
-       write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),             & 
+       write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),             &
             ", momentum = ", residuals(2), ", energy = ", residuals(3)
        call writeAndFlush(region%comm, output_unit, str)
 
@@ -140,10 +140,10 @@ contains
 
           select case (mode)
           case (FORWARD)
-             call region%saveData(QOI_FORWARD_STATE,                                         &  
+             call region%saveData(QOI_FORWARD_STATE,                                         &
                   trim(this%outputPrefix) // ".steady_state.q")
           case (ADJOINT)
-             call region%saveData(QOI_ADJOINT_STATE,                                         &  
+             call region%saveData(QOI_ADJOINT_STATE,                                         &
                   trim(this%outputPrefix) // ".steady_state.adjoint.q")
           end select
 
@@ -352,7 +352,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
   end if
 
-  call this%timeIntegratorFactory%connect(timeIntegrator,                                    &     
+  call this%timeIntegratorFactory%connect(timeIntegrator,                                    &
        trim(region%solverOptions%timeIntegratorType))
   assert(associated(timeIntegrator))
   call timeIntegrator%setup(region)

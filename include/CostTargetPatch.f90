@@ -16,7 +16,6 @@ module CostTargetPatch_mod
 
      procedure, pass :: setup => setupCostTargetPatch
      procedure, pass :: cleanup => cleanupCostTargetPatch
-     procedure, pass :: update => updateCostTargetPatch
      procedure, pass :: verifyUsage => verifyCostTargetPatchUsage
      procedure, pass :: updateRhs => addAdjointForcing
      generic :: computeInnerProduct => computeScalarInnerProductOnPatch,                     &
@@ -58,27 +57,6 @@ module CostTargetPatch_mod
        class(t_CostTargetPatch) :: this
 
      end subroutine cleanupCostTargetPatch
-
-  end interface
-
-  interface
-
-     subroutine updateCostTargetPatch(this, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_CostTargetPatch
-
-       class(t_CostTargetPatch) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine updateCostTargetPatch
 
   end interface
 

@@ -31,7 +31,6 @@ module Patch_mod
 
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
-     procedure(update), pass, deferred :: update
      procedure(verifyUsage), pass, deferred :: verifyUsage
      procedure(updateRhs), pass, deferred :: updateRhs
 
@@ -85,27 +84,6 @@ module Patch_mod
        class(t_Patch) :: this
 
      end subroutine cleanup
-
-  end interface
-
-  abstract interface
-
-     subroutine update(this, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_Patch
-
-       class(t_Patch) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine update
 
   end interface
 

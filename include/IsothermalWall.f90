@@ -17,7 +17,6 @@ module IsothermalWall_mod
 
      procedure, pass :: setup => setupIsothermalWall
      procedure, pass :: cleanup => cleanupIsothermalWall
-     procedure, pass :: update => updateIsothermalWall
      procedure, pass :: verifyUsage => verifyIsothermalWallUsage
      procedure, pass :: updateRhs => addIsothermalWallPenalty
 
@@ -55,27 +54,6 @@ module IsothermalWall_mod
        class(t_IsothermalWall) :: this
 
      end subroutine cleanupIsothermalWall
-
-  end interface
-
-  interface
-
-     subroutine updateIsothermalWall(this, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_IsothermalWall
-
-       class(t_IsothermalWall) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine updateIsothermalWall
 
   end interface
 

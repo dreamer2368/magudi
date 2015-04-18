@@ -295,7 +295,7 @@ function verifyBlockInterfacePatchUsage(this, patchDescriptor, gridSize, normalD
 
 end function verifyBlockInterfacePatchUsage
 
-subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid, state)
+subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid, state)
 
   ! <<< External modules >>>
   use MPI
@@ -314,6 +314,7 @@ subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid,
 
   ! <<< Arguments >>>
   class(t_BlockInterfacePatch) :: this
+  integer, intent(in) :: mode
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid), intent(in) :: grid
@@ -374,7 +375,7 @@ subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid,
   call this%gatherData(dataToBeSent, this%sendBuffer)
   SAFE_DEALLOCATE(dataToBeSent)
 
-end subroutine updateBlockInterfacePatch
+end subroutine collectInterfaceData
 
 subroutine reshapeReceivedData(this, indexReordering)
 

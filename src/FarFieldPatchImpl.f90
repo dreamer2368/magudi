@@ -130,6 +130,9 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2)
 
+  if (mode == FORWARD)                                                                       &
+       call this%collectViscousFluxes(simulationFlags, solverOptions, grid, state)
+
   if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) then
      incomingDirection = -this%normalDirection
   else
@@ -274,7 +277,7 @@ function verifyFarFieldPatchUsage(this, patchDescriptor, gridSize, normalDirecti
 
 end function verifyFarFieldPatchUsage
 
-subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state)
+subroutine collectFarFieldViscousFluxes(this, simulationFlags, solverOptions, grid, state)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -293,15 +296,17 @@ subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid), intent(in) :: grid
-  class(t_State), intent(in) :: state
+  class(t_State) :: state
 
   ! <<< Local variables >>>
-  integer :: i, direction, nDimensions, nUnknowns
-  SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux
-  SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, nDimensions, nUnknowns, direction
+  SCALAR_TYPE, allocatable :: velocity(:,:), stressTensor(:,:),                              &
+       heatFlux(:,:), viscousFluxes(:,:,:)
 
-  ! No MPI collective calls after this (will deadlock).
-  if (this%nPatchPoints <= 0 .or. .not. simulationFlags%viscosityOn) return
+  assert(this%gridIndex == grid%index)
+  assert(all(grid%offset == this%gridOffset))
+  assert(all(grid%localSize == this%gridLocalSize))
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -310,27 +315,32 @@ subroutine updateFarFieldPatch(this, simulationFlags, solverOptions, grid, state
   assert(direction >= 1 .and. direction <= nDimensions)
 
   nUnknowns = solverOptions%nUnknowns
+  assert(nUnknowns == nDimensions + 2)
 
-  allocate(velocity(this%nPatchPoints, nDimensions))
-  allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
-  allocate(heatFlux(this%nPatchPoints, nDimensions))
-  allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
+  if (this%nPatchPoints > 0 .and. simulationFlags%viscosityOn) then
 
-  call this%collect(state%velocity, velocity)
-  call this%collect(state%stressTensor, stressTensor)
-  call this%collect(state%heatFlux, heatFlux)
+     allocate(velocity(this%nPatchPoints, nDimensions))
+     allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
+     allocate(heatFlux(this%nPatchPoints, nDimensions))
+     allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
 
-  call computeCartesianViscousFluxes(nDimensions, velocity,                                  &
-       stressTensor, heatFlux, viscousFluxes)
+     call this%collect(state%velocity, velocity)
+     call this%collect(state%stressTensor, stressTensor)
+     call this%collect(state%heatFlux, heatFlux)
 
-  do i = 1, this%nPatchPoints
-     this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                        &
-          grid%metrics(i,1+nDimensions*(direction-1):nDimensions*direction))
-  end do
+     call computeCartesianViscousFluxes(nDimensions, velocity,                               &
+          stressTensor, heatFlux, viscousFluxes)
 
-  SAFE_DEALLOCATE(viscousFluxes)
-  SAFE_DEALLOCATE(heatFlux)
-  SAFE_DEALLOCATE(stressTensor)
-  SAFE_DEALLOCATE(velocity)
+     do i = 1, this%nPatchPoints
+        this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                     &
+             grid%metrics(i,1+nDimensions*(direction-1):nDimensions*direction))
+     end do
 
-end subroutine updateFarFieldPatch
+     SAFE_DEALLOCATE(viscousFluxes)
+     SAFE_DEALLOCATE(heatFlux)
+     SAFE_DEALLOCATE(stressTensor)
+     SAFE_DEALLOCATE(velocity)
+
+  end if
+
+end subroutine collectFarFieldViscousFluxes

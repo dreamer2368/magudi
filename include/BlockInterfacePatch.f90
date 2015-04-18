@@ -18,9 +18,9 @@ module BlockInterfacePatch_mod
 
      procedure, pass :: setup => setupBlockInterfacePatch
      procedure, pass :: cleanup => cleanupBlockInterfacePatch
-     procedure, pass :: update => updateBlockInterfacePatch
      procedure, pass :: verifyUsage => verifyBlockInterfacePatchUsage
      procedure, pass :: updateRhs => addBlockInterfacePenalty
+     procedure, pass :: collectInterfaceData
      procedure, pass :: reshapeReceivedData
 
   end type t_BlockInterfacePatch
@@ -62,7 +62,7 @@ module BlockInterfacePatch_mod
 
   interface
 
-     subroutine updateBlockInterfacePatch(this, simulationFlags, solverOptions, grid, state)
+     subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
@@ -72,12 +72,13 @@ module BlockInterfacePatch_mod
        import :: t_BlockInterfacePatch
 
        class(t_BlockInterfacePatch) :: this
+       integer, intent(in) :: mode
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid), intent(in) :: grid
        class(t_State), intent(in) :: state
 
-     end subroutine updateBlockInterfacePatch
+     end subroutine collectInterfaceData
 
   end interface
 

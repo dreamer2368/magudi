@@ -185,7 +185,7 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
            patchIndex = i - this%offset(1) + this%localSize(1) *                             &
                 (j - 1 - this%offset(2) + this%localSize(2) *                                &
                 (k - 1 - this%offset(3)))
-           
+
            excitationAmount = this%strength(patchIndex)
            phaseAngles = grid%coordinates(gridIndex,1:2) -                                   &
                 this%origin - this%speed * state%time
@@ -250,7 +250,7 @@ function verifySolenoidalExcitationPatchUsage(this, patchDescriptor, gridSize,  
      write(message, '(A)') "Can't be used with a 1D grid!"
      return
   end if
-  
+
   do i = 1, size(gridSize)
      if (extent((i-1)*2+1) < 0 .or. extent((i-1)*2+2) > gridSize(i) .or.                     &
           extent((i-1)*2+1) > extent((i-1)*2+2)) then
@@ -271,25 +271,3 @@ function verifySolenoidalExcitationPatchUsage(this, patchDescriptor, gridSize,  
   isPatchUsed = .true.
 
 end function verifySolenoidalExcitationPatchUsage
-
-subroutine updateSolenoidalExcitationPatch(this, simulationFlags, solverOptions, grid, state)
-
-  ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use State_mod, only : t_State
-  use SolverOptions_mod, only : t_SolverOptions
-  use SimulationFlags_mod, only : t_SimulationFlags
-  use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_SolenoidalExcitationPatch) :: this
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
-  class(t_Grid), intent(in) :: grid
-  class(t_State), intent(in) :: state
-
-  ! Nothing to be done for this patch type...
-
-end subroutine updateSolenoidalExcitationPatch

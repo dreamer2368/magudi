@@ -145,25 +145,3 @@ function verifyActuatorPatchUsage(this, patchDescriptor, gridSize, normalDirecti
   if (simulationFlags%predictionOnly) isPatchUsed = .false.
 
 end function verifyActuatorPatchUsage
-
-subroutine updateActuatorPatch(this, simulationFlags, solverOptions, grid, state)
-
-  ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use State_mod, only : t_State
-  use ActuatorPatch_mod, only : t_ActuatorPatch
-  use SolverOptions_mod, only : t_SolverOptions
-  use SimulationFlags_mod, only : t_SimulationFlags
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_ActuatorPatch) :: this
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
-  class(t_Grid), intent(in) :: grid
-  class(t_State), intent(in) :: state
-
-  ! Nothing to be done for this patch type...
-
-end subroutine updateActuatorPatch

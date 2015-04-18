@@ -10,7 +10,7 @@ program main
 
   use Grid_enum
   use State_enum
-  
+
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage

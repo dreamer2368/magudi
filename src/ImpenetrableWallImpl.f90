@@ -249,7 +249,7 @@ function verifyImpenetrableWallUsage(this, patchDescriptor, gridSize, normalDire
 
 end function verifyImpenetrableWallUsage
 
-subroutine updateImpenetrableWall(this, simulationFlags, solverOptions, grid, state)
+subroutine updateImpenetrableWall(this, mode, simulationFlags, solverOptions, grid, state)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -265,6 +265,7 @@ subroutine updateImpenetrableWall(this, simulationFlags, solverOptions, grid, st
 
   ! <<< Arguments >>>
   class(t_ImpenetrableWall) :: this
+  integer, intent(in) :: mode
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid), intent(in) :: grid
