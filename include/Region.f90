@@ -42,6 +42,7 @@ module Region_mod
 
      procedure, pass :: setup => setupRegion
      procedure, pass :: cleanup => cleanupRegion
+     procedure, pass :: setupBoundaryConditions
      procedure, pass :: loadData => loadRegionData
      procedure, pass :: saveData => saveRegionData
      procedure, pass :: getCfl
@@ -83,6 +84,19 @@ module Region_mod
        class(t_Region) :: this
 
      end subroutine cleanupRegion
+
+  end interface
+
+  interface
+
+     subroutine setupBoundaryConditions(this, boundaryConditionFilename)
+
+       import :: t_Region
+
+       class(t_Region) :: this
+       character(len = *), intent(in) :: boundaryConditionFilename
+
+     end subroutine setupBoundaryConditions
 
   end interface
 

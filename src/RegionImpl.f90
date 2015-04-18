@@ -454,48 +454,158 @@ contains
 
   end subroutine distributePatches
 
+  subroutine normalizeControlMollifier(this)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! <<< Internal modules >>>
+    use ErrorHandler, only : gracefulExit, issueWarning
+    use Patch_factory, only : computeQuadratureOnPatches
+
+    ! <<< Arguments >>>
+    class(t_Region) :: this
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    real(wp) :: mollifierNorm
+    integer :: i, ierror
+    logical :: hasNegativeMollifier
+    character(len = STRING_LENGTH) :: str
+
+    assert(allocated(this%grids))
+
+    mollifierNorm = 0.0_wp
+
+    do i = 1, size(this%grids)
+
+       assert(allocated(this%grids(i)%controlMollifier))
+
+       hasNegativeMollifier = any(real(this%grids(i)%controlMollifier(:,1), wp) < 0.0_wp)
+       call MPI_Allreduce(MPI_IN_PLACE, hasNegativeMollifier, 1,                             &
+            MPI_LOGICAL, MPI_LOR, this%grids(i)%comm, ierror)
+       if (hasNegativeMollifier) then
+          write(str, '(A,I0.0,A)') "Control mollifying support function on grid ",           &
+               this%grids(i)%index, " is not non-negative everywhere!"
+          call gracefulExit(this%grids(i)%comm, str)
+       end if
+       mollifierNorm = mollifierNorm +                                                       &
+            real(computeQuadratureOnPatches(this%patchFactories,                             &
+            'ACTUATOR', this%grids(i), this%grids(i)%controlMollifier(:,1)), wp)
+    end do
+
+    if (this%commGridMasters /= MPI_COMM_NULL)                                               &
+         call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                   &
+         MPI_SUM, this%commGridMasters, ierror)
+
+    do i = 1, size(this%grids)
+       call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, this%grids(i)%comm, ierror)
+    end do
+    if (mollifierNorm <= 0.0_wp)                                                             &
+         call issueWarning(this%comm,                                                        &
+         "Control mollifying support is trivial! Is an actuator patch present?")
+
+    do i = 1, size(this%grids)
+       this%grids(i)%controlMollifier = this%grids(i)%controlMollifier / mollifierNorm
+    end do
+
+  end subroutine normalizeControlMollifier
+
+  subroutine normalizeTargetMollifier(this)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! <<< Internal modules >>>
+    use ErrorHandler, only : gracefulExit, issueWarning
+    use Patch_factory, only : computeQuadratureOnPatches
+
+    ! <<< Arguments >>>
+    class(t_Region) :: this
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    real(wp) :: mollifierNorm
+    integer :: i, ierror
+    logical :: hasNegativeMollifier
+    character(len = STRING_LENGTH) :: str
+
+    assert(allocated(this%grids))
+
+    mollifierNorm = 0.0_wp
+
+    do i = 1, size(this%grids)
+
+       assert(allocated(this%grids(i)%targetMollifier))
+
+       hasNegativeMollifier = any(real(this%grids(i)%targetMollifier(:,1), wp) < 0.0_wp)
+       call MPI_Allreduce(MPI_IN_PLACE, hasNegativeMollifier, 1,                             &
+            MPI_LOGICAL, MPI_LOR, this%grids(i)%comm, ierror)
+       if (hasNegativeMollifier) then
+          write(str, '(A,I0.0,A)') "Target mollifying support function on grid ",            &
+               this%grids(i)%index, " is not non-negative everywhere!"
+          call gracefulExit(this%grids(i)%comm, str)
+       end if
+       mollifierNorm = mollifierNorm +                                                       &
+            real(computeQuadratureOnPatches(this%patchFactories,                             &
+            'COST_TARGET', this%grids(i), this%grids(i)%targetMollifier(:,1)), wp)
+    end do
+
+    if (this%commGridMasters /= MPI_COMM_NULL)                                               &
+         call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                   &
+         MPI_SUM, this%commGridMasters, ierror)
+
+    do i = 1, size(this%grids)
+       call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, this%grids(i)%comm, ierror)
+    end do
+    if (mollifierNorm <= 0.0_wp)                                                             &
+         call issueWarning(this%comm,                                                        &
+         "Target mollifying support is trivial! Is a cost target patch present?")
+
+    do i = 1, size(this%grids)
+       this%grids(i)%targetMollifier = this%grids(i)%targetMollifier / mollifierNorm
+    end do
+
+  end subroutine normalizeTargetMollifier
+
 end module RegionImpl
 
-subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,               &
-     simulationFlags, solverOptions, verbose)
+subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptions, verbose)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
-  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use SolverOptions_mod, only : t_SolverOptions
-  use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Private members >>>
-  use RegionImpl
-
-  ! <<< Public members >>>
-  use MPITimingsHelper, only : startTiming, endTiming
+  use RegionImpl, only : readDecompositionMap, distributeGrids
 
   ! <<< Internal modules >>>
   use InputHelper, only : getRequiredOption
-  use InterfaceHelper, only : readPatchInterfaceInformation
+  use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_Region) :: this
   integer, intent(in) :: comm, globalGridSizes(:,:)
-  character(len = *), intent(in), optional :: boundaryConditionFilename
   type(t_SimulationFlags), intent(in), optional :: simulationFlags
   type(t_SolverOptions), intent(in), optional :: solverOptions
   logical, intent(in), optional :: verbose
 
   ! <<< Local variables >>>
-  integer :: i, j, k, nPatches, color, procRank, nProcs, ierror
+  integer :: i, j, color, procRank, nProcs, ierror
   logical :: verbose_
   character(len = STRING_LENGTH) :: decompositionMapFilename
-  type(t_PatchDescriptor) :: p
-  integer, allocatable :: patchIndices(:)
-  class(t_Patch), pointer :: patch => null()
 
   call startTiming("setupRegion")
 
@@ -540,11 +650,9 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
   call distributeGrids(this, verbose_)
   call MPI_Barrier(this%comm, ierror)
 
-  ! Setup grids:
-
+  ! Setup grids.
   allocate(this%grids(count(this%gridCommunicators /= MPI_COMM_NULL)))
   this%grids(:)%index = 0
-
   do i = 1, size(this%globalGridSizes, 2)
      do j = 1, size(this%grids)
         if (this%grids(j)%index /= 0) cycle
@@ -563,58 +671,12 @@ subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,  
   end do
   call MPI_Barrier(this%comm, ierror)
 
-  ! Setup states:
-
+  ! Setup states.
   allocate(this%states(size(this%grids)))
   do i = 1, size(this%states)
      call this%states(i)%setup(this%grids(i), this%simulationFlags, this%solverOptions)
   end do
   call MPI_Barrier(this%comm, ierror)
-
-  ! Setup patches:
-
-  if (present(boundaryConditionFilename)) then
-
-     call readBoundaryConditions(this, boundaryConditionFilename)
-     call readPatchInterfaceInformation(this)
-     call validatePatches(this)
-     call distributePatches(this)
-     call MPI_Barrier(this%comm, ierror)
-
-     nPatches = 0
-     if (allocated(this%patchCommunicators))                                                 &
-          nPatches = count(this%patchCommunicators /= MPI_COMM_NULL)
-     if (nPatches > 0) then
-        allocate(this%patchFactories(nPatches))
-        allocate(patchIndices(nPatches))
-        patchIndices = 0
-     end if
-
-     if (allocated(this%patchData)) then
-
-        do k = 1, size(this%grids)
-           do i = 1, size(this%patchData)
-              p = this%patchData(i)
-              if (p%gridIndex /= this%grids(k)%index) cycle
-              if (allocated(this%patchFactories)) then
-                 do j = 1, size(this%patchFactories)
-                    if (patchIndices(j) /= 0 .or.                                            &
-                         this%patchCommunicators(i) == MPI_COMM_NULL) cycle
-                    call this%patchFactories(j)%connect(patch, trim(p%patchType))
-                    assert(associated(patch))
-                    call patch%setup(i, this%patchCommunicators(i), p, this%grids(k),        &
-                         this%simulationFlags, this%solverOptions)
-                    patchIndices(j) = i
-                    exit
-                 end do
-              end if
-              call MPI_Barrier(this%grids(k)%comm, ierror)
-           end do
-        end do
-
-     end if
-
-  end if
 
   ! Create a communicator for master processes of grid-level communicators.
   assert(MPI_UNDEFINED /= 1)
@@ -688,6 +750,85 @@ subroutine cleanupRegion(this)
   this%commGridMasters = MPI_COMM_NULL
 
 end subroutine cleanupRegion
+
+subroutine setupBoundaryConditions(this, boundaryConditionFilename)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use PatchDescriptor_mod, only : t_PatchDescriptor
+
+  ! <<< Private members >>>
+  use RegionImpl
+
+  ! <<< Internal modules >>>
+  use InterfaceHelper, only : readPatchInterfaceInformation
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Region) :: this
+  character(len = *), intent(in) :: boundaryConditionFilename
+
+  ! <<< Local variables >>>
+  integer :: i, j, k, nPatches, ierror
+  type(t_PatchDescriptor) :: p
+  integer, allocatable :: patchIndices(:)
+  class(t_Patch), pointer :: patch => null()
+
+  call startTiming("setupBoundaryConditions")
+
+  call readBoundaryConditions(this, boundaryConditionFilename)
+  call readPatchInterfaceInformation(this)
+  call validatePatches(this)
+  call distributePatches(this)
+  call MPI_Barrier(this%comm, ierror)
+
+  nPatches = 0
+  if (allocated(this%patchCommunicators))                                                    &
+       nPatches = count(this%patchCommunicators /= MPI_COMM_NULL)
+  if (nPatches > 0) then
+     allocate(this%patchFactories(nPatches))
+     allocate(patchIndices(nPatches))
+     patchIndices = 0
+  end if
+
+  if (allocated(this%patchData)) then
+
+     do k = 1, size(this%grids)
+        do i = 1, size(this%patchData)
+           p = this%patchData(i)
+           if (p%gridIndex /= this%grids(k)%index) cycle
+           if (allocated(this%patchFactories)) then
+              do j = 1, size(this%patchFactories)
+                 if (patchIndices(j) /= 0 .or.                                               &
+                      this%patchCommunicators(i) == MPI_COMM_NULL) cycle
+                 call this%patchFactories(j)%connect(patch, trim(p%patchType))
+                 assert(associated(patch))
+                 call patch%setup(i, this%patchCommunicators(i), p, this%grids(k),           &
+                      this%simulationFlags, this%solverOptions)
+                 patchIndices(j) = i
+                 exit
+              end do
+           end if
+           call MPI_Barrier(this%grids(k)%comm, ierror)
+        end do
+     end do
+
+     if (.not. this%simulationFlags%predictionOnly) then
+        call normalizeControlMollifier(this)
+        call normalizeTargetMollifier(this)
+     end if
+
+  end if
+
+  call endTiming("setupBoundaryConditions")
+
+end subroutine setupBoundaryConditions
 
 subroutine loadRegionData(this, quantityOfInterest, filename)
 

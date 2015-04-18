@@ -99,6 +99,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/FunctionalFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegratorFactory.f90
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorFactoryImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ReverseMigratorFactory.f90
+  ${PROJECT_SOURCE_DIR}/src/ReverseMigratorFactoryImpl.f90
 
   # Derived types.
   ${PROJECT_SOURCE_DIR}/include/SimulationFlags.f90
@@ -119,8 +121,6 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitationPatch.f90
   ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationPatchImpl.f90
-  ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
-  ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ResidualManager.f90
   ${PROJECT_SOURCE_DIR}/src/ResidualManagerImpl.f90
 
@@ -131,6 +131,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/FunctionalImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegrator.f90
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
+  ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
 
   # Extended types.
   ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90
@@ -153,6 +155,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ActuatorPatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/BlockInterfacePatch.f90
   ${PROJECT_SOURCE_DIR}/src/BlockInterfacePatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/UniformCheckpointer.f90
+  ${PROJECT_SOURCE_DIR}/src/UniformCheckpointerImpl.f90
 
   ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90

@@ -1,47 +1,43 @@
 #include "config.h"
 
-module ReverseMigrator_type
+module ReverseMigrator_mod
 
   implicit none
   private
 
-  integer, parameter, public ::                                                              &
-       UNIFORM_CHECKPOINTING = 1
+  type, abstract, public :: t_ReverseMigrator
 
-  type, private :: t_IntermediateStorage
-
-     SCALAR_TYPE, allocatable :: buffer(:,:,:)
-
-  end type t_IntermediateStorage
-
-  type, public :: t_ReverseMigrator
-
-     integer :: nStages = 4
-     integer :: algorithm, startTimestep, endTimestep, saveInterval,                         &
+     integer :: nStages
+     integer :: startTimestep, endTimestep, saveInterval,                                    &
           numIntermediateStates, loadedTimestep = -1
      character(len = STRING_LENGTH) :: outputPrefix
-     type(t_IntermediateStorage), allocatable :: temp_(:)
+
+   contains
+
+     procedure, non_overridable, pass :: setupBase => setupReverseMigrator
+     procedure, non_overridable, pass :: cleanupBase => cleanupReverseMigrator
+
+     procedure(setup), pass, deferred :: setup
+     procedure(cleanup), pass, deferred :: cleanup
+     procedure(migrateTo), pass, deferred :: migrateTo
 
   end type t_ReverseMigrator
 
-end module ReverseMigrator_type
-
-module ReverseMigrator_mod
-
-  implicit none
-  public
-
   interface
 
-     subroutine setupReverseMigrator(this, region, outputPrefix, algorithm,                  &
-          startTimestep, endTimestep, saveInterval, numIntermediateStates)
+     subroutine setupReverseMigrator(this, region, timeIntegrator, outputPrefix,             &
+          startTimestep, endTimestep, saveInterval,                                          &
+          numIntermediateStates)
 
        use Region_mod, only : t_Region
-       use ReverseMigrator_type, only : t_ReverseMigrator
+       use TimeIntegrator_mod, only : t_TimeIntegrator
 
-       type(t_ReverseMigrator) :: this
+       import :: t_ReverseMigrator
+
+       class(t_ReverseMigrator) :: this
        class(t_Region), intent(in) :: region
-       character(len = *), intent(in) :: outputPrefix, algorithm
+       class(t_TimeIntegrator), intent(in) :: timeIntegrator
+       character(len = *), intent(in) :: outputPrefix
        integer, intent(in) :: startTimestep, endTimestep, saveInterval, numIntermediateStates
 
      end subroutine setupReverseMigrator
@@ -52,28 +48,61 @@ module ReverseMigrator_mod
 
      subroutine cleanupReverseMigrator(this)
 
-       use ReverseMigrator_type, only : t_ReverseMigrator
+       import :: t_ReverseMigrator
 
-       type(t_ReverseMigrator) :: this
+       class(t_ReverseMigrator) :: this
 
      end subroutine cleanupReverseMigrator
 
   end interface
 
-  interface
+  abstract interface
 
-     subroutine migrateToSubstep(this, region, integrator, timestep, stage)
+     subroutine setup(this, region, timeIntegrator, outputPrefix, startTimestep,             &
+          endTimestep, saveInterval, numIntermediateStates)
 
        use Region_mod, only : t_Region
        use TimeIntegrator_mod, only : t_TimeIntegrator
-       use ReverseMigrator_type, only : t_ReverseMigrator
 
-       type(t_ReverseMigrator) :: this
+       import :: t_ReverseMigrator
+
+       class(t_ReverseMigrator) :: this
+       class(t_Region), intent(in) :: region
+       class(t_TimeIntegrator), intent(in) :: timeIntegrator
+       character(len = *), intent(in) :: outputPrefix
+       integer, intent(in) :: startTimestep, endTimestep, saveInterval, numIntermediateStates
+
+     end subroutine setup
+
+  end interface
+
+  abstract interface
+
+     subroutine cleanup(this)
+
+       import :: t_ReverseMigrator
+
+       class(t_ReverseMigrator) :: this
+
+     end subroutine cleanup
+
+  end interface
+
+  abstract interface
+
+     subroutine migrateTo(this, region, timeIntegrator, timestep, stage)
+
+       use Region_mod, only : t_Region
+       use TimeIntegrator_mod, only : t_TimeIntegrator
+
+       import :: t_ReverseMigrator
+
+       class(t_ReverseMigrator) :: this
        class(t_Region) :: region
-       class(t_TimeIntegrator) :: integrator
+       class(t_TimeIntegrator) :: timeIntegrator
        integer, intent(in) :: timestep, stage
 
-     end subroutine migrateToSubstep
+     end subroutine migrateTo
 
   end interface
 

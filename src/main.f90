@@ -6,11 +6,11 @@ program main
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   use Region_mod, only : t_Region
+  use Solver_mod, only : t_Solver
 
   use Grid_enum
   use State_enum
-
-  use Solver, only : initializeSolver, solveForward, solveAdjoint
+  
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
@@ -26,8 +26,9 @@ program main
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
+  type(t_Solver) :: solver
   real(wp) :: time
-  SCALAR_TYPE :: costFunctional
+  SCALAR_TYPE :: costFunctional, costSensitivity
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -65,24 +66,15 @@ program main
   if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
 
   ! Setup the region.
-  call getRequiredOption("boundary_condition_file", filename)
-  call region%setup(MPI_COMM_WORLD, globalGridSizes, filename)
+  call region%setup(MPI_COMM_WORLD, globalGridSizes)
 
   ! Read the grid file.
   call getRequiredOption("grid_file", filename)
   call region%loadData(QOI_GRID, filename)
 
-  ! Check continuity of grid coordinates at block interfaces.
-  call checkInterfaceContinuity(region, sqrt(epsilon(0.0_wp)), success)
-  if (.not. success) then
-     write(message, '(A)') "Grid coordinates are discontinuous across block interfaces!"
-     call issueWarning(region%comm, message)
-  end if
-
   ! Update the grids by computing the Jacobian, metrics, and norm.
   do i = 1, size(region%grids)
      call region%grids(i)%update()
-     call computeSpongeStrengths(region%patchFactories, region%grids(i))
   end do
   call MPI_Barrier(region%comm, ierror)
 
@@ -98,16 +90,27 @@ program main
   ! Initialize the solver.
   if (command_argument_count() == 1) then
      call get_command_argument(1, filename)
-     call initializeSolver(region, filename)
+     call solver%setup(region, outputPrefix = outputPrefix, restartFilename = filename)
   else
-     call initializeSolver(region)
+     call solver%setup(region, outputPrefix = outputPrefix)
   end if
 
-  ! Time advancement options.
-  time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
-  timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
-  nTimesteps = getOption("number_of_timesteps", 1000)
-  saveInterval = getOption("save_interval", 1000)
+  ! Setup boundary conditions.
+  call getRequiredOption("boundary_condition_file", filename)
+  call region%setupBoundaryConditions(filename)
+
+  ! Compute damping strength on sponge patches.
+  do i = 1, size(region%grids)
+     call computeSpongeStrengths(region%patchFactories, region%grids(i))
+  end do
+  call MPI_Barrier(region%comm, ierror)
+
+  ! Check continuity of grid coordinates at block interfaces.
+  call checkInterfaceContinuity(region, sqrt(epsilon(0.0_wp)), success)
+  if (.not. success) then
+     write(message, '(A)') "Grid coordinates are discontinuous across block interfaces!"
+     call issueWarning(region%comm, message)
+  end if
 
   ! Update patches.
   do i = 1, size(region%grids)
@@ -116,14 +119,19 @@ program main
   end do
   call MPI_Barrier(region%comm, ierror)
 
+  ! Time advancement options.
+  time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
+  timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
+  nTimesteps = getOption("number_of_timesteps", 1000)
+  saveInterval = getOption("save_interval", 1000)
+
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
-     call solveForward(region, time, timestep, nTimesteps, saveInterval, outputPrefix)
+     costFunctional = solver%runForward(region, time, timestep, nTimesteps)
   else
 
      ! Baseline forward.
      if (.not. region%simulationFlags%isBaselineAvailable) then
-        call solveForward(region, time, timestep, nTimesteps,                                &
-             saveInterval, outputPrefix, costFunctional)
+        costFunctional = solver%runForward(region, time, timestep, nTimesteps)
      else
 
         if (region%simulationFlags%steadyStateSimulation) then
@@ -136,17 +144,18 @@ program main
 
         call region%loadData(QOI_FORWARD_STATE, filename)
         if (.not. region%simulationFlags%steadyStateSimulation) then
-           time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
+           time = region%states(1)%time
            timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
         end if
 
      end if
 
      ! Baseline adjoint.
-     call solveAdjoint(region, time, timestep, nTimesteps, saveInterval, outputPrefix)
+     costSensitivity = solver%runAdjoint(region, time, timestep, nTimesteps)
 
   end if
 
+  call solver%cleanup()
   call region%cleanup()
 
   call endTiming("total")

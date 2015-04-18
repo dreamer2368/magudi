@@ -11,8 +11,8 @@ module SolverOptions_mod
           powerLawExponent, bulkViscosityRatio, dissipationAmount, densityRange(2),          &
           temperatureRange(2), cfl, timeStepSize
      integer :: nUnknowns
-     character(len = STRING_LENGTH) :: discretizationType,                                   &
-          timeintegratorType, costFunctionalType
+     character(len = STRING_LENGTH) :: discretizationType, timeintegratorType,               &
+          costFunctionalType, checkpointingScheme
 
    contains
 

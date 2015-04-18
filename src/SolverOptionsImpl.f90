@@ -88,6 +88,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   end if
 
   if (.not. simulationFlags%predictionOnly) then
+
      this%costFunctionalType = getOption("cost_functional_type", "SOUND")
      call functionalFactory%connect(dummyFunctional, trim(this%costFunctionalType))
      if (.not. associated(dummyFunctional)) then
@@ -95,6 +96,9 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
              trim(this%costFunctionalType), "'!"
         call gracefulExit(comm_, message)
      end if
+
+     this%checkpointingScheme = getOption("checkpointing_scheme", "uniform checkpointing")
+
   end if
 
 end subroutine initializeSolverOptions
