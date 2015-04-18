@@ -126,6 +126,24 @@ module StencilOperator_mod
 
   interface
 
+     pure subroutine applyOperatorAtDomainBoundary(this, x, gridSize, normalDirection)
+
+       !> Applies a stencil operator to a real/complex semidiscrete vector only at points that
+       !> lie on the left (right) boundary of the computational domain if `normalDirection` is
+       !> greater (lesser) than zero.
+
+       import :: t_StencilOperator
+
+       class(t_StencilOperator), intent(in) :: this
+       SCALAR_TYPE, intent(inout) :: x(:,:)
+       integer, intent(in) :: gridSize(3), normalDirection
+
+     end subroutine applyOperatorAtDomainBoundary
+
+  end interface
+
+  interface
+
      pure subroutine applyOperatorNorm(this, x, gridSize)
 
        import :: t_StencilOperator

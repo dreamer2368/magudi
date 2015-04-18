@@ -353,6 +353,172 @@ contains
 
   end subroutine applyOperatorAtInteriorPoints_3
 
+  PURE_SUBROUTINE applyOperatorAtDomainBoundary_1(this, x, gridSize, normalDirection)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), normalDirection
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, n
+
+    n = this%boundaryWidth
+
+    if (normalDirection > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do j = 1, gridSize(2)
+                   i = 1 + gridSize(1) * (j - 1 + gridSize(2) * (k - 1))
+                   x(i,l) = sum(this%rhsBoundary1(:,1) * x(i:i+n-1,l))
+                   x(i+1:i+gridSize(1)-1,l) = 0.0_wp
+                end do
+             end do
+          end do
+       else
+          x = 0.0_wp
+       end if
+
+    else if (normalDirection < 0) then
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do j = 1, gridSize(2)
+                   i = gridSize(1) * (j + gridSize(2) * (k - 1))
+                   x(i,l) = sum(this%rhsBoundary2(:,1) * x(i-n+1:i,l))
+                   x(i-gridSize(1)+1:i-1,l) = 0.0_wp
+                end do
+             end do
+          end do
+       else
+          x = 0.0_wp
+       end if
+
+    end if
+
+  end subroutine applyOperatorAtDomainBoundary_1
+
+  PURE_SUBROUTINE applyOperatorAtDomainBoundary_2(this, x, gridSize, normalDirection)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), normalDirection
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, m, n
+
+    n = this%boundaryWidth
+    m = gridSize(1)
+
+    if (normalDirection > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do i = 1, gridSize(1)
+                   j = i + gridSize(1) * gridSize(2) * (k - 1)
+                   x(j,l) = sum(this%rhsBoundary1(:,1) *                                     &
+                        x(j:j+(n-1)*m:m,l))
+                   x(j+m:j+(gridSize(2)-1)*m:m,l) = 0.0_wp
+                end do
+             end do
+          end do
+       else
+          x = 0.0_wp
+       end if
+
+    else if (normalDirection < 0) then
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do i = 1, gridSize(1)
+                   j = i + gridSize(1) * (gridSize(2) * k - 1)
+                   x(j,l) = sum(this%rhsBoundary2(:,1) * x(j-(n-1)*m:j:m,l))
+                   x(j-(gridSize(2)-1)*m:j-m:m,l) = 0.0_wp
+                end do
+             end do
+          end do
+       else
+          x = 0.0_wp
+       end if
+
+    end if
+
+  end subroutine applyOperatorAtDomainBoundary_2
+
+  PURE_SUBROUTINE applyOperatorAtDomainBoundary_3(this, x, gridSize, normalDirection)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), normalDirection
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, m, n
+
+    n = this%boundaryWidth
+    m = gridSize(1) * gridSize(2)
+
+    if (normalDirection > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          do l = 1, size(x, 2)
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   k = i + gridSize(1) * (j - 1)
+                   x(k,l) = sum(this%rhsBoundary1(:,1) *                                     &
+                        x(k:k+(n-1)*m:m,l))
+                   x(k+m:k+(gridSize(3)-1)*m:m,l) = 0.0_wp
+                end do
+             end do
+          end do
+       else
+          x = 0.0_wp
+       end if
+
+    else if (normalDirection < 0) then
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          do l = 1, size(x, 2)
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   k = i + gridSize(1) * (j - 1 + gridSize(2) * (gridSize(3) - 1))
+                   x(k,l) = sum(this%rhsBoundary2(:,1) * x(k-(n-1)*m:k:m,l))
+                   x(k-(gridSize(3)-1)*m:k-m:m,l) = 0.0_wp
+                end do
+             end do
+          end do
+       else
+          x = 0.0_wp
+       end if
+
+    end if
+
+  end subroutine applyOperatorAtDomainBoundary_3
+
   PURE_SUBROUTINE applyOperatorNorm_1(this, x, gridSize)
 
     ! <<< Derived types >>>
@@ -1628,6 +1794,39 @@ PURE_SUBROUTINE applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSiz
   end select
 
 end subroutine applyOperatorAtInteriorPoints
+
+PURE_SUBROUTINE applyOperatorAtDomainBoundary(this, x, gridSize, normalDirection)
+
+  ! <<< Derived types >>>
+  use StencilOperator_mod, only : t_StencilOperator
+
+  ! <<< Private members >>>
+  use StencilOperatorImpl, only : applyOperatorAtDomainBoundary_1,                           &
+                                  applyOperatorAtDomainBoundary_2,                           &
+                                  applyOperatorAtDomainBoundary_3
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_StencilOperator), intent(in) :: this
+  SCALAR_TYPE, intent(out) :: x(:,:)
+  integer, intent(in) :: gridSize(3), normalDirection
+
+  assert(size(x, 2) > 0)
+  assert(all(gridSize > 0))
+  assert(size(x, 1) == product(gridSize))
+  assert(this%direction >= 1 .and. this%direction <= 3)
+
+  select case (this%direction)
+  case (1)
+     call applyOperatorAtDomainBoundary_1(this, x, gridSize, normalDirection)
+  case (2)
+     call applyOperatorAtDomainBoundary_2(this, x, gridSize, normalDirection)
+  case (3)
+     call applyOperatorAtDomainBoundary_3(this, x, gridSize, normalDirection)
+  end select
+
+end subroutine applyOperatorAtDomainBoundary
 
 PURE_SUBROUTINE applyOperatorNorm(this, x, gridSize)
 
