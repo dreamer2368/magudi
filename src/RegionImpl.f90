@@ -1174,7 +1174,7 @@ subroutine computeRhs(this, mode)
   end do
 
   ! Exchange data at block interfaces.
-  call exchangeInterfaceData(this)
+  call exchangeInterfaceData(this, mode)
 
   ! Add patch penalties.
   if (allocated(this%patchFactories)) then

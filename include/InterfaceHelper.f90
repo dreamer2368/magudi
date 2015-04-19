@@ -19,11 +19,12 @@ module InterfaceHelper
 
   interface
 
-     subroutine exchangeInterfaceData(region)
+     subroutine exchangeInterfaceData(region, mode)
 
        use Region_mod, only : t_Region
 
        class(t_Region) :: region
+       integer, intent(in) :: mode
 
      end subroutine exchangeInterfaceData
 

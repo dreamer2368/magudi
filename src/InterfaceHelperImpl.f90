@@ -260,6 +260,9 @@ subroutine checkInterfaceContinuity(region, tolerance, success)
   use Region_mod, only : t_Region
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD
+
   ! <<< Public members >>>
   use InterfaceHelper, only : exchangeInterfaceData
 
@@ -271,104 +274,47 @@ subroutine checkInterfaceContinuity(region, tolerance, success)
   logical, intent(out) :: success
 
   ! <<< Local variables >>>
-  integer :: i, j, k, nDimensions, nGlobalPatchPoints, ierror
-  integer, allocatable :: nComponents(:)
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, ierror
   class(t_Patch), pointer :: patch => null()
-  class(t_BlockInterfacePatch), pointer :: blockInterfacePatch => null()
-  SCALAR_TYPE, allocatable :: patchCoordinates(:,:), interfaceCoordinates(:,:)
 
   success = .true.
 
   if (.not. allocated(region%patchInterfaces)) return
 
-  nDimensions = size(region%globalGridSizes, 1)
-  allocate(nComponents(size(region%patchInterfaces)), source = 0)
+  do i = 1, size(region%states)
+     region%states(i)%rightHandSide = 0.0_wp
+  end do
 
-  do i = 1, size(region%grids)
-     if (allocated(region%patchFactories)) then
-        do j = 1, size(region%patchFactories)
-           call region%patchFactories(j)%connect(patch)
-           if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= region%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
+  call exchangeInterfaceData(region, FORWARD)
 
-           select type (patch)
-           class is (t_BlockInterfacePatch)
+  if (allocated(region%patchFactories)) then
+     do i = 1, size(region%patchFactories)
+        call region%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
 
-              blockInterfacePatch => patch
-              k = blockInterfacePatch%index
+        select type (patch)
+        class is (t_BlockInterfacePatch)
 
-              if (allocated(blockInterfacePatch%sendBuffer)) then
-                 nComponents(k) = size(blockInterfacePatch%sendBuffer, 2) !... save for later.
-                 assert(allocated(blockInterfacePatch%receiveBuffer))
-                 assert(size(blockInterfacePatch%receiveBuffer, 2) == nComponents(k))
-              end if
+           do j = 1, size(region%states)
+              if (patch%gridIndex /= region%grids(j)%index) cycle
+              call patch%updateRhs(FORWARD, region%simulationFlags, region%solverOptions,    &
+                   region%grids(j), region%states(j))
+           end do
 
-              nGlobalPatchPoints = product(blockInterfacePatch%globalSize)
+        end select
+     end do
+  end if
 
-              SAFE_DEALLOCATE(blockInterfacePatch%sendBuffer)
-              SAFE_DEALLOCATE(blockInterfacePatch%receiveBuffer)
+  call MPI_Barrier(region%comm, ierror)
 
-              allocate(blockInterfacePatch%sendBuffer(nGlobalPatchPoints, nDimensions))
-              allocate(blockInterfacePatch%receiveBuffer(nGlobalPatchPoints, nDimensions))
+  do i = 1, size(region%states)
+     if (maxval(abs(region%states(i)%rightHandSide)) > tolerance) then
+        success = .false.
+        exit
+     end if
+  end do
 
-              allocate(patchCoordinates(blockInterfacePatch%nPatchPoints, nDimensions))
-              call blockInterfacePatch%collect(region%grids(i)%coordinates, patchCoordinates)
-              call blockInterfacePatch%gatherData(patchCoordinates,                          &
-                   blockInterfacePatch%sendBuffer)
-
-              SAFE_DEALLOCATE(patchCoordinates)
-
-           end select
-
-        end do !... j = 1, size(region%patchFactories)
-     end if !... allocated(region%patchFactories)
-  end do !... i = 1, size(region%grids)
-
-  call exchangeInterfaceData(region)
-
-  do i = 1, size(region%grids)
-     if (allocated(region%patchFactories)) then
-        do j = 1, size(region%patchFactories)
-           call region%patchFactories(j)%connect(patch)
-           if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= region%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
-
-           select type (patch)
-           class is (t_BlockInterfacePatch)
-
-              blockInterfacePatch => patch
-              k = blockInterfacePatch%index
-
-              allocate(interfaceCoordinates(blockInterfacePatch%nPatchPoints, nDimensions))
-              call blockInterfacePatch%scatterData(blockInterfacePatch%receiveBuffer,        &
-                   interfaceCoordinates)
-
-              allocate(patchCoordinates(blockInterfacePatch%nPatchPoints, nDimensions))
-              call blockInterfacePatch%collect(region%grids(i)%coordinates, patchCoordinates)
-
-              success = all(abs(patchCoordinates - interfaceCoordinates) < tolerance)
-
-              SAFE_DEALLOCATE(patchCoordinates)
-              SAFE_DEALLOCATE(interfaceCoordinates)
-
-              SAFE_DEALLOCATE(blockInterfacePatch%sendBuffer)
-              SAFE_DEALLOCATE(blockInterfacePatch%receiveBuffer)
-
-              nGlobalPatchPoints = product(blockInterfacePatch%globalSize)
-
-              if (nComponents(k) > 0) then
-                 allocate(blockInterfacePatch%sendBuffer(nGlobalPatchPoints, nComponents(k)))
-                 allocate(blockInterfacePatch%receiveBuffer(nGlobalPatchPoints,              &
-                      nComponents(k)))
-              end if
-
-           end select
-
-           if (.not. success) exit
-        end do !... j = 1, size(region%patchFactories)
-     end if !... allocated(region%patchFactories)
-  end do !... i = 1, size(region%grids)
-
-  call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierror)
+  call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, region%comm, ierror)
 
 end subroutine checkInterfaceContinuity
