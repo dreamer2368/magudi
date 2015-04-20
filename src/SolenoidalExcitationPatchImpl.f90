@@ -16,7 +16,6 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
-  use RandomNumber, only : initializeRandomNumberGenerator
 
   implicit none
 
