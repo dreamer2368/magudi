@@ -186,6 +186,7 @@ set(magudi_BUILD_FILES
   # Compiled Python sources
   ${PROJECT_BINARY_DIR}/PLOT3D.pyc
   ${PROJECT_BINARY_DIR}/MatplotlibHelper.pyc
+  ${PROJECT_BINARY_DIR}/SummationByParts.pyc
 
   # Build directories
   ${PROJECT_BINARY_DIR}/include
