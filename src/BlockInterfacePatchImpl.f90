@@ -41,7 +41,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
      nExchangedVariables = solverOptions%nUnknowns
 
      if (simulationFlags%viscosityOn) then
-        allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns, &
+        allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns,              &
              grid%nDimensions))
         nExchangedVariables = nExchangedVariables +                                          &
              grid%nDimensions * (solverOptions%nUnknowns - 1)
@@ -360,7 +360,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   assert(this%nPatchPoints > 0)
 
   if (simulationFlags%viscosityOn) then
-     allocate(dataToBeSent(this%nPatchPoints, nUnknowns + nUnknowns * (nDimensions - 1)))
+     allocate(dataToBeSent(this%nPatchPoints, nUnknowns + nDimensions * (nUnknowns - 1)))
   else
      allocate(dataToBeSent(this%nPatchPoints, nUnknowns))
   end if
