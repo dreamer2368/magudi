@@ -597,7 +597,7 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j
-  real(wp) :: gridSpeedOfSound, gridVelocity(3), f
+  real(wp) :: localSpeedOfSound, localWaveSpeed
 
   assert(size(iblank) > 0)
   assert_key(nDimensions, (1, 2, 3))
@@ -616,15 +616,16 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
      assert(real(temperature(i), wp) > 0.0_wp)
-     gridSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))     &
-          * sqrt(sum(real(metrics(i,:), wp) ** 2)) ! ... scaled speed of sound.
-     gridVelocity = 0.0_wp
+     localSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))
+     localWaveSpeed = 0.0_wp
      do j = 1, nDimensions
-        gridVelocity(j) = sum(real(velocity(i,:), wp)                                        &
-             * real(metrics(i,1+nDimensions*(j-1):nDimensions*j), wp)) ! ... grid velocity.
+        localWaveSpeed = localWaveSpeed + localSpeedOfSound *                                &
+             sqrt(real(sum(metrics(i,1+nDimensions*(j-1):nDimensions*j) ** 2), wp)) +        &
+             abs(real(dot_product(velocity(i,:),                                             &     
+             metrics(i,1+nDimensions*(j-1):nDimensions*j)), wp))
      end do
-     cfl = max(cfl, real(jacobian(i), wp) *                                                  &
-          (maxval(abs(gridVelocity)) + gridSpeedOfSound) * timeStepSize)
+     localWaveSpeed = real(jacobian(i), wp) * localWaveSpeed
+     cfl = max(cfl, localWaveSpeed * timeStepSize)
   end do
 
   ! Diffusion.
@@ -634,14 +635,14 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
      assert(size(thermalDiffusivity) == size(iblank))
      do i = 1, size(iblank)
         if (iblank(i) == 0) cycle !... skip hole points.
-        assert(real(temperature(i), wp) > 0.0_wp)
-        f = 0.0_wp
+        localWaveSpeed = 0.0_wp
         do j = 1, nDimensions
-           f = f + sqrt(sum(real(metrics(i,1+nDimensions*(j-1):nDimensions*j), wp) ** 2))
+           localWaveSpeed = localWaveSpeed +                                                 &
+                sum(real(metrics(i,1+nDimensions*(j-1):nDimensions*j), wp) ** 2)
         end do
-        cfl = max(cfl, real(jacobian(i), wp) ** 2                                            &
-             * max(2.0_wp * real(dynamicViscosity(i), wp),                                   &
-             real(thermalDiffusivity(i), wp)) * f ** 2)
+        localWaveSpeed = real(jacobian(i) ** 2 * sum(metrics(i,:) ** 2), wp) *               &
+             max(2.0_wp * real(dynamicViscosity(i), wp), real(thermalDiffusivity(i), wp))
+        cfl = max(cfl, localWaveSpeed * timeStepSize)
      end do
   end if
 
@@ -665,7 +666,8 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j
-  real(wp) :: f, gridSpeedOfSound, gridVelocity(3)
+  real(wp) :: localSpeedOfSound, localWaveSpeed
+
 
   assert(size(iblank) > 0)
   assert_key(nDimensions, (1, 2, 3))
@@ -684,15 +686,16 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
      assert(real(temperature(i), wp) > 0.0_wp)
-     gridSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp)) *   &
-          sqrt(sum(real(metrics(i,:), wp) ** 2)) ! ... scaled speed of sound.
-     gridVelocity = 0.0_wp
+     localSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))
+     localWaveSpeed = 0.0_wp
      do j = 1, nDimensions
-        gridVelocity(j) = sum(real(velocity(i,:), wp)                                        &
-             * real(metrics(i,1+nDimensions*(j-1):nDimensions*j), wp)) ! ... grid velocity.
+        localWaveSpeed = localWaveSpeed + localSpeedOfSound *                                &
+             sqrt(real(sum(metrics(i,1+nDimensions*(j-1):nDimensions*j) ** 2), wp)) +        &
+             abs(real(dot_product(velocity(i,:),                                             &     
+             metrics(i,1+nDimensions*(j-1):nDimensions*j)), wp))
      end do
-     timeStepSize = min(timeStepSize, cfl / (real(jacobian(i), wp) *                         &
-          (maxval(abs(gridVelocity)) + gridSpeedOfSound)))
+     localWaveSpeed = real(jacobian(i), wp) * localWaveSpeed
+     timeStepSize = min(timeStepSize, cfl / localWaveSpeed)
   end do
 
   ! Diffusion.
@@ -702,14 +705,14 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
      assert(size(thermalDiffusivity) == size(iblank))
      do i = 1, size(iblank)
         if (iblank(i) == 0) cycle !... skip hole points.
-        assert(real(temperature(i), wp) > 0.0_wp)
-        f = 0.0_wp
+        localWaveSpeed = 0.0_wp
         do j = 1, nDimensions
-           f = f + sqrt(sum(real(metrics(i,1+nDimensions*(j-1):nDimensions*j), wp) ** 2))
+           localWaveSpeed = localWaveSpeed +                                                 &
+                sum(real(metrics(i,1+nDimensions*(j-1):nDimensions*j), wp) ** 2)
         end do
-        timeStepSize = min(timeStepSize, cfl / (real(jacobian(i), wp) ** 2                   &
-             * max(2.0_wp * real(dynamicViscosity(i), wp),                                   &
-             real(thermalDiffusivity(i), wp)) * f ** 2))
+        localWaveSpeed = real(jacobian(i) ** 2 * sum(metrics(i,:) ** 2), wp) *               &
+             max(2.0_wp * real(dynamicViscosity(i), wp), real(thermalDiffusivity(i), wp))
+        timeStepSize = min(timeStepSize, cfl / localWaveSpeed)
      end do
   end if
 
