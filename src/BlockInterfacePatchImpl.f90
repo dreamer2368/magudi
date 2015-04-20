@@ -324,7 +324,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   ! <<< Local variables >>>
   integer :: i, direction, nDimensions, nUnknowns
   SCALAR_TYPE, dimension(:,:), allocatable :: velocity,                                      &
-       stressTensor, heatFlux, dataToBeSent
+       stressTensor, heatFlux, dataToBeSent, metricsAlongNormalDirection
   SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
 
   if (this%comm == MPI_COMM_NULL) return
@@ -345,19 +345,23 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
      allocate(heatFlux(this%nPatchPoints, nDimensions))
      allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
+     allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
 
      call this%collect(state%velocity, velocity)
      call this%collect(state%stressTensor, stressTensor)
      call this%collect(state%heatFlux, heatFlux)
+     call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
+          metricsAlongNormalDirection)
 
      call computeCartesianViscousFluxes(nDimensions, velocity,                               &
           stressTensor, heatFlux, viscousFluxes)
 
      do i = 1, this%nPatchPoints
         this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                     &
-             grid%metrics(i,1+nDimensions*(direction-1):nDimensions*direction))
+             metricsAlongNormalDirection(i,:))
      end do
 
+     SAFE_DEALLOCATE(metricsAlongNormalDirection)
      SAFE_DEALLOCATE(viscousFluxes)
      SAFE_DEALLOCATE(heatFlux)
      SAFE_DEALLOCATE(stressTensor)
