@@ -41,10 +41,8 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
      nExchangedVariables = solverOptions%nUnknowns
 
      if (simulationFlags%viscosityOn) then
-        allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns,              &
-             grid%nDimensions))
-        nExchangedVariables = nExchangedVariables +                                          &
-             grid%nDimensions * (solverOptions%nUnknowns - 1)
+        allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
+        nExchangedVariables = nExchangedVariables + solverOptions%nUnknowns - 1
      end if
 
      call MPI_Comm_rank(this%comm, procRank, ierror)
@@ -131,8 +129,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: receivedData(:,:), metricsAlongNormalDirection(:,:),           &
-       interfaceConservedVariables(:,:), viscousPenalty(:,:), localConservedVariables(:),    &
+  SCALAR_TYPE, allocatable :: receivedData(:,:), interfaceConservedVariables(:,:),           &
+       interfaceViscousFluxes(:,:), localConservedVariables(:),                              &
        localInterfaceConservedVariables(:), localRoeAverage(:),                              &
        localMetricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:)
 
@@ -155,11 +153,10 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   if (this%comm /= MPI_COMM_NULL) then
 
      allocate(interfaceConservedVariables(this%nPatchPoints, nUnknowns))
+     allocate(interfaceViscousFluxes(this%nPatchPoints, nUnknowns - 1))
 
      if (simulationFlags%viscosityOn) then
-        allocate(receivedData(this%nPatchPoints, nUnknowns + nDimensions * (nUnknowns - 1)))
-        allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
-        allocate(viscousPenalty(this%nPatchPoints, nUnknowns - 1))
+        allocate(receivedData(this%nPatchPoints, 2 * nUnknowns - 1))
      else
         allocate(receivedData(this%nPatchPoints, nUnknowns))
      end if
@@ -167,21 +164,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
      call this%scatterData(this%receiveBuffer, receivedData)
 
      interfaceConservedVariables = receivedData(:,1:nUnknowns)
+     if (simulationFlags%viscosityOn) interfaceViscousFluxes = receivedData(:,nUnknowns+1:)
 
-     if (simulationFlags%viscosityOn) then
-        call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction), &
-             metricsAlongNormalDirection)
-        viscousPenalty = 0.0_wp
-        do i = 1, nUnknowns - 1
-           do j = 1, nDimensions
-              viscousPenalty(:,i) = viscousPenalty(:,i) + metricsAlongNormalDirection(:,j) * &
-                   (this%viscousFluxes(:,i+1,j) -                                            &
-                   receivedData(:,nUnknowns+i+(nUnknowns-1)*(j-1)))
-           end do
-        end do
-     end if
-
-     SAFE_DEALLOCATE(metricsAlongNormalDirection)
      SAFE_DEALLOCATE(receivedData)
 
   end if
@@ -214,15 +198,15 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
 
            select case (nDimensions)
            case (1)
-              call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,                  &     
+              call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,                  &
                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
                    this%normalDirection, incomingJacobianOfInviscidFlux)
            case (2)
-              call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,                  &     
+              call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,                  &
                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
                    this%normalDirection, incomingJacobianOfInviscidFlux)
            case (3)
-              call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,                  &     
+              call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,                  &
                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
                    this%normalDirection, incomingJacobianOfInviscidFlux)
            end select !... nDimensions
@@ -240,7 +224,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                  state%rightHandSide(gridIndex,2:nUnknowns) =                                &
                       state%rightHandSide(gridIndex,2:nUnknowns) +                           &
                       this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
-                      viscousPenalty(patchIndex,:)
+                      (this%viscousFluxes(patchIndex,:) -                                    &
+                      interfaceViscousFluxes(patchIndex,:))
               end if
 
            case (ADJOINT)
@@ -258,7 +243,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   SAFE_DEALLOCATE(localRoeAverage)
   SAFE_DEALLOCATE(localInterfaceConservedVariables)
   SAFE_DEALLOCATE(localConservedVariables)
-  SAFE_DEALLOCATE(viscousPenalty)
+  SAFE_DEALLOCATE(interfaceViscousFluxes)
   SAFE_DEALLOCATE(interfaceConservedVariables)
 
   call endTiming("addBlockInterfacePenalty")
@@ -344,8 +329,9 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
 
   ! <<< Local variables >>>
   integer :: i, direction, nDimensions, nUnknowns
-  SCALAR_TYPE, dimension(:,:), allocatable :: velocity,                                      &
-       stressTensor, heatFlux, dataToBeSent
+  SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux,              &
+       metricsAlongNormalDirection, dataToBeSent
+  SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -360,7 +346,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   assert(this%nPatchPoints > 0)
 
   if (simulationFlags%viscosityOn) then
-     allocate(dataToBeSent(this%nPatchPoints, nUnknowns + nDimensions * (nUnknowns - 1)))
+     allocate(dataToBeSent(this%nPatchPoints, 2 * nUnknowns - 1))
   else
      allocate(dataToBeSent(this%nPatchPoints, nUnknowns))
   end if
@@ -372,19 +358,26 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      allocate(velocity(this%nPatchPoints, nDimensions))
      allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
      allocate(heatFlux(this%nPatchPoints, nDimensions))
+     allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
+     allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
 
      call this%collect(state%velocity, velocity)
      call this%collect(state%stressTensor, stressTensor)
      call this%collect(state%heatFlux, heatFlux)
+     call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
+          metricsAlongNormalDirection)
 
      call computeCartesianViscousFluxes(nDimensions, velocity,                               &
-          stressTensor, heatFlux, this%viscousFluxes)
-
-     do i = 1, nDimensions
-        dataToBeSent(:,nUnknowns+1+(nUnknowns-1)*(i-1):nUnknowns+(nUnknowns-1)*i) =          &
-             this%viscousFluxes(:,2:nUnknowns,i)
+          stressTensor, heatFlux, viscousFluxes)
+     do i = 1, this%nPatchPoints
+        this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                     &
+             metricsAlongNormalDirection(i,:))
      end do
 
+     dataToBeSent(:,nUnknowns+1:) = this%viscousFluxes
+
+     SAFE_DEALLOCATE(viscousFluxes)
+     SAFE_DEALLOCATE(metricsAlongNormalDirection)
      SAFE_DEALLOCATE(heatFlux)
      SAFE_DEALLOCATE(stressTensor)
      SAFE_DEALLOCATE(velocity)
