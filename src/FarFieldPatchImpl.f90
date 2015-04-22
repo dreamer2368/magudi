@@ -212,7 +212,8 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                       state%adjointVariables(gridIndex,:))
               end if
 
-              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
+              if (simulationFlags%viscosityOn)                                               &
+                   state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -     &
                    this%viscousPenaltyAmount * this%adjointViscousPenalty(patchIndex,:)
 
            end select !... mode
