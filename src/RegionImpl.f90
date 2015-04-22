@@ -1132,6 +1132,7 @@ subroutine computeRhs(this, mode)
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT
@@ -1175,6 +1176,20 @@ subroutine computeRhs(this, mode)
   end do
 
   ! Exchange data at block interfaces.
+  if (allocated(this%patchFactories)) then
+     do i = 1, size(this%patchFactories)
+        call this%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(this%states)
+           if (patch%gridIndex /= this%grids(j)%index) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              call patch%collectInterfaceData(mode, this%simulationFlags,                    &
+                   this%solverOptions, this%grids(j), this%states(j))
+           end select
+        end do
+     end do
+  end if
   call exchangeInterfaceData(this, mode)
 
   ! Add patch penalties.

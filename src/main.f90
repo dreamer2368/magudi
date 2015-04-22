@@ -15,7 +15,7 @@ program main
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
-  use InterfaceHelper, only : checkInterfaceContinuity
+  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
   implicit none
@@ -105,12 +105,9 @@ program main
   end do
   call MPI_Barrier(region%comm, ierror)
 
-  ! Check continuity of grid coordinates at block interfaces.
-  call checkInterfaceContinuity(region, epsilon(0.0_wp), success)
-  if (.not. success) then
-     write(message, '(A)') "Initial condition is discontinuous across block interfaces!"
-     call issueWarning(region%comm, message)
-  end if
+  ! Check continuity at block interfaces. May fail either due to incorrect implementation of
+  ! exchange or discontinuity in grid coordinates.
+  call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
   call MPI_Barrier(region%comm, ierror)
 
   ! Update patches.

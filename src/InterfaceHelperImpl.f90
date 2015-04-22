@@ -128,25 +128,6 @@ subroutine exchangeInterfaceData(region, mode)
 
   if (.not. allocated(region%patchInterfaces)) return
 
-  if (allocated(region%patchFactories)) then
-
-     do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-
-        do j = 1, size(region%states)
-           if (patch%gridIndex /= region%grids(j)%index) cycle
-           select type (patch)
-           class is (t_BlockInterfacePatch)
-              call patch%collectInterfaceData(mode, region%simulationFlags,                    &
-                   region%solverOptions, region%grids(j), region%states(j))
-           end select
-        end do
-
-     end do
-
-  end if
-
   call MPI_Comm_rank(region%comm, procRank, ierror)
 
   if (any(region%patchMasterRanks == procRank))                                              &
@@ -250,10 +231,11 @@ subroutine exchangeInterfaceData(region, mode)
 
 end subroutine exchangeInterfaceData
 
-subroutine checkInterfaceContinuity(region, tolerance, success)
+subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
 
   ! <<< External modules >>>
   use MPI
+  use, intrinsic :: iso_fortran_env
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -266,55 +248,170 @@ subroutine checkInterfaceContinuity(region, tolerance, success)
   ! <<< Public members >>>
   use InterfaceHelper, only : exchangeInterfaceData
 
+  ! <<< Internal modules >>>
+  use ErrorHandler, only : gracefulExit, writeAndFlush
+  use RandomNumber, only : initializeRandomNumberGenerator, random
+
   implicit none
 
   ! <<< Arguments >>>
   class(t_Region) :: region
   real(SCALAR_KIND), intent(in) :: tolerance
-  logical, intent(out) :: success
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, ierror
+  real(real64), parameter :: checkDuration = 2.0_real64
+  character(len = STRING_LENGTH), parameter :: functionTypes(1) = (/ "polynomial" /)
+  integer :: i, j, k, l, nDimensions, nCoefficients, errorRank, ierror
+  real(real64) :: startTime
+  character(len = STRING_LENGTH) :: functionType, message
   class(t_Patch), pointer :: patch => null()
+  real(wp), allocatable :: coefficients(:,:)
+  SCALAR_TYPE, allocatable :: patchCoordinates(:,:), patchFunction(:,:), gatherBuffer(:,:),  &
+       scatterBuffer(:,:), patchFunctionReceived(:,:)
 
-  success = .true.
+  errorRank = -1
 
   if (.not. allocated(region%patchInterfaces)) return
 
-  do i = 1, size(region%states)
-     region%states(i)%rightHandSide = 0.0_wp
+  write(message, "(A)") "Checking continuity at interfaces..."
+  call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+
+  call initializeRandomNumberGenerator()
+
+  nDimensions = size(region%globalGridSizes, 1)
+
+  startTime = MPI_Wtime()
+
+  do
+
+     functionType = trim(functionTypes(random(1, size(functionTypes))))
+     call MPI_Bcast(functionType, len(functionType), MPI_CHARACTER, 0, region%comm, ierror)
+
+     select case (trim(functionType))
+
+     case ("polynomial")
+        nCoefficients = random(1, 4) + 1 !... up to 4th order polynomials
+        call MPI_Bcast(nCoefficients, 1, MPI_INTEGER, 0, region%comm, ierror)
+     end select
+
+     allocate(coefficients(nDimensions, nCoefficients))
+     call random_number(coefficients)
+     call MPI_Bcast(coefficients, size(coefficients), REAL_TYPE_MPI, 0, region%comm, ierror)
+
+     if (allocated(region%patchFactories)) then
+        do i = 1, size(region%patchFactories)
+           call region%patchFactories(i)%connect(patch)
+           if (.not. associated(patch)) cycle
+           do j = 1, size(region%states)
+              if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints < 0) cycle
+              select type (patch)
+                 class is (t_BlockInterfacePatch)
+
+                 allocate(patchCoordinates(patch%nPatchPoints, nDimensions))
+                 allocate(patchFunction(patch%nPatchPoints, 1))
+                 patchFunction = 0.0_wp
+                 call patch%collect(region%grids(j)%coordinates, patchCoordinates)
+                 if (allocated(patch%sendBuffer))                                            &
+                      allocate(gatherBuffer(patch%nPatchPoints, 1))
+
+                 select case (trim(functionType))
+
+                 case ("polynomial")
+                    do k = 1, nCoefficients
+                       do l = 1, nDimensions
+                          patchFunction(:,1) = patchFunction(:,1) +                          &
+                               coefficients(l,k) * patchCoordinates(:,l) ** real(k - 1, wp)
+                       end do
+                    end do
+
+                 end select
+
+                 call patch%gatherData(patchFunction, gatherBuffer)
+                 if (allocated(patch%sendBuffer)) patch%sendBuffer(:,1) = gatherBuffer(:,1)
+                 SAFE_DEALLOCATE(gatherBuffer)
+                 SAFE_DEALLOCATE(patchFunction)
+                 SAFE_DEALLOCATE(patchCoordinates)
+
+              end select
+           end do
+        end do
+     end if
+
+     call exchangeInterfaceData(region, FORWARD)
+     call MPI_Barrier(region%comm, ierror)
+
+     if (allocated(region%patchFactories)) then
+        do i = 1, size(region%patchFactories)
+           call region%patchFactories(i)%connect(patch)
+           if (.not. associated(patch)) cycle
+           do j = 1, size(region%states)
+              if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints < 0) cycle
+              select type (patch)
+                 class is (t_BlockInterfacePatch)
+
+                 allocate(patchCoordinates(patch%nPatchPoints, nDimensions))
+                 allocate(patchFunction(patch%nPatchPoints, 1))
+                 allocate(patchFunctionReceived(patch%nPatchPoints, 1))
+                 patchFunction = 0.0_wp
+                 call patch%collect(region%grids(j)%coordinates, patchCoordinates)
+                 if (allocated(patch%receiveBuffer))                                         &
+                      allocate(scatterBuffer(patch%nPatchPoints, 1))
+
+                 select case (trim(functionType))
+
+                 case ("polynomial")
+                    do k = 1, nCoefficients
+                       do l = 1, nDimensions
+                          patchFunction(:,1) = patchFunction(:,1) +                          &
+                               coefficients(l,k) * patchCoordinates(:,l) ** real(k - 1, wp)
+                       end do
+                    end do
+
+                 end select
+
+                 if (allocated(patch%receiveBuffer))                                         &
+                      scatterBuffer(:,1) = patch%receiveBuffer(:,1)
+                 call patch%scatterData(scatterBuffer, patchFunctionReceived)
+
+                 if (any(abs(patchFunctionReceived - patchFunction) > tolerance)) then
+                    call MPI_Comm_rank(region%comm, errorRank, ierror)
+                    write(message, '(3A,2(E13.6,A),2A)')                                     &
+                         "Interface continuity check failed for a random '",                 &
+                         trim(functionType), "' function. Difference in value ",             &
+                         maxval(abs(patchFunctionReceived - patchFunction)),                 &
+                         " exceeds tolerance ", tolerance, " on patch '",                    &
+                         trim(region%patchData(patch%index)%name), "'!"
+                 end if
+
+                 SAFE_DEALLOCATE(scatterBuffer)
+                 SAFE_DEALLOCATE(patchFunctionReceived)
+                 SAFE_DEALLOCATE(patchFunction)
+                 SAFE_DEALLOCATE(patchCoordinates)
+
+              end select
+           end do
+        end do
+     end if
+
+     SAFE_DEALLOCATE(coefficients)
+
+     if (MPI_Wtime() - startTime > checkDuration) exit
+
+     call MPI_Allreduce(MPI_IN_PLACE, errorRank, 1, MPI_INTEGER, MPI_MAX, region%comm, ierror)
+     if (errorRank /= -1) exit
+
   end do
 
-  call exchangeInterfaceData(region, FORWARD)
-
-  if (allocated(region%patchFactories)) then
-     do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-
-        select type (patch)
-        class is (t_BlockInterfacePatch)
-
-           do j = 1, size(region%states)
-              if (patch%gridIndex /= region%grids(j)%index) cycle
-              call patch%updateRhs(FORWARD, region%simulationFlags, region%solverOptions,    &
-                   region%grids(j), region%states(j))
-           end do
-
-        end select
-     end do
+  call MPI_Allreduce(MPI_IN_PLACE, errorRank, 1, MPI_INTEGER, MPI_MAX, region%comm, ierror)
+  if (errorRank /= -1) then
+     write(message, "(A)") " failed!"
+     call writeAndFlush(region%comm, output_unit, message)
+     call MPI_Bcast(message, len(message), MPI_CHARACTER, errorRank, region%comm, ierror)
+     call gracefulExit(region%comm, message)
+  else
+     write(message, "(A)") " done!"
+     call writeAndFlush(region%comm, output_unit, message)
   end if
 
-  call MPI_Barrier(region%comm, ierror)
-
-  do i = 1, size(region%states)
-     if (maxval(abs(region%states(i)%rightHandSide)) > tolerance) then
-        success = .false.
-        exit
-     end if
-  end do
-
-  call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, region%comm, ierror)
-
-end subroutine checkInterfaceContinuity
+end subroutine checkFunctionContinuityAtInterfaces
