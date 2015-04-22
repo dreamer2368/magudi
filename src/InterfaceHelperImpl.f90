@@ -313,7 +313,7 @@ subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
                  patchFunction = 0.0_wp
                  call patch%collect(region%grids(j)%coordinates, patchCoordinates)
                  if (allocated(patch%sendBuffer))                                            &
-                      allocate(gatherBuffer(patch%nPatchPoints, 1))
+                      allocate(gatherBuffer(product(patch%globalSize), 1))
 
                  select case (trim(functionType))
 
@@ -356,7 +356,7 @@ subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
                  patchFunction = 0.0_wp
                  call patch%collect(region%grids(j)%coordinates, patchCoordinates)
                  if (allocated(patch%receiveBuffer))                                         &
-                      allocate(scatterBuffer(patch%nPatchPoints, 1))
+                      allocate(scatterBuffer(product(patch%globalSize), 1))
 
                  select case (trim(functionType))
 
