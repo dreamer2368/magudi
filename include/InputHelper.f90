@@ -7,6 +7,18 @@ module InputHelper
 
   interface
 
+     function getFreeUnit(fileUnit) result(freeUnit)
+
+       integer, intent(out), optional :: fileUnit
+
+       integer :: freeUnit
+
+     end function getFreeUnit
+
+  end interface
+
+  interface
+
      subroutine parseInputFile(filename, commentMarker, separator)
 
        character(len = *), intent(in) :: filename

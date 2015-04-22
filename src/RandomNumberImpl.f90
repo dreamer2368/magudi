@@ -39,6 +39,9 @@ subroutine initializeRandomNumberGenerator()
   ! <<< Private members >>>
   use RandomNumberImpl, only : lcg
 
+  ! <<< Internal modules >>>
+  use InputHelper, only : getFreeUnit
+
   implicit none
 
   ! <<< Local variables >>>
@@ -65,7 +68,7 @@ subroutine initializeRandomNumberGenerator()
      seed1(i) = lcg(t)
   end do
 
-  open(newunit = fileUnit, file = "/dev/urandom", access = "stream",                         &
+  open(unit = getFreeUnit(fileUnit), file = "/dev/urandom", access = "stream",               &
        form = "unformatted", action = "read", status = "old", iostat = istat)
   if (istat == 0) then
      read(fileUnit) seed2

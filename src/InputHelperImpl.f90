@@ -119,6 +119,26 @@ contains
 
 end module InputHelperImpl
 
+function getFreeUnit(fileUnit) result(freeUnit)
+
+  ! <<< Arguments >>>
+  integer, intent(out), optional :: fileUnit
+
+  ! <<< Result >>>
+  integer :: freeUnit
+
+  ! <<< Local variables >>>
+  logical :: isOpened
+
+  do freeUnit = 10, 10000
+     inquire(unit = freeUnit, opened = isOpened)
+     if (.not. isOpened) exit
+  end do
+
+  if (present(fileUnit)) fileUnit = freeUnit
+
+end function getFreeUnit
+
 subroutine parseInputFile(filename, commentMarker, separator)
 
   ! <<< External modules >>>
@@ -128,7 +148,7 @@ subroutine parseInputFile(filename, commentMarker, separator)
   use InputHelperImpl, only : dict, split, sort
 
   ! <<< Public members >>>
-  use InputHelper, only : stripComments
+  use InputHelper, only : stripComments, getFreeUnit
 
   ! <<< Internal modules >>>
   use ErrorHandler, only : gracefulExit
@@ -156,7 +176,7 @@ subroutine parseInputFile(filename, commentMarker, separator)
 
   ! Check if file exists.
   if (procRank == 0) then
-     open(newunit = fileUnit, file = trim(filename), action = 'read',                        &
+     open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'read',              &
           status = 'old', iostat = istat)
   end if
   call MPI_Bcast(istat, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
@@ -196,7 +216,8 @@ subroutine parseInputFile(filename, commentMarker, separator)
   ! Again, only the root process reads the input file.
   if (procRank == 0) then
      i = 0 ; lineNo = 0 ; istat = 0
-     open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old')
+     open(unit = getFreeUnit(fileUnit), file = trim(filename),                               &
+          action = 'read', status = 'old')
      do !... read again to fill input dictionary.
 
         read(fileUnit, '(A)', iostat = istat) line

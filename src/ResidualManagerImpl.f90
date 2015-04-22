@@ -148,6 +148,7 @@ subroutine writeResidualsToFile(this, comm, filename, timestep, time, append)
   use ResidualManager_mod, only : t_ResidualManager
 
   ! <<< Internal modules >>>
+  use InputHelper, only : getFreeUnit
   use ErrorHandler, only : gracefulExit
 
   implicit none
@@ -174,10 +175,10 @@ subroutine writeResidualsToFile(this, comm, filename, timestep, time, append)
 
   if (procRank == 0) then
      if (.not. append_) then
-        open(newunit = fileUnit, file = trim(filename), action = 'write',                    &
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'write',          &
              status = 'unknown', iostat = ostat)
      else
-        open(newunit = fileUnit, file = trim(filename), action = 'write',                    &
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'write',          &
              status = 'old', position = 'append', iostat = ostat)
      end if
   end if

@@ -17,7 +17,7 @@ contains
     use Region_mod, only : t_Region
 
     ! <<< Internal modules >>>
-    use InputHelper, only : stripComments
+    use InputHelper, only : getFreeUnit, stripComments
     use ErrorHandler, only : gracefulExit, writeAndFlush
 
     ! <<< Arguments >>>
@@ -37,8 +37,8 @@ contains
 
     ! Check if file exists.
     if (proc == 0) then
-       open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old',      &
-            iostat = istat)
+       open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'read',            &
+            status = 'old', iostat = istat)
     end if
     call MPI_Bcast(istat, 1, MPI_INTEGER, 0, this%comm, ierror)
     if (istat /= 0) then
@@ -183,7 +183,7 @@ contains
     use Patch_factory, only : t_PatchFactory
 
     ! <<< Internal modules >>>
-    use InputHelper, only : stripComments
+    use InputHelper, only : getFreeUnit, stripComments
     use ErrorHandler, only : gracefulExit, writeAndFlush
 
     ! <<< Arguments >>>
@@ -202,8 +202,8 @@ contains
 
     ! Check if file exists.
     if (proc == 0) then
-       open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old',      &
-            iostat = istat)
+       open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'read',            &
+            status = 'old', iostat = istat)
     end if
     call MPI_Bcast(istat, 1, MPI_INTEGER, 0, this%comm, ierror)
     if (istat /= 0) then
@@ -251,7 +251,8 @@ contains
     ! Again, only the root process reads the file.
     if (proc == 0) then
        i = 0; lineNo = 0; istat = 0
-       open(newunit = fileUnit, file = trim(filename), action = 'read', status = 'old')
+       open(unit = getFreeUnit(fileUnit), file = trim(filename),                             &
+            action = 'read', status = 'old')
        do !... read again to fill patch information.
 
           read(fileUnit, '(A)', iostat = istat) line

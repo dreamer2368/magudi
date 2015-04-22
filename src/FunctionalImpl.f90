@@ -92,6 +92,7 @@ subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
   use Functional_mod, only : t_Functional
 
   ! <<< Internal modules >>>
+  use InputHelper, only : getFreeUnit
   use ErrorHandler, only : gracefulExit
 
   ! <<< Arguments >>>
@@ -114,10 +115,10 @@ subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
 
   if (procRank == 0) then
      if (.not. append_) then
-        open(newunit = fileUnit, file = trim(filename), action = 'write',                    &
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'write',          &
              status = 'unknown', iostat = ostat)
      else
-        open(newunit = fileUnit, file = trim(filename), action = 'write',                    &
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'write',          &
              status = 'old', position = 'append', iostat = ostat)
      end if
   end if
