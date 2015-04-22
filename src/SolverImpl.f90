@@ -40,7 +40,6 @@ contains
 
     assert_key(mode, (FORWARD, ADJOINT))
     assert(startTimestep >= 0)
-    assert(timestep >= startTimestep)
 
     nDimensions = size(region%globalGridSizes, 1)
     assert_key(nDimensions, (1, 2, 3))

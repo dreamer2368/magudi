@@ -139,9 +139,6 @@ subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep,
 
            do stage_ = 1, timeIntegrator%nStages
 
-              if (timestep_ == this%loadedTimestep + this%saveInterval .and.                 &
-                   stage_ == timeIntegrator%nStages) exit
-
               call timeIntegrator%substepForward(region, time,                               &
                    timeStepSize, timestep_, stage_)
 
@@ -152,6 +149,9 @@ subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep,
                          region%solverOptions)
                  end do
               end if
+
+              if (timestep_ == this%loadedTimestep + this%saveInterval .and.                 &
+                   stage_ == timeIntegrator%nStages) exit
 
               i = i + 1
               do j = 1, size(region%states)
