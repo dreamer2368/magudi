@@ -262,6 +262,7 @@ subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
   integer, parameter :: wp = SCALAR_KIND
   real(real64), parameter :: checkDuration = 2.0_real64
   character(len = STRING_LENGTH), parameter :: functionTypes(1) = (/ "polynomial" /)
+  logical :: flag
   integer :: i, j, k, l, nDimensions, nCoefficients, errorRank, ierror
   real(real64) :: startTime
   character(len = STRING_LENGTH) :: functionType, message
@@ -269,6 +270,11 @@ subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
   real(wp), allocatable :: coefficients(:,:)
   SCALAR_TYPE, allocatable :: patchCoordinates(:,:), patchFunction(:,:), gatherBuffer(:,:),  &
        scatterBuffer(:,:), patchFunctionReceived(:,:)
+
+  flag = .false.
+  if (allocated(region%patchInterfaces)) flag = any(region%patchInterfaces > 0)
+  call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, region%comm, ierror)
+  if (.not. flag) return
 
   errorRank = -1
 
