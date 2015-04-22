@@ -52,8 +52,6 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   if (simulationFlags%viscosityOn) then
      this%viscousPenaltyAmount = getOption(trim(key) //                                      &
           "viscous_penalty_amount", 1.0_wp)
-     this%viscousPenaltyAmount = this%viscousPenaltyAmount *                                 &
-          solverOptions%reynoldsNumberInverse
      this%viscousPenaltyAmount = sign(this%viscousPenaltyAmount,                             &
           real(this%normalDirection, wp))
      this%viscousPenaltyAmount = this%viscousPenaltyAmount /                                 &
