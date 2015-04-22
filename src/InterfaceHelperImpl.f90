@@ -405,13 +405,11 @@ subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
 
   call MPI_Allreduce(MPI_IN_PLACE, errorRank, 1, MPI_INTEGER, MPI_MAX, region%comm, ierror)
   if (errorRank /= -1) then
-     write(message, "(A)") " failed!"
-     call writeAndFlush(region%comm, output_unit, message)
+     call writeAndFlush(region%comm, output_unit, " failed!")
      call MPI_Bcast(message, len(message), MPI_CHARACTER, errorRank, region%comm, ierror)
      call gracefulExit(region%comm, message)
   else
-     write(message, "(A)") " done!"
-     call writeAndFlush(region%comm, output_unit, message)
+     call writeAndFlush(region%comm, output_unit, " done!")
   end if
 
 end subroutine checkFunctionContinuityAtInterfaces
