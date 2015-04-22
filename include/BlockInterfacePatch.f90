@@ -9,7 +9,7 @@ module BlockInterfacePatch_mod
 
   type, extends(t_Patch), public :: t_BlockInterfacePatch
 
-     real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
+     real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount, viscousCorrectionAmount
      SCALAR_TYPE, allocatable :: viscousFluxes(:,:)
      SCALAR_TYPE, allocatable :: sendBuffer(:,:), receiveBuffer(:,:)
 

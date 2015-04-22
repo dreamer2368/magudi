@@ -66,15 +66,25 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
   ! Viscous penalty amount.
   if (simulationFlags%viscosityOn) then
      this%viscousPenaltyAmount = getOption(trim(key) //                                      &
-          "viscous_penalty_amount", 1.0_wp)
-     this%viscousPenaltyAmount = this%viscousPenaltyAmount *                                 &
-          solverOptions%reynoldsNumberInverse
+          "viscous_penalty_amount", 0.5_wp)
      this%viscousPenaltyAmount = sign(this%viscousPenaltyAmount,                             &
           real(this%normalDirection, wp))
      this%viscousPenaltyAmount = this%viscousPenaltyAmount /                                 &
           grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
   else
      this%viscousPenaltyAmount = 0.0_wp
+  end if
+
+  ! Viscous correction amount.
+  if (simulationFlags%viscosityOn) then
+     this%viscousCorrectionAmount = getOption(trim(key) //                                   &
+          "viscous_correction_amount", 0.25_wp)
+     this%viscousCorrectionAmount = - this%viscousCorrectionAmount *                         &
+          solverOptions%reynoldsNumberInverse
+     this%viscousCorrectionAmount = this%viscousCorrectionAmount /                           &
+          (grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)) ** 2
+  else
+     this%viscousCorrectionAmount = 0.0_wp
   end if
 
 end subroutine setupBlockInterfacePatch
@@ -226,6 +236,10 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
                       (this%viscousFluxes(patchIndex,:) -                                    &
                       interfaceViscousFluxes(patchIndex,:))
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                      this%viscousCorrectionAmount * grid%jacobian(gridIndex, 1) *           &
+                      sum(localMetricsAlongNormalDirection ** 2) *                           &
+                      (localConservedVariables - localInterfaceConservedVariables)
               end if
 
            case (ADJOINT)
