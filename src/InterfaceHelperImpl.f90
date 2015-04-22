@@ -272,8 +272,6 @@ subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
 
   errorRank = -1
 
-  if (.not. allocated(region%patchInterfaces)) return
-
   write(message, "(A)") "Checking continuity at interfaces..."
   call writeAndFlush(region%comm, output_unit, message, advance = 'no')
 

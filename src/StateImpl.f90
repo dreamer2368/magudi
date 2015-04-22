@@ -528,7 +528,7 @@ function computeStateTimeStepSize(this, grid, simulationFlags,                  
 
 end function computeStateTimeStepSize
 
-subroutine addSources(this, mode, time, grid)
+subroutine addSources(this, mode, grid)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -545,7 +545,6 @@ subroutine addSources(this, mode, time, grid)
   ! <<< Arguments >>>
   class(t_State) :: this
   integer, intent(in) :: mode
-  real(SCALAR_KIND), intent(in) :: time
   class(t_Grid) :: grid
 
   ! <<< Local variables >>>
@@ -555,7 +554,7 @@ subroutine addSources(this, mode, time, grid)
 
   if (mode == FORWARD .and. allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
-        call this%acousticSources(i)%add(time, grid%coordinates,                             &
+        call this%acousticSources(i)%add(this%time, grid%coordinates,                        &     
              grid%iblank, this%rightHandSide)
      end do
   end if
