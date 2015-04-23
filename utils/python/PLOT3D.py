@@ -244,7 +244,7 @@ class Grid(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
+            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
         f.close()
         return None
 
@@ -402,7 +402,13 @@ class Solution(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
+            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
+        f.seek(self.offsetType.itemsize, 1)
+        for iGrid in range(self.nGrids):
+            f.seek(self.offsetType.itemsize, 1)
+            self._auxiliaryData[iGrid] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
+            dtype = 5 * np.product(self.GetSize(iGrid)) * self.scalarType
+            f.seek(3 * self.offsetType.itemsize + dtype.itemsize, 1)
         f.close()
         return None
 
@@ -603,14 +609,13 @@ class Function(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
+            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
             if iGrid == 0:
                 self._nComponents, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
             else:
                 number_of_components, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
                 if number_of_components != self._nComponents:
                     raise IOError("%s: Invalid PLOT3D function file: number of components in block %i (= %i) differs from %i" % (filename, iGrid + 1, number_of_components, self._nComponents))                
-            self.Update(iGrid)
         f.close()
         return None
 
