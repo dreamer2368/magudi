@@ -93,12 +93,14 @@ module StencilOperator_mod
 
   interface
 
-     subroutine getTransposeOperator(this, transposeOperator)
+     subroutine getTransposeOperator(this, transposeOperator,                                &
+          preMultiplyNormInverse, postMultiplyNorm)
 
        import :: t_StencilOperator
 
        class(t_StencilOperator), intent(in) :: this
        class(t_StencilOperator) :: transposeOperator
+       logical, intent(in), optional :: preMultiplyNormInverse, postMultiplyNorm
 
      end subroutine getTransposeOperator
 

@@ -554,7 +554,7 @@ subroutine addSources(this, mode, grid)
 
   if (mode == FORWARD .and. allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
-        call this%acousticSources(i)%add(this%time, grid%coordinates,                        &     
+        call this%acousticSources(i)%add(this%time, grid%coordinates,                        &
              grid%iblank, this%rightHandSide)
      end do
   end if

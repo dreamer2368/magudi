@@ -562,7 +562,8 @@ subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
      ! Transpose dissipation operators.
      if (allocated(this%dissipationTranspose)) then
         assert(simulationFlags_%compositeDissipation .eqv. .true.)
-        call this%dissipation(i)%getTranspose(this%dissipationTranspose(i))
+        call this%dissipation(i)%getTranspose(this%dissipationTranspose(i),                  &
+             preMultiplyNormInverse = .true.)
         call this%dissipationTranspose(i)%update(this%comm, i,                               &
              this%periodicityType(i) == OVERLAP)
      end if

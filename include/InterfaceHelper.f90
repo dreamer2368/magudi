@@ -35,10 +35,10 @@ module InterfaceHelper
      subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
 
        use Region_mod, only : t_Region
-       
+
        class(t_Region) :: region
        real(SCALAR_KIND), intent(in) :: tolerance
-       
+
      end subroutine checkFunctionContinuityAtInterfaces
 
   end interface

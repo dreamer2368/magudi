@@ -126,7 +126,7 @@ module CNSHelper
 
   interface
 
-     pure subroutine computeSpectralRadius(nDimensions, ratioOfSpecificHeats, velocity,      &     
+     pure subroutine computeSpectralRadius(nDimensions, ratioOfSpecificHeats, velocity,      &
           temperature, metrics, spectralRadius, isDomainCurvilinear)
 
        !> Compute the spectral radii along all the directions.
