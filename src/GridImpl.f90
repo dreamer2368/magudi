@@ -34,7 +34,11 @@ contains
     allocate(this%firstDerivative(this%nDimensions))
     if (.not. simulationFlags%repeatFirstDerivative)                                         &
          allocate(this%secondDerivative(this%nDimensions))
-    if (simulationFlags%dissipationOn) allocate(this%dissipation(this%nDimensions))
+    if (simulationFlags%dissipationOn) then
+       allocate(this%dissipation(this%nDimensions))
+       if (.not. simulationFlags%compositeDissipation)                                       &
+            allocate(this%dissipationTranspose(this%nDimensions))
+    end if
     if (.not. simulationFlags%predictionOnly)                                                &
          allocate(this%adjointFirstDerivative(this%nDimensions))
 
@@ -318,6 +322,13 @@ subroutine cleanupGrid(this)
   end if
   SAFE_DEALLOCATE(this%dissipation)
 
+  if (allocated(this%dissipationTranspose)) then
+     do i = 1, size(this%dissipationTranspose)
+        call this%dissipationTranspose(i)%cleanup()
+     end do
+  end if
+  SAFE_DEALLOCATE(this%dissipationTranspose)
+
   if (allocated(this%adjointFirstDerivative)) then
      do i = 1, size(this%adjointFirstDerivative)
         call this%adjointFirstDerivative(i)%cleanup()
@@ -536,12 +547,31 @@ subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
            val = getOption("defaults/artificial_dissipation_scheme",                         &
                 trim(solverOptions_%discretizationType))
            val = getOption(trim(key) // "artificial_dissipation_scheme", trim(val))
-           val = trim(val) // " dissipation"
+           if (simulationFlags_%compositeDissipation) then
+              val = trim(val) // " composite dissipation"
+           else
+              val = trim(val) // " dissipation"
+           end if
         else
            val = "null matrix"
         end if
         call this%dissipation(i)%setup(val)
         call this%dissipation(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
+     end if
+
+     ! Transpose dissipation operators.
+     if (allocated(this%dissipationTranspose)) then
+        if (this%globalSize(i) > 1) then
+           val = getOption("defaults/artificial_dissipation_scheme",                         &
+                trim(solverOptions_%discretizationType))
+           val = getOption(trim(key) // "artificial_dissipation_scheme", trim(val))
+           val = trim(val) // " dissipation transpose"
+        else
+           val = "null matrix"
+        end if
+        call this%dissipationTranspose(i)%setup(val)
+        call this%dissipationTranspose(i)%update(this%comm, i,                               &
+             this%periodicityType(i) == OVERLAP)
      end if
 
   end do !... i = 1, this%nDimensions

@@ -126,6 +126,23 @@ module CNSHelper
 
   interface
 
+     pure subroutine computeSpectralRadius(nDimensions, ratioOfSpecificHeats, velocity,      &
+          temperature, metrics, spectralRadius, isDomainCurvilinear)
+
+       !> Compute the spectral radii along all the directions.
+
+       integer, intent(in) :: nDimensions
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: velocity(:,:), temperature(:), metrics(:,:)
+       SCALAR_TYPE, intent(out) :: spectralRadius(:,:)
+       logical, intent(in), optional :: isDomainCurvilinear
+
+     end subroutine computeSpectralRadius
+
+  end interface
+
+  interface
+
      pure subroutine transformFluxes(nDimensions, fluxes, metrics,                           &
           transformedFluxes, isDomainCurvilinear)
 

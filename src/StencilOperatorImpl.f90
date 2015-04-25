@@ -7,7 +7,8 @@ module StencilOperatorImpl
 
   integer, parameter, public ::                                                              &
        SYMMETRIC      = 0,                                                                   &
-       SKEW_SYMMETRIC = 1
+       SKEW_SYMMETRIC = 1,                                                                   &
+       ASYMMETRIC     = 2
 
 contains
 
@@ -22,7 +23,9 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
 
-    allocate(this%rhsInterior(-this%interiorWidth/2:this%interiorWidth/2), source = 0.0_wp)
+    if (this%symmetryType /= ASYMMETRIC) then
+       allocate(this%rhsInterior(-this%interiorWidth/2:this%interiorWidth/2), source = 0.0_wp)
+    end if
     allocate(this%rhsBoundary1(this%boundaryWidth, this%boundaryDepth), source = 0.0_wp)
     allocate(this%rhsBoundary2(this%boundaryWidth, this%boundaryDepth), source = 0.0_wp)
     allocate(this%normBoundary(this%boundaryDepth), source = 1.0_wp)
@@ -267,6 +270,13 @@ contains
                this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
        end do
 
+    case default
+       do concurrent(i = is:ie, j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+          x(i - this%nGhost(1) + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l) =         &
+               sum(this%rhsInterior * xWithGhostPoints(i + lbound(this%rhsInterior,1) :      &
+               i + ubound(this%rhsInterior,1), j, k, l))
+       end do
+
     end select
 
   end subroutine applyOperatorAtInteriorPoints_1
@@ -308,6 +318,13 @@ contains
                this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
        end do
 
+    case default
+       do concurrent(i = 1:gridSize(1), j = js:je, k = 1:gridSize(3), l = 1:size(x,2))
+          x(i + gridSize(1) * (j - 1 - this%nGhost(1) + gridSize(2) * (k - 1)), l) =         &
+               sum(this%rhsInterior * xWithGhostPoints(i, j + lbound(this%rhsInterior,1) :   &
+               j + ubound(this%rhsInterior,1), k, l))
+       end do
+
     end select
 
   end subroutine applyOperatorAtInteriorPoints_2
@@ -347,6 +364,14 @@ contains
                sum(this%rhsInterior(1:n) * (xWithGhostPoints(i,j,k+1:k+n,l) +                &
                xWithGhostPoints(i,j,k-1:k-n:-1,l))) +                                        &
                this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
+       end do
+
+    case default
+       do concurrent(i = 1:gridSize(1), j = 1:gridSize(2), k = ks:ke, l = 1:size(x,2))
+          x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1 - this%nGhost(1))), l) =         &
+               sum(this%rhsInterior *                                                        &
+               xWithGhostPoints(i, j, k + lbound(this%rhsInterior, 1) :                      &
+               k + ubound(this%rhsInterior, 1), l))
        end do
 
     end select
@@ -798,7 +823,7 @@ subroutine setupOperator(this, stencilScheme)
   use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
-  use StencilOperatorImpl, only : SYMMETRIC, SKEW_SYMMETRIC, allocateData
+  use StencilOperatorImpl, only : SYMMETRIC, SKEW_SYMMETRIC, ASYMMETRIC, allocateData
 
   implicit none
 
@@ -810,19 +835,25 @@ subroutine setupOperator(this, stencilScheme)
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: x1, x2, x3
 
-  assert_key(stencilScheme, (  \
-  'SBP 1-2 first derivative',  \
-  'SBP 1-2 second derivative', \
-  'SBP 1-2 dissipation',       \
-  'SBP 2-4 first derivative',  \
-  'SBP 2-4 second derivative', \
-  'SBP 2-4 dissipation',       \
-  'SBP 3-6 first derivative',  \
-  'SBP 3-6 second derivative', \
-  'SBP 3-6 dissipation',       \
-  'SBP 4-8 first derivative',  \
-  'SBP 4-8 second derivative', \
-  'SBP 4-8 dissipation',       \
+  assert_key(stencilScheme, (      \
+  'SBP 1-2 first derivative',      \
+  'SBP 1-2 second derivative',     \
+  'SBP 1-2 composite dissipation', \
+  'SBP 2-4 first derivative',      \
+  'SBP 2-4 second derivative',     \
+  'SBP 2-4 dissipation',           \
+  'SBP 2-4 dissipation transpose', \
+  'SBP 2-4 composite dissipation', \
+  'SBP 3-6 first derivative',      \
+  'SBP 3-6 second derivative',     \
+  'SBP 3-6 dissipation',           \
+  'SBP 3-6 dissipation transpose', \
+  'SBP 3-6 composite dissipation', \
+  'SBP 4-8 first derivative',      \
+  'SBP 4-8 second derivative',     \
+  'SBP 4-8 dissipation',           \
+  'SBP 4-8 dissipation transpose', \
+  'SBP 4-8 composite dissipation', \
   'null matrix'))
 
   call this%cleanup()
@@ -857,7 +888,7 @@ subroutine setupOperator(this, stencilScheme)
 
      this%rhsBoundary1(1:3,1) = (/ 1.0_wp, -2.0_wp, 1.0_wp /)
 
-  else if (trim(stencilScheme) == "SBP 1-2 dissipation") then
+  else if (trim(stencilScheme) == "SBP 1-2 composite dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 3
@@ -945,7 +976,7 @@ subroutine setupOperator(this, stencilScheme)
                                      64.0_wp / 49.0_wp, &
                                      -4.0_wp / 49.0_wp /)
 
-  else if (trim(stencilScheme) == "SBP 2-4 dissipation") then
+  else if (trim(stencilScheme) == "SBP 2-4 composite dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 5
@@ -981,6 +1012,33 @@ subroutine setupOperator(this, stencilScheme)
                                     -48.0_wp / 49.0_wp /)
 
      this%rhsBoundary1 = this%rhsBoundary1 / 16.0_wp
+
+  else if (trim(stencilScheme) == "SBP 2-4 dissipation") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 3
+     this%boundaryWidth = 3
+     this%boundaryDepth = 1
+     call allocateData(this)
+
+     this%rhsInterior(-1:1) = (/ 1.0_wp, -2.0_wp, 1.0_wp /)
+
+     this%rhsBoundary1(1:3,1) = this%rhsInterior
+
+  else if (trim(stencilScheme) == "SBP 2-4 dissipation transpose") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 3
+     this%boundaryWidth = 4
+     this%boundaryDepth = 3
+     call allocateData(this)
+
+     this%rhsInterior(-1:1) = (/ 1.0_wp, -2.0_wp, 1.0_wp /)
+
+     this%rhsBoundary1(1,1:3) = this%rhsInterior(-1:1)
+     this%rhsBoundary1(2,1:3) = this%rhsInterior(-1:1)
+     this%rhsBoundary1(3,2:3) = this%rhsInterior(-1:0)
+     this%rhsBoundary1(4,3:3) = this%rhsInterior(-1:-1)
 
   else if (trim(stencilScheme) == "SBP 3-6 first derivative") then
 
@@ -1107,7 +1165,7 @@ subroutine setupOperator(this, stencilScheme)
                                      -6480.0_wp /  43801.0_wp, &
                                        480.0_wp /  43801.0_wp /)
 
-  else if (trim(stencilScheme) == "SBP 3-6 dissipation") then
+  else if (trim(stencilScheme) == "SBP 3-6 composite dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 7
@@ -1164,6 +1222,46 @@ subroutine setupOperator(this, stencilScheme)
                                      43200.0_wp / 43801.0_wp /)
 
      this%rhsBoundary1 = this%rhsBoundary1 / 64.0_wp
+
+  else if (trim(stencilScheme) == "SBP 3-6 dissipation") then
+
+     this%symmetryType = ASYMMETRIC
+     this%interiorWidth = 4
+     this%boundaryWidth = 4
+     this%boundaryDepth = 2
+     call allocateData(this)
+
+     allocate(this%rhsInterior(-2:1))
+     this%rhsInterior(-2:1) = (/ -1.0_wp, 3.0_wp, -3.0_wp, 1.0_wp /)
+
+     this%rhsBoundary1(1:4,1) = this%rhsInterior(-2:1)
+     this%rhsBoundary1(1:4,2) = this%rhsInterior(-2:1)
+
+     this%rhsBoundary2(1:4,:) = - this%rhsBoundary1(4:1:-1,:)
+
+  else if (trim(stencilScheme) == "SBP 3-6 dissipation transpose") then
+
+     this%symmetryType = ASYMMETRIC
+     this%interiorWidth = 4
+     this%boundaryWidth = 6
+     this%boundaryDepth = 4
+     call allocateData(this)
+
+     allocate(this%rhsInterior(-1:2))
+     this%rhsInterior(-1:2) = (/ 1.0_wp, -3.0_wp, 3.0_wp, -1.0_wp /)
+
+     this%rhsBoundary1(1,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary1(2,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary1(3,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary1(4,2:4) = this%rhsInterior(2:0:-1)
+     this%rhsBoundary1(5,3:4) = this%rhsInterior(2:1:-1)
+     this%rhsBoundary1(6,4:4) = this%rhsInterior(2:2:-1)
+
+     this%rhsBoundary2(6,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary2(5,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary2(4,1:3) = this%rhsInterior(1:-1:-1)
+     this%rhsBoundary2(3,1:2) = this%rhsInterior(0:-1:-1)
+     this%rhsBoundary2(2,1:1) = this%rhsInterior(-1:-1:-1)
 
   else if (trim(stencilScheme) == "SBP 4-8 first derivative") then
 
@@ -1421,7 +1519,7 @@ subroutine setupOperator(this, stencilScheme)
                                             129024.0_wp /       5127739.0_wp, &
                                              -9072.0_wp /       5127739.0_wp /)
 
-  else if (trim(stencilScheme) == "SBP 4-8 dissipation") then
+  else if (trim(stencilScheme) == "SBP 4-8 composite dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 9
@@ -1506,6 +1604,39 @@ subroutine setupOperator(this, stencilScheme)
                                       -5080320.0_wp / 5127739.0_wp /)
 
      this%rhsBoundary1 = this%rhsBoundary1 / 256.0_wp
+
+  else if (trim(stencilScheme) == "SBP 4-8 dissipation") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 5
+     this%boundaryWidth = 5
+     this%boundaryDepth = 2
+     call allocateData(this)
+
+     this%rhsInterior(0:2) = (/ 6.0_wp, -4.0_wp, 1.0_wp /)
+     this%rhsInterior(-1:-2:-1) = this%rhsInterior(1:2)
+
+     this%rhsBoundary1(1:5,1) = this%rhsInterior(-2:2)
+     this%rhsBoundary1(1:5,2) = this%rhsInterior(-2:2)
+
+  else if (trim(stencilScheme) == "SBP 4-8 dissipation transpose") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 5
+     this%boundaryWidth = 7
+     this%boundaryDepth = 5
+     call allocateData(this)
+
+     this%rhsInterior(0:2) = (/ 6.0_wp, -4.0_wp, 1.0_wp /)
+     this%rhsInterior(-1:-2:-1) = this%rhsInterior(1:2)
+
+     this%rhsBoundary1(1,1:5) = this%rhsInterior(-2:2)
+     this%rhsBoundary1(2,1:5) = this%rhsInterior(-2:2)
+     this%rhsBoundary1(3,1:5) = this%rhsInterior(-2:2)
+     this%rhsBoundary1(4,2:5) = this%rhsInterior(-2:1)
+     this%rhsBoundary1(5,3:5) = this%rhsInterior(-2:0)
+     this%rhsBoundary1(6,4:5) = this%rhsInterior(-2:-1)
+     this%rhsBoundary1(7,5:5) = this%rhsInterior(-2:-2)
 
   else if (trim(stencilScheme) == "null matrix") then
 
@@ -1688,26 +1819,26 @@ subroutine getAdjointOperator(this, adjointOperator)
   end do
 
   ! Pre-multiply by the inverse of the norm matrix.
-  do i = 1, adjointOperator%boundaryDepth
-     adjointOperator%rhsBoundary1(1:size(adjointOperator%normBoundary),i) =                  &
-          adjointOperator%rhsBoundary1(1:size(adjointOperator%normBoundary),i) *             &
-          adjointOperator%normBoundary
-  end do
-
-  ! Post-multiply by the norm matrix.
   do i = 1, adjointOperator%boundaryWidth
      adjointOperator%rhsBoundary1(i,1:size(adjointOperator%normBoundary)) =                  &
           adjointOperator%rhsBoundary1(i,1:size(adjointOperator%normBoundary)) /             &
           adjointOperator%normBoundary
   end do
 
+  ! Post-multiply by the norm matrix.
+  do i = 1, adjointOperator%boundaryDepth
+     adjointOperator%rhsBoundary1(1:size(adjointOperator%normBoundary),i) =                  &
+          adjointOperator%rhsBoundary1(1:size(adjointOperator%normBoundary),i) *             &
+          adjointOperator%normBoundary
+  end do
+
   ! Fill the right-boundary coefficients.
   select case (adjointOperator%symmetryType)
   case (SYMMETRIC)
-     adjointOperator%rhsBoundary2(1:adjointOperator%boundaryWidth,:) =                       &
+     adjointOperator%rhsBoundary2(1:adjointOperator%boundaryWidth,:) =                   &
           +adjointOperator%rhsBoundary1(adjointOperator%boundaryWidth:1:-1,:)
   case (SKEW_SYMMETRIC)
-     adjointOperator%rhsBoundary2(1:adjointOperator%boundaryWidth,:) =                       &
+     adjointOperator%rhsBoundary2(1:adjointOperator%boundaryWidth,:) =                   &
           -adjointOperator%rhsBoundary1(adjointOperator%boundaryWidth:1:-1,:)
   end select
 

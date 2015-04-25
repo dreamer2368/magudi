@@ -118,7 +118,7 @@ program main
   call MPI_Barrier(region%comm, ierror)
 
   ! Time advancement options.
-  time = real(region%states(1)%plot3dAuxiliaryData(4), wp)
+  time = region%states(1)%time
   timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
   nTimesteps = getOption("number_of_timesteps", 1000)
   saveInterval = getOption("save_interval", 1000)

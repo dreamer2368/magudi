@@ -843,7 +843,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
 
   ! <<< Enumerations >>>
   use Grid_enum
-  use State_enum, only : QOI_DUMMY_FUNCTION
+  use State_enum, only : QOI_DUMMY_FUNCTION, QOI_FORWARD_STATE
 
   ! <<< Internal modules >>>
   use ErrorHandler, only : gracefulExit, writeAndFlush
@@ -910,6 +910,8 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
      do i = 1, 4
         this%states(:)%plot3dAuxiliaryData(i) = auxiliaryData(i)
      end do
+     if (quantityOfInterest == QOI_FORWARD_STATE)                                            &
+          this%states(:)%time = real(auxiliaryData(4), SCALAR_KIND)
   end if
 
   if (success) then

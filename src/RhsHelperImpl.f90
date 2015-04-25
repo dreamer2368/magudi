@@ -1,5 +1,116 @@
 #include "config.h"
 
+module RhsHelperImpl
+
+  implicit none
+  public
+
+contains
+
+  subroutine addDissipation(mode, simulationFlags, solverOptions, grid, state)
+
+    ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+    use State_mod, only : t_State
+    use SolverOptions_mod, only : t_SolverOptions
+    use SimulationFlags_mod, only : t_SimulationFlags
+
+    ! <<< Enumerations >>>
+    use Region_enum, only : FORWARD, ADJOINT
+
+    ! <<< Internal modules >>>
+    use CNSHelper, only : computeSpectralRadius
+    use MPITimingsHelper, only : startTiming, endTiming
+
+    ! <<< Arguments >>>
+    integer, intent(in) :: mode
+    type(t_SimulationFlags), intent(in) :: simulationFlags
+    type(t_SolverOptions), intent(in) :: solverOptions
+    class(t_Grid), intent(in) :: grid
+    class(t_State) :: state
+
+    ! <<< Local variables >>>
+    integer :: i, j, nDimensions, nUnknowns
+    SCALAR_TYPE, allocatable :: dissipationTerm(:,:), spectralRadius(:,:)
+    real(SCALAR_KIND) :: dissipationAmount
+
+    if (.not. simulationFlags%dissipationOn) return
+
+    call startTiming("addDissipation")
+
+    assert_key(mode, (FORWARD, ADJOINT))
+
+    nDimensions = grid%nDimensions
+    assert_key(nDimensions, (1, 2, 3))
+
+    nUnknowns = solverOptions%nUnknowns
+
+    allocate(dissipationTerm(grid%nGridPoints, nUnknowns))
+
+    select case (mode)
+    case (FORWARD)
+       dissipationAmount = + solverOptions%dissipationAmount
+    case (ADJOINT)
+       dissipationAmount = - solverOptions%dissipationAmount
+    end select
+
+    if (simulationFlags%compositeDissipation) then
+
+       do i = 1, nDimensions
+
+          select case (mode)
+          case (FORWARD)
+             dissipationTerm = state%conservedVariables
+          case (ADJOINT)
+             dissipationTerm = state%adjointVariables
+          end select
+
+          call grid%dissipation(i)%apply(dissipationTerm, grid%localSize)
+          state%rightHandSide = state%rightHandSide + dissipationAmount * dissipationTerm
+
+       end do
+
+    else
+
+       allocate(spectralRadius(grid%nGridPoints, nDimensions))
+       call computeSpectralRadius(nDimensions, solverOptions%ratioOfSpecificHeats,           &
+            state%velocity, state%temperature(:,1), grid%metrics,                            &
+            spectralRadius, grid%isCurvilinear)
+
+       do i = 1, nDimensions
+
+          select case (mode)
+          case (FORWARD)
+             dissipationTerm = state%conservedVariables
+          case (ADJOINT)
+             dissipationTerm = state%adjointVariables
+          end select
+
+          call grid%dissipation(i)%apply(dissipationTerm, grid%localSize)
+
+          do j = 1, nUnknowns
+             dissipationTerm(:,j) = spectralRadius(:,i) * dissipationTerm(:,j)
+          end do
+
+          call grid%dissipationTranspose(i)%apply(dissipationTerm, grid%localSize)
+          call grid%firstDerivative(i)%applyNormInverse(dissipationTerm, grid%localSize)
+
+          state%rightHandSide = state%rightHandSide - dissipationAmount * dissipationTerm
+
+       end do
+
+       SAFE_DEALLOCATE(spectralRadius)
+
+    end if
+
+    SAFE_DEALLOCATE(dissipationTerm)
+
+    call endTiming("endDissipation")
+
+  end subroutine addDissipation
+
+end module RhsHelperImpl
+
 subroutine computeRhsForward(simulationFlags, solverOptions, grid, state)
 
   ! <<< External modules >>>
@@ -10,6 +121,12 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state)
   use State_mod, only : t_State
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD
+
+  ! <<< Private members >>>
+  use RhsHelperImpl, only : addDissipation
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -62,18 +179,11 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state)
   end do
   state%rightHandSide = state%rightHandSide - sum(fluxes2, dim = 3) !... update RHS.
 
-  ! Add dissipation if required.
-  if (simulationFlags%dissipationOn) then
-     do i = 1, nDimensions
-        fluxes2(:,:,i) = state%conservedVariables !... dissipation based on high-order even
-                                                  !... derivatives of conserved variables.
-        call grid%dissipation(i)%apply(fluxes2(:,:,i), grid%localSize)
-     end do
-     state%rightHandSide = state%rightHandSide +                                             &
-          solverOptions%dissipationAmount * sum(fluxes2, dim = 3) !... update RHS.
-  end if
-
   SAFE_DEALLOCATE(fluxes2) !... no longer needed
+
+  ! Add dissipation if required.
+  if (simulationFlags%dissipationOn)                                                         &
+       call addDissipation(FORWARD, simulationFlags, solverOptions, grid, state)
 
   call endTiming("computeRhsForward")
 
@@ -86,6 +196,12 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state)
   use State_mod, only : t_State
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : ADJOINT
+
+  ! <<< Private members >>>
+  use RhsHelperImpl, only : addDissipation
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -285,18 +401,11 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state)
 
   SAFE_DEALLOCATE(localMetricsAlongDirection1)
   SAFE_DEALLOCATE(localVelocity)
+  SAFE_DEALLOCATE(temp1)
 
   ! Add dissipation if required.
-  if (simulationFlags%dissipationOn) then
-     do i = 1, nDimensions
-        temp1(:,:,i) = state%adjointVariables
-        call grid%dissipation(i)%apply(temp1(:,:,i), grid%localSize)
-     end do
-     state%rightHandSide = state%rightHandSide -                                             &
-          solverOptions%dissipationAmount * sum(temp1, dim = 3) !... update right-hand side.
-  end if
-
-  SAFE_DEALLOCATE(temp1)
+  if (simulationFlags%dissipationOn)                                                         &
+       call addDissipation(ADJOINT, simulationFlags, solverOptions, grid, state)
 
   call endTiming("computeRhsAdjoint")
 

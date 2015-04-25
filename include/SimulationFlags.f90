@@ -19,7 +19,8 @@ module SimulationFlags_mod
                 filterOn              = .false., &
                 steadyStateSimulation = .false., &
                 isBaselineAvailable   = .false., &
-                useContinuousAdjoint  = .false.
+                useContinuousAdjoint  = .false., &
+                compositeDissipation  = .true.
 
    contains
 

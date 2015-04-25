@@ -37,42 +37,42 @@ program dissipation_self_adjoint
   do i = 1, 10 !... test multiple times
      do direction = 1, 3
 
-        call testSelfAdjointness("SBP 1-2 dissipation",                                      &
+        call testSelfAdjointness("SBP 1-2 composite dissipation",                            &
              direction, success_, isPeriodic = .false.)
         success = success .and. success_
         if (.not. success) exit
 
-        call testSelfAdjointness("SBP 1-2 dissipation",                                      &
+        call testSelfAdjointness("SBP 1-2 composite dissipation",                            &
              direction, success_, isPeriodic = .true.)
         success = success .and. success_
         if (.not. success) exit
 
-        call testSelfAdjointness("SBP 2-4 dissipation",                                      &
+        call testSelfAdjointness("SBP 2-4 composite dissipation",                            &
              direction, success_, isPeriodic = .false.)
         success = success .and. success_
         if (.not. success) exit
 
-        call testSelfAdjointness("SBP 2-4 dissipation",                                      &
+        call testSelfAdjointness("SBP 2-4 composite dissipation",                            &
              direction, success_, isPeriodic = .true.)
         success = success .and. success_
         if (.not. success) exit
 
-        call testSelfAdjointness("SBP 3-6 dissipation",                                      &
+        call testSelfAdjointness("SBP 3-6 composite dissipation",                            &
              direction, success_, isPeriodic = .false.)
         success = success .and. success_
         if (.not. success) exit
 
-        call testSelfAdjointness("SBP 3-6 dissipation",                                      &
+        call testSelfAdjointness("SBP 3-6 composite dissipation",                            &
              direction, success_, isPeriodic = .true.)
         success = success .and. success_
         if (.not. success) exit
 
-        call testSelfAdjointness("SBP 4-8 dissipation",                                      &
+        call testSelfAdjointness("SBP 4-8 composite dissipation",                            &
              direction, success_, isPeriodic = .false.)
         success = success .and. success_
         if (.not. success) exit
 
-        call testSelfAdjointness("SBP 4-8 dissipation",                                      &
+        call testSelfAdjointness("SBP 4-8 composite dissipation",                            &
              direction, success_, isPeriodic = .true.)
         success = success .and. success_
         if (.not. success) exit

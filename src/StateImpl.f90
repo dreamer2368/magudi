@@ -260,6 +260,7 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
 
   select case (quantityOfInterest)
   case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_RIGHT_HAND_SIDE, QOI_ADJOINT_STATE)
+     this%plot3dAuxiliaryData(4) = this%time
      call plot3dWriteSingleAuxiliarySolutionData(grid%comm, trim(filename),                  &
           offset, this%plot3dAuxiliaryData, success)
   end select
@@ -554,7 +555,7 @@ subroutine addSources(this, mode, grid)
 
   if (mode == FORWARD .and. allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
-        call this%acousticSources(i)%add(this%time, grid%coordinates,                        &     
+        call this%acousticSources(i)%add(this%time, grid%coordinates,                        &
              grid%iblank, this%rightHandSide)
      end do
   end if
