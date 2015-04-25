@@ -810,19 +810,23 @@ subroutine setupOperator(this, stencilScheme)
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: x1, x2, x3
 
-  assert_key(stencilScheme, (  \
-  'SBP 1-2 first derivative',  \
-  'SBP 1-2 second derivative', \
-  'SBP 1-2 dissipation',       \
-  'SBP 2-4 first derivative',  \
-  'SBP 2-4 second derivative', \
-  'SBP 2-4 dissipation',       \
-  'SBP 3-6 first derivative',  \
-  'SBP 3-6 second derivative', \
-  'SBP 3-6 dissipation',       \
-  'SBP 4-8 first derivative',  \
-  'SBP 4-8 second derivative', \
-  'SBP 4-8 dissipation',       \
+  assert_key(stencilScheme, (      \
+  'SBP 1-2 first derivative',      \
+  'SBP 1-2 second derivative',     \
+  'SBP 1-2 dissipation',           \
+  'SBP 1-2 composite dissipation', \
+  'SBP 2-4 first derivative',      \
+  'SBP 2-4 second derivative',     \
+  'SBP 2-4 dissipation',           \
+  'SBP 2-4 composite dissipation', \
+  'SBP 3-6 first derivative',      \
+  'SBP 3-6 second derivative',     \
+  'SBP 3-6 dissipation',           \
+  'SBP 3-6 composite dissipation', \
+  'SBP 4-8 first derivative',      \
+  'SBP 4-8 second derivative',     \
+  'SBP 4-8 dissipation',           \
+  'SBP 4-8 composite dissipation', \
   'null matrix'))
 
   call this%cleanup()
@@ -857,7 +861,7 @@ subroutine setupOperator(this, stencilScheme)
 
      this%rhsBoundary1(1:3,1) = (/ 1.0_wp, -2.0_wp, 1.0_wp /)
 
-  else if (trim(stencilScheme) == "SBP 1-2 dissipation") then
+  else if (trim(stencilScheme) == "SBP 1-2 composite dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 3
@@ -945,7 +949,7 @@ subroutine setupOperator(this, stencilScheme)
                                      64.0_wp / 49.0_wp, &
                                      -4.0_wp / 49.0_wp /)
 
-  else if (trim(stencilScheme) == "SBP 2-4 dissipation") then
+  else if (trim(stencilScheme) == "SBP 2-4 composite dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 5
@@ -1107,7 +1111,7 @@ subroutine setupOperator(this, stencilScheme)
                                      -6480.0_wp /  43801.0_wp, &
                                        480.0_wp /  43801.0_wp /)
 
-  else if (trim(stencilScheme) == "SBP 3-6 dissipation") then
+  else if (trim(stencilScheme) == "SBP 3-6 composite dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 7
@@ -1421,7 +1425,7 @@ subroutine setupOperator(this, stencilScheme)
                                             129024.0_wp /       5127739.0_wp, &
                                              -9072.0_wp /       5127739.0_wp /)
 
-  else if (trim(stencilScheme) == "SBP 4-8 dissipation") then
+  else if (trim(stencilScheme) == "SBP 4-8 composite dissipation") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 9
@@ -1712,6 +1716,81 @@ subroutine getAdjointOperator(this, adjointOperator)
   end select
 
 end subroutine getAdjointOperator
+
+subroutine getTransposeOperator(this, transposeOperator)
+
+  ! Sets up the transpose of a stencil operator.
+
+  ! <<< Derived types >>>
+  use StencilOperator_mod, only : t_StencilOperator
+
+  ! <<< Private members >>>
+  use StencilOperatorImpl, only : SYMMETRIC, SKEW_SYMMETRIC, allocateData
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_StencilOperator), intent(in) :: this
+  class(t_StencilOperator) :: transposeOperator
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j
+
+  assert(this%symmetryType == SYMMETRIC .or. this%symmetryType == SKEW_SYMMETRIC)
+  assert(this%interiorWidth > 0)
+  assert(this%boundaryWidth > 0)
+  assert(this%boundaryDepth > 0)
+
+  call transposeOperator%cleanup()
+
+  ! Copy basic information.
+  transposeOperator%symmetryType = this%symmetryType
+  transposeOperator%interiorWidth = this%interiorWidth
+  transposeOperator%boundaryDepth = this%boundaryWidth
+  transposeOperator%boundaryWidth = this%boundaryWidth + this%interiorWidth / 2
+  call allocateData(transposeOperator)
+
+  ! Reverse the interior stencil.
+  assert(allocated(this%rhsInterior))
+  assert(lbound(this%rhsInterior, 1) == - this%interiorWidth / 2)
+  assert(ubound(this%rhsInterior, 1) == + this%interiorWidth / 2)
+  do i = - this%interiorWidth / 2, this%interiorWidth / 2
+     transposeOperator%rhsInterior(i) = this%rhsInterior(-i)
+  end do
+
+  ! Copy `normBoundary`.
+  assert(allocated(this%normBoundary))
+  assert(size(this%normBoundary) == this%boundaryDepth)
+  assert(all(this%normBoundary > 0))
+  SAFE_DEALLOCATE(transposeOperator%normBoundary)
+  allocate(transposeOperator%normBoundary(this%boundaryDepth))
+  transposeOperator%normBoundary = this%normBoundary
+
+  ! Transpose the left-boundary coefficients.
+  assert(allocated(this%rhsBoundary1))
+  assert(size(this%rhsBoundary1, 1) == this%boundaryWidth)
+  assert(size(this%rhsBoundary1, 2) == this%boundaryDepth)
+  transposeOperator%rhsBoundary1 = 0.0_wp
+  transposeOperator%rhsBoundary1(1:this%boundaryDepth,:) = transpose(this%rhsBoundary1)
+  do i = this%boundaryDepth + 1, this%boundaryWidth + this%interiorWidth / 2
+     do j = - this%interiorWidth / 2, this%interiorWidth / 2
+        if (i + j > this%boundaryWidth) exit
+        transposeOperator%rhsBoundary1(i,i+j) = this%rhsInterior(j)
+     end do
+  end do
+
+  ! Fill the right-boundary coefficients.
+  select case (transposeOperator%symmetryType)
+  case (SYMMETRIC)
+     transposeOperator%rhsBoundary2(1:transposeOperator%boundaryWidth,:) =                   &
+          +transposeOperator%rhsBoundary1(transposeOperator%boundaryWidth:1:-1,:)
+  case (SKEW_SYMMETRIC)
+     transposeOperator%rhsBoundary2(1:transposeOperator%boundaryWidth,:) =                   &
+          -transposeOperator%rhsBoundary1(transposeOperator%boundaryWidth:1:-1,:)
+  end select
+
+end subroutine getTransposeOperator
 
 subroutine applyOperator(this, x, gridSize)
 

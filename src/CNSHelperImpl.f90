@@ -509,6 +509,87 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, velocity,            
 
 end subroutine computeCartesianViscousFluxes
 
+PURE_SUBROUTINE computeSpectralRadius(nDimensions, ratioOfSpecificHeats, velocity,           &
+     temperature, metrics, spectralRadius, isDomainCurvilinear)
+
+  implicit none
+
+  ! <<< Arguments >>>
+  integer, intent(in) :: nDimensions
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: velocity(:,:), temperature(:), metrics(:,:)
+  SCALAR_TYPE, intent(out) :: spectralRadius(:,:)
+  logical, intent(in), optional :: isDomainCurvilinear
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  logical :: isDomainCurvilinear_
+
+  assert_key(nDimensions, (1, 2, 3))
+  assert(ratioOfSpecificHeats > 1.0_wp)
+
+  assert(size(velocity, 1) > 0)
+  assert(size(velocity, 2) == nDimensions)
+  assert(size(temperature) == size(velocity, 1))
+  assert(size(metrics, 1) == size(velocity, 1))
+  assert(size(metrics, 2) == nDimensions ** 2)
+  assert(size(spectralRadius, 1) == size(velocity, 1))
+  assert(size(spectralRadius, 2) == nDimensions)
+
+  isDomainCurvilinear_ = .true.
+  if (present(isDomainCurvilinear)) isDomainCurvilinear_ = isDomainCurvilinear
+
+  ! Temporary storage for speed of sound.
+  spectralRadius(:,nDimensions) = sqrt((ratioOfSpecificHeats - 1.0_wp) * temperature)
+
+  select case (nDimensions)
+
+  case (1)
+     spectralRadius(:,1) = abs(metrics(:,1) * velocity(:,1)) +                               &
+          spectralRadius(:,1) * abs(metrics(:,1))
+
+  case (2)
+     if (isDomainCurvilinear_) then
+        spectralRadius(:,1) = abs(metrics(:,1) * velocity(:,1) +                             &
+             metrics(:,2) * velocity(:,2)) +                                                 &
+             spectralRadius(:,2) * sqrt(metrics(:,1) ** 2 + metrics(:,2) ** 2)
+        spectralRadius(:,2) = abs(metrics(:,3) * velocity(:,1) +                             &
+             metrics(:,4) * velocity(:,2)) +                                                 &
+             spectralRadius(:,2) * sqrt(metrics(:,3) ** 2 + metrics(:,4) ** 2)
+     else
+        spectralRadius(:,1) = abs(metrics(:,1) * velocity(:,1)) +                            &
+             spectralRadius(:,2) * abs(metrics(:,1))
+        spectralRadius(:,2) = abs(metrics(:,4) * velocity(:,2)) +                            &
+             spectralRadius(:,2) * abs(metrics(:,4))
+     end if
+
+  case (3)
+     if (isDomainCurvilinear_) then
+        spectralRadius(:,1) = abs(metrics(:,1) * velocity(:,1) +                             &
+             metrics(:,2) * velocity(:,2) + metrics(:,3) * velocity(:,3)) +                  &
+             spectralRadius(:,3) * sqrt(metrics(:,1) ** 2 +                                  &
+             metrics(:,2) ** 2 + metrics(:,3) ** 2)
+        spectralRadius(:,2) = abs(metrics(:,4) * velocity(:,1) +                             &
+             metrics(:,5) * velocity(:,2) + metrics(:,6) * velocity(:,3)) +                  &
+             spectralRadius(:,3) * sqrt(metrics(:,4) ** 2 +                                  &
+             metrics(:,5) ** 2 + metrics(:,6) ** 2)
+        spectralRadius(:,3) = abs(metrics(:,7) * velocity(:,1) +                             &
+             metrics(:,8) * velocity(:,2) + metrics(:,9) * velocity(:,3)) +                  &
+             spectralRadius(:,3) * sqrt(metrics(:,7) ** 2 +                                  &
+             metrics(:,8) ** 2 + metrics(:,9) ** 2)
+     else
+        spectralRadius(:,1) = abs(metrics(:,1) * velocity(:,1)) +                            &
+             spectralRadius(:,3) * abs(metrics(:,1))
+        spectralRadius(:,2) = abs(metrics(:,5) * velocity(:,2)) +                            &
+             spectralRadius(:,3) * abs(metrics(:,5))
+        spectralRadius(:,3) = abs(metrics(:,9) * velocity(:,3)) +                            &
+             spectralRadius(:,3) * abs(metrics(:,9))
+     end if
+
+  end select
+
+end subroutine computeSpectralRadius
+
 PURE_SUBROUTINE transformFluxes(nDimensions, fluxes, metrics,                                &
      transformedFluxes, isDomainCurvilinear)
 

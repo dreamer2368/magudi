@@ -26,7 +26,7 @@ module Grid_mod
   type, public :: t_Grid
 
      type(t_StencilOperator), allocatable :: firstDerivative(:), secondDerivative(:),        &
-          dissipation(:), adjointFirstDerivative(:)
+          dissipation(:), dissipationTranspose(:), adjointFirstDerivative(:)
 
      integer, dimension(:), allocatable :: iblank
      SCALAR_TYPE, dimension(:,:), allocatable :: coordinates, jacobian, metrics, norm,       &

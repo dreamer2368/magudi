@@ -21,6 +21,7 @@ module StencilOperator_mod
      procedure, pass :: update => updateOperator
      procedure, pass :: cleanup => cleanupOperator
      procedure, pass :: getAdjoint => getAdjointOperator
+     procedure, pass :: getTranspose => getTransposeOperator
      procedure, pass :: apply => applyOperator
      procedure, pass :: applyAtInteriorPoints => applyOperatorAtInteriorPoints
      procedure, pass :: applyNorm => applyOperatorNorm
@@ -87,6 +88,19 @@ module StencilOperator_mod
        class(t_StencilOperator) :: adjointOperator
 
      end subroutine getAdjointOperator
+
+  end interface
+
+  interface
+
+     subroutine getTransposeOperator(this, transposeOperator)
+
+       import :: t_StencilOperator
+
+       class(t_StencilOperator), intent(in) :: this
+       class(t_StencilOperator) :: transposeOperator
+
+     end subroutine getTransposeOperator
 
   end interface
 

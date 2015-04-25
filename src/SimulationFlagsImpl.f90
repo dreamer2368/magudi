@@ -26,5 +26,6 @@ subroutine initializeSimulationFlags(this)
   this%steadyStateSimulation = getOption("steady_state_simulation", .false.)
   this%isBaselineAvailable   = getOption("baseline_prediction_available", .false.)
   this%useContinuousAdjoint  = getOption("use_continuous_adjoint", .false.)
+  this%compositeDissipation  = getOption("use_composite_dissipation_operator", .true.)
 
 end subroutine initializeSimulationFlags
