@@ -260,6 +260,7 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
 
   select case (quantityOfInterest)
   case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_RIGHT_HAND_SIDE, QOI_ADJOINT_STATE)
+     this%plot3dAuxiliaryData(4) = this%time
      call plot3dWriteSingleAuxiliarySolutionData(grid%comm, trim(filename),                  &
           offset, this%plot3dAuxiliaryData, success)
   end select
