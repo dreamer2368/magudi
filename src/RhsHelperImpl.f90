@@ -93,8 +93,9 @@ contains
           end do
 
           call grid%dissipationTranspose(i)%apply(dissipationTerm, grid%localSize)
+          call grid%firstDerivative(i)%applyNormInverse(dissipationTerm, grid%localSize)
 
-          state%rightHandSide = state%rightHandSide + dissipationAmount * dissipationTerm
+          state%rightHandSide = state%rightHandSide - dissipationAmount * dissipationTerm
 
        end do
 
