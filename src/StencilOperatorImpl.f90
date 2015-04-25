@@ -842,14 +842,17 @@ subroutine setupOperator(this, stencilScheme)
   'SBP 2-4 first derivative',      \
   'SBP 2-4 second derivative',     \
   'SBP 2-4 dissipation',           \
+  'SBP 2-4 dissipation transpose', \
   'SBP 2-4 composite dissipation', \
   'SBP 3-6 first derivative',      \
   'SBP 3-6 second derivative',     \
   'SBP 3-6 dissipation',           \
+  'SBP 3-6 dissipation transpose', \
   'SBP 3-6 composite dissipation', \
   'SBP 4-8 first derivative',      \
   'SBP 4-8 second derivative',     \
   'SBP 4-8 dissipation',           \
+  'SBP 4-8 dissipation transpose', \
   'SBP 4-8 composite dissipation', \
   'null matrix'))
 
@@ -1014,21 +1017,28 @@ subroutine setupOperator(this, stencilScheme)
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 3
-     this%boundaryWidth = 5
-     this%boundaryDepth = 4
+     this%boundaryWidth = 3
+     this%boundaryDepth = 1
      call allocateData(this)
 
      this%rhsInterior(-1:1) = (/ 1.0_wp, -2.0_wp, 1.0_wp /)
 
-     this%normBoundary = (/ 17.0_wp / 48.0_wp, &
-                            59.0_wp / 48.0_wp, &
-                            43.0_wp / 48.0_wp, &
-                            49.0_wp / 48.0_wp /)
-
      this%rhsBoundary1(1:3,1) = this%rhsInterior
-     this%rhsBoundary1(1:3,2) = this%rhsInterior
-     this%rhsBoundary1(2:4,3) = this%rhsInterior
-     this%rhsBoundary1(3:5,4) = this%rhsInterior
+
+  else if (trim(stencilScheme) == "SBP 2-4 dissipation transpose") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 3
+     this%boundaryWidth = 4
+     this%boundaryDepth = 3
+     call allocateData(this)
+
+     this%rhsInterior(-1:1) = (/ 1.0_wp, -2.0_wp, 1.0_wp /)
+
+     this%rhsBoundary1(1,1:3) = this%rhsInterior(-1:1)
+     this%rhsBoundary1(2,1:3) = this%rhsInterior(-1:1)
+     this%rhsBoundary1(3,2:3) = this%rhsInterior(-1:0)
+     this%rhsBoundary1(4,3:3) = this%rhsInterior(-1:-1)
 
   else if (trim(stencilScheme) == "SBP 3-6 first derivative") then
 
@@ -1217,26 +1227,41 @@ subroutine setupOperator(this, stencilScheme)
 
      this%symmetryType = ASYMMETRIC
      this%interiorWidth = 4
-     this%boundaryWidth = 7
-     this%boundaryDepth = 6
+     this%boundaryWidth = 4
+     this%boundaryDepth = 2
      call allocateData(this)
 
      allocate(this%rhsInterior(-2:1))
      this%rhsInterior(-2:1) = (/ -1.0_wp, 3.0_wp, -3.0_wp, 1.0_wp /)
 
-     this%normBoundary = (/ 13649.0_wp / 43200.0_wp, &
-                            12013.0_wp /  8640.0_wp, &
-                             2711.0_wp /  4320.0_wp, &
-                             5359.0_wp /  4320.0_wp, &
-                             7877.0_wp /  8640.0_wp, &
-                            43801.0_wp / 43200.0_wp /)
-
      this%rhsBoundary1(1:4,1) = this%rhsInterior(-2:1)
      this%rhsBoundary1(1:4,2) = this%rhsInterior(-2:1)
-     this%rhsBoundary1(1:4,3) = this%rhsInterior(-2:1)
-     this%rhsBoundary1(2:5,4) = this%rhsInterior(-2:1)
-     this%rhsBoundary1(3:6,5) = this%rhsInterior(-2:1)
-     this%rhsBoundary1(4:7,6) = this%rhsInterior(-2:1)
+
+     this%rhsBoundary2(1:4,:) = - this%rhsBoundary1(4:1:-1,:)
+
+  else if (trim(stencilScheme) == "SBP 3-6 dissipation transpose") then
+
+     this%symmetryType = ASYMMETRIC
+     this%interiorWidth = 4
+     this%boundaryWidth = 6
+     this%boundaryDepth = 4
+     call allocateData(this)
+
+     allocate(this%rhsInterior(-1:2))
+     this%rhsInterior(-1:2) = (/ 1.0_wp, -3.0_wp, 3.0_wp, -1.0_wp /)
+
+     this%rhsBoundary1(1,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary1(2,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary1(3,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary1(4,2:4) = this%rhsInterior(2:0:-1)
+     this%rhsBoundary1(5,3:4) = this%rhsInterior(2:1:-1)
+     this%rhsBoundary1(6,4:4) = this%rhsInterior(2:2:-1)
+
+     this%rhsBoundary2(6,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary2(5,1:4) = this%rhsInterior(2:-1:-1)
+     this%rhsBoundary2(4,1:3) = this%rhsInterior(1:-1:-1)
+     this%rhsBoundary2(3,1:2) = this%rhsInterior(0:-1:-1)
+     this%rhsBoundary2(2,1:1) = this%rhsInterior(-1:-1:-1)
 
   else if (trim(stencilScheme) == "SBP 4-8 first derivative") then
 
@@ -1584,30 +1609,34 @@ subroutine setupOperator(this, stencilScheme)
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 5
-     this%boundaryWidth = 10
-     this%boundaryDepth = 8
+     this%boundaryWidth = 5
+     this%boundaryDepth = 2
      call allocateData(this)
 
      this%rhsInterior(0:2) = (/ 6.0_wp, -4.0_wp, 1.0_wp /)
      this%rhsInterior(-1:-2:-1) = this%rhsInterior(1:2)
 
-     this%normBoundary = (/ 1498139.0_wp / 5080320.0_wp, &
-                            1107307.0_wp /  725760.0_wp, &
-                              20761.0_wp /   80640.0_wp, &
-                            1304999.0_wp /  725760.0_wp, &
-                             299527.0_wp /  725760.0_wp, &
-                             103097.0_wp /   80640.0_wp, &
-                             670091.0_wp /  725760.0_wp, &
-                            5127739.0_wp / 5080320.0_wp /)
+     this%rhsBoundary1(1:5,1) = this%rhsInterior(-2:2)
+     this%rhsBoundary1(1:5,2) = this%rhsInterior(-2:2)
 
-     this%rhsBoundary1(1:5,1)  = this%rhsInterior(-2:2)
-     this%rhsBoundary1(1:5,2)  = this%rhsInterior(-2:2)
-     this%rhsBoundary1(1:5,3)  = this%rhsInterior(-2:2)
-     this%rhsBoundary1(2:6,4)  = this%rhsInterior(-2:2)
-     this%rhsBoundary1(3:7,5)  = this%rhsInterior(-2:2)
-     this%rhsBoundary1(4:8,6)  = this%rhsInterior(-2:2)
-     this%rhsBoundary1(5:9,7)  = this%rhsInterior(-2:2)
-     this%rhsBoundary1(6:10,8) = this%rhsInterior(-2:2)
+  else if (trim(stencilScheme) == "SBP 4-8 dissipation transpose") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 5
+     this%boundaryWidth = 7
+     this%boundaryDepth = 5
+     call allocateData(this)
+
+     this%rhsInterior(0:2) = (/ 6.0_wp, -4.0_wp, 1.0_wp /)
+     this%rhsInterior(-1:-2:-1) = this%rhsInterior(1:2)
+
+     this%rhsBoundary1(1,1:5) = this%rhsInterior(-2:2)
+     this%rhsBoundary1(2,1:5) = this%rhsInterior(-2:2)
+     this%rhsBoundary1(3,1:5) = this%rhsInterior(-2:2)
+     this%rhsBoundary1(4,2:5) = this%rhsInterior(-2:1)
+     this%rhsBoundary1(5,3:5) = this%rhsInterior(-2:0)
+     this%rhsBoundary1(6,4:5) = this%rhsInterior(-2:-1)
+     this%rhsBoundary1(7,5:5) = this%rhsInterior(-2:-2)
 
   else if (trim(stencilScheme) == "null matrix") then
 
@@ -1733,24 +1762,6 @@ subroutine getAdjointOperator(this, adjointOperator)
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
 
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_StencilOperator), intent(in) :: this
-  class(t_StencilOperator) :: adjointOperator
-
-  call this%getTranspose(adjointOperator, .true., .true.)
-
-end subroutine getAdjointOperator
-
-subroutine getTransposeOperator(this, transposeOperator,                                     &
-     preMultiplyNormInverse, postMultiplyNorm)
-
-  ! Sets up the transpose of a stencil operator.
-
-  ! <<< Derived types >>>
-  use StencilOperator_mod, only : t_StencilOperator
-
   ! <<< Private members >>>
   use StencilOperatorImpl, only : SYMMETRIC, SKEW_SYMMETRIC, allocateData
 
@@ -1758,12 +1769,10 @@ subroutine getTransposeOperator(this, transposeOperator,                        
 
   ! <<< Arguments >>>
   class(t_StencilOperator), intent(in) :: this
-  class(t_StencilOperator) :: transposeOperator
-  logical, intent(in), optional :: preMultiplyNormInverse, postMultiplyNorm
+  class(t_StencilOperator) :: adjointOperator
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  logical :: preMultiplyNormInverse_, postMultiplyNorm_
   integer :: i, j
 
   assert(this%symmetryType == SYMMETRIC .or. this%symmetryType == SKEW_SYMMETRIC)
@@ -1771,79 +1780,69 @@ subroutine getTransposeOperator(this, transposeOperator,                        
   assert(this%boundaryWidth > 0)
   assert(this%boundaryDepth > 0)
 
-  preMultiplyNormInverse_ = .false.
-  if (present(preMultiplyNormInverse)) preMultiplyNormInverse_ = preMultiplyNormInverse
-
-  postMultiplyNorm_ = .false.
-  if (present(postMultiplyNorm)) postMultiplyNorm_ = postMultiplyNorm
-
-  call transposeOperator%cleanup()
+  call adjointOperator%cleanup()
 
   ! Copy basic information.
-  transposeOperator%symmetryType = this%symmetryType
-  transposeOperator%interiorWidth = this%interiorWidth
-  transposeOperator%boundaryDepth = this%boundaryWidth
-  transposeOperator%boundaryWidth = this%boundaryWidth + this%interiorWidth / 2
-  call allocateData(transposeOperator)
+  adjointOperator%symmetryType = this%symmetryType
+  adjointOperator%interiorWidth = this%interiorWidth
+  adjointOperator%boundaryDepth = this%boundaryWidth
+  adjointOperator%boundaryWidth = this%boundaryWidth + this%interiorWidth / 2
+  call allocateData(adjointOperator)
 
   ! Reverse the interior stencil.
   assert(allocated(this%rhsInterior))
   assert(lbound(this%rhsInterior, 1) == - this%interiorWidth / 2)
   assert(ubound(this%rhsInterior, 1) == + this%interiorWidth / 2)
   do i = - this%interiorWidth / 2, this%interiorWidth / 2
-     transposeOperator%rhsInterior(i) = this%rhsInterior(-i)
+     adjointOperator%rhsInterior(i) = this%rhsInterior(-i)
   end do
 
   ! Copy `normBoundary`.
   assert(allocated(this%normBoundary))
   assert(size(this%normBoundary) == this%boundaryDepth)
   assert(all(this%normBoundary > 0))
-  SAFE_DEALLOCATE(transposeOperator%normBoundary)
-  allocate(transposeOperator%normBoundary(this%boundaryDepth))
-  transposeOperator%normBoundary = this%normBoundary
+  SAFE_DEALLOCATE(adjointOperator%normBoundary)
+  allocate(adjointOperator%normBoundary(this%boundaryDepth))
+  adjointOperator%normBoundary = this%normBoundary
 
   ! Transpose the left-boundary coefficients.
   assert(allocated(this%rhsBoundary1))
   assert(size(this%rhsBoundary1, 1) == this%boundaryWidth)
   assert(size(this%rhsBoundary1, 2) == this%boundaryDepth)
-  transposeOperator%rhsBoundary1 = 0.0_wp
-  transposeOperator%rhsBoundary1(1:this%boundaryDepth,:) = transpose(this%rhsBoundary1)
+  adjointOperator%rhsBoundary1 = 0.0_wp
+  adjointOperator%rhsBoundary1(1:this%boundaryDepth,:) = transpose(this%rhsBoundary1)
   do i = this%boundaryDepth + 1, this%boundaryWidth + this%interiorWidth / 2
      do j = - this%interiorWidth / 2, this%interiorWidth / 2
         if (i + j > this%boundaryWidth) exit
-        transposeOperator%rhsBoundary1(i,i+j) = this%rhsInterior(j)
+        adjointOperator%rhsBoundary1(i,i+j) = this%rhsInterior(j)
      end do
   end do
 
   ! Pre-multiply by the inverse of the norm matrix.
-  if (preMultiplyNormInverse_) then
-     do i = 1, transposeOperator%boundaryWidth
-        transposeOperator%rhsBoundary1(i,1:size(transposeOperator%normBoundary)) =           &
-             transposeOperator%rhsBoundary1(i,1:size(transposeOperator%normBoundary)) /      &
-             transposeOperator%normBoundary
-     end do
-  end if
+  do i = 1, adjointOperator%boundaryWidth
+     adjointOperator%rhsBoundary1(i,1:size(adjointOperator%normBoundary)) =                  &
+          adjointOperator%rhsBoundary1(i,1:size(adjointOperator%normBoundary)) /             &
+          adjointOperator%normBoundary
+  end do
 
   ! Post-multiply by the norm matrix.
-  if (postMultiplyNorm_) then
-     do i = 1, transposeOperator%boundaryDepth
-        transposeOperator%rhsBoundary1(1:size(transposeOperator%normBoundary),i) =           &
-             transposeOperator%rhsBoundary1(1:size(transposeOperator%normBoundary),i) *      &
-             transposeOperator%normBoundary
-     end do
-  end if
+  do i = 1, adjointOperator%boundaryDepth
+     adjointOperator%rhsBoundary1(1:size(adjointOperator%normBoundary),i) =                  &
+          adjointOperator%rhsBoundary1(1:size(adjointOperator%normBoundary),i) *             &
+          adjointOperator%normBoundary
+  end do
 
   ! Fill the right-boundary coefficients.
-  select case (transposeOperator%symmetryType)
+  select case (adjointOperator%symmetryType)
   case (SYMMETRIC)
-     transposeOperator%rhsBoundary2(1:transposeOperator%boundaryWidth,:) =                   &
-          +transposeOperator%rhsBoundary1(transposeOperator%boundaryWidth:1:-1,:)
+     adjointOperator%rhsBoundary2(1:adjointOperator%boundaryWidth,:) =                   &
+          +adjointOperator%rhsBoundary1(adjointOperator%boundaryWidth:1:-1,:)
   case (SKEW_SYMMETRIC)
-     transposeOperator%rhsBoundary2(1:transposeOperator%boundaryWidth,:) =                   &
-          -transposeOperator%rhsBoundary1(transposeOperator%boundaryWidth:1:-1,:)
+     adjointOperator%rhsBoundary2(1:adjointOperator%boundaryWidth,:) =                   &
+          -adjointOperator%rhsBoundary1(adjointOperator%boundaryWidth:1:-1,:)
   end select
 
-end subroutine getTransposeOperator
+end subroutine getAdjointOperator
 
 subroutine applyOperator(this, x, gridSize)
 

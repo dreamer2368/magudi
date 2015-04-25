@@ -561,9 +561,15 @@ subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
 
      ! Transpose dissipation operators.
      if (allocated(this%dissipationTranspose)) then
-        assert(simulationFlags_%compositeDissipation .eqv. .true.)
-        call this%dissipation(i)%getTranspose(this%dissipationTranspose(i),                  &
-             preMultiplyNormInverse = .true.)
+        if (this%globalSize(i) > 1) then
+           val = getOption("defaults/artificial_dissipation_scheme",                         &
+                trim(solverOptions_%discretizationType))
+           val = getOption(trim(key) // "artificial_dissipation_scheme", trim(val))
+           val = trim(val) // " dissipation transpose"
+        else
+           val = "null matrix"
+        end if
+        call this%dissipationTranspose(i)%setup(val)
         call this%dissipationTranspose(i)%update(this%comm, i,                               &
              this%periodicityType(i) == OVERLAP)
      end if
