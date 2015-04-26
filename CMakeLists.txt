@@ -162,6 +162,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PressureDrag.f90
   ${PROJECT_SOURCE_DIR}/src/PressureDragImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/DragForce.f90
+  ${PROJECT_SOURCE_DIR}/src/DragForceImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

@@ -16,7 +16,7 @@ steady_state_simulation = true
 # Adjoint optimization flags
 disable_adjoint_solver = false
 baseline_prediction_available = false
-cost_functional_type = "DRAG"
+cost_functional_type = "PRESSURE_DRAG"
 
 # Periodicity
 grid001/dir1/periodicity_type = 'OVERLAP'

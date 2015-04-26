@@ -151,7 +151,7 @@ program drag_adjoint_forcing
         do i = 1, 2
 
            ! Create a functional for computing drag coefficient.
-           call functionalFactory(i)%connect(dragCoefficient, "DRAG", .true.)
+           call functionalFactory(i)%connect(dragCoefficient, "PRESSURE_DRAG", .true.)
            success = success .and. associated(dragCoefficient)
            if (.not. success) exit
 
@@ -248,7 +248,7 @@ subroutine setupTestRegion(region, discretizationType, gridSize, patchExtent,   
   simulationFlags%useContinuousAdjoint = useContinuousAdjoint
 
   call solverOptions%initialize(nDimensions, simulationFlags, MPI_COMM_WORLD)
-  solverOptions%costFunctionalType = "DRAG"
+  solverOptions%costFunctionalType = "PRESSURE_DRAG"
   solverOptions%discretizationType = trim(discretizationType)
   call region%setup(MPI_COMM_WORLD, gridSize, simulationFlags = simulationFlags,             &
        solverOptions = solverOptions, verbose = .false.)
