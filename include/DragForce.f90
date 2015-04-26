@@ -1,73 +1,73 @@
 #include "config.h"
 
-module DragCoefficient_mod
+module DragForce_mod
 
   use Functional_mod, only : t_Functional
 
   implicit none
   private
 
-  type, extends(t_Functional), public :: t_DragCoefficient
+  type, extends(t_Functional), public :: t_DragForce
 
      real(SCALAR_KIND) :: direction(3)
 
    contains
 
-     procedure, pass :: setup => setupDragCoefficient
-     procedure, pass :: cleanup => cleanupDragCoefficient
-     procedure, pass :: compute => computeDragCoefficient
-     procedure, pass :: computeAdjointForcing => computeDragCoefficientAdjointForcing
-     procedure, pass :: isPatchValid => isDragCoefficientPatchValid
+     procedure, pass :: setup => setupDragForce
+     procedure, pass :: cleanup => cleanupDragForce
+     procedure, pass :: compute => computeDragForce
+     procedure, pass :: computeAdjointForcing => computeDragForceAdjointForcing
+     procedure, pass :: isPatchValid => isDragForcePatchValid
 
-  end type t_DragCoefficient
+  end type t_DragForce
 
   interface
 
-     subroutine setupDragCoefficient(this, region)
+     subroutine setupDragForce(this, region)
 
        use Region_mod, only : t_Region
 
-       import :: t_DragCoefficient
+       import :: t_DragForce
 
-       class(t_DragCoefficient) :: this
+       class(t_DragForce) :: this
        class(t_Region) :: region
 
-     end subroutine setupDragCoefficient
+     end subroutine setupDragForce
 
   end interface
 
   interface
 
-     subroutine cleanupDragCoefficient(this)
+     subroutine cleanupDragForce(this)
 
-       import :: t_DragCoefficient
+       import :: t_DragForce
 
-       class(t_DragCoefficient) :: this
+       class(t_DragForce) :: this
 
-     end subroutine cleanupDragCoefficient
+     end subroutine cleanupDragForce
 
   end interface
 
   interface
 
-     function computeDragCoefficient(this, region) result(instantaneousFunctional)
+     function computeDragForce(this, region) result(instantaneousFunctional)
 
        use Region_mod, only : t_Region
 
-       import :: t_DragCoefficient
+       import :: t_DragForce
 
-       class(t_DragCoefficient) :: this
+       class(t_DragForce) :: this
        class(t_Region), intent(in) :: region
 
        SCALAR_TYPE :: instantaneousFunctional
 
-     end function computeDragCoefficient
+     end function computeDragForce
 
   end interface
 
   interface
 
-     subroutine computeDragCoefficientAdjointForcing(this, simulationFlags,                  &
+     subroutine computeDragForceAdjointForcing(this, simulationFlags,                        &
           solverOptions, grid, state, patch)
 
        use Grid_mod, only : t_Grid
@@ -76,30 +76,30 @@ module DragCoefficient_mod
        use CostTargetPatch_mod, only : t_CostTargetPatch
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_DragCoefficient
+       import :: t_DragForce
 
-       class(t_DragCoefficient) :: this
+       class(t_DragForce) :: this
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid), intent(in) :: grid
        class(t_State), intent(in) :: state
        class(t_CostTargetPatch) :: patch
 
-     end subroutine computeDragCoefficientAdjointForcing
+     end subroutine computeDragForceAdjointForcing
 
   end interface
 
   interface
 
-     function isDragCoefficientPatchValid(this, patchDescriptor, gridSize, normalDirection,  &
+     function isDragForcePatchValid(this, patchDescriptor, gridSize, normalDirection,        &
           extent, simulationFlags, message) result(isPatchValid)
 
        use PatchDescriptor_mod, only : t_PatchDescriptor
        use SimulationFlags_mod, only : t_SimulationFlags
 
-       import :: t_DragCoefficient
+       import :: t_DragForce
 
-       class(t_DragCoefficient) :: this
+       class(t_DragForce) :: this
        type(t_PatchDescriptor), intent(in) :: patchDescriptor
        integer, intent(in) :: gridSize(:), normalDirection, extent(6)
        type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -107,8 +107,8 @@ module DragCoefficient_mod
 
        logical :: isPatchValid
 
-     end function isDragCoefficientPatchValid
+     end function isDragForcePatchValid
 
   end interface
 
-end module DragCoefficient_mod
+end module DragForce_mod

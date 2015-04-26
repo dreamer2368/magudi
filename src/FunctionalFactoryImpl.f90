@@ -4,9 +4,10 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
 
   ! <<< Derived types >>>
   use Functional_mod, only : t_Functional
+  use DragForce_mod, only : t_PressureDrag
+  use PressureDrag_mod, only : t_PressureDrag
   use AcousticNoise_mod, only : t_AcousticNoise
   use Functional_factory, only : t_FunctionalFactory
-  use DragCoefficient_mod, only : t_DragCoefficient
 
   implicit none
 
@@ -35,8 +36,11 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
      case ('SOUND')
         allocate(t_AcousticNoise :: this%functional)
 
+     case ('PRESSURE_DRAG')
+        allocate(t_PressureDrag :: this%functional)
+
      case ('DRAG')
-        allocate(t_DragCoefficient :: this%functional)
+        allocate(t_DragForce :: this%functional)
 
      case default
         this%functionalType = ""
