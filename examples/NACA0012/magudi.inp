@@ -5,7 +5,6 @@
 # Filenames, etc.
 output_prefix = "NACA0012"
 grid_file = "NACA0012.xyz"
-initial_condition_file = "NACA0012.ic.q"
 target_state_file = "NACA0012.target.q"
 boundary_condition_file = "bc.dat"
 
@@ -15,27 +14,27 @@ use_target_state = true
 steady_state_simulation = true
 
 # Adjoint optimization flags
-disable_adjoint_solver = true
+disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "DRAG"
 
 # Periodicity
 grid001/dir1/periodicity_type = 'OVERLAP'
 
-# Derivative schemes
-defaults/first_derivative_scheme = "SBP 4-8"
+# Discretization scheme
+defaults/discretization_scheme = "SBP 2-4"
 
 # Time stepping options
 time_integration_scheme = 'RK4'
-cfl = 0.8
-number_of_timesteps = 1000
-report_interval = 10
-save_interval = 100
+cfl = 0.7
+number_of_timesteps = 20000000
+report_interval = 10000
+check_residuals_interval = 1000
+save_interval = 50000
 
 # Artificial dissipation
-add_dissipation = false
-defaults/artificial_dissipation_scheme = "SBP 4-8"
-dissipation_amount = 0.01
+add_dissipation = true
+dissipation_amount = 0.0015
 
 # Sponge options
 defaults/sponge_amount = 2.0
@@ -47,6 +46,9 @@ minimum_temperature = 0.05
 maximum_density = 5.
 maximum_temperature = 4.
 
+# Convergence criteria
+residuals/convergence_limit = 5e-11
+
 # Functional properties
-free_stream_velocity_x = 0.
-free_stream_velocity_y = 1.
+drag_direction_x = 1.
+drag_direction_y = 0.
