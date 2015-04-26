@@ -1,10 +1,10 @@
 #include "config.h"
 
-subroutine setupDragCoefficient(this, region)
+subroutine setupPressureDrag(this, region)
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
-  use DragCoefficient_mod, only : t_DragCoefficient
+  use PressureDrag_mod, only : t_PressureDrag
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
@@ -13,7 +13,7 @@ subroutine setupDragCoefficient(this, region)
   implicit none
 
   ! <<< Arguments >>>
-  class(t_DragCoefficient) :: this
+  class(t_PressureDrag) :: this
   class(t_Region) :: region
 
   ! <<< Local variables >>>
@@ -36,29 +36,29 @@ subroutine setupDragCoefficient(this, region)
 
   if (sum(this%direction ** 2) <= epsilon(0.0_wp)) then
      write(message, '(A)')                                                                   &
-          "Unable to determine a unit vector for computing the drag coefficient!"
+          "Unable to determine a unit vector for computing pressure drag!"
      call gracefulExit(region%comm, message)
   end if
 
   this%direction = this%direction / sqrt(sum(this%direction ** 2))
 
-end subroutine setupDragCoefficient
+end subroutine setupPressureDrag
 
-subroutine cleanupDragCoefficient(this)
+subroutine cleanupPressureDrag(this)
 
   ! <<< Derived types >>>
-  use DragCoefficient_mod, only : t_DragCoefficient
+  use PressureDrag_mod, only : t_PressureDrag
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_DragCoefficient) :: this
+  class(t_PressureDrag) :: this
 
   call this%cleanupBase()
 
-end subroutine cleanupDragCoefficient
+end subroutine cleanupPressureDrag
 
-function computeDragCoefficient(this, region) result(instantaneousFunctional)
+function computePressureDrag(this, region) result(instantaneousFunctional)
 
   ! <<< External modules >>>
   use MPI
@@ -67,10 +67,10 @@ function computeDragCoefficient(this, region) result(instantaneousFunctional)
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use CostTargetPatch_mod, only : t_CostTargetPatch
-  use DragCoefficient_mod, only : t_DragCoefficient
+  use PressureDrag_mod, only : t_PressureDrag
 
   ! <<< Arguments >>>
-  class(t_DragCoefficient) :: this
+  class(t_PressureDrag) :: this
   class(t_Region), intent(in) :: region
 
   ! <<< Result >>>
@@ -129,15 +129,15 @@ function computeDragCoefficient(this, region) result(instantaneousFunctional)
 
   this%cachedValue = instantaneousFunctional
 
-end function computeDragCoefficient
+end function computePressureDrag
 
-subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOptions,        &
+subroutine computePressureDragAdjointForcing(this, simulationFlags, solverOptions,           &
      grid, state, patch)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use DragCoefficient_mod, only : t_DragCoefficient
+  use PressureDrag_mod, only : t_PressureDrag
   use SolverOptions_mod, only : t_SolverOptions
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use SimulationFlags_mod, only : t_SimulationFlags
@@ -148,7 +148,7 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
   implicit none
 
   ! <<< Arguments >>>
-  class(t_DragCoefficient) :: this
+  class(t_PressureDrag) :: this
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
   class(t_Grid), intent(in) :: grid
@@ -249,20 +249,20 @@ subroutine computeDragCoefficientAdjointForcing(this, simulationFlags, solverOpt
   SAFE_DEALLOCATE(unitNormal)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
 
-end subroutine computeDragCoefficientAdjointForcing
+end subroutine computePressureDragAdjointForcing
 
-function isDragCoefficientPatchValid(this, patchDescriptor, gridSize, normalDirection,       &
+function isPressureDragPatchValid(this, patchDescriptor, gridSize, normalDirection,          &
      extent, simulationFlags, message) result(isPatchValid)
 
   ! <<< Derived types >>>
-  use DragCoefficient_mod, only : t_DragCoefficient
+  use PressureDrag_mod, only : t_PressureDrag
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_DragCoefficient) :: this
+  class(t_PressureDrag) :: this
   type(t_PatchDescriptor), intent(in) :: patchDescriptor
   integer, intent(in) :: gridSize(:), normalDirection, extent(6)
   type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -294,4 +294,4 @@ function isDragCoefficientPatchValid(this, patchDescriptor, gridSize, normalDire
 
   isPatchValid = .true.
 
-end function isDragCoefficientPatchValid
+end function isPressureDragPatchValid

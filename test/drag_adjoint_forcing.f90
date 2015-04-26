@@ -12,7 +12,7 @@ program drag_adjoint_forcing
   use Region_mod, only : t_Region
   use Functional_mod, only : t_Functional
   use Functional_factory, only : t_FunctionalFactory
-  use DragCoefficient_mod, only : t_DragCoefficient
+  use PressureDrag_mod, only : t_PressureDrag
 
   use Region_enum, only : ADJOINT
 
@@ -159,7 +159,7 @@ program drag_adjoint_forcing
 
            select type (dragCoefficient)
 
-           class is (t_DragCoefficient)
+           class is (t_PressureDrag)
               call dragCoefficient%setup(region(i))
               dragCoefficient%direction = dragDirection
               call dragCoefficient%updateAdjointForcing(region(i))
