@@ -78,7 +78,7 @@ function computeDragForce(this, region) result(instantaneousFunctional)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, nDimensions, ierror
+  integer :: i, j, k, l, nPatches, nDimensions, ierror
   class(t_Patch), pointer :: patch => null()
   real(SCALAR_KIND) :: normBoundaryFactor
   SCALAR_TYPE, allocatable :: F(:,:)
@@ -90,13 +90,14 @@ function computeDragForce(this, region) result(instantaneousFunctional)
      nDimensions = region%grids(i)%nDimensions
      assert_key(nDimensions, (1, 2, 3))
 
-     if (.not. allocated(region%patchFactories)) cycle
+     nPatches = 0
+     if (allocated(region%patchFactories)) nPatches = size(region%patchFactories)
 
-     do j = 1, size(region%patchFactories)
+     do j = 1, nPatches
 
         call region%patchFactories(j)%connect(patch)
-        if (.not. associated(patch)) return
-        if (patch%gridIndex /= region%grids(i)%index) return
+        if (.not. associated(patch)) cycle
+        if (patch%gridIndex /= region%grids(i)%index) cycle
 
         select type (patch)
         class is (t_CostTargetPatch)
@@ -107,8 +108,9 @@ function computeDragForce(this, region) result(instantaneousFunctional)
            allocate(F(region%grids(i)%nGridPoints, 1))
 
            F(:,1) = (region%states(i)%pressure(:,1) -                                        &
-                1.0_wp / region%solverOptions%ratioOfSpecificHeats) * matmul(this%direction, &
-                region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k))
+                1.0_wp / region%solverOptions%ratioOfSpecificHeats) *                        &
+                matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),         &
+                this%direction)
            do l = 1, nDimensions
               if (region%simulationFlags%viscosityOn) then
                  F(:,1) = F(:,1) - this%direction(l) *                                       &
@@ -127,6 +129,10 @@ function computeDragForce(this, region) result(instantaneousFunctional)
         end select
 
      end do
+
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousFunctional, 1,                            &
+          SCALAR_TYPE_MPI, MPI_SUM, region%grids(i)%comm, ierror)
+
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
