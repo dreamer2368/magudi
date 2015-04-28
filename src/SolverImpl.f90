@@ -120,11 +120,11 @@ contains
        case (FORWARD)
           call this%residualManager%writeToFile(region%comm, trim(this%outputPrefix) //      &
                ".residuals.txt", timestep, time,                                             &
-               timestep > timestep + this%residualManager%reportInterval)
+               timestep - startTimestep > this%residualManager%reportInterval)
        case (ADJOINT)
           call this%residualManager%writeToFile(region%comm, trim(this%outputPrefix) //      &
                ".adjoint_residuals.txt", timestep, time,                                     &
-               timestep > timestep + this%residualManager%reportInterval)
+               timestep - startTimestep > this%residualManager%reportInterval)
        end select
 
        residuals(1) = this%residualManager%residuals(1)
