@@ -107,7 +107,8 @@ program main
 
   ! Check continuity at block interfaces. May fail either due to incorrect implementation of
   ! exchange or discontinuity in grid coordinates.
-  call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
+  if (getOption("check_interface_continuity", .false.))                                      &
+       call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
   call MPI_Barrier(region%comm, ierror)
 
   ! Update patches.
