@@ -268,18 +268,19 @@ class Grid(MultiBlockObject):
             assert startIndices[i] >= 0 and endIndices[i] < self._size[gridIndex][i] and endIndices[i] >= startIndices[i]
 
         gridSize = np.copy(self.GetSize())
- 
+        nGrids = len(gridSize)
+
         self.nGrids = 1
         self.SetSize(0, [ endIndices[i] - startIndices[i] + 1 for i in range(3) ])
 
         f = open(filename, "rb")
-        f.seek(4 * self.offsetType.itemsize + (3 * self.nGrids + 1) * self.integerType.itemsize)
-        for iGrid in range(self.nGrids):
+        f.seek(4 * self.offsetType.itemsize + (3 * nGrids + 1) * self.integerType.itemsize)
+        for iGrid in range(nGrids):
             f.seek(self.offsetType.itemsize, 1)
             if iGrid != gridIndex:
-                f.seek(3 * np.product(self.GetSize(iGrid)) * self.scalarType.itemsize, 1)
+                f.seek(3 * np.product(gridSize[iGrid]) * self.scalarType.itemsize, 1)
                 if self._hasIBLANK is True:
-                    f.seek(np.product(self.GetSize(iGrid)) * self.integerType.itemsize, 1)
+                    f.seek(np.product(gridSize[iGrid]) * self.integerType.itemsize, 1)
             else:
                 
                 if showProgress is True:
@@ -432,15 +433,16 @@ class Solution(MultiBlockObject):
             assert startIndices[i] >= 0 and endIndices[i] < self._size[gridIndex][i] and endIndices[i] >= startIndices[i]
 
         gridSize = np.copy(self.GetSize())
+        nGrids = gridSize
  
         self.nGrids = 1
         self.SetSize(0, [ endIndices[i] - startIndices[i] + 1 for i in range(3) ])
 
         f = open(filename, "rb")
-        f.seek(4 * self.offsetType.itemsize + (3 * self.nGrids + 1) * self.integerType.itemsize)
-        for iGrid in range(self.nGrids):
+        f.seek(4 * self.offsetType.itemsize + (3 * nGrids + 1) * self.integerType.itemsize)
+        for iGrid in range(nGrids):
             if iGrid != gridIndex:
-                f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize + 5 * np.product(self.GetSize(iGrid)) * self.scalarType.itemsize, 1)
+                f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize + 5 * np.product(gridSize[iGrid]) * self.scalarType.itemsize, 1)
             else:
 
                 f.seek(self.offsetType.itemsize, 1)
@@ -639,16 +641,17 @@ class Function(MultiBlockObject):
             assert startIndices[i] >= 0 and endIndices[i] < self._size[gridIndex][i] and endIndices[i] >= startIndices[i]
 
         gridSize = np.copy(self.GetSize())
+        nGrids = len(gridSize)
  
         self.nGrids = 1
         self.SetSize(0, [ endIndices[i] - startIndices[i] + 1 for i in range(3) ])
 
         f = open(filename, "rb")
-        f.seek(4 * self.offsetType.itemsize + (4 * self.nGrids + 1) * self.integerType.itemsize)
-        for iGrid in range(self.nGrids):
+        f.seek(4 * self.offsetType.itemsize + (4 * nGrids + 1) * self.integerType.itemsize)
+        for iGrid in range(nGrids):
             f.seek(self.offsetType.itemsize, 1)
             if iGrid != gridIndex:
-                f.seek(self._nComponents * np.product(self.GetSize(iGrid)) * self.scalarType.itemsize, 1)
+                f.seek(self._nComponents * np.product(gridSize[iGrid]) * self.scalarType.itemsize, 1)
             else:
                 
                 if showProgress is True:
