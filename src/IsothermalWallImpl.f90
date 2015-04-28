@@ -63,8 +63,6 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
         write(key, '(A,I0.0)') "patches/" // trim(patchDescriptor%name) //                   &
              "/viscous_penalty_amount", i
         this%viscousPenaltyAmounts(i) = getOption(trim(key), 1.0_wp)
-        this%viscousPenaltyAmounts(i) = this%viscousPenaltyAmounts(i) *                      &
-             solverOptions%reynoldsNumberInverse
         this%viscousPenaltyAmounts(i) = sign(this%viscousPenaltyAmounts(i),                  &
              real(this%normalDirection, wp))
         this%viscousPenaltyAmounts(i) = this%viscousPenaltyAmounts(i) /                      &
