@@ -3,8 +3,8 @@
 subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
 
   ! <<< Derived types >>>
-  use Functional_mod, only : t_Functional
   use DragForce_mod, only : t_DragForce
+  use Functional_mod, only : t_Functional
   use PressureDrag_mod, only : t_PressureDrag
   use AcousticNoise_mod, only : t_AcousticNoise
   use Functional_factory, only : t_FunctionalFactory
