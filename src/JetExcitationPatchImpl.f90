@@ -62,11 +62,11 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
      
      do i = 1, this%nModes
 
-        write(key, '(A,I2,A)') "patches/" // trim(patchDescriptor%name) // "/mode", i, "/"
+        write(key, '(A,I2.2,A)') "patches/" // trim(patchDescriptor%name) // "/mode", i, "/"
         call getRequiredOption(trim(key) // "angular_frequency",                             &
              this%angularFrequencies(i), this%comm)
         
-        write(filename, '(2A,I2,A)') outputPrefix, "-", i, ".eigenmodes_real.q"
+        write(filename, '(2A,I2.2,A)') outputPrefix, "-", i, ".eigenmodes_real.q"
         call plot3dDetectFormat(this%comm, filename, success,                                &
              globalGridSizes = globalPatchSizes)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
@@ -84,7 +84,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
              this%perturbationReal(:,:,i), success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
 
-        write(filename, '(2A,I2,A)') outputPrefix, "-", i, ".eigenmodes_imag.q"
+        write(filename, '(2A,I2.2,A)') outputPrefix, "-", i, ".eigenmodes_imag.q"
         call plot3dDetectFormat(this%comm, filename, success,                                &
              globalGridSizes = globalPatchSizes)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
