@@ -29,6 +29,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, procRank, ierror
   character(len = STRING_LENGTH) :: outputPrefix, key, filename, message
   logical :: success
@@ -45,6 +46,8 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
+
+  this%amount = getOption(trim(key) // "amplitude", 1.0_wp)
 
   call getRequiredOption(trim(key) // "number_of_modes", this%nModes, this%comm)
   this%nModes = min(max(0, this%nModes), 99)
@@ -176,7 +179,7 @@ subroutine addJetExcitation(this, mode, simulationFlags, solverOptions, grid, st
                 (k - 1 - this%offset(3)))
            do l = 1, this%nModes
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
-                   this%spongeStrength(patchIndex) *                                         &
+                   this%amount * this%spongeStrength(patchIndex) *                           &
                    (this%perturbationReal(patchIndex,:,l) *                                  &
                    cos(this%angularFrequencies(l) * state%time) -                            &
                    this%perturbationImag(patchIndex,:,l) *                                   &

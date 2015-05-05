@@ -10,6 +10,7 @@ module JetExcitationPatch_mod
   type, extends(t_SpongePatch), public :: t_JetExcitationPatch
 
      integer :: nModes
+     real(SCALAR_KIND) :: amount
      real(SCALAR_KIND), allocatable :: perturbationReal(:,:,:), perturbationImag(:,:,:), &
           angularFrequencies(:)
 
