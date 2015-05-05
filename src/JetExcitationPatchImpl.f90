@@ -91,8 +91,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
         this%angularFrequencies(i) = plot3dAuxiliaryData(2)
 
         call plot3dReadSingleSolution(this%comm, trim(filename), offset,                     &
-             this%mpiAllScalarSubarrayTypes(procRank + 1), this%globalSize,                  &
-             this%perturbationReal(:,:,i), success)
+             mpiScalarSubarrayType, this%globalSize, this%perturbationReal(:,:,i), success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
 
         write(filename, '(2A,I2.2,A)') trim(outputPrefix), "-", i, ".eigenmode_imag.q"
@@ -118,8 +117,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
         end if
 
         call plot3dReadSingleSolution(this%comm, trim(filename), offset,                     &
-             this%mpiAllScalarSubarrayTypes(procRank + 1), this%globalSize,                  &
-             this%perturbationImag(:,:,i), success)
+             mpiScalarSubarrayType, this%globalSize, this%perturbationImag(:,:,i), success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
 
      end do !... i = 1, this%nModes
