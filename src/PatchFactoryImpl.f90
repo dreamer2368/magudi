@@ -12,6 +12,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use IsothermalWall_mod, only : t_IsothermalWall
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use ImpenetrableWall_mod, only : t_ImpenetrableWall
+  use JetExcitationPatch_mod, only : t_JetExcitationPatch
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
 
@@ -64,6 +65,9 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
 
      case ('SOLENOIDAL_EXCITATION')
         allocate(t_SolenoidalExcitationPatch :: this%patch)
+
+     case ('JET_EXCITATION')
+        allocate(t_JetExcitationPatch :: this%patch)
 
      case default
         this%patchType = ""
