@@ -14,7 +14,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
   use JetExcitationPatch_mod, only : t_JetExcitationPatch
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption, getRequiredOption
+  use InputHelper, only : getOption
   use ErrorHandler, only : gracefulExit
   use PLOT3DHelper
 
@@ -35,6 +35,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
   logical :: success
   integer, allocatable :: globalPatchSizes(:,:)
   integer(kind = MPI_OFFSET_KIND) :: offset
+  real(wp) :: plot3dAuxiliaryData(4)
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (2, 3))
@@ -47,9 +48,11 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
-  this%amount = getOption(trim(key) // "amplitude", 1.0_wp)
+  this%amount = getOption("defaults/jet_excitation/amplitude", 0.0_wp)
+  this%amount = getOption(trim(key) // "amplitude", this%amount)
 
-  call getRequiredOption(trim(key) // "number_of_modes", this%nModes, this%comm)
+  this%nModes = getOption("defaults/jet_excitation/number_of_modes", 0)
+  this%nModes = getOption(trim(key) // "number_of_modes", this%nModes)
   this%nModes = min(max(0, this%nModes), 99)
 
   if (this%comm /= MPI_COMM_NULL) call MPI_Comm_rank(this%comm, procRank, ierror)
@@ -59,14 +62,11 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
      allocate(this%angularFrequencies(this%nModes))
      allocate(this%perturbationReal(this%nPatchPoints, solverOptions%nUnknowns, this%nModes))
      allocate(this%perturbationImag(this%nPatchPoints, solverOptions%nUnknowns, this%nModes))
-     
+
      do i = 1, this%nModes
 
         write(key, '(A,I2.2,A)') "patches/" // trim(patchDescriptor%name) // "/mode", i, "/"
-        call getRequiredOption(trim(key) // "angular_frequency",                             &
-             this%angularFrequencies(i), this%comm)
-        
-        write(filename, '(2A,I2.2,A)') outputPrefix, "-", i, ".eigenmodes_real.q"
+        write(filename, '(2A,I2.2,A)') trim(outputPrefix), "-", i, ".eigenmode_real.q"
         call plot3dDetectFormat(this%comm, filename, success,                                &
              globalGridSizes = globalPatchSizes)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
@@ -79,12 +79,18 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
 
         offset = plot3dGetOffset(this%comm, filename, grid%index, success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
+
+        call plot3dReadSingleAuxiliarySolutionData(this%comm, trim(filename),                &
+             offset, plot3dAuxiliaryData, success)
+        if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
+        this%angularFrequencies(i) = plot3dAuxiliaryData(2)
+
         call plot3dReadSingleSolution(this%comm, trim(filename), offset,                     &
              this%mpiAllScalarSubarrayTypes(procRank + 1), this%globalSize,                  &
              this%perturbationReal(:,:,i), success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
 
-        write(filename, '(2A,I2.2,A)') outputPrefix, "-", i, ".eigenmodes_imag.q"
+        write(filename, '(2A,I2.2,A)') trim(outputPrefix), "-", i, ".eigenmode_imag.q"
         call plot3dDetectFormat(this%comm, filename, success,                                &
              globalGridSizes = globalPatchSizes)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
@@ -97,6 +103,15 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
 
         offset = plot3dGetOffset(this%comm, filename, grid%index, success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
+
+        call plot3dReadSingleAuxiliarySolutionData(this%comm, trim(filename),                &
+             offset, plot3dAuxiliaryData, success)
+        if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
+        if (plot3dAuxiliaryData(2) /= this%angularFrequencies(i)) then
+           write(message, '(2A)') trim(filename), ": mismatch in angular frequencies."
+           call gracefulExit(this%comm, message)
+        end if
+
         call plot3dReadSingleSolution(this%comm, trim(filename), offset,                     &
              this%mpiAllScalarSubarrayTypes(procRank + 1), this%globalSize,                  &
              this%perturbationImag(:,:,i), success)
