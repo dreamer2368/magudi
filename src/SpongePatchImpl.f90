@@ -172,6 +172,7 @@ function verifySpongePatchUsage(this, patchDescriptor, gridSize, normalDirection
   isPatchUsed = .false.
 
   success = .false.
+
   if (normalDirection > size(gridSize) .or. normalDirection == 0) then
      write(message, '(A)') "Normal direction is invalid!"
      return

@@ -433,7 +433,7 @@ class Solution(MultiBlockObject):
             assert startIndices[i] >= 0 and endIndices[i] < self._size[gridIndex][i] and endIndices[i] >= startIndices[i]
 
         gridSize = np.copy(self.GetSize())
-        nGrids = gridSize
+        nGrids = len(gridSize)
  
         self.nGrids = 1
         self.SetSize(0, [ endIndices[i] - startIndices[i] + 1 for i in range(3) ])

@@ -121,6 +121,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitationPatch.f90
   ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationPatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/JetExcitationPatch.f90
+  ${PROJECT_SOURCE_DIR}/src/JetExcitationPatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ResidualManager.f90
   ${PROJECT_SOURCE_DIR}/src/ResidualManagerImpl.f90
 
