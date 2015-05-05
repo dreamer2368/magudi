@@ -75,18 +75,6 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
      this%viscousPenaltyAmount = 0.0_wp
   end if
 
-  ! Viscous correction amount.
-  if (simulationFlags%viscosityOn) then
-     this%viscousCorrectionAmount = getOption(trim(key) //                                   &
-          "viscous_correction_amount", 0.25_wp)
-     this%viscousCorrectionAmount = - this%viscousCorrectionAmount *                         &
-          solverOptions%reynoldsNumberInverse
-     this%viscousCorrectionAmount = this%viscousCorrectionAmount /                           &
-          (grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)) ** 2
-  else
-     this%viscousCorrectionAmount = 0.0_wp
-  end if
-
 end subroutine setupBlockInterfacePatch
 
 subroutine cleanupBlockInterfacePatch(this)
@@ -236,10 +224,6 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
                       (this%viscousFluxes(patchIndex,:) -                                    &
                       interfaceViscousFluxes(patchIndex,:))
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
-                      this%viscousCorrectionAmount * grid%jacobian(gridIndex, 1) *           &
-                      sum(localMetricsAlongNormalDirection ** 2) *                           &
-                      (localConservedVariables - localInterfaceConservedVariables)
               end if
 
            case (ADJOINT)
