@@ -30,7 +30,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, procRank, ierror
+  integer :: i, nDimensions, arrayOfStarts(3), mpiScalarSubarrayType, procRank, ierror
   character(len = STRING_LENGTH) :: outputPrefix, key, filename, message
   logical :: success
   integer, allocatable :: globalPatchSizes(:,:)
@@ -55,7 +55,13 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
   this%nModes = getOption(trim(key) // "number_of_modes", this%nModes)
   this%nModes = min(max(0, this%nModes), 99)
 
-  if (this%comm /= MPI_COMM_NULL) call MPI_Comm_rank(this%comm, procRank, ierror)
+  if (this%comm /= MPI_COMM_NULL) then
+     call MPI_Comm_rank(this%comm, procRank, ierror)
+     arrayOfStarts = this%offset - this%extent(1::2) + 1
+     call MPI_Type_create_subarray(3, this%globalSize, this%localSize, arrayOfStarts,        &
+          MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
+     call MPI_Type_commit(mpiScalarSubarrayType, ierror)
+  end if
 
   if (this%nModes > 0 .and. this%nPatchPoints > 0) then
 
@@ -65,7 +71,6 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
 
      do i = 1, this%nModes
 
-        write(key, '(A,I2.2,A)') "patches/" // trim(patchDescriptor%name) // "/mode", i, "/"
         write(filename, '(2A,I2.2,A)') trim(outputPrefix), "-", i, ".eigenmode_real.q"
         call plot3dDetectFormat(this%comm, filename, success,                                &
              globalGridSizes = globalPatchSizes)
@@ -107,7 +112,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
         call plot3dReadSingleAuxiliarySolutionData(this%comm, trim(filename),                &
              offset, plot3dAuxiliaryData, success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
-        if (plot3dAuxiliaryData(2) /= this%angularFrequencies(i)) then
+        if (abs(plot3dAuxiliaryData(2) - this%angularFrequencies(i)) > 0.0_wp) then
            write(message, '(2A)') trim(filename), ": mismatch in angular frequencies."
            call gracefulExit(this%comm, message)
         end if
@@ -120,6 +125,10 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
      end do !... i = 1, this%nModes
 
   end if !... this%nModes > 0 .and. this%nPatchPoints > 0
+
+  if (this%comm /= MPI_COMM_NULL) then
+     call MPI_Type_free(mpiScalarSubarrayType, ierror)
+  end if
 
 end subroutine setupJetExcitationPatch
 
