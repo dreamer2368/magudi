@@ -100,32 +100,15 @@ set con_NACA [gg::conJoin $con_NACA1 $con_NACA8]
     print >>f, 'gg::domExtrusionAtt -s_init %f -march_plane {0 0 1} -stop_height %f -growth_geometric %f -normal_count 20 -normal_relax 1 -vol_smoothing 0.25' % (minimumWallNormalSpacing, stopHeight, geometricStretchingRatio)
     print >>f, 'gg::domExtrusionStep -result ExtResult %i' % (gridSize[1] - 1)
     print >>f, 'set dom_NACA [gg::domExtrusionEnd]'
-    
-    print >>f, """
-gg::blkBegin -type STRUCTURED
-gg::faceBegin
-gg::faceAddDom $dom_NACA
-gg::faceEnd
-set blk_NACA [gg::blkEnd]
-gg::blkSpecifyIJK $blk_NACA 1 2
-"""
 
-    print >>f, 'gg::blkTransformBegin $blk_NACA -maintain_linkage'
+    print >>f, 'gg::domTransformBegin $dom_NACA -maintain_linkage'
     print >>f, 'gg::xformRotate [list 0 0 0] [list 0 0 1] %f' % (-angleOfAttack)
-    print >>f, 'gg::blkTransformEnd'
+    print >>f, 'gg::domTransformEnd'
     
-    print >>f, 'gg::blkTransformBegin $blk_NACA -maintain_linkage'
+    print >>f, 'gg::domTransformBegin $dom_NACA -maintain_linkage'
     print >>f, 'gg::xformScale [list 0 0 0] [list %f %f %f]' % (1. / xTrailingEdge, 1. / xTrailingEdge, 1. / xTrailingEdge)
-    print >>f, 'gg::blkTransformEnd'
-    
-    print >>f, """
-set airfoil [lindex [gg::conGetAll] 0]
-gg::aswSetBC [list $airfoil] "Wall"
-set freestream [lindex [gg::conGetAll] 2]
-gg::aswSetBC [list $freestream] "Velocity Inlet"
-set overlap [lindex [gg::conGetAll] 1]
-gg::aswSetBC [list $overlap] "Unspecified"
-"""
+    print >>f, 'gg::domTransformEnd'
+
     print >>f, 'gg::domExport $dom_NACA [file join $cwd \"%s\"] -style PLOT3D -form UNFORMATTED -precision DOUBLE -endian NATIVE' % (gridFile)    
 
     f.close()
