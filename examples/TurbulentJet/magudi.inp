@@ -1,0 +1,69 @@
+# magudi.inp
+# Input file to magudi for simulation of a Mach 1.3 turbulent jet matching the experiment of Samimy et al. performed at Ohio State University
+# Reference(s):
+# Hileman, James, and Mo Samimy. "Turbulence structures and the acoustic far field of a Mach 1.3 jet." AIAA journal 39.9 (2001): 1716-1727.
+# Kim, Jeonglae, Daniel J. Bodony, and Jonathan B. Freund. "Adjoint-based control of loud events in a turbulent jet." Journal of Fluid Mechanics 741 (2014): 28-59.
+# Written by Ramanathan Vishnampet
+
+# Filenames, etc.
+output_prefix = "OSUMach1.3"
+grid_file = "OSUMach1.3.xyz"
+initial_condition_file = "OSUMach1.3.ic.q"
+target_state_file = "OSUMach1.3.target.q"
+boundary_condition_file = "bc.dat"
+decomposition_map_file = "decomp.map"
+
+# Simulation flags
+use_constant_CFL_mode = true
+use_target_state = true
+include_viscous_terms = true
+use_manual_domain_decomposition = true
+
+# Physical constants
+Reynolds_number = 4000.
+
+# Discretization scheme
+defaults/discretization_scheme = "SBP 2-4"
+
+# Time stepping options
+time_integration_scheme = 'RK4'
+cfl = 0.7
+number_of_timesteps = 100000
+report_interval = 1
+save_interval = 500
+
+# Artificial dissipation
+add_dissipation = true
+dissipation_amount = 0.1
+composite_dissipation = false
+
+# Sponge options
+defaults/sponge_amount = 2.
+
+# Solution limits
+enable_solution_limits = true
+minimum_density = 0.1
+minimum_temperature = 0.05
+maximum_density = 10.
+maximum_temperature = 20.
+
+# Interface specifications
+patches/interface.E1/conforms_with = 'interface.E2'
+patches/interface.N1/conforms_with = 'interface.N2'
+patches/interface.W1/conforms_with = 'interface.W2'
+patches/interface.S1/conforms_with = 'interface.S2'
+patches/interface.NE1/conforms_with = 'interface.NE2'
+patches/interface.NW1/conforms_with = 'interface.NW2'
+patches/interface.SW1/conforms_with = 'interface.SW2'
+patches/interface.SE1/conforms_with = 'interface.SE2'
+
+# Interface index reorderings
+patches/interface.N1/interface_index1 =  2
+patches/interface.N1/interface_index2 = -1
+patches/interface.W1/interface_index2 = -2
+patches/interface.S1/interface_index1 =  2
+patches/interface.S1/interface_index2 =  1
+
+# Excitation parameters
+defaults/jet_excitation/number_of_modes = 6
+defaults/jet_excitation/amplitude = 0.01
