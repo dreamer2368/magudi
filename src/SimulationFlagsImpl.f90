@@ -28,4 +28,7 @@ subroutine initializeSimulationFlags(this)
   this%useContinuousAdjoint  = getOption("use_continuous_adjoint", .false.)
   this%compositeDissipation  = getOption("composite_dissipation", .true.)
 
+  this%computeTimeAverage = .false.
+  if (.not. this%useConstantCfl) this%computeTimeAverage = getOption("compute_time_average", .false.)
+
 end subroutine initializeSimulationFlags

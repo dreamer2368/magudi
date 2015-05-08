@@ -384,7 +384,7 @@ function runForward(this, region, time, timestep, nTimesteps) result(costFunctio
   use TimeIntegrator_mod, only : t_TimeIntegrator
 
   ! <<< Enumerations >>>
-  use State_enum, only : QOI_FORWARD_STATE
+  use State_enum, only : QOI_FORWARD_STATE, QOI_TIME_AVERAGED_STATE
   use Region_enum, only : FORWARD
 
   ! <<< Private members >>>
@@ -465,6 +465,14 @@ function runForward(this, region, time, timestep, nTimesteps) result(costFunctio
                 timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
         end if
 
+        if (region%simulationFlags%computeTimeAverage) then
+           do j = 1, size(region%states)
+              region%states(j)%timeAverage = region%states(j)%timeAverage +                  &
+                   timeIntegrator%norm(i) * timeStepSize *                                   &
+                   region%states(j)%conservedVariables
+           end do
+        end if
+
      end do
 
      call showProgress(this, region, FORWARD, timestep, timestep_,                           &
@@ -480,6 +488,14 @@ function runForward(this, region, time, timestep, nTimesteps) result(costFunctio
   end do
 
   call this%residualManager%cleanup()
+
+  if (region%simulationFlags%computeTimeAverage) then
+     do j = 1, size(region%states)
+        region%states(j)%timeAverage = region%states(j)%timeAverage /                        &
+             sum(timeIntegrator%norm * timeStepSize) / real(nTimesteps, wp)
+     end do
+     call region%saveData(QOI_TIME_AVERAGED_STATE, trim(this%outputPrefix) // ".mean.q")
+  end if
 
   call endTiming("runForward")
 

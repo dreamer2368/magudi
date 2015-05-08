@@ -31,6 +31,10 @@ contains
        allocate(this%targetState(nGridPoints, solverOptions%nUnknowns))
     end if
 
+    if (simulationFlags%computeTimeAverage) then
+       allocate(this%timeAverage(nGridPoints, solverOptions%nUnknowns))
+    end if
+
     if (simulationFlags%viscosityOn) then
 
        allocate(this%dynamicViscosity(nGridPoints, 1))
@@ -160,6 +164,7 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%velocityGradient)
   SAFE_DEALLOCATE(this%stressTensor)
   SAFE_DEALLOCATE(this%heatFlux)
+  SAFE_DEALLOCATE(this%timeAverage)
 
   this%adjointForcingFactor = 1.0_wp
 
@@ -191,7 +196,8 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
   logical, intent(out) :: success
 
   select case (quantityOfInterest)
-  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE)
+  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE,                              &
+       QOI_RIGHT_HAND_SIDE, QOI_TIME_AVERAGED_STATE)
      call plot3dReadSingleAuxiliarySolutionData(grid%comm, trim(filename),                   &
           offset, this%plot3dAuxiliaryData, success)
   end select
@@ -213,6 +219,10 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
      call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
           this%rightHandSide, success)
+  case (QOI_TIME_AVERAGED_STATE)
+     call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
+          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
+          this%timeAverage, success)
   case (QOI_DUMMY_FUNCTION)
      assert(associated(this%dummyFunction))
      assert(size(this%dummyFunction, 1) == grid%nGridPoints)
@@ -259,7 +269,8 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
 #endif
 
   select case (quantityOfInterest)
-  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_RIGHT_HAND_SIDE, QOI_ADJOINT_STATE)
+  case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_RIGHT_HAND_SIDE,                            &
+       QOI_TIME_AVERAGED_STATE, QOI_ADJOINT_STATE)
      this%plot3dAuxiliaryData(4) = this%time
      call plot3dWriteSingleAuxiliarySolutionData(grid%comm, trim(filename),                  &
           offset, this%plot3dAuxiliaryData, success)
@@ -282,6 +293,10 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
      call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
           this%rightHandSide, success)
+  case (QOI_TIME_AVERAGED_STATE)
+     call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
+          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
+          this%timeAverage, success)
   case (QOI_DUMMY_FUNCTION)
      call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                       &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &

@@ -105,7 +105,7 @@ contains
 
     SAFE_DEALLOCATE(dissipationTerm)
 
-    call endTiming("endDissipation")
+    call endTiming("addDissipation")
 
   end subroutine addDissipation
 

@@ -20,7 +20,8 @@ module SimulationFlags_mod
                 steadyStateSimulation = .false., &
                 isBaselineAvailable   = .false., &
                 useContinuousAdjoint  = .false., &
-                compositeDissipation  = .true.
+                compositeDissipation  = .true.,  &
+                computeTimeAverage    = .false.
 
    contains
 
