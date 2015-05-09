@@ -83,12 +83,37 @@ function computeDragForce(this, region) result(instantaneousFunctional)
   real(SCALAR_KIND) :: normBoundaryFactor
   SCALAR_TYPE, allocatable :: F(:,:)
 
+  assert(allocated(region%grids))
+  assert(allocated(region%states))
+  assert(size(region%grids) == size(region%states))
+
   instantaneousFunctional = 0.0_wp
 
   do i = 1, size(region%grids)
 
      nDimensions = region%grids(i)%nDimensions
      assert_key(nDimensions, (1, 2, 3))
+
+     assert(region%grids(i)%nGridPoints > 0)
+     assert(allocated(region%grids(i)%firstDerivative))
+     assert(size(region%grids(i)%firstDerivative) == nDimensions)
+     assert(allocated(region%grids(i)%targetMollifier))
+     assert(size(region%grids(i)%targetMollifier, 1) == region%grids(i)%nGridPoints)
+     assert(size(region%grids(i)%targetMollifier, 2) == 1)
+     assert(allocated(region%grids(i)%metrics))
+     assert(size(region%grids(i)%metrics, 1) == region%grids(i)%nGridPoints)
+     assert(size(region%grids(i)%metrics, 2) == nDimensions ** 2)
+     assert(allocated(region%states(i)%pressure))
+     assert(size(region%states(i)%pressure, 1) == region%grids(i)%nGridPoints)
+     assert(size(region%states(i)%pressure, 2) == 1)
+
+#ifdef DEBUG
+     if (region%simulationFlags%viscosityOn) then
+        assert(allocated(region%states(i)%stressTensor))
+        assert(size(region%states(i)%stressTensor, 1) == region%grids(i)%nGridPoints)
+        assert(size(region%states(i)%stressTensor, 2) == nDimensions ** 2)
+     end if
+#endif
 
      nPatches = 0
      if (allocated(region%patchFactories)) nPatches = size(region%patchFactories)
@@ -103,6 +128,8 @@ function computeDragForce(this, region) result(instantaneousFunctional)
         class is (t_CostTargetPatch)
 
            k = abs(patch%normalDirection)
+           assert(allocated(region%grids(i)%firstDerivative(k)%normBoundary))
+           assert(size(region%grids(i)%firstDerivative(k)%normBoundary) > 0)
            normBoundaryFactor = 1.0_wp / region%grids(i)%firstDerivative(k)%normBoundary(1)
 
            allocate(F(region%grids(i)%nGridPoints, 1))
@@ -110,7 +137,7 @@ function computeDragForce(this, region) result(instantaneousFunctional)
            F(:,1) = (region%states(i)%pressure(:,1) -                                        &
                 1.0_wp / region%solverOptions%ratioOfSpecificHeats) *                        &
                 matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),         &
-                this%direction)
+                this%direction(1:nDimensions))
            do l = 1, nDimensions
               if (region%simulationFlags%viscosityOn) then
                  F(:,1) = F(:,1) - this%direction(l) *                                       &
@@ -122,7 +149,8 @@ function computeDragForce(this, region) result(instantaneousFunctional)
            F(:,1) = normBoundaryFactor * F(:,1)
 
            instantaneousFunctional = instantaneousFunctional +                               &
-                patch%computeInnerProduct(region%grids(i), F(:,1), F(:,1))
+                patch%computeInnerProduct(region%grids(i), F(:,1), F(:,1),                   &
+                region%grids(i)%targetMollifier(:,1))
 
            SAFE_DEALLOCATE(F)
 
@@ -300,12 +328,6 @@ function isDragForcePatchValid(this, patchDescriptor, gridSize, normalDirection,
   i = abs(normalDirection)
   if (extent((i-1)*2+1) /= extent((i-1)*2+2)) then
      write(message, '(A)') "Extends more than 1 grid point along normal direction!"
-     return
-  end if
-
-  if ((normalDirection > 0 .and. extent((i-1)*2+1) /= 1) .or.                                &
-       (normalDirection < 0 .and. extent((i-1)*2+2) /= gridSize(i))) then
-     write(message, '(2(A,I0.0),A)') "Not aligned with a computational boundary!"
      return
   end if
 
