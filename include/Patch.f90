@@ -11,9 +11,10 @@ module Patch_mod
 
      integer :: index, comm = MPI_COMM_NULL, globalSize(3), localSize(3),                    &
           offset(3), nPatchPoints = 0, gridIndex, normalDirection, extent(6),                &
-          gridLocalSize(3), gridOffset(3)
-     integer, allocatable :: mpiAllScalarSubarrayTypes(:), mpiAllIntegerSubarrayTypes(:)
+          gridLocalSize(3), gridOffset(3), mpiScalarSubarrayType = MPI_DATATYPE_NULL
+     integer, allocatable :: mpiAllScalarSubarrayTypes(:)
      logical :: isCurvilinear
+     character(len = STRING_LENGTH) :: name
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
      real(SCALAR_KIND), allocatable :: mpiReduceBuffer(:)
 #endif

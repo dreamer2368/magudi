@@ -30,7 +30,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, arrayOfStarts(3), mpiScalarSubarrayType, procRank, ierror
+  integer :: i, nDimensions
   character(len = STRING_LENGTH) :: outputPrefix, key, filename, message
   logical :: success
   integer, allocatable :: globalPatchSizes(:,:)
@@ -54,14 +54,6 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
   this%nModes = getOption("defaults/jet_excitation/number_of_modes", 0)
   this%nModes = getOption(trim(key) // "number_of_modes", this%nModes)
   this%nModes = min(max(0, this%nModes), 99)
-
-  if (this%comm /= MPI_COMM_NULL) then
-     call MPI_Comm_rank(this%comm, procRank, ierror)
-     arrayOfStarts = this%offset - this%extent(1::2) + 1
-     call MPI_Type_create_subarray(3, this%globalSize, this%localSize, arrayOfStarts,        &
-          MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
-     call MPI_Type_commit(mpiScalarSubarrayType, ierror)
-  end if
 
   if (this%nModes > 0 .and. this%nPatchPoints > 0) then
 
@@ -91,7 +83,8 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
         this%angularFrequencies(i) = plot3dAuxiliaryData(2)
 
         call plot3dReadSingleSolution(this%comm, trim(filename), offset,                     &
-             mpiScalarSubarrayType, this%globalSize, this%perturbationReal(:,:,i), success)
+             this%mpiScalarSubarrayType, this%globalSize,                                    &
+             this%perturbationReal(:,:,i), success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
 
         write(filename, '(2A,I2.2,A)') trim(outputPrefix), "-", i, ".eigenmode_imag.q"
@@ -117,16 +110,13 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
         end if
 
         call plot3dReadSingleSolution(this%comm, trim(filename), offset,                     &
-             mpiScalarSubarrayType, this%globalSize, this%perturbationImag(:,:,i), success)
+             this%mpiScalarSubarrayType, this%globalSize,                                    &
+             this%perturbationImag(:,:,i), success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
 
      end do !... i = 1, this%nModes
 
   end if !... this%nModes > 0 .and. this%nPatchPoints > 0
-
-  if (this%comm /= MPI_COMM_NULL) then
-     call MPI_Type_free(mpiScalarSubarrayType, ierror)
-  end if
 
 end subroutine setupJetExcitationPatch
 

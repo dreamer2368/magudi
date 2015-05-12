@@ -729,7 +729,7 @@ subroutine plot3dWriteSingleSolution(comm, filename, offset, mpiDerivedTypeScala
 #endif
 
 #ifdef DEBUG
-  if (size(solutionVector, 1) <= 0 .or. size(solutionVector, 2) <= 3 .or.                    &
+  if (size(solutionVector, 1) <= 0 .or. size(solutionVector, 2) < 3 .or.                     &
        size(solutionVector, 2) > 5) then
      write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument solutionVector: (",                             &
@@ -1097,7 +1097,7 @@ subroutine plot3dReadSingleSolution(comm, filename, offset, mpiDerivedTypeScalar
 #endif
 
 #ifdef DEBUG
-  if (size(solutionVector, 1) <= 0 .or. size(solutionVector, 2) <= 3 .or.                    &
+  if (size(solutionVector, 1) <= 0 .or. size(solutionVector, 2) < 3 .or.                     &
        size(solutionVector, 2) > 5) then
      write(plot3dErrorMessage, '(3A,3(I0.0,A))') "In ", __FILE__, ":", __LINE__,             &
           ": Invalid shape of array argument solutionVector: (",                             &

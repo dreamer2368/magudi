@@ -2,6 +2,8 @@
 
 module ActuatorPatch_mod
 
+  use MPI, only : MPI_OFFSET_KIND
+
   use Patch_mod, only : t_Patch
 
   implicit none
@@ -9,15 +11,18 @@ module ActuatorPatch_mod
 
   type, extends(t_Patch), public :: t_ActuatorPatch
 
-     SCALAR_TYPE, allocatable :: controlForcing(:)
-     SCALAR_TYPE, allocatable :: sensitivityGradient(:,:)
+     integer :: iGradientBuffer = 0
+     integer(kind = MPI_OFFSET_KIND) :: gradientFileOffset = int(0, MPI_OFFSET_KIND)
+     character(len = STRING_LENGTH) :: gradientFilename
+     SCALAR_TYPE, allocatable :: mollifier(:), controlForcing(:,:), gradientBuffer(:,:,:)
 
    contains
 
      procedure, pass :: setup => setupActuatorPatch
      procedure, pass :: cleanup => cleanupActuatorPatch
      procedure, pass :: verifyUsage => verifyActuatorPatchUsage
-     procedure, pass :: updateRhs => addControlForcing
+     procedure, pass :: updateRhs => updateActuatorPatch
+     procedure, pass :: setupBufferedGradientIO => setupBufferedActuatorGradientIO
 
   end type t_ActuatorPatch
 
@@ -81,7 +86,7 @@ module ActuatorPatch_mod
 
   interface
 
-     subroutine addControlForcing(this, mode, simulationFlags, solverOptions, grid, state)
+     subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
@@ -97,7 +102,20 @@ module ActuatorPatch_mod
        class(t_Grid), intent(in) :: grid
        class(t_State) :: state
 
-     end subroutine addControlForcing
+     end subroutine updateActuatorPatch
+
+  end interface
+
+  interface
+
+     subroutine setupBufferedActuatorGradientIO(this, mode)
+
+       import :: t_ActuatorPatch       
+
+       class(t_ActuatorPatch) :: this
+       integer, intent(in) :: mode
+
+     end subroutine setupBufferedActuatorGradientIO
 
   end interface
 

@@ -375,12 +375,15 @@ subroutine cleanupSolver(this)
 
 end subroutine cleanupSolver
 
-function runForward(this, region, time, timestep, nTimesteps) result(costFunctional)
+function runForward(this, region, time, timestep, nTimesteps,                                &
+     actuationAmount) result(costFunctional)
 
   ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
   use Functional_mod, only : t_Functional
+  use ActuatorPatch_mod, only : t_ActuatorPatch
   use TimeIntegrator_mod, only : t_TimeIntegrator
 
   ! <<< Enumerations >>>
@@ -401,6 +404,7 @@ function runForward(this, region, time, timestep, nTimesteps) result(costFunctio
   real(SCALAR_KIND), intent(inout) :: time
   integer, intent(inout) :: timestep
   integer, intent(in) :: nTimesteps
+  real(SCALAR_KIND), intent(in), optional :: actuationAmount
 
   ! <<< Result >>>
   SCALAR_TYPE :: costFunctional
@@ -412,6 +416,7 @@ function runForward(this, region, time, timestep, nTimesteps) result(costFunctio
   SCALAR_TYPE :: instantaneousCostFunctional
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   class(t_Functional), pointer :: functional => null()
+  class(t_Patch), pointer :: patch => null()
   real(SCALAR_KIND) :: timeStepSize
 
   assert(timestep >= 0)
@@ -433,6 +438,34 @@ function runForward(this, region, time, timestep, nTimesteps) result(costFunctio
 
   write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
   call region%saveData(QOI_FORWARD_STATE, filename)
+
+  if (.not. region%simulationFlags%predictionOnly .and. present(actuationAmount)) then
+
+     do i = 1, size(region%states)
+        region%states(i)%actuationAmount = actuationAmount
+     end do
+
+     if (allocated(region%patchFactories)) then
+        do i = 1, size(region%patchFactories)
+           
+           call region%patchFactories(i)%connect(patch)
+           if (.not. associated(patch)) cycle
+           
+           select type (patch)
+           class is (t_ActuatorPatch)
+              call patch%setupBufferedGradientIO(FORWARD)
+           end select
+           
+        end do
+     end if
+
+  else
+
+     do i = 1, size(region%states)
+        region%states(i)%actuationAmount = 0.0_wp
+     end do
+
+  end if
 
   do timestep_ = timestep + 1, timestep + nTimesteps
 
@@ -504,9 +537,11 @@ end function runForward
 function runAdjoint(this, region, time, timestep, nTimesteps) result(costSensitivity)
 
   ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
   use Functional_mod, only : t_Functional
+  use ActuatorPatch_mod, only : t_ActuatorPatch
   use TimeIntegrator_mod, only : t_TimeIntegrator
   use ReverseMigrator_mod, only : t_ReverseMigrator
   use ReverseMigrator_factory, only : t_ReverseMigratorFactory
@@ -542,6 +577,7 @@ function runAdjoint(this, region, time, timestep, nTimesteps) result(costSensiti
   class(t_Functional), pointer :: functional => null()
   type(t_ReverseMigratorFactory) :: reverseMigratorFactory
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
+  class(t_Patch), pointer :: patch => null()
   real(SCALAR_KIND) :: timeStepSize
 
   assert(.not. region%simulationFlags%predictionOnly)
@@ -586,6 +622,20 @@ function runAdjoint(this, region, time, timestep, nTimesteps) result(costSensiti
 
   write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adjoint.q"
   call region%saveData(QOI_ADJOINT_STATE, filename)
+
+  if (allocated(region%patchFactories)) then
+     do i = 1, size(region%patchFactories)
+
+        call region%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+
+        select type (patch)
+        class is (t_ActuatorPatch)
+           call patch%setupBufferedGradientIO(ADJOINT)
+        end select
+
+     end do
+  end if
 
   do timestep_ = timestep + sign(1, timemarchDirection),                                     &
        timestep + sign(nTimesteps, timemarchDirection), timemarchDirection

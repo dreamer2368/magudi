@@ -28,7 +28,7 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
 
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: key
-  integer :: i, procRank, numProcs, ierror
+  integer :: i, offset(3), procRank, numProcs, ierror
   integer, allocatable :: allLocalSizes(:,:), allOffsets(:,:)
 
   assert(index > 0)
@@ -51,6 +51,7 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   call this%cleanupBase()
 
   this%index = index
+  this%name = trim(patchDescriptor%name)
   if (comm /= MPI_COMM_NULL) call MPI_Comm_dup(comm, this%comm, ierror)
 
   this%globalSize(1) = patchDescriptor%iMax - patchDescriptor%iMin + 1
@@ -112,6 +113,12 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
     call MPI_Comm_rank(this%comm, procRank, ierror)
     call MPI_Comm_size(this%comm, numProcs, ierror)
 
+    ! Patch derived subarray type.
+    offset = this%offset - this%extent(1::2) + 1
+    call MPI_Type_create_subarray(3, this%globalSize, this%localSize, offset,                &
+         MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, this%mpiScalarSubarrayType, ierror)
+    call MPI_Type_commit(this%mpiScalarSubarrayType, ierror)
+
     ! Gather local size and offset from all patch processes.
     allocate(allLocalSizes(3, numProcs), source = 0)
     allocate(allOffsets(3, numProcs), source = 0)
@@ -122,9 +129,8 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
 
     if (procRank == 0) then
 
-       ! Allocate patch subarray derived types.
+       ! Allocate patch subarray derived types for all processes on patch master process.
        allocate(this%mpiAllScalarSubarrayTypes(numProcs))
-       allocate(this%mpiAllIntegerSubarrayTypes(numProcs))
 
        ! Derived types describing subarrays on patches.
        do i = 1, numProcs
@@ -133,10 +139,6 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
                allOffsets(:,i), MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI,                          &
                this%mpiAllScalarSubarrayTypes(i), ierror)
           call MPI_Type_commit(this%mpiAllScalarSubarrayTypes(i), ierror)
-          call MPI_Type_create_subarray(3, this%globalSize, allLocalSizes(:,i),              &
-               allOffsets(:,i), MPI_ORDER_FORTRAN, MPI_INTEGER,                              &
-               this%mpiAllIntegerSubarrayTypes(i), ierror)
-          call MPI_Type_commit(this%mpiAllIntegerSubarrayTypes(i), ierror)
        end do
 
     end if
@@ -164,14 +166,6 @@ subroutine cleanupPatch(this)
   ! <<< Local variables >>>
   integer :: i, ierror
 
-  if (allocated(this%mpiAllIntegerSubarrayTypes)) then
-     do i = 1, size(this%mpiAllIntegerSubarrayTypes)
-        if (this%mpiAllIntegerSubarrayTypes(i) /= MPI_DATATYPE_NULL) &
-             call MPI_Type_free(this%mpiAllIntegerSubarrayTypes(i), ierror)
-     end do
-  end if
-  SAFE_DEALLOCATE(this%mpiAllIntegerSubarrayTypes)
-
   if (allocated(this%mpiAllScalarSubarrayTypes)) then
      do i = 1, size(this%mpiAllScalarSubarrayTypes)
         if (this%mpiAllScalarSubarrayTypes(i) /= MPI_DATATYPE_NULL) &
@@ -179,6 +173,10 @@ subroutine cleanupPatch(this)
      end do
   end if
   SAFE_DEALLOCATE(this%mpiAllScalarSubarrayTypes)
+
+  if (this%mpiScalarSubarrayType /= MPI_DATATYPE_NULL)                                       &
+       call MPI_Type_free(this%mpiScalarSubarrayType, ierror)
+  this%mpiScalarSubarrayType = MPI_DATATYPE_NULL
 
   if (this%comm /= MPI_COMM_NULL .and. this%comm /= MPI_COMM_WORLD)                          &
        call MPI_Comm_free(this%comm, ierror)

@@ -58,7 +58,8 @@ module Solver_mod
 
   interface
 
-     function runForward(this, region, time, timestep, nTimesteps) result(costFunctional)
+     function runForward(this, region, time, timestep, nTimesteps,                           &
+          actuationAmount) result(costFunctional)
 
        use Region_mod, only : t_Region
 
@@ -69,6 +70,8 @@ module Solver_mod
        real(SCALAR_KIND), intent(inout) :: time
        integer, intent(inout) :: timestep
        integer, intent(in) :: nTimesteps
+
+       real(SCALAR_KIND), intent(in), optional :: actuationAmount
 
        SCALAR_TYPE :: costFunctional
 
