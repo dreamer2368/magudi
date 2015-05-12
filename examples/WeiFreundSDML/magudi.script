@@ -1,0 +1,43 @@
+#!/bin/bash
+#MSUB -l nodes=8:ppn=8
+#MSUB -l walltime=10:00:00
+#MSUB -V
+#MSUB -j oe
+#MSUB -o log.o%j
+
+function setOption() {
+    if grep -q "$1" magudi.inp
+    then
+	sed -i "s/^.*$1.*$/$1 = $2/g" magudi.inp
+    else
+	cat "$1 = $2" >> magudi.inp
+    fi
+}
+
+function toggleOption() {
+    if grep -q "$1 = false" magudi.inp
+    then
+	sed -i "s/$1 = false/$1 = true/g" magudi.inp
+    elif grep -q "$1 = true" magudi.inp
+    then
+	sed -i "s/$1 = true/$1 = false/g" magudi.inp
+    fi
+}
+
+python generateMesh.py
+python generateInitialCondition.py
+python generateTargetState.py
+cp WeiFreundSDML.xyz WeiFreundSDML.ic.q WeiFreundSDML.target.q Bootstrap
+cd Bootstrap
+srun ../magudi
+cp WeiFreundSDML-00033600.q ../WeiFreundSDML.ic.q
+cd ..
+setOption "disable_adjoint_solver" true
+setOption "compute_time_average" true
+srun ./magudi
+python generateMeanPressure.py
+python generateMollifiers.py
+toggleOption "disable_adjoint_solver"
+toggleOption "compute_time_average"
+setOption "check_solution_limits" false
+srun ./magudi

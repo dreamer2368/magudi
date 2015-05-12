@@ -19,7 +19,7 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         print(fill('Usage: python plotInstantaneousCost.py FILE', 80) + '\n')
         print(fill('Plots the instantaneous cost functional from a text file FILE', 80) + '\n')
-        print(fill('FILE is assumed to have three columns with the second and third column representing sampling times and the values of the instantaneous cost functional, respectively.', 80))
+        print(fill('FILE is assumed to have three columns with the second and third column representing sampled times and the values of the instantaneous cost functional, respectively.', 80))
         sys.exit(-1)
 
     outputPrefix = 'WavyWall'

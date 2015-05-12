@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+import os
 import numpy as np
-from scipy.optimize import fsolve
+import tempfile
+import subprocess
 
 def airfoilProfile(x, chordLength, thicknessRatio):
     return 5. * thicknessRatio * chordLength * (0.2969 * np.sqrt(x / chordLength) - 0.1260 * (x / chordLength) - 0.3516 * (x / chordLength) ** 2 + 0.2843 * (x / chordLength) ** 3 - 0.1015 * (x / chordLength) ** 4)
@@ -8,16 +10,13 @@ def airfoilProfile(x, chordLength, thicknessRatio):
 def airfoilProfileSlope(x, chordLength, thicknessRatio):
     return 5. * thicknessRatio * (0.14845 / np.sqrt(x / chordLength) - 0.1260 - 0.7032 * (x / chordLength) + 0.8529 * (x / chordLength) ** 2 - 0.406 * (x / chordLength) ** 3)
 
-if __name__ == '__main__':
-
-    outputPrefix = 'NACA0012'
+def writeGlyphFile(glyphFile, gridSize, outputPrefix = 'NACA0012', thicknessRatio = 0.12, angleOfAttack = 2.,
+                   minimumPercentSpacingAtTrailingEdge = 0.04, minimumPercentSpacingAtLeadingEdge = 0.16,
+                   minimumWallNormalPercentSpacing = 120., stopHeight = 75., geometricStretchingRatio = 1.04):
 
     gridFile = 'Gridgen_' + outputPrefix + '_PLOT3D.x'
 
-    chordLength = 2000.
-    thicknessRatio = 0.12
-
-    angleOfAttack = 2.
+    chordLength = 2000. # temporary; chord length in generated mesh will be 1.
 
     s = np.linspace(0., 1., 400)
     xAirfoil = np.cumsum(np.tanh(3.5 * (1. - s)) + np.tanh(3.5 * s) - 1.)
@@ -25,19 +24,11 @@ if __name__ == '__main__':
     yAirfoil = airfoilProfile(xAirfoil, chordLength, thicknessRatio)
     xTrailingEdge = xAirfoil[-1] - 0.5 * yAirfoil[-1] / airfoilProfileSlope(xAirfoil[-1], chordLength, thicknessRatio)
     xStart = 0.5 * chordLength
-
-    gridSize = [180, 180, 1]
-    minimumPercentSpacingAtTrailingEdge = 0.04
-    minimumPercentSpacingAtLeadingEdge = 0.16
-    minimumWallNormalPercentSpacing = 120.
-    stopHeight = 75. * chordLength
-    geometricStretchingRatio = 1.04
-
+    
     minimumSpacingAtTrailingEdge = chordLength * minimumPercentSpacingAtTrailingEdge / 100.
     minimumSpacingAtLeadingEdge = chordLength * minimumPercentSpacingAtLeadingEdge / 100.
     minimumWallNormalSpacing = minimumWallNormalPercentSpacing / 100. * minimumSpacingAtTrailingEdge
 
-    glyphFile = 'gridgenScript.glf'
     f = open(glyphFile, 'w')
 
     print >>f, """
@@ -45,7 +36,6 @@ gg::memClear
 gg::defReset
 gg::tolReset
 gg::dispViewReset
-set cwd [file dirname [info script]]
 """
 
     print >>f, 'gg::dbCurveBegin -type CUBIC'
@@ -97,7 +87,7 @@ set con_NACA [gg::conJoin $con_NACA1 $con_NACA8]
 
     print >>f, 'gg::domExtrusionBegin [list $con_NACA] -edge'
     print >>f, 'gg::domExtrusionMode HYPERBOLIC'
-    print >>f, 'gg::domExtrusionAtt -s_init %f -march_plane {0 0 1} -stop_height %f -growth_geometric %f -normal_count 20 -normal_relax 1 -vol_smoothing 0.25' % (minimumWallNormalSpacing, stopHeight, geometricStretchingRatio)
+    print >>f, 'gg::domExtrusionAtt -s_init %f -march_plane {0 0 1} -stop_height %f -growth_geometric %f -normal_count 20 -normal_relax 1 -vol_smoothing 0.25' % (minimumWallNormalSpacing, stopHeight * chordLength, geometricStretchingRatio)
     print >>f, 'gg::domExtrusionStep -result ExtResult %i' % (gridSize[1] - 1)
     print >>f, 'set dom_NACA [gg::domExtrusionEnd]'
 
@@ -109,6 +99,13 @@ set con_NACA [gg::conJoin $con_NACA1 $con_NACA8]
     print >>f, 'gg::xformScale [list 0 0 0] [list %f %f %f]' % (1. / xTrailingEdge, 1. / xTrailingEdge, 1. / xTrailingEdge)
     print >>f, 'gg::domTransformEnd'
 
-    print >>f, 'gg::domExport $dom_NACA [file join $cwd \"%s\"] -style PLOT3D -form UNFORMATTED -precision DOUBLE -endian NATIVE' % (gridFile)    
+    print >>f, 'gg::domExport $dom_NACA \"%s\" -style PLOT3D -form UNFORMATTED -precision DOUBLE -endian NATIVE' % (gridFile)
 
     f.close()
+
+if __name__ == '__main__':
+
+    f = tempfile.NamedTemporaryFile(delete = False)
+    writeGlyphFile(f.name, gridSize = [180, 180])
+    subprocess.check_output(["gridgen", "-b", f.name])
+    os.unlink(f.name)

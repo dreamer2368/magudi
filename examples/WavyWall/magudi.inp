@@ -5,6 +5,7 @@
 output_prefix = "WavyWall"
 grid_file = "WavyWall.xyz"
 boundary_condition_file = "bc.dat"
+curvilinear_domain = true
 
 # Simulation flags
 use_constant_CFL_mode = false
@@ -20,8 +21,8 @@ disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "SOUND"
 
-# Derivative schemes
-defaults/first_derivative_scheme = "SBP 3-6"
+# Discretization scheme
+defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_integration_scheme = 'RK4'
@@ -32,7 +33,6 @@ save_interval = 20
 
 # Artificial dissipation
 add_dissipation = true
-defaults/dissipation_scheme = "SBP 3-6"
 dissipation_amount = 0.005
 
 # Solution limits
@@ -50,7 +50,4 @@ acoustic_source01/y = -3.
 acoustic_source01/radius = 2.1213203435596424
 
 # Damping
-sponge_amount = 0.2
-
-# Simulation flags
-curvilinear_domain = true
+defaults/sponge_amount = 0.2

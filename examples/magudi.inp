@@ -4,9 +4,9 @@
 
 # Notes:
 # ======
-# 1. Optional parameters are assigned their default values here.
+# 1. Optional parameters are assigned their default values in this file.
 # 2. If a parameter has a string value with a whitespace character, it is required to be
-#    surrounded by quotes. In general, it is preferable to always use quotes.
+#    surrounded by quotes.
 
 # ==========================
 # SECTION 1: Filenames, etc.

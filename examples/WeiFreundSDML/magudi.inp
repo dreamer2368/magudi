@@ -1,0 +1,65 @@
+# magudi.inp
+# Input file to magudi for simulation of a two-dimensional spatially developing mixing layer
+# Reference: Wei, Mingjun, and Jonathan B. Freund. "A noise-controlled free shear flow." Journal of Fluid Mechanics 546 (2006): 123-152.
+# Written by Ramanathan Vishnampet
+
+# Filenames, etc.
+output_prefix = "WeiFreundSDML"
+grid_file = "WeiFreundSDML.xyz"
+initial_condition_file = "WeiFreundSDML.ic.q"
+target_state_file = "WeiFreundSDML.target.q"
+boundary_condition_file = "bc.dat"
+control_mollifier_file = "WeiFreundSDML.control_mollifier.f"
+target_mollifier_file = "WeiFreundSDML.target_mollifier.f"
+mean_pressure_file = "WeiFreundSDML.mean_pressure.f"
+
+# Simulation flags
+include_viscous_terms = true
+use_constant_CFL_mode = false
+use_target_state = true
+curvilinear_domain = false
+compute_time_average = false
+
+# Adjoint optimization flags                                                                                                                                                                   
+disable_adjoint_solver = false
+baseline_prediction_available = false
+cost_functional_type = "SOUND"
+use_continuous_adjoint = true
+
+# Non-dimensional constants
+Reynolds_number = 714.2857142857143
+Prandtl_number = 0.7
+viscosity_power_law_exponent = 0.
+bulk_viscosity_ratio = 0.
+
+# Discretization scheme
+defaults/discretization_scheme = "SBP 4-8"
+
+# Time stepping options
+time_step_size = 0.025
+number_of_timesteps = 25000
+report_interval = 20
+save_interval = 100
+
+# Artificial dissipation
+add_dissipation = true
+dissipation_amount = 0.005
+
+# Sponge options
+defaults/sponge_amount = 0.2
+
+# Solution limits
+enable_solution_limits = true
+minimum_density = 0.1
+minimum_temperature = 0.05
+maximum_density = 5.
+maximum_temperature = 4.
+
+# Inflow excitation
+patches/excitationSupport/number_of_modes = 8
+patches/excitationSupport/origin_x = -10.
+patches/excitationSupport/velocity_x = 0.55
+patches/excitationSupport/amplitude = 0.008
+patches/excitationSupport/frequency = 0.128
+patches/excitationSupport/radius = 4.7434164902525691
+patches/excitationSupport/random_seed = 685785
