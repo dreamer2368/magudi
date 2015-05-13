@@ -750,6 +750,9 @@ subroutine cleanupRegion(this)
   if (this%commGridMasters /= MPI_COMM_NULL) call MPI_Comm_free(this%commGridMasters, ierror)
   this%commGridMasters = MPI_COMM_NULL
 
+  this%timestep = 0
+  this%outputOn = .true.
+
 end subroutine cleanupRegion
 
 subroutine setupBoundaryConditions(this, boundaryConditionFilename)
@@ -858,12 +861,13 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   character(len = *), intent(in) :: filename
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: message
   logical :: success
   integer :: i, j, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
   logical :: isSolutionFile
-  real(SCALAR_KIND) :: auxiliaryData(4)
+  real(wp) :: auxiliaryData(4)
 
   call startTiming("loadRegionData")
 
@@ -897,21 +901,27 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
         end if
      end do
 
-     call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL,                               &
-          MPI_LAND, this%comm, ierror)
+     call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, this%comm, ierror)
      if (.not. success) exit
      call MPI_Barrier(this%comm, ierror)
 
   end do
 
   if (isSolutionFile) then
-     auxiliaryData = real(this%states(1)%plot3dAuxiliaryData, SCALAR_KIND)
-     call MPI_Bcast(auxiliaryData, 4, REAL_TYPE_MPI, 0, this%comm, ierror)
-     do i = 1, 4
-        this%states(:)%plot3dAuxiliaryData(i) = auxiliaryData(i)
-     end do
-     if (quantityOfInterest == QOI_FORWARD_STATE)                                            &
-          this%states(:)%time = real(auxiliaryData(4), SCALAR_KIND)
+     if (.not. this%simulationFlags%steadyStateSimulation) then
+        auxiliaryData = real(this%states(1)%plot3dAuxiliaryData, wp)
+        call MPI_Bcast(auxiliaryData, 4, REAL_TYPE_MPI, 0, this%comm, ierror)
+        do i = 1, 4
+           this%states(:)%plot3dAuxiliaryData(i) = auxiliaryData(i)
+        end do
+        if (quantityOfInterest == QOI_FORWARD_STATE) then
+           this%states(:)%time = real(auxiliaryData(4), wp)
+           this%timestep = nint(real(auxiliaryData(1), wp))
+        end if
+     else
+        this%states(:)%time = 0.0_wp
+        this%timestep = 0
+     end if
   end if
 
   if (success) then
@@ -962,17 +972,24 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   character(len = *), intent(in) :: filename
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: message
   logical :: success
   integer :: i, j, nScalars, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
+  logical :: isSolutionFile
+
+  if (.not. this%OutputOn) return
 
   call startTiming("saveRegionData")
 
   write(message, '(3A)') "Writing '", trim(filename), "'..."
   call writeAndFlush(this%comm, output_unit, message, advance = 'no')
 
+  isSolutionFile = .false.
+
   select case(quantityOfInterest)
+
   case (QOI_GRID)
      call plot3dWriteSkeleton(this%comm, trim(filename),                                     &
           PLOT3D_GRID_FILE, this%globalGridSizes, success)
@@ -1002,9 +1019,24 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
           this%globalGridSizes, success, nScalars)
 
   case default
+     isSolutionFile = .true.
      call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_SOLUTION_FILE,               &
           this%globalGridSizes, success)
+
   end select
+
+  if (isSolutionFile) then
+     if (.not. this%simulationFlags%steadyStateSimulation) then
+        do i = 1, size(this%states)
+           this%states(:)%plot3dAuxiliaryData(1) =                                           &
+                real(this%timestep, wp)
+        end do
+     else
+        do i = 1, size(this%states)
+           this%states(:)%plot3dAuxiliaryData(1) = 0.0_wp
+        end do
+     end if
+  end if
 
   do i = 1, size(this%gridCommunicators)
 

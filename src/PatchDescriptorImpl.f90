@@ -72,8 +72,8 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
 
   ! Fail if the extent is invalid.
   if (.not. isExtentValid) then
-     write(message, '(3A,I0.0,A,6(I0.0,1X),A)') "Patch '", trim(this%name), "' on grid ",    &
-          this%gridIndex, " has an invalid extent: ",                                        &
+     write(message, '(3A,I0.0,A,6(1X,I0.0),A)') "Patch '", trim(this%name), "' on grid ",    &
+          this%gridIndex, " has an invalid extent:",                                         &
           this%iMin, this%iMax, this%jMin, this%jMax, this%kMin, this%kMax, "!"
      errorCode = 2
      return
