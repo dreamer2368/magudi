@@ -12,7 +12,7 @@ module SolverOptions_mod
           temperatureRange(2), cfl, timeStepSize
      integer :: nUnknowns
      character(len = STRING_LENGTH) :: discretizationType, timeintegratorType,               &
-          costFunctionalType, checkpointingScheme
+          costFunctionalType, controllerType, checkpointingScheme
 
    contains
 

@@ -17,11 +17,11 @@ if (NOT SCALAR_TYPE)
   set(SCALAR_TYPE "real64_iso")
 endif()
 
-if (NOT SCALAR_TYPE STREQUAL "real32_iso" AND 
-    NOT SCALAR_TYPE STREQUAL "real64_iso" AND 
+if (NOT SCALAR_TYPE STREQUAL "real32_iso" AND
+    NOT SCALAR_TYPE STREQUAL "real64_iso" AND
     NOT SCALAR_TYPE STREQUAL "real128_iso" AND
     NOT SCALAR_TYPE STREQUAL "binary128_IEEE754" AND
-    NOT SCALAR_TYPE STREQUAL "complex" AND 
+    NOT SCALAR_TYPE STREQUAL "complex" AND
     NOT SCALAR_TYPE STREQUAL "double_complex")
   message(FATAL_ERROR "Unknown scalar type \"${SCALAR_TYPE}\". Allowed values are: real32_iso, real64_iso, real128_iso, binary128_IEEE754, complex, double_complex (case-sensitive).")
 endif()
@@ -32,7 +32,7 @@ if (NOT PLOT3D_FORMAT)
   set(PLOT3D_FORMAT "regular")
 endif()
 
-if (NOT PLOT3D_FORMAT STREQUAL "regular" AND 
+if (NOT PLOT3D_FORMAT STREQUAL "regular" AND
     NOT PLOT3D_FORMAT STREQUAL "extended")
   message(FATAL_ERROR "Unknown PLOT3D format \"${PLOT3D_FORMAT}\". Allowed values are: regular, extended (case-sensitive).")
 endif()
@@ -96,6 +96,8 @@ set(magudiObj_SOURCES
   # Factories.
   ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
   ${PROJECT_SOURCE_DIR}/src/PatchFactoryImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ControllerFactory.f90
+  ${PROJECT_SOURCE_DIR}/src/ControllerFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/FunctionalFactory.f90
   ${PROJECT_SOURCE_DIR}/src/FunctionalFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegratorFactory.f90
@@ -130,6 +132,8 @@ set(magudiObj_SOURCES
   # Abstract types.
   ${PROJECT_SOURCE_DIR}/include/Patch.f90
   ${PROJECT_SOURCE_DIR}/src/PatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/Controller.f90
+  ${PROJECT_SOURCE_DIR}/src/ControllerImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Functional.f90
   ${PROJECT_SOURCE_DIR}/src/FunctionalImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegrator.f90
@@ -160,7 +164,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/BlockInterfacePatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/UniformCheckpointer.f90
   ${PROJECT_SOURCE_DIR}/src/UniformCheckpointerImpl.f90
-
+  ${PROJECT_SOURCE_DIR}/include/ThermalActuator.f90
+  ${PROJECT_SOURCE_DIR}/src/ThermalActuatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PressureDrag.f90

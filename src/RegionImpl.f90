@@ -802,7 +802,6 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
   end if
 
   if (allocated(this%patchData)) then
-
      do k = 1, size(this%grids)
         do i = 1, size(this%patchData)
            p = this%patchData(i)
@@ -822,12 +821,11 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
            call MPI_Barrier(this%grids(k)%comm, ierror)
         end do
      end do
+  end if
 
-     if (.not. this%simulationFlags%predictionOnly) then
-        call normalizeControlMollifier(this)
-        call normalizeTargetMollifier(this)
-     end if
-
+  if (.not. this%simulationFlags%predictionOnly) then
+     call normalizeControlMollifier(this)
+     call normalizeTargetMollifier(this)
   end if
 
   call endTiming("setupBoundaryConditions")

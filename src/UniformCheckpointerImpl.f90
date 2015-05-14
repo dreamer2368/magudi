@@ -128,13 +128,13 @@ subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep,
 
      if (this%loadedTimestep /= this%endTimestep) then
 
+        do j = 1, size(region%states) !... update state
+           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
+                region%solverOptions)
+        end do
+
         do timestep_ = this%loadedTimestep + 1, this%loadedTimestep + this%saveInterval
 
-           do j = 1, size(region%states) !... update state
-              region%states(j)%time = time
-              call region%states(j)%update(region%grids(j), region%simulationFlags,          &
-                   region%solverOptions)
-           end do
            timeStepSize = region%getTimeStepSize()
 
            do stage_ = 1, timeIntegrator%nStages
@@ -142,13 +142,11 @@ subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep,
               call timeIntegrator%substepForward(region, time,                               &
                    timeStepSize, timestep_, stage_)
 
-              if (stage /= timeIntegrator%nStages) then
-                 do j = 1, size(region%states) !... update state
-                    region%states(j)%time = time
-                    call region%states(j)%update(region%grids(j), region%simulationFlags,    &
-                         region%solverOptions)
-                 end do
-              end if
+              region%states(:)%time = time
+              do j = 1, size(region%states) !... update state
+                 call region%states(j)%update(region%grids(j), region%simulationFlags,       &
+                      region%solverOptions)
+              end do
 
               if (timestep_ == this%loadedTimestep + this%saveInterval .and.                 &
                    stage_ == timeIntegrator%nStages) exit
@@ -157,6 +155,7 @@ subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep,
               do j = 1, size(region%states)
                  this%data_(j)%buffer(:,:,i) = region%states(j)%conservedVariables
               end do
+
            end do
 
         end do

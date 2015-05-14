@@ -16,6 +16,7 @@ contains
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
     use Solver_mod, only : t_Solver
+    use Controller_mod, only : t_Controller
     use Functional_mod, only : t_Functional
 
     ! <<< Enumerations >>>
@@ -36,6 +37,7 @@ contains
     integer :: nDimensions
     real(SCALAR_KIND) :: timeStepSize, cfl, residuals(3)
     character(len = STRING_LENGTH) :: str, str_, filename
+    class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
 
     assert_key(mode, (FORWARD, ADJOINT))
@@ -44,6 +46,7 @@ contains
     nDimensions = size(region%globalGridSizes, 1)
     assert_key(nDimensions, (1, 2, 3))
 
+    ! Report time step size in constant CFL mode
     if (region%simulationFlags%useConstantCfl) then
        timeStepSize = region%getTimeStepSize()
     else
@@ -77,14 +80,22 @@ contains
 
        if (.not. region%simulationFlags%predictionOnly .and. region%outputOn) then
 
-          call this%functionalFactory%connect(functional)
-          assert(associated(functional))
-
           select case (mode)
+
           case (FORWARD)
+             call this%functionalFactory%connect(functional)
+             assert(associated(functional))
              call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
                   ".cost_functional.txt", timestep, time,                                    &
                   timestep - startTimestep > this%reportInterval)
+
+          case (ADJOINT)
+             call this%controllerFactory%connect(controller)
+             assert(associated(controller))
+             call controller%writeSensitivityToFile(region%comm, trim(this%outputPrefix) //  &
+                  ".cost_sensitivity.txt", timestep, time,                                   &
+                  startTimestep - timestep > this%reportInterval)
+
           end select
 
        end if
@@ -234,8 +245,11 @@ contains
   subroutine loadInitialCondition(this, region, mode, restartFilename)
 
     ! <<< Derived types >>>
+    use Patch_mod, only : t_Patch
     use Region_mod, only : t_Region
     use Solver_mod, only : t_Solver
+    use Functional_mod, only : t_Functional
+    use CostTargetPatch_mod, only : t_CostTargetPatch
 
     ! <<< Enumerations >>>
     use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE
@@ -255,7 +269,10 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     character(len = STRING_LENGTH) :: filename
-    integer :: i
+    integer :: i, j
+    real(wp) :: timeStepSize
+    class(t_Functional), pointer :: functional => null()
+    class(t_Patch), pointer :: patch => null()
 
     select case (mode)
 
@@ -292,6 +309,39 @@ contains
           end if
        end if
 
+       if (allocated(region%patchFactories) .and.                                            &
+            .not. region%simulationFlags%steadyStateSimulation .and.                         &
+            .not. region%simulationFlags%useContinuousAdjoint) then
+
+          timeStepSize = region%getTimeStepSize()
+          region%states(:)%adjointForcingFactor = - timeStepSize / 6.0_wp !... RK4 only.
+
+          ! Connect to the previously allocated functional.
+          call this%functionalFactory%connect(functional)
+          assert(associated(functional))
+          call functional%updateAdjointForcing(region)
+
+          do i = 1, size(region%states)
+             region%states(i)%rightHandSide = 0.0_wp
+          end do
+
+          do i = 1, size(region%patchFactories)
+             call region%patchFactories(i)%connect(patch)
+             if (.not. associated(patch)) cycle
+             select type (patch)
+                class is (t_CostTargetPatch)
+                do j = 1, size(region%states)
+                   if (patch%gridIndex /= region%grids(j)%index) cycle
+                   call patch%updateRhs(ADJOINT, region%simulationFlags,                     &
+                        region%solverOptions, region%grids(j), region%states(j))
+                   region%states(j)%adjointVariables = region%states(j)%adjointVariables +   &
+                        region%states(j)%rightHandSide
+                end do
+             end select
+          end do
+
+       end if
+
     end select
 
   end subroutine loadInitialCondition
@@ -303,6 +353,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
+  use Controller_mod, only : t_Controller
   use Functional_mod, only : t_Functional
   use TimeIntegrator_mod, only : t_TimeIntegrator
 
@@ -312,6 +363,8 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
+  use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
+  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces
 
   implicit none
 
@@ -323,7 +376,8 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename
-  integer :: i
+  integer :: i, ierror
+  class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
 
@@ -383,6 +437,33 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      call region%loadData(QOI_TARGET_MOLLIFIER, filename)
   end if
 
+  ! Setup boundary conditions.
+  call getRequiredOption("boundary_condition_file", filename)
+  call region%setupBoundaryConditions(filename)
+
+  ! Compute damping strength on sponge patches.
+  if (allocated(region%patchFactories)) then
+     do i = 1, size(region%grids)
+        call computeSpongeStrengths(region%patchFactories, region%grids(i))
+     end do
+  end if
+  call MPI_Barrier(region%comm, ierror)
+
+  ! Check continuity at block interfaces.
+  if (getOption("check_interface_continuity", .false.))                                      &
+       call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
+
+  ! Update patches.
+  do i = 1, size(region%grids)
+     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
+          region%solverOptions, region%grids(i), region%states(i))
+  end do
+
+  call this%controllerFactory%connect(controller,                                            &
+       trim(region%solverOptions%controllerType))
+  assert(associated(controller))
+  call controller%setup(region)
+
   call this%functionalFactory%connect(functional,                                            &
        trim(region%solverOptions%costFunctionalType))
   assert(associated(functional))
@@ -401,6 +482,7 @@ subroutine cleanupSolver(this)
   class(t_Solver) :: this
 
   call this%timeIntegratorFactory%cleanup()
+  call this%controllerFactory%cleanup()
   call this%functionalFactory%cleanup()
 
 end subroutine cleanupSolver
@@ -411,6 +493,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
+  use Controller_mod, only : t_Controller
   use Functional_mod, only : t_Functional
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use TimeIntegrator_mod, only : t_TimeIntegrator
@@ -440,10 +523,10 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
+  class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
-  class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE :: instantaneousCostFunctional
 
   assert(timestep >= 0)
@@ -459,6 +542,12 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)
   assert(associated(timeIntegrator))
+
+  ! Connect to the previously allocated controller.
+  if (.not. region%simulationFlags%predictionOnly) then
+     call this%controllerFactory%connect(controller)
+     assert(associated(controller))
+  end if
 
   ! Connect to the previously allocated functional.
   if (.not. region%simulationFlags%predictionOnly) then
@@ -486,32 +575,21 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call region%saveData(QOI_FORWARD_STATE, filename)
   end if
 
-  ! Start buffered I/O for loading sensitivity gradient on actuators.
+  ! Call controller hooks before time marching starts.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
-       allocated(region%patchFactories) .and.                                                &
-       abs(region%states(1)%actuationAmount) > 0.0_wp) then
-     do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        select type (patch)
-        class is (t_ActuatorPatch)
-           call patch%startBufferedGradientIO(FORWARD)
-        end select
-     end do
-  end if
+       abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
+       call controller%hookBeforeTimemarch(region, FORWARD)
 
   time = startTime
+  region%states(:)%time = time
+  do i = 1, size(region%states) !... update state
+     call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
+          region%solverOptions)
+  end do
 
   do timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
      region%timestep = timestep
-     region%states(:)%time = time
-
-     do i = 1, size(region%states) !... update state
-        call region%states(i)%update(region%grids(i), region%simulationFlags,                &
-             region%solverOptions)
-     end do
-
      timeStepSize = region%getTimeStepSize()
 
      do i = 1, timeIntegrator%nStages
@@ -520,16 +598,19 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
         if (region%simulationFlags%enableSolutionLimits)                                     &
              call checkSolutionLimits(region, FORWARD)
 
+        ! Update control forcing.
+        if (.not. region%simulationFlags%predictionOnly .and.                                &
+             abs(region%states(1)%actuationAmount) > 0.0_wp)                                 &
+             call controller%updateForcing(region)
+
         ! Take a single sub-step using the time integrator.
         call timeIntegrator%substepForward(region, time, timeStepSize, timestep, i)
 
-        if (i /= timeIntegrator%nStages) then
-           region%states(:)%time = time
-           do j = 1, size(region%states) !... update state
-              call region%states(j)%update(region%grids(j), region%simulationFlags,          &
-                   region%solverOptions)
-           end do
-        end if
+        region%states(:)%time = time
+        do j = 1, size(region%states) !... update state
+           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
+                region%solverOptions)
+        end do
 
         ! Update the cost functional.
         if (.not. region%simulationFlags%predictionOnly) then
@@ -558,19 +639,10 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
-  ! Finish buffered I/O for loading sensitivity gradient on actuators.
+  ! Call controller hooks after time marching ends.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
-       allocated(region%patchFactories) .and.                                                &
-       abs(region%states(1)%actuationAmount) > 0.0_wp) then
-     do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        select type (patch)
-           class is (t_ActuatorPatch)
-           call patch%finishBufferedGradientIO(FORWARD)
-        end select
-     end do
-  end if
+       abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
+       call controller%hookAfterTimemarch(region, FORWARD)
 
   call this%residualManager%cleanup()
 
@@ -591,6 +663,7 @@ function runAdjoint(this, region) result(costSensitivity)
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
+  use Controller_mod, only : t_Controller
   use Functional_mod, only : t_Functional
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use TimeIntegrator_mod, only : t_TimeIntegrator
@@ -620,12 +693,12 @@ function runAdjoint(this, region) result(costSensitivity)
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
+  class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
   type(t_ReverseMigratorFactory) :: reverseMigratorFactory
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
-  class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE :: instantaneousCostSensitivity
 
   assert(.not. region%simulationFlags%predictionOnly)
@@ -638,6 +711,10 @@ function runAdjoint(this, region) result(costSensitivity)
   call this%timeIntegratorFactory%connect(timeIntegrator)
   assert(associated(timeIntegrator))
 
+  ! Connect to the previously allocated controller.
+  call this%controllerFactory%connect(controller)
+  assert(associated(controller))
+
   ! Connect to the previously allocated functional.
   call this%functionalFactory%connect(functional)
   assert(associated(functional))
@@ -648,7 +725,6 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! Load the initial condition.
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
-  call loadInitialCondition(this, region, ADJOINT)
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
   if (region%simulationFlags%steadyStateSimulation) then
@@ -677,30 +753,24 @@ function runAdjoint(this, region) result(costSensitivity)
   timemarchDirection = -1
   if (region%simulationFlags%steadyStateSimulation) timemarchDirection = 1
 
-  write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
-  call region%saveData(QOI_ADJOINT_STATE, filename)
-
-  ! Start buffered I/O for saving sensitivity gradient on actuators.
-  if (allocated(region%patchFactories)) then
-     do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        select type (patch)
-        class is (t_ActuatorPatch)
-           call patch%startBufferedGradientIO(ADJOINT)
-        end select
-     end do
-  end if
-
   time = startTime
 
   if (region%simulationFlags%steadyStateSimulation) then
      region%states(:)%time = time
-     do i = 1, size(region%states) !... update state
+     do i = 1, size(region%states) !... update state only once at converged primal solution.
         call region%states(i)%update(region%grids(i), region%simulationFlags,                &
              region%solverOptions)
      end do
   end if
+
+  ! Adjoint initial condition (if specified).
+  call loadInitialCondition(this, region, ADJOINT)
+
+  write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
+  call region%saveData(QOI_ADJOINT_STATE, filename)
+
+  ! Call controller hooks before time marching starts.
+  call controller%hookBeforeTimemarch(region, ADJOINT)
 
   do timestep = startTimestep + sign(1, timemarchDirection),                                 &
        startTimestep + sign(this%nTimesteps, timemarchDirection), timemarchDirection
@@ -723,7 +793,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
      do i = timeIntegrator%nStages, 1, -1
 
-        if (.not. region%simulationFlags%steadyStateSimulation) then
+        if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
 
            ! Load adjoint coefficients.
            if (i == 1) then
@@ -733,13 +803,21 @@ function runAdjoint(this, region) result(costSensitivity)
               call reverseMigrator%migrateTo(region, timeIntegrator, timestep + 1, i - 1)
            end if
 
+           region%states(:)%time = time
            do j = 1, size(region%states) !... update state
-              region%states(j)%time = time
               call region%states(j)%update(region%grids(j), region%simulationFlags,          &
                    region%solverOptions)
            end do
 
         end if
+
+        ! Update gradient.
+        call controller%updateGradient(region)
+
+        ! Update cost sensitivity.
+        instantaneousCostSensitivity = controller%computeSensitivity(region)
+        costSensitivity = costSensitivity +                                                  &
+             timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
 
         ! Update adjoint forcing on cost target patches.
         call functional%updateAdjointForcing(region)
@@ -762,17 +840,8 @@ function runAdjoint(this, region) result(costSensitivity)
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
-  ! Finish buffered I/O for loading sensitivity gradient on actuators.
-  if (allocated(region%patchFactories)) then
-     do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        select type (patch)
-           class is (t_ActuatorPatch)
-           call patch%finishBufferedGradientIO(ADJOINT)
-        end select
-     end do
-  end if
+  ! Call controller hooks after time marching ends.
+  call controller%hookAfterTimemarch(region, ADJOINT)
 
   call this%residualManager%cleanup()
   call reverseMigratorFactory%cleanup()
@@ -866,14 +935,14 @@ subroutine checkGradientAccuracy(this, region)
      call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   else
      baselineCostFunctional = this%runForward(region)
-     if (procRank == 0) then
-        write(fileUnit, '(I4,3(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                  &
-             baselineCostFunctional, 0.0_wp
-     end if
   end if
 
   ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
   if (restartIteration == 0) costSensitivity = this%runAdjoint(region)
+
+  if (procRank == 0)                                                                         &
+       write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                   &
+       baselineCostFunctional, costSensitivity, 0.0_wp
 
   if (nIterations == 0) return
 
@@ -884,7 +953,8 @@ subroutine checkGradientAccuracy(this, region)
 
   do i = 1, restartIteration - 1
      if (procRank == 0)                                                                      &
-          read(fileUnit, *, iostat = iostat) j, actuationAmount, costFunctional, gradientError
+          read(fileUnit, *, iostat = iostat) j, actuationAmount, costFunctional,             &
+          costSensitivity, gradientError
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
         write(message, "(2A)") trim(filename),                                               &
@@ -892,6 +962,7 @@ subroutine checkGradientAccuracy(this, region)
         call gracefulExit(region%comm, message)
      end if
   end do
+  call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
 
   do i = restartIteration, restartIteration + nIterations - 1
      actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
@@ -899,8 +970,8 @@ subroutine checkGradientAccuracy(this, region)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount -           &
           costSensitivity
      if (procRank == 0)                                                                      &
-          write(fileUnit, '(I4,3(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
-          costFunctional, gradientError
+          write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
+          costFunctional, costSensitivity, gradientError
   end do
 
   if (procRank == 0) close(fileUnit)
