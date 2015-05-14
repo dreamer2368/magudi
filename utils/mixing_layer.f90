@@ -18,13 +18,14 @@ program mixing_layer
 
   implicit none
 
-  integer :: i, ierror
+  integer :: i, numProcs, ierror
   integer :: i1, i2, j1, j2
-  character(len = STRING_LENGTH) :: filename
+  character(len = STRING_LENGTH) :: inputname,filename
   logical :: success
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
 
+  print *
   print *, '! ================================================= !'
   print *, '!                                                   !'
   print *, '!    2D MIXING LAYER GENERATOR                      !'
@@ -35,23 +36,44 @@ program mixing_layer
   print *, '!    for a spatially-evolving mixing layer          !'
   print *, '!                                                   !'
   print *, '! ================================================= !'
+  print *
 
   ! Initialize MPI.
   call MPI_Init(ierror)
 
+  ! Exit if executed in parallel
+  call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
+  if (numProcs.gt.1) then
+     print *, 'mixing_layer.f90 only implemented in serial for now...'
+     stop
+  end if
+
   ! Parse options from the input file.
-  filename = "mixing_layer.inp"
-  call parseInputFile(filename)
+  inputname = "mixing_layer.inp"
+  call parseInputFile(inputname)
 
   ! Generate the grid
-  call mixingLayerGrid(i1,i2,j1,j2,filename)
+  call mixingLayerGrid(i1,i2,j1,j2)
+
+  ! Save the grid
+  call getRequiredOption("grid_file", filename)
+  call region%saveData(QOI_GRID, filename)
+
+  ! Compute normalized metrics, norm matrix and Jacobian.
+  do i = 1, size(region%grids)
+     call region%grids(i)%update()
+  end do
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
+  ! Write out some useful information.
+  call region%reportGridDiagnostics()
 
   ! Generate the BC
   call mixingLayerBC(i1,i2,j1,j2)
 
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
-     call mixingLayerInitialCondition(region%states(i), region%grids(i),                      &
+     call mixingLayerInitialCondition(region%states(i), region%grids(i),                     &
           region%simulationFlags%useTargetState)
   end do
 
@@ -86,7 +108,7 @@ contains
   ! =============== !
   ! Grid generation !
   ! =============== !
-  subroutine mixingLayerGrid(i1,i2,j1,j2,filename)
+  subroutine mixingLayerGrid(i1,i2,j1,j2)
 
     ! <<< External modules >>>
     use MPI
@@ -99,24 +121,19 @@ contains
     use InputHelper, only : getOption
     use ErrorHandler, only : gracefulExit
 
-    use InputHelper, only : parseInputFile, getOption, getRequiredOption
-    use ErrorHandler, only : writeAndFlush, gracefulExit
-    use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
-
     ! <<< Arguments >>>
     type(t_State) :: state
     type(t_Grid) :: grid
     integer, intent(out) :: i1, i2, j1, j2
-    character(len = STRING_LENGTH), intent(inout) :: filename
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
     integer :: i, j, k, n, nDimensions, ierror
-    integer :: nx, ny, nz
+    integer :: nx, ny, nz, nx_, ny_, nz_
     real(wp) :: xmini, xmaxi, ymini, ymaxi
     real(wp) :: xmino, xmaxo, ymino, ymaxo
-    real(wp) :: g0, b, c, sig, dy_min, dy_max
+    real(wp) :: g0, b, c, sig, dy_min, dy_max, y1, y2
     real(wp), allocatable, dimension(:) :: s, g
     logical :: stretch_y
 
@@ -126,12 +143,12 @@ contains
     nz = 1
     xmini = getOption("xmin_interior", 0.0_wp)
     xmaxi = getOption("xmax_interior", 120.0_wp)
-    xmini = getOption("ymin_interior", -30.0_wp)
-    xmaxi = getOption("ymax_interior", 30.0_wp)
+    ymini = getOption("ymin_interior", -30.0_wp)
+    ymaxi = getOption("ymax_interior", 30.0_wp)
     xmino = getOption("xmin_outer", -40.0_wp)
     xmaxo = getOption("xmax_outer", 160.0_wp)
-    xmino = getOption("ymin_outer", -50.0_wp)
-    xmaxo = getOption("ymax_outer", 50.0_wp)
+    ymino = getOption("ymin_outer", -50.0_wp)
+    ymaxo = getOption("ymax_outer", 50.0_wp)
 
     ! Allocate the global grid size and assign values.
     ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
@@ -142,26 +159,31 @@ contains
     ! Setup the region.
     call region%setup(MPI_COMM_WORLD, globalGridSizes)
 
+    ! Local mesh
+    nx_ = region%grids(1)%localSize(1)
+    ny_ = region%grids(1)%localSize(2)
+    nz_ = region%grids(1)%localSize(3)
+
     ! Should we stretch the mesh?
     stretch_y = getOption('stretch_y',.false.)
 
     ! Generate the grid.
-    do k = 1, grid%localSize(3)
-       do j = 1, grid%localSize(2)
-          do i = 1, grid%localSize(1)
+    do k = 1, nz_
+       do j = 1, ny_
+          do i = 1, nx_
              ! Create X
-             grid%coordinates(i + grid%localSize(1) * (j - 1 +                               &
-                  grid%localSize(2) * (k - 1)), 1) = (xmaxo-xmino)*real(i-1,wp)/real(grid%globalSize(1)-1) + xmino
+             region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1)                            &
+                  = (xmaxo-xmino)*real(i-1,wp)/real(nx-1) + xmino
 
              ! Create Y
              if (.not.stretch_y) then
-                grid%coordinates(i + grid%localSize(1) * (j - 1 +                               &
-                  grid%localSize(2) * (k - 1)), 2) = (ymaxo-ymino)*real(j-1,wp)/real(grid%globalSize(2)-1) + ymino
+                region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2)                         &
+                     = (ymaxo-ymino)*real(j-1,wp)/real(ny-1) + ymino
              end if
 
              ! Create Z
-             grid%coordinates(i + grid%localSize(1) * (j - 1 +                               &
-                  grid%localSize(2) * (k - 1)), 3) = 0.0_wp
+             region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),3)                            &
+                  = 0.0_wp
           end do
        end do
     end do
@@ -175,71 +197,68 @@ contains
        n=100
 
        ! Create uniform spacing.
-       allocate(s(grid%localSize(2)))
-       do j = 1, grid%localSize(2)
-          s(j) = real(j-1,wp)/real(grid%localSize(2)-1,wp)
+       allocate(s(ny_))
+       do j = 1, ny_
+          s(j) = real(j-1,wp)/real(ny-1,wp)
        end do
 
        ! Compute g(s).
-       allocate(g(grid%localSize(2)))
+       allocate(g(ny_))
        call g_of_s(1.0_wp,b,c,sig,n,g0)
-       do j=1,grid%localSize(2)
+       do j=1,ny_
           call g_of_s(s(j),b,c,sig,n,g(j))
        end do
+
+       ! Find min/max spacing.
+       dy_min=huge(1.0_wp)
+       dy_max=-huge(1.0_wp)
+
        ! Compute y.
-       do k = 1, grid%localSize(3)
-          do j = 1, grid%localSize(2)
-             do i = 1, grid%localSize(1)
-                ! Create X
-                grid%coordinates(i + grid%localSize(1) * (j - 1 +                               &
-                     grid%localSize(2) * (k - 1)), 2) = 0.5_wp*(ymaxo-ymino)*g(j)/g0
+       do k = 1, nz_
+          do j = 1, ny_
+             do i = 1, nx_
+                ! Create y.
+                region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2)                         &
+                     = 0.5_wp*(ymaxo-ymino)*g(j)/g0
+
+                ! Find min/max spacing.
+                if (j.gt.1) then
+                   y1 = region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2)
+                   y2 = region%grids(1)%coordinates(i+nx_*(j-2+ny_*(k-1)),2)
+                   dy_min=min(dy_min,abs(y2-y1))
+                   dy_max=max(dy_max,abs(y2-y1))
+                end if
              end do
           end do
        end do
+       print *
+       print *, 'min/max y-spacing:',dy_min,dy_max
+       print *
     end if
 
-    ! Save the grid
-    call region%saveData(QOI_GRID, filename)
-
-    ! Compute normalized metrics, norm matrix and Jacobian.
-    do i = 1, size(region%grids)
-       call region%grids(i)%update()
+    ! Find extents of outer region.
+    j=1; k=1;
+    i1=1
+    do i = 1, nx
+       if (region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1) <= xmini) i1=i
     end do
-    call MPI_Barrier(MPI_COMM_WORLD, ierror)
+    i2=nx
+    do i = nx,1,-1
+       if (region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1) >= xmaxi) i2=i
+    end do
+    i=1; k=1;
+    j1=1
+    do j = 1, ny
+       if (region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2) <= ymini) j1=j
+    end do
+    j2=ny
+    do j = ny,1,-1
+       if (region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2) >= ymaxi) j2=j
+    end do
 
-    ! Write out some useful information.
-    call region%reportGridDiagnostics()
-
-!!$    ! Find min/max spacing.
-!!$    dy_min=huge(1.0_wp)
-!!$    dy_max=-huge(1.0_wp)
-!!$    do j=1,
-!!$       dy_min=min(dy_min,X(1,1,J+1,1,2)-X(1,1,J,1,2))
-!!$       dy_max=max(dy_max,X(1,1,J+1,1,2)-X(1,1,J,1,2))
-!!$    end do
-!!$    print *
-!!$    print *, 'min/max y-spacing:',dy_min,dy_max
-!!$    print *
-!!$
-!!$    ! Find extents of outer region.
-!!$    i1=1
-!!$    do i = 1, nx
-!!$       if (X(1,I,1,1,1) <= xmini) i1=i
-!!$    End Do
-!!$    i2=nx
-!!$    Do i = nx,1,-1
-!!$       if (X(1,I,1,1,1) >= xmaxi) i2=i
-!!$    end do
-!!$    j1=1
-!!$    do j = 1, ny
-!!$       if (X(1,1,J,1,2) <= ymini) j1=j
-!!$    end do
-!!$    j2=ny
-!!$    do j = ny,1,-1
-!!$       if (X(1,1,J,1,2) >= ymaxi) j2=j
-!!$    end do
-!!$
-!!$    print *, 'Extents:',i1,i2,j1,j2
+    print *
+    print *, 'Extents:',i1,i2,j1,j2
+    print*
 
     return
   end subroutine mixingLayerGrid
@@ -261,21 +280,21 @@ contains
     real(wp), dimension(n) :: x1,x2
 
     ! Compute stretched grid for mixing layer.
-    do i = 1, N
-       x1(i) = ((s-0.5_8)/sig)*real(i-1,wp)/real(n-1,wp) - c/sig
-       x2(i) = ((s-0.5_8)/sig)*real(i-1,wp)/real(n-1,wp) + c/sig
+    do i=1,n
+       x1(i) = ((s-0.5_wp)/sig)*real(i-1,wp)/real(n-1,wp) - c/sig
+       x2(i) = ((s-0.5_wp)/sig)*real(i-1,wp)/real(n-1,wp) + c/sig
     end do
     dx1=x1(2)-x1(1)
     dx2=x2(2)-x2(1)
 
-    int1=0.0_8
-    int2=0.0_8
+    int1=0.0_wp
+    int2=0.0_wp
     do i=1,n
        int1 = int1 + erf(x1(i))*dx1
        int2 = int2 + erf(x2(i))*dx2
     end do
 
-    g = (s-0.5_8)*(1.0_8+2.0_8*b)+b*sig*(int1-int2)
+    g = (s-0.5_wp)*(1.0_wp+2.0_wp*b)+b*sig*(int1-int2)
 
     return
   end subroutine g_of_s
@@ -302,14 +321,14 @@ contains
     write(iunit,'(1a87)') "# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ===="
 
     ! Input the boundary conditions
-    write(iunit,'(2a22,8I6)') 'inflow',            'SAT_FAR_FIELD',       1,    1,     1,   1,   1,  -1,   1,  -1
-    write(iunit,'(2a22,8I6)') 'inflowSponge',      'SPONGE',              1,    1,     1,  i1,   1,  -1,   1,  -1
-    write(iunit,'(2a22,8I6)') 'outflow',           'SAT_FAR_FIELD',       1,   -1,    -1,  -1,   1,  -1,   1,  -1
-    write(iunit,'(2a22,8I6)') 'outflowSponge',     'SPONGE',              1,   -1,    12,  -1,   1,  -1,   1,  -1
-    write(iunit,'(2a22,8I6)') 'bottom',            'SAT_FAR_FIELD',       1,    2,     1,  -1,   1,   1,   1,  -1
-    write(iunit,'(2a22,8I6)') 'bottomSponge',      'SPONGE',              1,    2,     1,  -1,   1,  j1,   1,  -1
-    write(iunit,'(2a22,8I6)') 'top',               'SAT_FAR_FIELD',       1,   -2,     1,  -1,  -1,  -1,   1,  -1
-    write(iunit,'(2a22,8I6)') 'topSponge',         'SPONGE',              1,   -2,     1,  -1,  j2,  -1,   1,  -1
+    write(iunit,'(2a22,8I5)') 'inflow',            'SAT_FAR_FIELD',       1,    1,     1,   1,   1,  -1,   1,  -1
+    write(iunit,'(2a22,8I5)') 'inflowSponge',      'SPONGE',              1,    1,     1,  i1,   1,  -1,   1,  -1
+    write(iunit,'(2a22,8I5)') 'outflow',           'SAT_FAR_FIELD',       1,   -1,    -1,  -1,   1,  -1,   1,  -1
+    write(iunit,'(2a22,8I5)') 'outflowSponge',     'SPONGE',              1,   -1,    12,  -1,   1,  -1,   1,  -1
+    write(iunit,'(2a22,8I5)') 'bottom',            'SAT_FAR_FIELD',       1,    2,     1,  -1,   1,   1,   1,  -1
+    write(iunit,'(2a22,8I5)') 'bottomSponge',      'SPONGE',              1,    2,     1,  -1,   1,  j1,   1,  -1
+    write(iunit,'(2a22,8I5)') 'top',               'SAT_FAR_FIELD',       1,   -2,     1,  -1,  -1,  -1,   1,  -1
+    write(iunit,'(2a22,8I5)') 'topSponge',         'SPONGE',              1,   -2,     1,  -1,  j2,  -1,   1,  -1
 
     ! Close the file
     close(iunit)
@@ -343,10 +362,7 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
     integer :: i, nDimensions, ierror
-    real(wp) :: ratioOfSpecificHeats, convectiveVelocity, velocityDifference,                &
-         temperatureRatio, slopeOfVorticityThickness,                                        &
-         lowerFluidVelocity, upperFluidVelocity,                                             &
-         lowerFluidTemperature, upperFluidTemperature,                                       &
+    real(wp) :: ratioOfSpecificHeats, upperVelocity, lowerVelocity,                          &
          velocity, temperature
 
     generateTargetState_ = .false.
@@ -354,48 +370,21 @@ contains
 
     call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
+    ! Read input file.
+    upperVelocity = getOption("upper_velocity", 0.0_wp)
+    lowerVelocity = getOption("lower_velocity", 0.0_wp)
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
-    convectiveVelocity = getOption("convective_velocity", 0.0_wp)
-    velocityDifference = getOption("velocity_difference", 0.0_wp)
-    temperatureRatio = getOption("temperature_ratio", 1.0_wp)
-    slopeOfVorticityThickness = getOption("slope_of_vorticity_thickness", 0.0_wp)
-
-    lowerFluidVelocity = convectiveVelocity - 0.5_wp * velocityDifference
-    upperFluidVelocity = convectiveVelocity + 0.5_wp * velocityDifference
-
-    lowerFluidTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
-    upperFluidTemperature = lowerFluidTemperature * temperatureRatio
 
     do i = 1, grid%nGridPoints
 
-       if (generateTargetState_) then
+       ! Velocity
+       velocity = lowerVelocity +                                                          &
+            0.5_wp*(upperVelocity-lowerVelocity)*(1.0_wp+tanh(2.0_wp*grid%coordinates(i,2)))
 
-       velocity = lowerFluidVelocity +                                                       &
-            0.5_wp * velocityDifference * (1.0_wp +                                          &
-            tanh(2.0_wp * real(grid%coordinates(i,2), wp) / (1.0_wp +                        &
-            slopeOfVorticityThickness * max(0.0_wp, real(grid%coordinates(i,1), wp)))))
-       temperature = (lowerFluidTemperature * (upperFluidVelocity - velocity) +              &
-            upperFluidTemperature * (velocity - lowerFluidVelocity)) /                       &
-            (upperFluidVelocity - lowerFluidVelocity) +                                      &
-            0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity)
+       ! Temperature
+       temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
 
-          state%targetState(i,1) = 1.0_wp / ((ratioOfSpecificHeats - 1.0_wp) * temperature)
-          state%targetState(i,2) = state%targetState(i,1) * velocity
-          state%targetState(i,3:nDimensions+1) = 0.0_wp
-          state%targetState(i,nDimensions+2) =                                               &
-               state%targetState(i,1) * temperature / ratioOfSpecificHeats +                 &
-               0.5_wp * state%targetState(i,1) * velocity ** 2
-
-       end if
-
-       velocity = lowerFluidVelocity +                                                       &
-            0.5_wp * velocityDifference *                                                    &
-            (1.0_wp + tanh(2.0_wp * real(grid%coordinates(i,2), wp)))
-       temperature = (lowerFluidTemperature * (upperFluidVelocity - velocity) +              &
-            upperFluidTemperature * (velocity - lowerFluidVelocity)) /                       &
-            (upperFluidVelocity - lowerFluidVelocity) +                                      &
-            0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity)
-
+       ! State variables
        state%conservedVariables(i,1) =                                                       &
             1.0_wp / ((ratioOfSpecificHeats - 1.0_wp) * temperature)
        state%conservedVariables(i,2) = state%conservedVariables(i,1) * velocity
@@ -403,6 +392,9 @@ contains
        state%conservedVariables(i,nDimensions+2) =                                           &
             state%conservedVariables(i,1) * temperature / ratioOfSpecificHeats +             &
             0.5_wp * state%conservedVariables(i,1) * velocity ** 2
+
+       ! Target solution
+       if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)
 
     end do
 
