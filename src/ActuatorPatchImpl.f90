@@ -7,7 +7,7 @@ module ActuatorPatchImpl
 
 contains
 
-  subroutine loadActuatorGradient(this)
+  subroutine loadActuatorGradient(this, gradientBuffer, mpiScalarSubarrayType)
 
     ! <<< External modules >>>
     use MPI
@@ -17,25 +17,45 @@ contains
 
     ! <<< Arguments >>>
     class(t_ActuatorPatch) :: this
+    SCALAR_TYPE, intent(in), optional :: gradientBuffer(:,:,:)
+    integer, intent(in), optional :: mpiScalarSubarrayType
 
     ! <<< Local variables >>>
-    integer :: mpiFileHandle, ierror
+    integer :: mpiScalarSubarrayType_, mpiFileHandle, ierror
+
+    mpiScalarSubarrayType_ = this%mpiScalarSubarrayType
+    if (present(mpiScalarSubarrayType)) mpiScalarSubarrayType_ = mpiScalarSubarrayType
 
     call MPI_File_open(this%comm, trim(this%gradientFilename) // char(0), MPI_MODE_RDONLY,   &
          MPI_INFO_NULL, mpiFileHandle, ierror)
-    this%gradientFileOffset = this%gradientFileOffset -                                     &
-         SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *                   &
-         size(this%gradientBuffer, 2) * size(this%gradientBuffer, 3)
+
+    if (present(gradientBuffer)) then
+       this%gradientFileOffset = this%gradientFileOffset -                                   &
+            SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *                 &
+            size(gradientBuffer, 2) * size(gradientBuffer, 3)
+    else
+       this%gradientFileOffset = this%gradientFileOffset -                                   &
+            SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *                 &
+            size(this%gradientBuffer, 2) * size(this%gradientBuffer, 3)
+    end if
     assert(this%gradientFileOffset >= 0)
+
     call MPI_File_set_view(mpiFileHandle, this%gradientFileOffset, SCALAR_TYPE_MPI,          &
-         this%mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
-    call MPI_File_read_all(mpiFileHandle, this%gradientBuffer, size(this%gradientBuffer),    &
-         SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+         mpiScalarSubarrayType_, "native", MPI_INFO_NULL, ierror)
+
+    if (present(gradientBuffer)) then
+       call MPI_File_read_all(mpiFileHandle, gradientBuffer, size(gradientBuffer),           &
+            SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+    else
+       call MPI_File_read_all(mpiFileHandle, this%gradientBuffer, size(this%gradientBuffer), &
+            SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+    end if
+
     call MPI_File_close(mpiFileHandle, ierror)
 
   end subroutine loadActuatorGradient
 
-  subroutine saveActuatorGradient(this)
+  subroutine saveActuatorGradient(this, gradientBuffer, mpiScalarSubarrayType)
 
     ! <<< External modules >>>
     use MPI
@@ -45,19 +65,33 @@ contains
 
     ! <<< Arguments >>>
     class(t_ActuatorPatch) :: this
+    SCALAR_TYPE, intent(in), optional :: gradientBuffer(:,:,:)
+    integer, intent(in), optional :: mpiScalarSubarrayType
 
     ! <<< Local variables >>>
-    integer :: mpiFileHandle, ierror
+    integer :: mpiScalarSubarrayType_, mpiFileHandle, ierror
+
+    mpiScalarSubarrayType_ = this%mpiScalarSubarrayType
+    if (present(mpiScalarSubarrayType)) mpiScalarSubarrayType_ = mpiScalarSubarrayType
 
     call MPI_File_open(this%comm, trim(this%gradientFilename) // char(0), MPI_MODE_WRONLY,   &
          MPI_INFO_NULL, mpiFileHandle, ierror)
     call MPI_File_set_view(mpiFileHandle, this%gradientFileOffset, SCALAR_TYPE_MPI,          &
-         this%mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
-    call MPI_File_write_all(mpiFileHandle, this%gradientBuffer, size(this%gradientBuffer),  &
-         SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
-    this%gradientFileOffset = this%gradientFileOffset +                                     &
-         SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *                   &
-         size(this%gradientBuffer, 2) * size(this%gradientBuffer, 3)
+         mpiScalarSubarrayType_, "native", MPI_INFO_NULL, ierror)
+    if (present(gradientBuffer)) then
+       call MPI_File_write_all(mpiFileHandle, gradientBuffer, size(gradientBuffer),          &
+            SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+       this%gradientFileOffset = this%gradientFileOffset +                                   &
+            SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *                 &
+            size(gradientBuffer, 2) * size(gradientBuffer, 3)
+    else
+       call MPI_File_write_all(mpiFileHandle, this%gradientBuffer,                           &
+            size(this%gradientBuffer), SCALAR_TYPE_MPI,                                      &
+            MPI_STATUS_IGNORE, ierror)
+       this%gradientFileOffset = this%gradientFileOffset +                                   &
+            SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *                 &
+            size(this%gradientBuffer, 2) * size(this%gradientBuffer, 3)
+    end if
     call MPI_File_close(mpiFileHandle, ierror)
 
   end subroutine saveActuatorGradient
@@ -117,19 +151,19 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   gradientBufferSize = getOption(trim(key) // "gradient_buffer_size", gradientBufferSize)
 
   if (.not. simulationFlags%predictionOnly .and. this%nPatchPoints > 0) then
-     
+
      allocate(this%mollifier(this%nPatchPoints))
      call this%collect(grid%controlMollifier(:,1), this%mollifier)
      allocate(this%controlForcing(this%nPatchPoints, solverOptions%nUnknowns))
      allocate(this%gradientBuffer(this%nPatchPoints, solverOptions%nUnknowns,                &
           gradientBufferSize))
-     
+
      assert(this%comm /= MPI_COMM_NULL)
-     
+
      if (this%mpiScalarSubarrayType /= MPI_DATATYPE_NULL)                                    &
           call MPI_Type_free(this%mpiScalarSubarrayType, ierror)
      this%mpiScalarSubarrayType = MPI_DATATYPE_NULL
-     
+
      arrayOfSizes(1:3) = this%globalSize
      arrayOfSizes(4) = size(this%gradientBuffer, 2)
      arrayOfSizes(5) = size(this%gradientBuffer, 3)
@@ -141,7 +175,7 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
      call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,          &
           MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, this%mpiScalarSubarrayType, ierror)
      call MPI_Type_commit(this%mpiScalarSubarrayType, ierror)
-     
+
   end if
 
 end subroutine setupActuatorPatch
@@ -243,8 +277,8 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
                       (j - 1 - this%offset(2) + this%localSize(2) *                          &
                       (k - 1 - this%offset(3)))
 
-                 ! state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +          &
-                 !      grid%controlMollifier(gridIndex,1) * this%controlForcing(patchIndex,l)
+                 state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +       &
+                      grid%controlMollifier(gridIndex,1) * this%controlForcing(patchIndex,l)
 
               end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
            end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -317,7 +351,7 @@ function verifyActuatorPatchUsage(this, patchDescriptor, gridSize, normalDirecti
 
 end function verifyActuatorPatchUsage
 
-subroutine setupBufferedActuatorGradientIO(this, mode)
+subroutine startBufferedActuatorGradientIO(this, mode)
 
   ! <<< External modules >>>
   use MPI
@@ -379,4 +413,57 @@ subroutine setupBufferedActuatorGradientIO(this, mode)
 
   end if
 
-end subroutine setupBufferedActuatorGradientIO
+end subroutine startBufferedActuatorGradientIO
+
+subroutine finishBufferedActuatorGradientIO(this, mode)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : ADJOINT
+
+  ! <<< Private members >>>
+  use ActuatorPatchImpl, only : saveActuatorGradient
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_ActuatorPatch) :: this
+  integer, intent(in) :: mode
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: arrayOfSizes(5), arrayOfSubsizes(5), arrayOfStarts(5),                          &
+       mpiScalarSubarrayType, ierror
+
+  select case (mode)
+
+  case (ADJOINT)
+
+     if (this%iGradientBuffer == size(this%gradientBuffer, 3)) then
+        call saveActuatorGradient(this)
+     else
+        arrayOfSizes(1:3) = this%globalSize
+        arrayOfSizes(4) = size(this%gradientBuffer, 2)
+        arrayOfSizes(5) = this%iGradientBuffer
+        arrayOfSubsizes(1:3) = this%localSize
+        arrayOfSubsizes(4) = size(this%gradientBuffer, 2)
+        arrayOfSubsizes(5) = this%iGradientBuffer
+        arrayOfStarts(1:3) = this%offset - this%extent(1::2) + 1
+        arrayOfStarts(4:5) = 0
+        call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,       &
+             MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
+        call MPI_Type_commit(mpiScalarSubarrayType, ierror)
+        call saveActuatorGradient(this, this%gradientBuffer(:,:,:this%iGradientBuffer),      &
+             mpiScalarSubarrayType)
+        call MPI_Type_free(mpiScalarSubarrayType, ierror)
+        mpiScalarSubarrayType = MPI_DATATYPE_NULL
+     end if
+
+  end select
+
+end subroutine finishBufferedActuatorGradientIO

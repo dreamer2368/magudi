@@ -180,7 +180,7 @@ function checkCompositeDissipationOperator(compositeDissipation, dissipation,   
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: tolerance_
-  integer :: i, nDimensions, nGridPoints, gridSize(3)
+  integer :: nDimensions, nGridPoints, gridSize(3)
   real(wp), allocatable :: f(:,:)
   SCALAR_TYPE, allocatable :: u(:,:), v(:,:)
 

@@ -22,7 +22,8 @@ module ActuatorPatch_mod
      procedure, pass :: cleanup => cleanupActuatorPatch
      procedure, pass :: verifyUsage => verifyActuatorPatchUsage
      procedure, pass :: updateRhs => updateActuatorPatch
-     procedure, pass :: setupBufferedGradientIO => setupBufferedActuatorGradientIO
+     procedure, pass :: startBufferedGradientIO => startBufferedActuatorGradientIO
+     procedure, pass :: finishBufferedGradientIO => finishBufferedActuatorGradientIO
 
   end type t_ActuatorPatch
 
@@ -108,14 +109,27 @@ module ActuatorPatch_mod
 
   interface
 
-     subroutine setupBufferedActuatorGradientIO(this, mode)
+     subroutine startBufferedActuatorGradientIO(this, mode)
 
-       import :: t_ActuatorPatch       
+       import :: t_ActuatorPatch
 
        class(t_ActuatorPatch) :: this
        integer, intent(in) :: mode
 
-     end subroutine setupBufferedActuatorGradientIO
+     end subroutine startBufferedActuatorGradientIO
+
+  end interface
+
+  interface
+
+     subroutine finishBufferedActuatorGradientIO(this, mode)
+
+       import :: t_ActuatorPatch
+
+       class(t_ActuatorPatch) :: this
+       integer, intent(in) :: mode
+
+     end subroutine finishBufferedActuatorGradientIO
 
   end interface
 

@@ -46,7 +46,7 @@ if(NOT MPIF90_FOUND)
   message(FATAL_ERROR "mpif90 not found.")
 endif()
 set(CMAKE_Fortran_COMPILER "mpif90")
-execute_process(COMMAND mpif90 -show COMMAND sed "s/^\\([^[:space:]]*\\).*/\\1/g" OUTPUT_VARIABLE CMAKE_Fortran_COMPILER_PATH)
+execute_process(COMMAND mpif90 -show COMMAND awk "{print $1}" OUTPUT_VARIABLE CMAKE_Fortran_COMPILER_PATH)
 execute_process(COMMAND basename ${CMAKE_Fortran_COMPILER_PATH} OUTPUT_VARIABLE CMAKE_Fortran_COMPILER_NAME OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 if(CMAKE_Fortran_COMPILER_NAME STREQUAL "gfortran")
@@ -61,10 +61,11 @@ elseif(CMAKE_Fortran_COMPILER_NAME STREQUAL "ifort")
 else()
   message(FATAL_ERROR "${CMAKE_Fortran_COMPILER_NAME}: Fortran compiler could not be determined correctly or is unsupported.")
 endif()
-set(CMAKE_C_FLAGS_DEBUG "-std=c89 -pedantic-errors")
-
 set(CMAKE_Fortran_FORMAT "FREE")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/modules)
+
+set(CMAKE_C_FLAGS_DEBUG "-std=c89 -pedantic-errors")
+
 configure_file(${PROJECT_SOURCE_DIR}/include/config.h.in ${PROJECT_BINARY_DIR}/include/config.h)
 include_directories(${PROJECT_BINARY_DIR}/include)
 

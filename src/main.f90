@@ -21,14 +21,13 @@ program main
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, timestep, nTimesteps, saveInterval, procRank, numProcs, ierror
+  integer :: i, procRank, numProcs, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_Solver) :: solver
-  real(wp) :: time
-  SCALAR_TYPE :: costFunctional, costSensitivity
+  SCALAR_TYPE :: dummyValue
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -88,12 +87,7 @@ program main
   call region%saveData(QOI_METRICS, filename)
 
   ! Initialize the solver.
-  if (command_argument_count() == 1) then
-     call get_command_argument(1, filename)
-     call solver%setup(region, outputPrefix = outputPrefix, restartFilename = filename)
-  else
-     call solver%setup(region, outputPrefix = outputPrefix)
-  end if
+  call solver%setup(region, outputPrefix = outputPrefix)
 
   ! Setup boundary conditions.
   call getRequiredOption("boundary_condition_file", filename)
@@ -105,8 +99,7 @@ program main
   end do
   call MPI_Barrier(region%comm, ierror)
 
-  ! Check continuity at block interfaces. May fail either due to incorrect implementation of
-  ! exchange or discontinuity in grid coordinates.
+  ! Check continuity at block interfaces.
   if (getOption("check_interface_continuity", .false.))                                      &
        call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
   call MPI_Barrier(region%comm, ierror)
@@ -118,40 +111,16 @@ program main
   end do
   call MPI_Barrier(region%comm, ierror)
 
-  ! Time advancement options.
-  time = region%states(1)%time
-  timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
-  nTimesteps = getOption("number_of_timesteps", 1000)
-  saveInterval = getOption("save_interval", 1000)
-
+  ! Main code logic.
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
-     costFunctional = solver%runForward(region, time, timestep, nTimesteps)
-  else
-
-     ! Baseline forward.
-     if (.not. region%simulationFlags%isBaselineAvailable) then
-        costFunctional = solver%runForward(region, time, timestep, nTimesteps)
+     if (command_argument_count() == 1) then
+        call get_command_argument(1, filename)
+        dummyValue = solver%runForward(region, restartFilename = filename)
      else
-
-        if (region%simulationFlags%steadyStateSimulation) then
-           write(filename, '(2A)') trim(outputPrefix), ".steady_state.q"
-        else
-           timestep = timestep + nTimesteps
-           write(filename, '(2A,I8.8,A)')                                                    &
-                trim(outputPrefix), "-", timestep, ".q"
-        end if
-
-        call region%loadData(QOI_FORWARD_STATE, filename)
-        if (.not. region%simulationFlags%steadyStateSimulation) then
-           time = region%states(1)%time
-           timestep = nint(real(region%states(1)%plot3dAuxiliaryData(1), wp))
-        end if
-
+        dummyValue = solver%runForward(region)
      end if
-
-     ! Baseline adjoint.
-     costSensitivity = solver%runAdjoint(region, time, timestep, nTimesteps)
-
+  else if (getOption("check_gradient_accuracy", .true.)) then !... verify gradient is exact.
+     call solver%checkGradientAccuracy(region)
   end if
 
   call solver%cleanup()
