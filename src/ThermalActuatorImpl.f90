@@ -158,7 +158,9 @@ subroutine updateThermalActuatorForcing(this, region)
         select type (patch)
         class is (t_ActuatorPatch)
 
-           assert(patch%iGradientBuffer > 0)
+           patch%iGradientBuffer = patch%iGradientBuffer - 1
+
+           assert(patch%iGradientBuffer >= 1)
            assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
 
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
@@ -166,11 +168,10 @@ subroutine updateThermalActuatorForcing(this, region)
 
            patch%controlForcing(:,1:nDimensions+1) = 0.0_wp
            patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
-                patch%gradientBuffer(:,nDimensions+2,patch%iGradientBuffer)
+                patch%gradientBuffer(:,1,patch%iGradientBuffer)
 
-           patch%iGradientBuffer = patch%iGradientBuffer - 1
-           if (patch%iGradientBuffer == 0)                                                   &
-                patch%iGradientBuffer = size(patch%gradientBuffer, 3)
+           if (patch%iGradientBuffer == 1)                                                   &
+                patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
 
         end select
      end do
@@ -325,7 +326,7 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
                    trim(patch%name), "' on grid ", patch%gridIndex, "!"
               call gracefulExit(patch%comm, message)
            end if
-           patch%iGradientBuffer = size(patch%gradientBuffer, 3)
+           patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
            call MPI_File_open(patch%comm, trim(patch%gradientFilename) // char(0),           &
                 MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
            call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)

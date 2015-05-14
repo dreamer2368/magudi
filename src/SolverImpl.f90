@@ -967,7 +967,7 @@ subroutine checkGradientAccuracy(this, region)
   do i = restartIteration, restartIteration + nIterations - 1
      actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
      costFunctional = this%runForward(region, actuationAmount = actuationAmount)
-     gradientError = (costFunctional - baselineCostFunctional) / actuationAmount -           &
+     gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
           costSensitivity
      if (procRank == 0)                                                                      &
           write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &

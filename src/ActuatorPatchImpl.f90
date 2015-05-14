@@ -133,8 +133,8 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
                       (j - 1 - this%offset(2) + this%localSize(2) *                          &
                       (k - 1 - this%offset(3)))
 
-                 state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +       &
-                      grid%controlMollifier(gridIndex,1) * this%controlForcing(patchIndex,l)
+                 state%rightHandSide(gridIndex, l) = state%rightHandSide(gridIndex, l) +     &
+                      grid%controlMollifier(gridIndex, 1) * this%controlForcing(patchIndex, l)
 
               end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
            end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -206,7 +206,8 @@ subroutine loadActuatorGradient(this)
 
   ! <<< Local variables >>>
   integer :: arrayOfSizes(5), arrayOfSubsizes(5), arrayOfStarts(5),                          &
-       mpiScalarSubarrayType, mpiFileHandle, ierror
+       mpiScalarSubarrayType, mpiFileHandle, dataSize, ierror
+  integer(kind = MPI_OFFSET_KIND) :: nBytesToRead
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -225,16 +226,23 @@ subroutine loadActuatorGradient(this)
   call MPI_File_open(this%comm, trim(this%gradientFilename) // char(0), MPI_MODE_RDONLY,     &
        MPI_INFO_NULL, mpiFileHandle, ierror)
 
-  this%gradientFileOffset = this%gradientFileOffset -                                        &
-       SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *                      &
+  nBytesToRead = SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *            &
        size(this%gradientBuffer, 2) * this%iGradientBuffer
+  if (this%gradientFileOffset - nBytesToRead <= int(0, MPI_OFFSET_KIND)) then
+     this%iGradientBuffer = int(this%gradientFileOffset / (SIZEOF_SCALAR * &
+          product(int(this%globalSize, MPI_OFFSET_KIND)) * size(this%gradientBuffer, 2)))
+     this%gradientFileOffset = 0
+  else
+     this%gradientFileOffset = this%gradientFileOffset - nBytesToRead
+  end if
+
   assert(this%gradientFileOffset >= 0)
 
   call MPI_File_set_view(mpiFileHandle, this%gradientFileOffset, SCALAR_TYPE_MPI,            &
        mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
 
-  call MPI_File_read_all(mpiFileHandle, this%gradientBuffer,                                 &
-       size(this%gradientBuffer(:,:,:this%iGradientBuffer)),                                 &
+  dataSize = this%nPatchPoints * size(this%gradientBuffer, 2) * this%iGradientBuffer
+  call MPI_File_read_all(mpiFileHandle, this%gradientBuffer, dataSize,                       &
        SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
 
   call MPI_File_close(mpiFileHandle, ierror)
