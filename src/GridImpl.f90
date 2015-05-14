@@ -5,11 +5,6 @@ module GridImpl
   implicit none
   public
 
-  integer, parameter, public ::                                                              &
-       NONE    = 0,                                                                          &
-       PLANE   = 1,                                                                          &
-       OVERLAP = 2
-
 contains
 
   subroutine allocateData(this, simulationFlags)
@@ -68,6 +63,9 @@ contains
 
     ! <<< Derived types >>>
     use Grid_mod, only : t_Grid
+
+    ! <<< Enumerations >>>
+    use Grid_enum, only : PLANE
 
     ! <<< Arguments >>>
     class(t_Grid) :: this
@@ -146,6 +144,9 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use SimulationFlags_mod, only : t_SimulationFlags
+
+  ! <<< Enumerations >>>
+  use Grid_enum, only : NONE, PLANE, OVERLAP
 
   ! <<< Private members >>>
   use GridImpl
@@ -465,8 +466,8 @@ subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
-  ! <<< Private members >>>
-  use GridImpl, only : OVERLAP
+  ! <<< Enumerations >>>
+  use Grid_enum, only : OVERLAP
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
@@ -586,8 +587,8 @@ subroutine computeCoordinateDerivatives(this, direction, coordinateDerivatives)
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
 
-  ! <<< Private members >>>
-  use GridImpl, only : PLANE
+  ! <<< Enumerations >>>
+  use Grid_enum, only : PLANE
 
   ! <<< Internal modules >>>
   use MPIHelper, only : fillGhostPoints
@@ -711,8 +712,8 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
 
-  ! <<< Private members >>>
-  use GridImpl, only : PLANE
+  ! <<< Enumerations >>>
+  use Grid_enum, only : PLANE
 
   ! <<< Internal modules >>>
   use ErrorHandler, only : gracefulExit

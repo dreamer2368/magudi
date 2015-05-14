@@ -134,9 +134,6 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   ! Find the rank and number of processes in the communicator.
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
   call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
-#ifdef SCALAR_TYPE_IS_binary128_IEEE754
-  allocate(mpiReduceBuffer(numProcs))
-#endif
 
   numProcesses = 1
   numProcesses(direction) = numProcs

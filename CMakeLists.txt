@@ -104,6 +104,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ReverseMigratorFactory.f90
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorFactoryImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/MappingFunctionFactory.f90
+  ${PROJECT_SOURCE_DIR}/src/MappingFunctionFactoryImpl.f90
 
   # Derived types.
   ${PROJECT_SOURCE_DIR}/include/SimulationFlags.f90
@@ -140,6 +142,7 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/MappingFunction.f90
 
   # Extended types.
   ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90
@@ -172,6 +175,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/PressureDragImpl.f90
   ${PROJECT_SOURCE_DIR}/include/DragForce.f90
   ${PROJECT_SOURCE_DIR}/src/DragForceImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/UniformMap.f90
+  ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c
