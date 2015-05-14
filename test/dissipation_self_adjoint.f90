@@ -115,7 +115,7 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   logical :: isPeriodic_(3)
   real(wp) :: tolerance_
   integer :: n, offset, nLocal, gridSize(3), cartesianCommunicator,                          &
-       numProcesses(3), procRank, nProcs, ierror
+       numProcesses(3), procRank, numProcs, ierror
   type(t_StencilOperator) :: A, adjointOfA
   real(wp), allocatable :: f(:,:)
   SCALAR_TYPE, allocatable :: u(:,:), v(:,:)
@@ -133,13 +133,13 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
 
   ! Find the rank and number of processes in the communicator.
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
-  call MPI_Comm_size(MPI_COMM_WORLD, nProcs, ierror)
+  call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
-  allocate(mpiReduceBuffer(nProcs))
+  allocate(mpiReduceBuffer(numProcs))
 #endif
 
   numProcesses = 1
-  numProcesses(direction) = nProcs
+  numProcesses(direction) = numProcs
 
   ! Create a Cartesian communicator.
   call MPI_Cart_create(MPI_COMM_WORLD, 3, numProcesses, isPeriodic_,                         &
@@ -152,12 +152,12 @@ subroutine testSelfAdjointness(identifier, direction, success, isPeriodic, toler
   call adjointOfA%update(cartesianCommunicator, direction)
 
   ! Decide the size of arrays to be used for the test.
-  n = random(nProcs * adjointOfA%boundaryDepth, 2 ** 16)
+  n = random(numProcs * adjointOfA%boundaryDepth, 2 ** 16)
   call MPI_Bcast(n, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
 
   ! Determine the offset and number of points that will be distributed to the current
   ! process.
-  call pigeonhole(n, nProcs, procRank, offset, nLocal)
+  call pigeonhole(n, numProcs, procRank, offset, nLocal)
   gridSize = 1; gridSize(direction) = nLocal
 
   ! Allocate process-level data.

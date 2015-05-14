@@ -25,12 +25,12 @@ contains
     character(len = *), intent(in) :: filename
 
     ! <<< Local variables >>>
-    integer :: i, fileUnit, proc, nProcs, lineNo, gridIndex, numProcsInGrid(3), istat, ierror
+    integer :: i, fileUnit, proc, numProcs, lineNo, gridIndex, numProcsInGrid(3), istat, ierror
     character(len = STRING_LENGTH) :: line, message
     character(len = 1), parameter :: commentMarker = '#'
 
     call MPI_Comm_rank(this%comm, proc, ierror)
-    call MPI_Comm_size(this%comm, nProcs, ierror)
+    call MPI_Comm_size(this%comm, numProcs, ierror)
 
     write(message, "(3A)") "Reading MPI decomposition map from '", trim(filename), "'..."
     call writeAndFlush(this%comm, output_unit, message)
@@ -71,7 +71,7 @@ contains
           end if
 
           if (gridIndex /= i .or. gridIndex > size(this%processDistributions, 2) .or.        &
-               any(numProcsInGrid < 0) .or. product(numProcsInGrid) > nProcs) then
+               any(numProcsInGrid < 0) .or. product(numProcsInGrid) > numProcs) then
              istat = -1
              write(message, "(2A,I0.0,A)") trim(filename),                                   &
                   ": Invalid process distribution on line ", lineNo, "!"
@@ -105,9 +105,9 @@ contains
          0, this%comm, ierror)
 
     ! Validate process distribution.
-    if (sum(product(this%processDistributions, dim = 1)) /= nProcs) then
+    if (sum(product(this%processDistributions, dim = 1)) /= numProcs) then
        write(message, '(A,2(A,I0.0),A)') trim(filename),                                     &
-            ": Invalid process distribution: expected a total of ", nProcs,                  &
+            ": Invalid process distribution: expected a total of ", numProcs,                  &
             " processes, got ", sum(product(this%processDistributions, dim = 1)),            &
             " processes!"
        call gracefulExit(this%comm, message)
@@ -133,16 +133,16 @@ contains
     logical, intent(in) :: verbose
 
     ! <<< Local variables >>>
-    integer :: nProcs, ierror
+    integer :: numProcs, ierror
     character(len = STRING_LENGTH) :: message
     integer, allocatable :: numProcsInGrid(:)
 
     ! Find the size of the communicator.
-    call MPI_Comm_size(this%comm, nProcs, ierror)
+    call MPI_Comm_size(this%comm, numProcs, ierror)
 
     if (verbose) then
        write(message, "(2(A,I0.0),A)") "Distributing ", size(this%globalGridSizes, 2),       &
-            " grid(s) across ", nProcs, " process(es)..."
+            " grid(s) across ", numProcs, " process(es)..."
        call writeAndFlush(this%comm, output_unit, message)
     end if
 
@@ -158,7 +158,7 @@ contains
     allocate(this%gridCommunicators(size(this%globalGridSizes, 2)), source = MPI_COMM_NULL)
 
     ! Split the region communicator into grid-level communicators:
-    if (nProcs > size(this%globalGridSizes, 2) .and.                                         &
+    if (numProcs > size(this%globalGridSizes, 2) .and.                                         &
          this%simulationFlags%manualDomainDecomp) then
        call splitCommunicatorMultigrid(this%comm, this%globalGridSizes,                      &
             this%gridCommunicators, numProcsInGrid) !... manual process distribution.
@@ -604,7 +604,7 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   logical, intent(in), optional :: verbose
 
   ! <<< Local variables >>>
-  integer :: i, j, color, procRank, nProcs, ierror
+  integer :: i, j, color, procRank, numProcs, ierror
   logical :: verbose_
   character(len = STRING_LENGTH) :: decompositionMapFilename
 
@@ -613,7 +613,7 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   ! Clean slate.
   call this%cleanup()
   this%comm = comm
-  call MPI_Comm_size(this%comm, nProcs, ierror)
+  call MPI_Comm_size(this%comm, numProcs, ierror)
 
   verbose_ = .true.
   if (present(verbose)) verbose_ = verbose
@@ -643,7 +643,7 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
 
   ! Distribute the grids between available MPI processes.
   if (this%simulationFlags%manualDomainDecomp .and.                                          &
-       nProcs > size(this%globalGridSizes, 2)) then
+       numProcs > size(this%globalGridSizes, 2)) then
      call getRequiredOption("decomposition_map_file",                                        &
           decompositionMapFilename, this%comm)
      call readDecompositionMap(this, decompositionMapFilename)

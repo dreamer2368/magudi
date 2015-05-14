@@ -306,7 +306,7 @@ subroutine reportTimings(comm, outputUnit)
   integer, intent(in), optional :: comm, outputUnit
 
   ! <<< Local variables >>>
-  integer :: i, j, comm_, outputUnit_, nTimings, procRank, nProcs, ierror
+  integer :: i, j, comm_, outputUnit_, nTimings, procRank, numProcs, ierror
   real(kind = real64) :: programTotalTime
   type(t_MPITimer), allocatable :: timingsArray(:)
   integer, allocatable :: nTimingsAllProcesses(:)
@@ -321,10 +321,10 @@ subroutine reportTimings(comm, outputUnit)
 
   ! Get rank and size of the MPI communicator `comm_`.
   call MPI_Comm_rank(comm_, procRank, ierror)
-  call MPI_Comm_size(comm_, nProcs, ierror)
+  call MPI_Comm_size(comm_, numProcs, ierror)
 
   ! Find the total time taken by the program.
-  programTotalTime = (MPI_Wtime() - programStartTime) * real(nProcs, real64)
+  programTotalTime = (MPI_Wtime() - programStartTime) * real(numProcs, real64)
 
   ! Serialize the timings from each process.
   call serializeTree(timings, timingsArray)
@@ -335,7 +335,7 @@ subroutine reportTimings(comm, outputUnit)
 
   ! Not all processes may have timed the same number of subroutines... gather the number of
   ! timers from all processes.
-  allocate(nTimingsAllProcesses(nProcs))
+  allocate(nTimingsAllProcesses(numProcs))
   call MPI_Allgather(nTimings, 1, MPI_INTEGER, nTimingsAllProcesses,                         &
        1, MPI_INTEGER, comm_, ierror)
 
@@ -346,7 +346,7 @@ subroutine reportTimings(comm, outputUnit)
      end do
   end if
 
-  do i = 1, nProcs - 1
+  do i = 1, numProcs - 1
 
      if (procRank == i) then
 
