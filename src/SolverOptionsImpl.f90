@@ -41,7 +41,13 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   this%ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
 
-  this%nUnknowns = nDimensions + 2 !... extendable to reactive flows, for later.
+  this%nSpecies = getOption("number_of_species", 0)
+  if (this%nSpecies <= 0) then
+     write(message, '(A)') "Number of species must be non-negative!"
+     call gracefulExit(comm_, message)
+  end if
+  
+  this%nUnknowns = nDimensions + 2 + this%nSpecies
 
   if (simulationFlags%viscosityOn) then
 
