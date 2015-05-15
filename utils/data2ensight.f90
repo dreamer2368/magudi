@@ -1,6 +1,6 @@
 #include "config.h"
 
-Program data2ensight
+program data2ensight
 ! ============================================================= !
 !                                                               !
 ! Converts PLOT3D data file to EnSight format                   !
@@ -25,32 +25,29 @@ Program data2ensight
 
   implicit none
 
-  !  Reals
-  Real(KIND=4), Dimension(:,:,:), Allocatable :: X,Y,Z,rbuffer
-  Real(KIND=4) :: XMIN, XMAX, YMIN, YMAX, ZMIN, ZMAX
-  Real(KIND=8), Dimension(:), Allocatable :: time
+  ! I/O
+  integer :: ierr, ierror
+  character(len = STRING_LENGTH) :: grid_name,fname
+  character(LEN=80) :: prefix, directory
 
-  !  Integers
-  Integer :: ng, num, numFiles
-  Integer :: ngrid, I, J, K, l, N, NX, NY, NZ, npart, reclength
-  Integer :: startIter, stopIter, skipIter, iter, var, nvar, ierr, ierror, ibuffer
+  ! Magudi stuff
+  type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
+  Logical :: success
 
-  !  Characters
+  ! EnSight stuff
+  integer :: num, numFiles
+  integer :: i, j, k, l, n, nx, ny, nz, npart, reclength
+  integer :: startIter, stopIter, skipIter, iter, var, nvar, ibuffer
+  real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,rbuffer
+  real(KIND=4) :: xmin, xmax, ymin, ymax, zmin, zmax
+  real(KIND=8), Dimension(:), Allocatable :: time
+  character(LEN=2)  :: ib
   character(LEN=80), dimension(:), Allocatable :: names
-  Character(LEN=2)  :: prec, gf, vf, ib, ib2
-  Character(LEN=80) :: prefix,directory
   character(LEN=80) :: binary_form
   character(LEN=80) :: file_description1,file_description2
   character(LEN=80) :: node_id,element_id
   character(LEN=80) :: part,description_part,cblock,extents,cbuffer
-  character(len = STRING_LENGTH) :: grid_name,fname
-
-  ! Logicals
-  Logical :: success
-
-  ! Type
-  type(t_Region) :: region
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -72,13 +69,13 @@ Program data2ensight
   read "(a)", ib
   directory='ensight-3D'
 
-  ! Check for errors
+  ! Check for errors.
   If ((ib .NE. 'y') .AND. (ib .NE. 'n')) Then
      Write (*,'(A)') 'Invalid value for IBLANK: use either "y" (yes) or "n" (no)'
      Stop
   End If
 
-  ! Set the grid name
+  ! Set the grid name.
   grid_name = trim(prefix)//'.xyz'
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
@@ -100,21 +97,21 @@ Program data2ensight
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
-  ! Initialize
+  ! Get number of files and time sereies.
   numFiles = 0
-  Do iter = startIter, stopIter, skipIter
+  do iter = startIter, stopIter, skipIter
      numFiles = numFiles + 1
-  End Do
+  end do
   allocate(time(numFiles))
   time = 0.0_8
   numFiles = 0
-  Do iter = startIter, stopIter, skipIter
+  do iter = startIter, stopIter, skipIter
      numFiles = numFiles + 1
      time(numFiles) = real(numFiles-1,8)
-  End Do
+  end do
 
-  ! Find number of variables (should be 5+)
-  Write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
+  ! Get number of variables.
+  write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
 
   ! Load the solution file.
   call region%loadData(QOI_FORWARD_STATE, fname)
@@ -122,7 +119,7 @@ Program data2ensight
   print *, 'Number of variables:',nvar
   print *
 
-  ! Assign variable names
+  ! Assign variable names.
   allocate(names(nvar))
   select case (nvar)
   case(4)
@@ -141,41 +138,39 @@ Program data2ensight
   ! Create the EnSight directory
   !call system("mkdir -p "//trim(directory))
 
-
   ! ======================= !
   ! Write the geometry file !
   ! ======================= !
 
   ! Get mesh extents (single precision)
-  NX = region%grids(1)%globalSize(1)
-  NY = region%grids(1)%globalSize(2)
-  NZ = region%grids(1)%globalSize(3)
+  nx = region%grids(1)%globalSize(1)
+  ny = region%grids(1)%globalSize(2)
+  nz = region%grids(1)%globalSize(3)
 
   ! Store the coordinates in 3D
   allocate(X(nx,ny,nz))
   allocate(Y(nx,ny,nz))
   allocate(Z(nx,ny,nz))
-  print *, size(region%grids(1)%coordinates(1,:))
   do k=1,nz
      do j=1,ny
         do i=1,nx
-           X(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1),4)
-           Y(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),2),4)
+           x(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1),4)
+           y(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),2),4)
            if (nz.gt.1) then
-              Z(i,j,k) = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3)
+              z(i,j,k) = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3)
            else
-              Z(i,j,k) = 0.0_4
+              z(i,j,k) = 0.0_4
            end if
         end do
      end do
   end do
 
-  XMIN = minval(X)
-  XMAX = maxval(X)
-  YMIN = minval(Y)
-  YMAX = maxval(Y)
-  ZMIN = minval(Z)
-  ZMAX = maxval(Z)
+  xmin = minval(x)
+  xmax = maxval(x)
+  ymin = minval(y)
+  ymax = maxval(y)
+  zmin = minval(z)
+  zmax = maxval(z)
 
   ! Write EnSight geometry
   binary_form      ='C Binary'
@@ -185,27 +180,27 @@ Program data2ensight
   element_id       ='element id off'
   part             ='part'
   npart            =1
-  Write(description_part,'(A,I1)') 'Grid', ng
-  If (ib .EQ. 'y') then
+  write(description_part,'(A,I1)') 'Grid', ng
+  if (ib .eq. 'y') then
      cblock        ='block iblanked'
   else
      cblock        ='block'
-  End If
+  end If
   extents          ='extents'
 
-  ! Size of file
-  If (ib .EQ. 'y') Then
+  ! Size of file.
+  if (ib .EQ. 'y') then
      reclength=80*8+4*(4+4*NX*NY*NZ)
-  Else
+  else
      reclength=80*9+4*(4+3*NX*NY*NZ)
-  End If
+  end if
 
-  ! Write file
-  Write(fname,'(2A)') trim(directory), '/geometry'
+  ! Write the file.
+  write(fname,'(2A)') trim(directory), '/geometry'
   print *, 'Writing: ',fname
   !fname = trim(directory) // '/geometry'
-  Open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
-  If (ib .EQ. 'y') then
+  open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+  if (ib .EQ. 'y') then
      write(unit=10,rec=1) binary_form, &
           file_description1, &
           file_description2, &
@@ -219,7 +214,7 @@ Program data2ensight
           (((real(Y(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ), &
           (((real(Z(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ)!, &
           !(((IBLANK1(I,J,K), I=1,NX), J=1,NY), K=1,NZ)
-  Else
+  else
      write(unit=10,rec=1) binary_form, &
           file_description1, &
           file_description2, &
@@ -232,10 +227,10 @@ Program data2ensight
           (((real(X(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ), &
           (((real(Y(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ), &
           (((real(Z(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ)
-  End If
+  end if
   
-  ! Close the file
-  Close (10)
+  ! Close the file.
+  close (10)
 
 
   ! ===================================== !
@@ -243,21 +238,21 @@ Program data2ensight
   ! ===================================== !
 
   ! Allocate single-precision array
-  Allocate(rbuffer(NX,NY,NZ))
+  allocate(rbuffer(nx,ny,nz))
 
   ! Loop through files and write
   num = 1
-  Do iter = startIter, stopIter, skipIter
+  do iter = startIter, stopIter, skipIter
     print *, 'Writing timestep',iter
     
-    Write(fname,'(2A,I8.8,A)') trim(prefix),'-', iter, '.q'
-     Write (*,'(A)') fname
+    write(fname,'(2A,I8.8,A)') trim(prefix),'-', iter, '.q'
+     write (*,'(A)') fname
      call region%loadData(QOI_FORWARD_STATE, fname)
 
      ! Binary file length
      reclength=80*3+4*(1+NX*NY*NZ)
 
-     Do var=1, nvar
+     do var=1, nvar
 
         ! Convert the data to single precision
         do k=1,nz
@@ -276,22 +271,22 @@ Program data2ensight
 
         ! Write Ensight scalar file
         cbuffer=trim(names(var))
-        Write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(var)),'.',num
-        Open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+        write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(var)),'.',num
+        open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
         write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
-        Close(10)
+        close(10)
 
-     End Do
+     end do ! var
 
      ! ... counter
      num = num + 1
-  End Do
+  end do
   
 
   ! =================== !
   ! Write the case file !
   ! =================== !
-  Write(fname,'(2A)') trim(directory), '/magudi.case'
+  write(fname,'(2A)') trim(directory), '/magudi.case'
   open(10,file=trim(fname),form="formatted",iostat=ierr,status="REPLACE")
 
   ! Write the case
@@ -301,15 +296,15 @@ Program data2ensight
   write(10,'(a80)') cbuffer
   cbuffer='GEOMETRY'
   write(10,'(a80)') cbuffer
-  Write(cbuffer,'(A)') 'model: geometry'
+  write(cbuffer,'(A)') 'model: geometry'
   write(10,'(a80)') cbuffer
 
   cbuffer='VARIABLE'
   write(10,'(a)') cbuffer
-  Do var=1,nvar
-     Write(cbuffer,'(5A)') 'scalar per node: 1 ',  trim(names(var)), ' ', trim(names(var)), '.******'
+  do var=1,nvar
+     write(cbuffer,'(5A)') 'scalar per node: 1 ',  trim(names(var)), ' ', trim(names(var)), '.******'
      write(10,'(a80)') cbuffer
-  End Do
+  end do
   
   cbuffer='TIME'
   write(10,'(a80)') cbuffer
@@ -326,6 +321,6 @@ Program data2ensight
   close(10)
 
   ! Clean up & leave
-  Deallocate(X, Y, Z, rbuffer, time)
+  deallocate(X, Y, Z, rbuffer, time)
 
-End Program data2ensight
+end program data2ensight
