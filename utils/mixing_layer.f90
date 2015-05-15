@@ -182,8 +182,8 @@ contains
              end if
 
              ! Create Z
-             region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),3)                            &
-                  = 0.0_wp
+             !region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),3)                            &
+             !     = 0.0_wp
           end do
        end do
     end do

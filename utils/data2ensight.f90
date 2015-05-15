@@ -32,7 +32,7 @@ Program data2ensight
 
   !  Integers
   Integer :: ng, num, numFiles
-  Integer :: ngrid, I, J, K, l, N, NX, NY, NZ, NDIM, npart, reclength
+  Integer :: ngrid, I, J, K, l, N, NX, NY, NZ, npart, reclength
   Integer :: startIter, stopIter, skipIter, iter, var, nvar, ierr, ierror, ibuffer
   integer, allocatable :: globalGridSizes(:,:)
 
@@ -155,22 +155,27 @@ Program data2ensight
   allocate(X(nx,ny,nz))
   allocate(Y(nx,ny,nz))
   allocate(Z(nx,ny,nz))
+  print *, size(region%grids(1)%coordinates(1,:))
   do k=1,nz
      do j=1,ny
         do i=1,nx
-           X(i,j,k) = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1)
-           Y(i,j,k) = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),2)
-           Z(i,j,k) = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3)
+           X(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1),4)
+           Y(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),2),4)
+           if (nz.gt.1) then
+              Z(i,j,k) = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3)
+           else
+              Z(i,j,k) = 0.0_4
+           end if
         end do
      end do
   end do
 
-  XMIN = minval(region%grids(1)%coordinates(:,1))
-  XMAX = maxval(region%grids(1)%coordinates(:,1))
-  YMIN = minval(region%grids(1)%coordinates(:,2))
-  YMAX = maxval(region%grids(1)%coordinates(:,2))
-  ZMIN = minval(region%grids(1)%coordinates(:,3))
-  ZMAX = maxval(region%grids(1)%coordinates(:,3))
+  XMIN = minval(X)
+  XMAX = maxval(X)
+  YMIN = minval(Y)
+  YMAX = maxval(Y)
+  ZMIN = minval(Z)
+  ZMAX = maxval(Z)
 
   ! Write EnSight geometry
   binary_form      ='C Binary'
