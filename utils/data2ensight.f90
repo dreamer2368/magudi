@@ -37,8 +37,8 @@ program data2ensight
 
   ! EnSight stuff
   integer :: num, numFiles
-  integer :: i, j, k, l, n, nx, ny, nz, npart, reclength
-  integer :: startIter, stopIter, skipIter, iter, var, nvar, ibuffer
+  integer :: i, j, k, nx, ny, nz, npart, reclength
+  integer :: startIter, stopIter, skipIter, iter, var, nvar
   real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,rbuffer
   real(KIND=4) :: xmin, xmax, ymin, ymax, zmin, zmax
   real(KIND=8), Dimension(:), Allocatable :: time
@@ -157,7 +157,7 @@ program data2ensight
            x(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1),4)
            y(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),2),4)
            if (nz.gt.1) then
-              z(i,j,k) = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3)
+              z(i,j,k) = real(region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3),4)
            else
               z(i,j,k) = 0.0_4
            end if
@@ -180,7 +180,7 @@ program data2ensight
   element_id       ='element id off'
   part             ='part'
   npart            =1
-  write(description_part,'(A,I1)') 'Grid', ng
+  write(description_part,'(A)') 'Grid'
   if (ib .eq. 'y') then
      cblock        ='block iblanked'
   else
