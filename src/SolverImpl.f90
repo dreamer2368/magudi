@@ -376,7 +376,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename
-  integer :: i, ierror
+  integer :: i
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
@@ -444,12 +444,9 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   call region%setupBoundaryConditions(filename)
 
   ! Compute damping strength on sponge patches.
-  if (allocated(region%patchFactories)) then
-     do i = 1, size(region%grids)
-        call computeSpongeStrengths(region%patchFactories, region%grids(i))
-     end do
-  end if
-  call MPI_Barrier(region%comm, ierror)
+  do i = 1, size(region%grids)
+     call computeSpongeStrengths(region%patchFactories, region%grids(i))
+  end do
 
   ! Check continuity at block interfaces.
   if (getOption("check_interface_continuity", .false.))                                      &
