@@ -46,7 +46,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   this%ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
 
   this%nSpecies = getOption("number_of_species", 0)
-  if (this%nSpecies <= 0) then
+  if (this%nSpecies < 0) then
      write(message, '(A)') "Number of species must be non-negative!"
      call gracefulExit(comm_, message)
   end if
