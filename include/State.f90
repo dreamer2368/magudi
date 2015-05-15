@@ -112,7 +112,8 @@ module State_mod
 
   interface
 
-     subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, success)
+     subroutine loadStateData(this, grid, quantityOfInterest, filename,                      &
+          offset, success, speciesFilename, speciesFileOffset)
 
        use MPI, only : MPI_OFFSET_KIND
        use Grid_mod, only : t_Grid
@@ -125,6 +126,9 @@ module State_mod
        character(len = *), intent(in) :: filename
        integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
        logical, intent(out) :: success
+
+       character(len = *), intent(in), optional :: speciesFilename
+       integer(kind = MPI_OFFSET_KIND), intent(inout), optional :: speciesFileOffset
 
      end subroutine loadStateData
 
@@ -132,7 +136,8 @@ module State_mod
 
   interface
 
-     subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, success)
+     subroutine saveStateData(this, grid, quantityOfInterest, filename,                      &
+          offset, success, speciesFilename, speciesFileOffset)
 
        use MPI, only : MPI_OFFSET_KIND
        use Grid_mod, only : t_Grid
@@ -145,6 +150,9 @@ module State_mod
        character(len = *), intent(in) :: filename
        integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
        logical, intent(out) :: success
+
+       character(len = *), intent(in), optional :: speciesFilename
+       integer(kind = MPI_OFFSET_KIND), intent(inout), optional :: speciesFileOffset
 
      end subroutine saveStateData
 

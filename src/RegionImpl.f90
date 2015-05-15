@@ -832,7 +832,7 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
 
 end subroutine setupBoundaryConditions
 
-subroutine loadRegionData(this, quantityOfInterest, filename)
+subroutine loadRegionData(this, quantityOfInterest, filename, speciesFilename)
 
   ! <<< External modules >>>
   use MPI
@@ -857,22 +857,48 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   class(t_Region) :: this
   integer, intent(in) :: quantityOfInterest
   character(len = *), intent(in) :: filename
+  character(len = *), intent(in), optional :: speciesFilename
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: message
+  character(len = STRING_LENGTH) :: message, speciesFilename_
   logical :: success
   integer :: i, j, errorRank, procRank, ierror
-  integer(kind = MPI_OFFSET_KIND) :: offset
+  integer(kind = MPI_OFFSET_KIND) :: offset, speciesFileOffset
   logical :: isSolutionFile
   real(wp) :: auxiliaryData(4)
 
   call startTiming("loadRegionData")
 
-  write(message, '(3A)') "Reading '", trim(filename), "'..."
-  call writeAndFlush(this%comm, output_unit, message, advance = 'no')
-
   isSolutionFile = .false.
+  speciesFilename_ = ""
+  if (present(speciesFilename)) speciesFilename_ = speciesFilename
+  speciesFileOffset = int(0, MPI_OFFSET_KIND)
+
+  select case(quantityOfInterest)
+  case (QOI_GRID, QOI_JACOBIAN, QOI_TARGET_MOLLIFIER, QOI_CONTROL_MOLLIFIER,                 &
+       QOI_METRICS, QOI_DUMMY_FUNCTION)
+  case default
+     isSolutionFile = .true.
+     if (this%solverOptions%nSpecies > 0 .and. len_trim(speciesFilename_) == 0 .and.         &
+          filename(len_trim(filename)-1:len_trim(filename)) /= ".q") then
+        write(message, '(3A)') "Auto-detection of species filename failed: Solution file '", &
+             trim(filename), "' does not have a '.q' extension!"
+        call gracefulExit(this%comm, message)
+     end if
+     if (this%solverOptions%nSpecies > 0)                                                    &
+          speciesFilename_ = filename(:len_trim(filename)-2) // ".f"
+  end select
+
+  if (present(speciesFilename)) then
+     write(message, '(5A)') "Reading '", trim(filename), "', '",                             &
+          trim(speciesFilename), "'..."
+  else if (len_trim(speciesFilename_) > 0) then
+     write(message, '(3A)') "Reading '", filename(:len_trim(filename)-2), ".q+f'..."
+  else
+     write(message, '(3A)') "Reading '", trim(filename), "'..."
+  end if
+  call writeAndFlush(this%comm, output_unit, message, advance = 'no')
 
   do i = 1, size(this%gridCommunicators)
 
@@ -884,20 +910,23 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
            offset = plot3dGetOffset(this%gridCommunicators(i), filename, i, success)
            if (.not. success) exit
 
+           if (len_trim(speciesFilename_) > 0) then
+              speciesFileOffset = plot3dGetOffset(this%gridCommunicators(i),                 &
+                   speciesFilename_, i, success)
+              if (.not. success) exit
+           end if
+
            select case(quantityOfInterest)
            case (QOI_GRID, QOI_JACOBIAN, QOI_METRICS, QOI_TARGET_MOLLIFIER,                  &
                 QOI_CONTROL_MOLLIFIER)
               call this%grids(j)%loadData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default
-              isSolutionFile = (quantityOfInterest /= QOI_DUMMY_FUNCTION .and.               &
-                   this%solverOptions%nSpecies == 0)
+              isSolutionFile = (quantityOfInterest /= QOI_DUMMY_FUNCTION)
               call this%states(j)%loadData(this%grids(j), quantityOfInterest,                &
-                   trim(filename), offset, success)
-              if (this%solverOptions%nSpecies > 0) then
-                 this%states(:)%time = 0.0_wp
-                 this%timestep = 0
-              end if
+                   trim(filename), offset, success,                                          &
+                   speciesFilename = trim(speciesFilename_),                                 &
+                   speciesFileOffset = speciesFileOffset)
            end select
 
            exit
@@ -976,20 +1005,39 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: message
+  character(len = STRING_LENGTH) :: message, speciesFilename
   logical :: success
   integer :: i, j, nScalars, errorRank, procRank, ierror
-  integer(kind = MPI_OFFSET_KIND) :: offset
+  integer(kind = MPI_OFFSET_KIND) :: offset, speciesFileOffset
   logical :: isSolutionFile
 
   if (.not. this%OutputOn) return
 
   call startTiming("saveRegionData")
 
-  write(message, '(3A)') "Writing '", trim(filename), "'..."
-  call writeAndFlush(this%comm, output_unit, message, advance = 'no')
-
   isSolutionFile = .false.
+  speciesFilename = ""
+  speciesFileOffset = int(0, MPI_OFFSET_KIND)
+
+  select case(quantityOfInterest)
+  case (QOI_GRID, QOI_JACOBIAN, QOI_TARGET_MOLLIFIER, QOI_CONTROL_MOLLIFIER,                 &
+       QOI_METRICS, QOI_DUMMY_FUNCTION)
+  case default
+     isSolutionFile = .true.
+     if (filename(len_trim(filename)-1:len_trim(filename)) /= ".q") then
+        write(message, '(A)') "Solution files must have extension '.q'!"
+        call gracefulExit(this%comm, message)
+     end if
+     if (this%solverOptions%nSpecies > 0)                                                    &
+          speciesFilename = filename(:len_trim(filename)-2) // ".f"
+  end select
+
+  if (len_trim(speciesFilename) > 0) then
+     write(message, '(3A)') "Writing '", filename(:len_trim(filename)-2), ".q+f'..."
+  else
+     write(message, '(3A)') "Writing '", trim(filename), "'..."
+  end if
+  call writeAndFlush(this%comm, output_unit, message, advance = 'no')
 
   select case(quantityOfInterest)
 
@@ -1023,14 +1071,11 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   case default
 
-     if (this%solverOptions%nSpecies == 0) then
-        isSolutionFile = .true.
-        call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_SOLUTION_FILE,            &
-             this%globalGridSizes, success)
-     else
-        call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_FUNCTION_FILE,            &
-             this%globalGridSizes, success, this%solverOptions%nUnknowns)
-     end if
+     call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_SOLUTION_FILE,               &
+          this%globalGridSizes, success)
+     if (len_trim(speciesFilename) > 0)                                                      &
+          call plot3dWriteSkeleton(this%comm, trim(speciesFilename), PLOT3D_FUNCTION_FILE,   &
+          this%globalGridSizes, success, this%solverOptions%nSpecies)
 
   end select
 
@@ -1057,6 +1102,12 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
            offset = plot3dGetOffset(this%gridCommunicators(i), filename, i, success)
            if (.not. success) exit
 
+           if (len_trim(speciesFilename) > 0) then
+              speciesFileOffset = plot3dGetOffset(this%gridCommunicators(i),                 &
+                   speciesFilename, i, success)
+              if (.not. success) exit
+           end if
+
            select case(quantityOfInterest)
            case (QOI_GRID, QOI_JACOBIAN, QOI_METRICS, QOI_TARGET_MOLLIFIER,                  &
                 QOI_CONTROL_MOLLIFIER)
@@ -1064,7 +1115,8 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
                    trim(filename), offset, success)
            case default
               call this%states(j)%saveData(this%grids(j), quantityOfInterest,                &
-                   trim(filename), offset, success)
+                   trim(filename), offset, success, speciesFilename = trim(speciesFilename), &
+                   speciesFileOffset = speciesFileOffset)
            end select
 
            exit
