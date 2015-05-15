@@ -307,9 +307,121 @@ contains
     implicit none
 
     integer, intent(in) :: i1, i2, j1, j2
-    integer :: iunit
+    integer :: i,nbc,iunit
+    integer, allocatable, dimension(:) :: grid,normDir,imin,imax,jmin,jmax,kmin,kmax
+    character(len = 22), allocatable, dimension(:) :: name,type
 
-    ! Open the file
+    ! Number of BC
+    nbc = 9
+
+    ! Allocate BC
+    allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
+         imin(nbc),imax(nbc),jmin(nbc),jmax(nbc),kmin(nbc),kmax(nbc))
+
+    ! Set the BC
+    ! GRID 1
+    grid(:)    = 1
+
+    ! BC 1
+    name   (1) = 'inflow'
+    type   (1) = 'SAT_FAR_FIELD'
+    normDir(1) =  1
+    imin   (1) =  1
+    imax   (1) =  1
+    jmin   (1) =  1
+    jmax   (1) = -1
+    kmin   (1) =  1
+    kmax   (1) = -1
+
+    ! BC 2
+    name   (2) = 'inflowSponge'
+    type   (2) = 'SPONGE'
+    normDir(2) =  1
+    imin   (2) =  1
+    imax   (2) =  i1
+    jmin   (2) =  1
+    jmax   (2) = -1
+    kmin   (2) =  1
+    kmax   (2) = -1
+
+    ! BC 3
+    name   (3) = 'outflow'
+    type   (3) = 'SAT_FAR_FIELD'
+    normDir(3) = -1
+    imin   (3) = -1
+    imax   (3) = -1
+    jmin   (3) =  1
+    jmax   (3) = -1
+    kmin   (3) =  1
+    kmax   (3) = -1
+
+    ! BC 4
+    name   (4) = 'outflowSponge'
+    type   (4) = 'SPONGE'
+    normDir(4) = -1
+    imin   (4) =  i2
+    imax   (4) = -1
+    jmin   (4) =  1
+    jmax   (4) = -1
+    kmin   (4) =  1
+    kmax   (4) = -1
+
+    ! BC 5
+    name   (5) = 'bottom'
+    type   (5) = 'SAT_FAR_FIELD'
+    normDir(5) =  2
+    imin   (5) =  1
+    imax   (5) = -1
+    jmin   (5) =  1
+    jmax   (5) =  1
+    kmin   (5) =  1
+    kmax   (5) = -1
+
+    ! BC 6
+    name   (6) = 'bottomSponge'
+    type   (6) = 'SPONGE'
+    normDir(6) =  2
+    imin   (6) =  1
+    imax   (6) = -1
+    jmin   (6) =  1
+    jmax   (6) =  j1
+    kmin   (6) =  1
+    kmax   (6) = -1
+
+    ! BC 7
+    name   (7) = 'top'
+    type   (7) = 'SAT_FAR_FIELD'
+    normDir(7) = -2
+    imin   (7) =  1
+    imax   (7) = -1
+    jmin   (7) = -1
+    jmax   (7) = -1
+    kmin   (7) =  1
+    kmax   (7) = -1
+
+    ! BC 8
+    name   (8) = 'topSponge'
+    type   (8) = 'SPONGE'
+    normDir(8) = -2
+    imin   (8) =  1
+    imax   (8) = -1
+    jmin   (8) =  j2
+    jmax   (8) = -1
+    kmin   (8) =  1
+    kmax   (8) = -1
+
+    ! BC 9
+    name   (9) = 'excitationSupport'
+    type   (9) = 'SOLENOIDAL_EXCITATION'
+    normDir(9) =  0
+    imin   (9) =  1
+    imax   (9) =  i1
+    jmin   (9) =  1
+    jmax   (9) = -1
+    kmin   (9) =  1
+    kmax   (9) = -1
+
+   ! Open the file
     iunit=11
     open(iunit,file="bc.dat")
     
@@ -320,15 +432,20 @@ contains
     write(iunit,'(1a87)') "# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax"
     write(iunit,'(1a87)') "# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ===="
 
-    ! Input the boundary conditions
-    write(iunit,'(2a22,8I5)') 'inflow',            'SAT_FAR_FIELD',       1,    1,     1,   1,   1,  -1,   1,  -1
-    write(iunit,'(2a22,8I5)') 'inflowSponge',      'SPONGE',              1,    1,     1,  i1,   1,  -1,   1,  -1
-    write(iunit,'(2a22,8I5)') 'outflow',           'SAT_FAR_FIELD',       1,   -1,    -1,  -1,   1,  -1,   1,  -1
-    write(iunit,'(2a22,8I5)') 'outflowSponge',     'SPONGE',              1,   -1,    12,  -1,   1,  -1,   1,  -1
-    write(iunit,'(2a22,8I5)') 'bottom',            'SAT_FAR_FIELD',       1,    2,     1,  -1,   1,   1,   1,  -1
-    write(iunit,'(2a22,8I5)') 'bottomSponge',      'SPONGE',              1,    2,     1,  -1,   1,  j1,   1,  -1
-    write(iunit,'(2a22,8I5)') 'top',               'SAT_FAR_FIELD',       1,   -2,     1,  -1,  -1,  -1,   1,  -1
-    write(iunit,'(2a22,8I5)') 'topSponge',         'SPONGE',              1,   -2,     1,  -1,  j2,  -1,   1,  -1
+    ! Write the BC
+    do i=1,nbc
+       write(iunit,'(2a22,8I5)') adjustl(name(i)),adjustl(type(i)),&
+            grid(i),normDir(i),imin(i),imax(i),jmin(i),jmax(i),kmin(i),kmax(i)
+    end do
+!!$    write(iunit,'(2a22,8I5)') 'inflow',            'SAT_FAR_FIELD',         1,    1,   1,   1,   1,  -1,   1,  -1
+!!$    write(iunit,'(2a22,8I5)') 'inflowSponge',      'SPONGE',                1,    1,   1,  i1,   1,  -1,   1,  -1
+!!$    write(iunit,'(2a22,8I5)') 'outflow',           'SAT_FAR_FIELD',         1,   -1,  -1,  -1,   1,  -1,   1,  -1
+!!$    write(iunit,'(2a22,8I5)') 'outflowSponge',     'SPONGE',                1,   -1,  i2,  -1,   1,  -1,   1,  -1
+!!$    write(iunit,'(2a22,8I5)') 'bottom',            'SAT_FAR_FIELD',         1,    2,   1,  -1,   1,   1,   1,  -1
+!!$    write(iunit,'(2a22,8I5)') 'bottomSponge',      'SPONGE',                1,    2,   1,  -1,   1,  j1,   1,  -1
+!!$    write(iunit,'(2a22,8I5)') 'top',               'SAT_FAR_FIELD',         1,   -2,   1,  -1,  -1,  -1,   1,  -1
+!!$    write(iunit,'(2a22,8I5)') 'topSponge',         'SPONGE',                1,   -2,   1,  -1,  j2,  -1,   1,  -1
+!!$    write(iunit,'(2a22,8I5)') 'excitationSupport', 'SOLENOIDAL_EXCITATION', 1,    0,   1,  i1,   1,  -1,   1,  -1
 
     ! Close the file
     close(iunit)
