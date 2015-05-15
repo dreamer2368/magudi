@@ -3,5 +3,7 @@ add_executable(spectral_radius $<TARGET_OBJECTS:magudiObj> spectral_radius.f90)
 add_executable(jet $<TARGET_OBJECTS:magudiObj> jet.f90)
 add_executable(shear_layer $<TARGET_OBJECTS:magudiObj> shear_layer.f90)
 add_executable(grid_generator $<TARGET_OBJECTS:magudiObj> grid_generator.f90)
+add_executable(mixing_layer $<TARGET_OBJECTS:magudiObj> mixing_layer.f90)
+add_executable(data2ensight $<TARGET_OBJECTS:magudiObj> data2ensight.f90)
 
 add_subdirectory(python)
