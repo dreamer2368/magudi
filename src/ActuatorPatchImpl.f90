@@ -115,7 +115,7 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   assert_key(nDimensions, (1, 2, 3))
 
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns == nDimensions + 2)
+  assert(nUnknowns >= nDimensions + 2)
 
   select case (mode)
 

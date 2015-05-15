@@ -119,7 +119,7 @@ subroutine addAdiabaticWallPenalty(this, mode, simulationFlags, solverOptions, g
   assert(direction >= 1 .and. direction <= nDimensions)
 
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns == nDimensions + 2)
+  assert(nUnknowns >= nDimensions + 2)
 
   allocate(metricsAlongNormalDirection(nDimensions))
   allocate(viscousPenalties(nUnknowns - 1, 2))
