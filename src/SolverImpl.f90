@@ -529,8 +529,6 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
 
-  assert(timestep >= 0)
-
   call startTiming("runForward")
 
   costFunctional = 0.0_wp
