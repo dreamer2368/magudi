@@ -49,7 +49,7 @@ program mixing_layer
   end if
 
   ! Parse options from the input file.
-  inputname = "mixing_layer.inp"
+  inputname = "magudi.inp"
   call parseInputFile(inputname)
 
   ! Generate the grid

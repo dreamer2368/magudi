@@ -10,8 +10,8 @@ boundary_condition_file = "bc.dat"
 #target_mollifier_file = "AcousticMonopole.target_mollifier.f"
 
 # Grid information
-nx = 1025
-ny = 513
+nx = 513
+ny = 257
 xmin_interior = 0
 xmax_interior = 120
 ymin_interior =-30
@@ -30,10 +30,14 @@ curvilinear_domain = false
 compute_time_average = false
 
 # Non-dimensional constants
-Reynolds_number = 714.2857142857143
+Reynolds_number = 200.0
 Prandtl_number = 0.7
 viscosity_power_law_exponent = 0.
 bulk_viscosity_ratio = 0.
+ratio_of_specific_heat = 1.4
+
+# Species
+number_of_species = 0
 
 # Discretization scheme
 defaults/discretization_scheme = "SBP 3-6"
@@ -41,7 +45,7 @@ defaults/discretization_scheme = "SBP 3-6"
 # Time stepping options
 time_step_size = 0.025
 number_of_timesteps = 25000
-report_interval = 20
+report_interval = 1
 save_interval = 100
 
 # Artificial dissipation
@@ -57,6 +61,10 @@ maximum_temperature = 4.
 
 # Damping
 defaults/sponge_amount = 0.2
+
+# Mixing layer velocity
+upper_velocity = 0.6
+lower_velocity = 0.1
 
 # Inflow excitation
 patches/excitationSupport/number_of_modes = 8
