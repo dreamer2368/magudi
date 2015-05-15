@@ -415,7 +415,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      end if
   end if
 
-  if (region%simulationFlags%predictionOnly) then
+  if (.not. region%simulationFlags%predictionOnly) then
 
      ! Initialize control mollifier.
      filename = getOption("control_mollifier_file", "")
@@ -461,7 +461,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
           region%solverOptions, region%grids(i), region%states(i))
   end do
 
-  if (region%simulationFlags%predictionOnly) then
+  if (.not. region%simulationFlags%predictionOnly) then
 
      call this%controllerFactory%connect(controller,                                         &
           trim(region%solverOptions%controllerType))
