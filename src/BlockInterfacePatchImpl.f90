@@ -146,7 +146,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   assert(direction >= 1 .and. direction <= nDimensions)
 
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns == nDimensions + 2)
+  assert(nUnknowns >= nDimensions + 2)
 
   if (this%comm /= MPI_COMM_NULL) then
 

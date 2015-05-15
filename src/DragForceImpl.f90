@@ -215,7 +215,7 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
   assert(direction >= 1 .and. direction <= nDimensions)
 
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns == nDimensions + 2)
+  assert(nUnknowns >= nDimensions + 2)
 
   normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(direction)%normBoundary(1),        &
        real(patch%normalDirection, wp))

@@ -33,7 +33,7 @@ subroutine setupResidualManager(this, prefix, region)
   assert_key(nDimensions, (1, 2, 3))
 
   nUnknowns = region%solverOptions%nUnknowns
-  assert(nUnknowns == nDimensions + 2)
+  assert(nUnknowns >= nDimensions + 2)
 
   allocate(this%residuals(nUnknowns))
   allocate(this%tolerances(nUnknowns))

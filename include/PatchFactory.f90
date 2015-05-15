@@ -123,7 +123,29 @@ module Patch_factory
 
   end interface
 
-  public :: computeSpongeStrengths, computeQuadratureOnPatches,                              &
-       updatePatchFactories, queryPatchTypeExists
+  interface
+
+     subroutine computeFarFieldAdjointViscousPenalty(patchFactories, simulationFlags,        &
+          solverOptions, grid, state)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_PatchFactory
+
+       type(t_PatchFactory), allocatable :: patchFactories(:)
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_Grid) :: grid
+       class(t_State) :: state
+
+     end subroutine computeFarFieldAdjointViscousPenalty
+
+  end interface
+
+  public :: computeSpongeStrengths, computeQuadratureOnPatches, updatePatchFactories,        &
+       computeFarFieldAdjointViscousPenalty, queryPatchTypeExists
 
 end module Patch_factory

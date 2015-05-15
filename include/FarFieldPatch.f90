@@ -10,7 +10,7 @@ module FarFieldPatch_mod
   type, extends(t_Patch), public :: t_FarFieldPatch
 
      real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
-     SCALAR_TYPE, allocatable :: viscousFluxes(:,:), targetViscousFluxes(:,:),               &
+     SCALAR_TYPE, allocatable :: metrics(:,:), viscousFluxes(:,:), targetViscousFluxes(:,:), &
           adjointViscousPenalty(:,:)
 
    contains
@@ -20,7 +20,8 @@ module FarFieldPatch_mod
      procedure, pass :: verifyUsage => verifyFarFieldPatchUsage
      procedure, pass :: updateRhs => addFarFieldPenalty
      procedure, pass :: collectViscousFluxes => collectFarFieldViscousFluxes
-     procedure, pass :: computeAdjointViscousPenalty => computeFarFieldAdjointViscousPenalty
+     procedure, pass :: updateAdjointDiffusionPenaltyTerm =>                                 &
+          updateFarFieldAdjointDiffusionPenaltyTerm
 
   end type t_FarFieldPatch
 
@@ -128,8 +129,8 @@ module FarFieldPatch_mod
 
   interface
 
-     subroutine computeFarFieldAdjointViscousPenalty(this,                                   &
-          simulationFlags, solverOptions, grid, state)
+     subroutine updateFarFieldAdjointDiffusionPenaltyTerm(this, simulationFlags,             &
+          solverOptions, grid, state, direction, diffusionPenaltyTerm)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
@@ -143,8 +144,10 @@ module FarFieldPatch_mod
        type(t_SolverOptions), intent(in) :: solverOptions
        class(t_Grid), intent(in) :: grid
        class(t_State) :: state
+       integer, intent(in) :: direction
+       SCALAR_TYPE, intent(out) :: diffusionPenaltyTerm(:,:)
 
-     end subroutine computeFarFieldAdjointViscousPenalty
+     end subroutine updateFarFieldAdjointDiffusionPenaltyTerm
 
   end interface
 

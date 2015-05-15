@@ -415,26 +415,28 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      end if
   end if
 
-  if (region%simulationFlags%predictionOnly) return
+  if (region%simulationFlags%predictionOnly) then
 
-  ! Initialize control mollifier.
-  filename = getOption("control_mollifier_file", "")
-  if (len_trim(filename) == 0) then
-     do i = 1, size(region%grids)
-        region%grids(i)%controlMollifier = 1.0_wp
-     end do
-  else
-     call region%loadData(QOI_CONTROL_MOLLIFIER, filename)
-  end if
+     ! Initialize control mollifier.
+     filename = getOption("control_mollifier_file", "")
+     if (len_trim(filename) == 0) then
+        do i = 1, size(region%grids)
+           region%grids(i)%controlMollifier = 1.0_wp
+        end do
+     else
+        call region%loadData(QOI_CONTROL_MOLLIFIER, filename)
+     end if
 
-  ! Target mollifier.
-  filename = getOption("target_mollifier_file", "")
-  if (len_trim(filename) == 0) then
-     do i = 1, size(region%grids)
-        region%grids(i)%targetMollifier = 1.0_wp
-     end do
-  else
-     call region%loadData(QOI_TARGET_MOLLIFIER, filename)
+     ! Target mollifier.
+     filename = getOption("target_mollifier_file", "")
+     if (len_trim(filename) == 0) then
+        do i = 1, size(region%grids)
+           region%grids(i)%targetMollifier = 1.0_wp
+        end do
+     else
+        call region%loadData(QOI_TARGET_MOLLIFIER, filename)
+     end if
+
   end if
 
   ! Setup boundary conditions.
@@ -459,15 +461,19 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
           region%solverOptions, region%grids(i), region%states(i))
   end do
 
-  call this%controllerFactory%connect(controller,                                            &
-       trim(region%solverOptions%controllerType))
-  assert(associated(controller))
-  call controller%setup(region)
+  if (region%simulationFlags%predictionOnly) then
 
-  call this%functionalFactory%connect(functional,                                            &
-       trim(region%solverOptions%costFunctionalType))
-  assert(associated(functional))
-  call functional%setup(region)
+     call this%controllerFactory%connect(controller,                                         &
+          trim(region%solverOptions%controllerType))
+     assert(associated(controller))
+     call controller%setup(region)
+
+     call this%functionalFactory%connect(functional,                                         &
+          trim(region%solverOptions%costFunctionalType))
+     assert(associated(functional))
+     call functional%setup(region)
+
+  end if
 
 end subroutine setupSolver
 
@@ -875,7 +881,7 @@ subroutine checkGradientAccuracy(this, region)
   integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
-       initialActuationAmount, geometricGrowthFactor, gradientError
+       initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -923,7 +929,7 @@ subroutine checkGradientAccuracy(this, region)
   if (region%simulationFlags%isBaselineAvailable) then
      if (procRank == 0)                                                                      &
           read(fileUnit, *, iostat = iostat) i, actuationAmount,                             &
-          baselineCostFunctional, gradientError
+          baselineCostFunctional, costSensitivity, gradientError
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
         write(message, "(2A)") trim(filename),                                               &
@@ -936,9 +942,13 @@ subroutine checkGradientAccuracy(this, region)
   end if
 
   ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
-  if (restartIteration == 0) costSensitivity = this%runAdjoint(region)
+  if (restartIteration == 0) then
+     costSensitivity = this%runAdjoint(region)
+  else
+     call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+  end if
 
-  if (procRank == 0)                                                                         &
+  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable)                  &
        write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                   &
        baselineCostFunctional, costSensitivity, 0.0_wp
 
@@ -952,7 +962,7 @@ subroutine checkGradientAccuracy(this, region)
   do i = 1, restartIteration - 1
      if (procRank == 0)                                                                      &
           read(fileUnit, *, iostat = iostat) j, actuationAmount, costFunctional,             &
-          costSensitivity, gradientError
+          dummyValue, gradientError
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
         write(message, "(2A)") trim(filename),                                               &
@@ -960,7 +970,6 @@ subroutine checkGradientAccuracy(this, region)
         call gracefulExit(region%comm, message)
      end if
   end do
-  call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
 
   do i = restartIteration, restartIteration + nIterations - 1
      actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
