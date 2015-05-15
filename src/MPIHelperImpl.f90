@@ -34,7 +34,7 @@ subroutine splitCommunicatorMultigrid(comm, gridSizes, gridCommunicators, numPro
   integer, intent(in), optional :: numProcsInGrid(:)
 
   ! <<< Local variables >>>
-  integer :: i, procRank, nProcs, group, newgroup, offset, count, color, ierror
+  integer :: i, procRank, numProcs, group, newgroup, offset, count, color, ierror
   integer, allocatable :: ranks(:), numProcsInGrid_(:)
 
   assert(size(gridSizes, 1) >= 1 .and. size(gridSizes, 1) <= 3)
@@ -42,19 +42,19 @@ subroutine splitCommunicatorMultigrid(comm, gridSizes, gridCommunicators, numPro
   assert(size(gridSizes, 2) == size(gridCommunicators))
 
   ! Get the size, rank and group of `comm`.
-  call MPI_Comm_size(comm, nProcs, ierror)
-  assert(nProcs > 0)
+  call MPI_Comm_size(comm, numProcs, ierror)
+  assert(numProcs > 0)
   call MPI_Comm_rank(comm, procRank, ierror)
   call MPI_Comm_group(comm, group, ierror)
 
   ! Set all elements of `gridCommunicators` to `MPI_COMM_NULL` by default.
   gridCommunicators = MPI_COMM_NULL
 
-  if (size(gridSizes, 2) > nProcs) then
+  if (size(gridSizes, 2) > numProcs) then
 
-     ! Partition the grids into `nProcs` processes; more than one grid may be distributed
+     ! Partition the grids into `numProcs` processes; more than one grid may be distributed
      ! to the same process.
-     call pigeonhole(size(gridSizes, 2), nProcs, procRank, offset, count)
+     call pigeonhole(size(gridSizes, 2), numProcs, procRank, offset, count)
 
      do i = 1, size(gridSizes, 2)
         allocate(ranks(1), source = -1)
@@ -72,17 +72,17 @@ subroutine splitCommunicatorMultigrid(comm, gridSizes, gridCommunicators, numPro
 
         ! Use manual distribution, if specified.
         assert(size(numProcsInGrid) == size(gridSizes, 2))
-        assert(sum(numProcsInGrid) == nProcs)
+        assert(sum(numProcsInGrid) == numProcs)
         allocate(numProcsInGrid_(size(gridSizes, 2)), source = numProcsInGrid)
 
      else
 
         ! Assign processes to a grid proportional to number of grid points.
         allocate(numProcsInGrid_(size(gridSizes, 2)))
-        numProcsInGrid_ = ceiling(real(nProcs) * real(product(gridSizes, dim = 1)) /         &
+        numProcsInGrid_ = ceiling(real(numProcs) * real(product(gridSizes, dim = 1)) /         &
              real(sum(product(gridSizes, dim = 1))))
         i = 1
-        do while (sum(numProcsInGrid_) /= nProcs) !... total should match
+        do while (sum(numProcsInGrid_) /= numProcs) !... total should match
            numProcsInGrid_(i) = max(1, numProcsInGrid_(i) - 1)
            i = mod(i, size(gridSizes, 2)) + 1
         end do

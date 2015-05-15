@@ -6,8 +6,10 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   use MPI
 
   ! <<< Derived types >>>
+  use Controller_mod, only : t_Controller
   use Functional_mod, only : t_Functional
   use SolverOptions_mod, only : t_SolverOptions
+  use Controller_factory, only : t_ControllerFactory
   use Functional_factory, only : t_FunctionalFactory
   use TimeIntegrator_mod, only : t_TimeIntegrator
   use SimulationFlags_mod, only : t_SimulationFlags
@@ -31,6 +33,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   character(len = STRING_LENGTH) :: message
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   class(t_TimeIntegrator), pointer :: dummyTimeIntegrator => null()
+  type(t_ControllerFactory) :: controllerFactory
+  class(t_Controller), pointer :: dummyController => null()
   type(t_FunctionalFactory) :: functionalFactory
   class(t_Functional), pointer :: dummyFunctional => null()
 
@@ -94,6 +98,14 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   end if
 
   if (.not. simulationFlags%predictionOnly) then
+
+     this%controllerType = getOption("controller_type", "THERMAL_ACTUATOR")
+     call controllerFactory%connect(dummyController, trim(this%controllerType))
+     if (.not. associated(dummyController)) then
+        write(message, '(3A)') "Invalid controller type '",                             &
+             trim(this%controllerType), "'!"
+        call gracefulExit(comm_, message)
+     end if
 
      this%costFunctionalType = getOption("cost_functional_type", "SOUND")
      call functionalFactory%connect(dummyFunctional, trim(this%costFunctionalType))

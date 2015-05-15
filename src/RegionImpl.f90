@@ -25,12 +25,12 @@ contains
     character(len = *), intent(in) :: filename
 
     ! <<< Local variables >>>
-    integer :: i, fileUnit, proc, nProcs, lineNo, gridIndex, numProcsInGrid(3), istat, ierror
+    integer :: i, fileUnit, proc, numProcs, lineNo, gridIndex, numProcsInGrid(3), istat, ierror
     character(len = STRING_LENGTH) :: line, message
     character(len = 1), parameter :: commentMarker = '#'
 
     call MPI_Comm_rank(this%comm, proc, ierror)
-    call MPI_Comm_size(this%comm, nProcs, ierror)
+    call MPI_Comm_size(this%comm, numProcs, ierror)
 
     write(message, "(3A)") "Reading MPI decomposition map from '", trim(filename), "'..."
     call writeAndFlush(this%comm, output_unit, message)
@@ -71,7 +71,7 @@ contains
           end if
 
           if (gridIndex /= i .or. gridIndex > size(this%processDistributions, 2) .or.        &
-               any(numProcsInGrid < 0) .or. product(numProcsInGrid) > nProcs) then
+               any(numProcsInGrid < 0) .or. product(numProcsInGrid) > numProcs) then
              istat = -1
              write(message, "(2A,I0.0,A)") trim(filename),                                   &
                   ": Invalid process distribution on line ", lineNo, "!"
@@ -105,9 +105,9 @@ contains
          0, this%comm, ierror)
 
     ! Validate process distribution.
-    if (sum(product(this%processDistributions, dim = 1)) /= nProcs) then
+    if (sum(product(this%processDistributions, dim = 1)) /= numProcs) then
        write(message, '(A,2(A,I0.0),A)') trim(filename),                                     &
-            ": Invalid process distribution: expected a total of ", nProcs,                  &
+            ": Invalid process distribution: expected a total of ", numProcs,                  &
             " processes, got ", sum(product(this%processDistributions, dim = 1)),            &
             " processes!"
        call gracefulExit(this%comm, message)
@@ -133,16 +133,16 @@ contains
     logical, intent(in) :: verbose
 
     ! <<< Local variables >>>
-    integer :: nProcs, ierror
+    integer :: numProcs, ierror
     character(len = STRING_LENGTH) :: message
     integer, allocatable :: numProcsInGrid(:)
 
     ! Find the size of the communicator.
-    call MPI_Comm_size(this%comm, nProcs, ierror)
+    call MPI_Comm_size(this%comm, numProcs, ierror)
 
     if (verbose) then
        write(message, "(2(A,I0.0),A)") "Distributing ", size(this%globalGridSizes, 2),       &
-            " grid(s) across ", nProcs, " process(es)..."
+            " grid(s) across ", numProcs, " process(es)..."
        call writeAndFlush(this%comm, output_unit, message)
     end if
 
@@ -158,7 +158,7 @@ contains
     allocate(this%gridCommunicators(size(this%globalGridSizes, 2)), source = MPI_COMM_NULL)
 
     ! Split the region communicator into grid-level communicators:
-    if (nProcs > size(this%globalGridSizes, 2) .and.                                         &
+    if (numProcs > size(this%globalGridSizes, 2) .and.                                         &
          this%simulationFlags%manualDomainDecomp) then
        call splitCommunicatorMultigrid(this%comm, this%globalGridSizes,                      &
             this%gridCommunicators, numProcsInGrid) !... manual process distribution.
@@ -604,7 +604,7 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   logical, intent(in), optional :: verbose
 
   ! <<< Local variables >>>
-  integer :: i, j, color, procRank, nProcs, ierror
+  integer :: i, j, color, procRank, numProcs, ierror
   logical :: verbose_
   character(len = STRING_LENGTH) :: decompositionMapFilename
 
@@ -613,7 +613,7 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   ! Clean slate.
   call this%cleanup()
   this%comm = comm
-  call MPI_Comm_size(this%comm, nProcs, ierror)
+  call MPI_Comm_size(this%comm, numProcs, ierror)
 
   verbose_ = .true.
   if (present(verbose)) verbose_ = verbose
@@ -643,7 +643,7 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
 
   ! Distribute the grids between available MPI processes.
   if (this%simulationFlags%manualDomainDecomp .and.                                          &
-       nProcs > size(this%globalGridSizes, 2)) then
+       numProcs > size(this%globalGridSizes, 2)) then
      call getRequiredOption("decomposition_map_file",                                        &
           decompositionMapFilename, this%comm)
      call readDecompositionMap(this, decompositionMapFilename)
@@ -750,6 +750,9 @@ subroutine cleanupRegion(this)
   if (this%commGridMasters /= MPI_COMM_NULL) call MPI_Comm_free(this%commGridMasters, ierror)
   this%commGridMasters = MPI_COMM_NULL
 
+  this%timestep = 0
+  this%outputOn = .true.
+
 end subroutine cleanupRegion
 
 subroutine setupBoundaryConditions(this, boundaryConditionFilename)
@@ -799,7 +802,6 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
   end if
 
   if (allocated(this%patchData)) then
-
      do k = 1, size(this%grids)
         do i = 1, size(this%patchData)
            p = this%patchData(i)
@@ -819,12 +821,11 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
            call MPI_Barrier(this%grids(k)%comm, ierror)
         end do
      end do
+  end if
 
-     if (.not. this%simulationFlags%predictionOnly) then
-        call normalizeControlMollifier(this)
-        call normalizeTargetMollifier(this)
-     end if
-
+  if (.not. this%simulationFlags%predictionOnly) then
+     call normalizeControlMollifier(this)
+     call normalizeTargetMollifier(this)
   end if
 
   call endTiming("setupBoundaryConditions")
@@ -858,12 +859,13 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
   character(len = *), intent(in) :: filename
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: message
   logical :: success
   integer :: i, j, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
   logical :: isSolutionFile
-  real(SCALAR_KIND) :: auxiliaryData(4)
+  real(wp) :: auxiliaryData(4)
 
   call startTiming("loadRegionData")
 
@@ -897,21 +899,27 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
         end if
      end do
 
-     call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL,                               &
-          MPI_LAND, this%comm, ierror)
+     call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, this%comm, ierror)
      if (.not. success) exit
      call MPI_Barrier(this%comm, ierror)
 
   end do
 
   if (isSolutionFile) then
-     auxiliaryData = real(this%states(1)%plot3dAuxiliaryData, SCALAR_KIND)
-     call MPI_Bcast(auxiliaryData, 4, REAL_TYPE_MPI, 0, this%comm, ierror)
-     do i = 1, 4
-        this%states(:)%plot3dAuxiliaryData(i) = auxiliaryData(i)
-     end do
-     if (quantityOfInterest == QOI_FORWARD_STATE)                                            &
-          this%states(:)%time = real(auxiliaryData(4), SCALAR_KIND)
+     if (.not. this%simulationFlags%steadyStateSimulation) then
+        auxiliaryData = real(this%states(1)%plot3dAuxiliaryData, wp)
+        call MPI_Bcast(auxiliaryData, 4, REAL_TYPE_MPI, 0, this%comm, ierror)
+        do i = 1, 4
+           this%states(:)%plot3dAuxiliaryData(i) = auxiliaryData(i)
+        end do
+        if (quantityOfInterest == QOI_FORWARD_STATE) then
+           this%states(:)%time = real(auxiliaryData(4), wp)
+           this%timestep = nint(real(auxiliaryData(1), wp))
+        end if
+     else
+        this%states(:)%time = 0.0_wp
+        this%timestep = 0
+     end if
   end if
 
   if (success) then
@@ -962,17 +970,24 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   character(len = *), intent(in) :: filename
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: message
   logical :: success
   integer :: i, j, nScalars, errorRank, procRank, ierror
   integer(kind = MPI_OFFSET_KIND) :: offset
+  logical :: isSolutionFile
+
+  if (.not. this%OutputOn) return
 
   call startTiming("saveRegionData")
 
   write(message, '(3A)') "Writing '", trim(filename), "'..."
   call writeAndFlush(this%comm, output_unit, message, advance = 'no')
 
+  isSolutionFile = .false.
+
   select case(quantityOfInterest)
+
   case (QOI_GRID)
      call plot3dWriteSkeleton(this%comm, trim(filename),                                     &
           PLOT3D_GRID_FILE, this%globalGridSizes, success)
@@ -1002,9 +1017,24 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
           this%globalGridSizes, success, nScalars)
 
   case default
+     isSolutionFile = .true.
      call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_SOLUTION_FILE,               &
           this%globalGridSizes, success)
+
   end select
+
+  if (isSolutionFile) then
+     if (.not. this%simulationFlags%steadyStateSimulation) then
+        do i = 1, size(this%states)
+           this%states(:)%plot3dAuxiliaryData(1) =                                           &
+                real(this%timestep, wp)
+        end do
+     else
+        do i = 1, size(this%states)
+           this%states(:)%plot3dAuxiliaryData(1) = 0.0_wp
+        end do
+     end if
+  end if
 
   do i = 1, size(this%gridCommunicators)
 

@@ -2,6 +2,7 @@
 
 module Solver_mod
 
+  use Controller_factory, only : t_ControllerFactory
   use Functional_factory, only : t_FunctionalFactory
   use ResidualManager_mod, only : t_ResidualManager
   use ReverseMigrator_mod, only : t_ReverseMigrator
@@ -13,10 +14,11 @@ module Solver_mod
   type, public :: t_Solver
 
      type(t_ResidualManager) :: residualManager
+     type(t_ControllerFactory) :: controllerFactory
      type(t_FunctionalFactory) :: functionalFactory
      type(t_TimeIntegratorFactory) :: timeIntegratorFactory
 
-     integer :: saveInterval, reportInterval
+     integer :: nTimesteps, saveInterval, reportInterval
      character(len = STRING_LENGTH) :: outputPrefix
 
    contains
@@ -25,6 +27,7 @@ module Solver_mod
      procedure, pass :: cleanup => cleanupSolver
      procedure, pass :: runForward
      procedure, pass :: runAdjoint
+     procedure, pass :: checkGradientAccuracy
 
   end type t_Solver
 
@@ -58,8 +61,8 @@ module Solver_mod
 
   interface
 
-     function runForward(this, region, time, timestep, nTimesteps,                           &
-          actuationAmount) result(costFunctional)
+     function runForward(this, region, actuationAmount,                                      &
+          restartFilename) result(costFunctional)
 
        use Region_mod, only : t_Region
 
@@ -67,11 +70,9 @@ module Solver_mod
 
        class(t_Solver) :: this
        class(t_Region) :: region
-       real(SCALAR_KIND), intent(inout) :: time
-       integer, intent(inout) :: timestep
-       integer, intent(in) :: nTimesteps
 
        real(SCALAR_KIND), intent(in), optional :: actuationAmount
+       character(len = *), intent(in), optional :: restartFilename
 
        SCALAR_TYPE :: costFunctional
 
@@ -81,7 +82,7 @@ module Solver_mod
 
   interface
 
-     function runAdjoint(this, region, time, timestep, nTimesteps) result(costSensitivity)
+     function runAdjoint(this, region) result(costSensitivity)
 
        use Region_mod, only : t_Region
 
@@ -89,13 +90,25 @@ module Solver_mod
 
        class(t_Solver) :: this
        class(t_Region) :: region
-       real(SCALAR_KIND), intent(inout) :: time
-       integer, intent(inout) :: timestep
-       integer, intent(in) :: nTimesteps
 
        SCALAR_TYPE :: costSensitivity
 
      end function runAdjoint
+
+  end interface
+
+  interface
+
+     subroutine checkGradientAccuracy(this, region)
+
+       use Region_mod, only : t_Region
+
+       import :: t_Solver
+
+       class(t_Solver) :: this
+       class(t_Region) :: region
+
+     end subroutine checkGradientAccuracy
 
   end interface
 

@@ -5,11 +5,6 @@ module GridImpl
   implicit none
   public
 
-  integer, parameter, public ::                                                              &
-       NONE    = 0,                                                                          &
-       PLANE   = 1,                                                                          &
-       OVERLAP = 2
-
 contains
 
   subroutine allocateData(this, simulationFlags)
@@ -28,7 +23,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
-    integer :: nProcs
+    integer :: numProcs, ierror
 #endif
 
     allocate(this%firstDerivative(this%nDimensions))
@@ -55,8 +50,8 @@ contains
     end if
 
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
-    call MPI_Comm_size(this%comm, nProcs, ierror)
-    allocate(this%mpiReduceBuffer(nProcs))
+    call MPI_Comm_size(this%comm, numProcs, ierror)
+    allocate(this%mpiReduceBuffer(numProcs))
 #endif
 
   end subroutine allocateData
@@ -68,6 +63,9 @@ contains
 
     ! <<< Derived types >>>
     use Grid_mod, only : t_Grid
+
+    ! <<< Enumerations >>>
+    use Grid_enum, only : PLANE
 
     ! <<< Arguments >>>
     class(t_Grid) :: this
@@ -147,6 +145,9 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   use Grid_mod, only : t_Grid
   use SimulationFlags_mod, only : t_SimulationFlags
 
+  ! <<< Enumerations >>>
+  use Grid_enum, only : NONE, PLANE, OVERLAP
+
   ! <<< Private members >>>
   use GridImpl
 
@@ -165,7 +166,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
 
   ! <<< Local variables >>>
   type(t_SimulationFlags) :: simulationFlags_
-  integer :: i, comm_, procRank, nProcs, ierror
+  integer :: i, comm_, procRank, numProcs, ierror
   character(len = STRING_LENGTH) :: key, val
   integer, allocatable :: processDistribution_(:), processCoordinates(:)
   logical :: isPeriodic(3)
@@ -231,7 +232,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   ! use `MPI_COMM_WORLD`.
   comm_ = MPI_COMM_WORLD
   if (present(comm)) comm_ = comm
-  call MPI_Comm_size(comm_, nProcs, ierror)
+  call MPI_Comm_size(comm_, numProcs, ierror)
 
   ! Generate a default process distribution. If one was specified, override the default.
   if (present(processDistribution)) then
@@ -241,7 +242,7 @@ subroutine setupGrid(this, index, globalSize, comm, processDistribution,        
   else
      allocate(processDistribution_(size(globalSize)), source = 0)
   end if
-  call MPI_Dims_create(nProcs, size(globalSize), processDistribution_, ierror)
+  call MPI_Dims_create(numProcs, size(globalSize), processDistribution_, ierror)
 
   ! Create a Cartesian communicator.
   isPeriodic = (this%periodicityType /= NONE)
@@ -465,8 +466,8 @@ subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
-  ! <<< Private members >>>
-  use GridImpl, only : OVERLAP
+  ! <<< Enumerations >>>
+  use Grid_enum, only : OVERLAP
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
@@ -586,8 +587,8 @@ subroutine computeCoordinateDerivatives(this, direction, coordinateDerivatives)
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
 
-  ! <<< Private members >>>
-  use GridImpl, only : PLANE
+  ! <<< Enumerations >>>
+  use Grid_enum, only : PLANE
 
   ! <<< Internal modules >>>
   use MPIHelper, only : fillGhostPoints
@@ -711,8 +712,8 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
 
-  ! <<< Private members >>>
-  use GridImpl, only : PLANE
+  ! <<< Enumerations >>>
+  use Grid_enum, only : PLANE
 
   ! <<< Internal modules >>>
   use ErrorHandler, only : gracefulExit
@@ -1358,7 +1359,7 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, minIndex(3), nProcs, ierror
+  integer :: i, j, k, minIndex(3), numProcs, ierror
   real(wp), allocatable :: minValues(:)
   integer, allocatable :: minIndices(:,:)
   SCALAR_TYPE :: a
@@ -1370,10 +1371,10 @@ subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
 
   assert(size(f) == this%nGridPoints)
 
-  call MPI_Comm_size(this%comm, nProcs, ierror)
-  assert(nProcs > 0)
+  call MPI_Comm_size(this%comm, numProcs, ierror)
+  assert(numProcs > 0)
 
-  allocate(minValues(nProcs), minIndices(3, nProcs))
+  allocate(minValues(numProcs), minIndices(3, numProcs))
 
   minValue = huge(0.0_wp)
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
@@ -1436,7 +1437,7 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, maxIndex(3), nProcs, ierror
+  integer :: i, j, k, maxIndex(3), numProcs, ierror
   real(wp), allocatable :: maxValues(:)
   integer, allocatable :: maxIndices(:,:)
   SCALAR_TYPE :: a
@@ -1448,10 +1449,10 @@ subroutine findMaximum(this, f, fMax, iMax, jMax, kMax)
 
   assert(size(f) == this%nGridPoints)
 
-  call MPI_Comm_size(this%comm, nProcs, ierror)
-  assert(nProcs > 0)
+  call MPI_Comm_size(this%comm, numProcs, ierror)
+  assert(numProcs > 0)
 
-  allocate(maxValues(nProcs), maxIndices(3, nProcs))
+  allocate(maxValues(numProcs), maxIndices(3, numProcs))
 
   maxValue = - huge(0.0_wp)
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)

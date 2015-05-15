@@ -48,7 +48,7 @@ program jet
   do i = 1, size(region%grids)
      call region%grids(i)%update()
   end do
-  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+  call MPI_Barrier(region%comm, ierror)
 
   ! Write out some useful information.
   call region%reportGridDiagnostics()

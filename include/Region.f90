@@ -33,10 +33,11 @@ module Region_mod
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)
-     integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL
+     integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL, timestep = 0
      integer, allocatable :: globalGridSizes(:,:), processDistributions(:,:),                &
           gridCommunicators(:), patchCommunicators(:), patchInterfaces(:),                   &
           interfaceIndexReorderings(:,:), patchMasterRanks(:)
+     logical :: outputOn = .true.
 
    contains
 

@@ -17,11 +17,11 @@ if (NOT SCALAR_TYPE)
   set(SCALAR_TYPE "real64_iso")
 endif()
 
-if (NOT SCALAR_TYPE STREQUAL "real32_iso" AND 
-    NOT SCALAR_TYPE STREQUAL "real64_iso" AND 
+if (NOT SCALAR_TYPE STREQUAL "real32_iso" AND
+    NOT SCALAR_TYPE STREQUAL "real64_iso" AND
     NOT SCALAR_TYPE STREQUAL "real128_iso" AND
     NOT SCALAR_TYPE STREQUAL "binary128_IEEE754" AND
-    NOT SCALAR_TYPE STREQUAL "complex" AND 
+    NOT SCALAR_TYPE STREQUAL "complex" AND
     NOT SCALAR_TYPE STREQUAL "double_complex")
   message(FATAL_ERROR "Unknown scalar type \"${SCALAR_TYPE}\". Allowed values are: real32_iso, real64_iso, real128_iso, binary128_IEEE754, complex, double_complex (case-sensitive).")
 endif()
@@ -32,7 +32,7 @@ if (NOT PLOT3D_FORMAT)
   set(PLOT3D_FORMAT "regular")
 endif()
 
-if (NOT PLOT3D_FORMAT STREQUAL "regular" AND 
+if (NOT PLOT3D_FORMAT STREQUAL "regular" AND
     NOT PLOT3D_FORMAT STREQUAL "extended")
   message(FATAL_ERROR "Unknown PLOT3D format \"${PLOT3D_FORMAT}\". Allowed values are: regular, extended (case-sensitive).")
 endif()
@@ -46,7 +46,7 @@ if(NOT MPIF90_FOUND)
   message(FATAL_ERROR "mpif90 not found.")
 endif()
 set(CMAKE_Fortran_COMPILER "mpif90")
-execute_process(COMMAND mpif90 -show COMMAND sed "s/^\\([^[:space:]]*\\).*/\\1/g" OUTPUT_VARIABLE CMAKE_Fortran_COMPILER_PATH)
+execute_process(COMMAND mpif90 -show COMMAND awk "{print $1}" OUTPUT_VARIABLE CMAKE_Fortran_COMPILER_PATH)
 execute_process(COMMAND basename ${CMAKE_Fortran_COMPILER_PATH} OUTPUT_VARIABLE CMAKE_Fortran_COMPILER_NAME OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 if(CMAKE_Fortran_COMPILER_NAME STREQUAL "gfortran")
@@ -61,10 +61,11 @@ elseif(CMAKE_Fortran_COMPILER_NAME STREQUAL "ifort")
 else()
   message(FATAL_ERROR "${CMAKE_Fortran_COMPILER_NAME}: Fortran compiler could not be determined correctly or is unsupported.")
 endif()
-set(CMAKE_C_FLAGS_DEBUG "-std=c89 -pedantic-errors")
-
 set(CMAKE_Fortran_FORMAT "FREE")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/modules)
+
+set(CMAKE_C_FLAGS_DEBUG "-std=c89 -pedantic-errors")
+
 configure_file(${PROJECT_SOURCE_DIR}/include/config.h.in ${PROJECT_BINARY_DIR}/include/config.h)
 include_directories(${PROJECT_BINARY_DIR}/include)
 
@@ -95,12 +96,16 @@ set(magudiObj_SOURCES
   # Factories.
   ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
   ${PROJECT_SOURCE_DIR}/src/PatchFactoryImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ControllerFactory.f90
+  ${PROJECT_SOURCE_DIR}/src/ControllerFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/FunctionalFactory.f90
   ${PROJECT_SOURCE_DIR}/src/FunctionalFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegratorFactory.f90
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorFactoryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ReverseMigratorFactory.f90
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorFactoryImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/MappingFunctionFactory.f90
+  ${PROJECT_SOURCE_DIR}/src/MappingFunctionFactoryImpl.f90
 
   # Derived types.
   ${PROJECT_SOURCE_DIR}/include/SimulationFlags.f90
@@ -129,12 +134,15 @@ set(magudiObj_SOURCES
   # Abstract types.
   ${PROJECT_SOURCE_DIR}/include/Patch.f90
   ${PROJECT_SOURCE_DIR}/src/PatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/Controller.f90
+  ${PROJECT_SOURCE_DIR}/src/ControllerImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Functional.f90
   ${PROJECT_SOURCE_DIR}/src/FunctionalImpl.f90
   ${PROJECT_SOURCE_DIR}/include/TimeIntegrator.f90
   ${PROJECT_SOURCE_DIR}/src/TimeIntegratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/MappingFunction.f90
 
   # Extended types.
   ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90
@@ -159,13 +167,16 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/BlockInterfacePatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/UniformCheckpointer.f90
   ${PROJECT_SOURCE_DIR}/src/UniformCheckpointerImpl.f90
-
+  ${PROJECT_SOURCE_DIR}/include/ThermalActuator.f90
+  ${PROJECT_SOURCE_DIR}/src/ThermalActuatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PressureDrag.f90
   ${PROJECT_SOURCE_DIR}/src/PressureDragImpl.f90
   ${PROJECT_SOURCE_DIR}/include/DragForce.f90
   ${PROJECT_SOURCE_DIR}/src/DragForceImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/UniformMap.f90
+  ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

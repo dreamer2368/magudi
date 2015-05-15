@@ -12,6 +12,11 @@ module Grid_enum
        QOI_TARGET_MOLLIFIER  =  3,                                                           &
        QOI_CONTROL_MOLLIFIER =  4
 
+  integer, parameter, public ::                                                              &
+       NONE    = 0,                                                                          &
+       PLANE   = 1,                                                                          &
+       OVERLAP = 2
+
 end module Grid_enum
 
 module Grid_mod
