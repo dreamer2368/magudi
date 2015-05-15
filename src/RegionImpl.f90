@@ -890,9 +890,14 @@ subroutine loadRegionData(this, quantityOfInterest, filename)
               call this%grids(j)%loadData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default
-              isSolutionFile = (quantityOfInterest /= QOI_DUMMY_FUNCTION)
+              isSolutionFile = (quantityOfInterest /= QOI_DUMMY_FUNCTION .and.               &
+                   this%solverOptions%nSpecies == 0)
               call this%states(j)%loadData(this%grids(j), quantityOfInterest,                &
                    trim(filename), offset, success)
+              if (this%solverOptions%nSpecies > 0) then
+                 this%states(:)%time = 0.0_wp
+                 this%timestep = 0
+              end if
            end select
 
            exit
@@ -1017,9 +1022,15 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
           this%globalGridSizes, success, nScalars)
 
   case default
-     isSolutionFile = .true.
-     call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_SOLUTION_FILE,               &
-          this%globalGridSizes, success)
+
+     if (this%solverOptions%nSpecies == 0) then
+        isSolutionFile = .true.
+        call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_SOLUTION_FILE,            &
+             this%globalGridSizes, success)
+     else
+        call plot3dWriteSkeleton(this%comm, trim(filename), PLOT3D_FUNCTION_FILE,            &
+             this%globalGridSizes, success, this%solverOptions%nUnknowns)
+     end if
 
   end select
 

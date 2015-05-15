@@ -107,6 +107,8 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      call solverOptions_%initialize(grid%nDimensions, simulationFlags_, grid%comm)
   end if
 
+  this%nSpecies = solverOptions_%nSpecies
+
   assert(grid%nGridPoints > 0)
   call allocateData(this, simulationFlags_, solverOptions_,                                  &
        grid%nGridPoints, grid%nDimensions)
@@ -196,34 +198,77 @@ subroutine loadStateData(this, grid, quantityOfInterest, filename, offset, succe
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
   logical, intent(out) :: success
 
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+
   select case (quantityOfInterest)
   case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE,                              &
        QOI_RIGHT_HAND_SIDE, QOI_TIME_AVERAGED_STATE)
-     call plot3dReadSingleAuxiliarySolutionData(grid%comm, trim(filename),                   &
-          offset, this%plot3dAuxiliaryData, success)
+     if (this%nSpecies == 0) then
+        call plot3dReadSingleAuxiliarySolutionData(grid%comm, trim(filename),                &
+             offset, this%plot3dAuxiliaryData, success)
+     else
+        this%plot3dAuxiliaryData = 0.0_wp
+     end if
   end select
 
   select case (quantityOfInterest)
+
   case (QOI_FORWARD_STATE)
-     call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%conservedVariables, success)
+     if (this%nSpecies == 0) then
+        call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%conservedVariables, success)
+     else
+        call plot3dReadSingleFunction(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%conservedVariables, success)
+     end if
+
   case (QOI_TARGET_STATE)
-     call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%targetState, success)
+     if (this%nSpecies == 0) then
+        call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%targetState, success)
+     else
+        call plot3dReadSingleFunction(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%targetState, success)
+     end if
+
   case (QOI_ADJOINT_STATE)
-     call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%adjointVariables, success)
+     if (this%nSpecies == 0) then
+        call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%adjointVariables, success)
+     else
+        call plot3dReadSingleFunction(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%adjointVariables, success)
+     end if
+
   case (QOI_RIGHT_HAND_SIDE)
-     call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%rightHandSide, success)
+     if (this%nSpecies == 0) then
+        call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%rightHandSide, success)
+     else
+        call plot3dReadSingleFunction(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%rightHandSide, success)
+     end if
+
   case (QOI_TIME_AVERAGED_STATE)
-     call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                        &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%timeAverage, success)
+     if (this%nSpecies == 0) then
+        call plot3dReadSingleSolution(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%timeAverage, success)
+     else
+        call plot3dReadSingleFunction(grid%comm, trim(filename), offset,                     &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%timeAverage, success)
+     end if
+
   case (QOI_DUMMY_FUNCTION)
      assert(associated(this%dummyFunction))
      assert(size(this%dummyFunction, 1) == grid%nGridPoints)
@@ -272,37 +317,76 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename, offset, succe
   select case (quantityOfInterest)
   case (QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_RIGHT_HAND_SIDE,                            &
        QOI_TIME_AVERAGED_STATE, QOI_ADJOINT_STATE)
-     this%plot3dAuxiliaryData(4) = this%time
-     call plot3dWriteSingleAuxiliarySolutionData(grid%comm, trim(filename),                  &
-          offset, this%plot3dAuxiliaryData, success)
+     if (this%nSpecies == 0) then
+        this%plot3dAuxiliaryData(4) = this%time
+        call plot3dWriteSingleAuxiliarySolutionData(grid%comm, trim(filename),               &
+             offset, this%plot3dAuxiliaryData, success)
+     end if
   end select
 
   select case (quantityOfInterest)
+
   case (QOI_FORWARD_STATE)
-     call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%conservedVariables, success)
+     if (this%nSpecies == 0) then
+        call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%conservedVariables, success)
+     else
+        call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%conservedVariables, success)
+     end if
+
   case (QOI_TARGET_STATE)
-     call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%targetState, success)
+     if (this%nSpecies == 0) then
+        call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%targetState, success)
+     else
+        call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%targetState, success)
+     end if
+
   case (QOI_ADJOINT_STATE)
-     call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%adjointVariables, success)
+     if (this%nSpecies == 0) then
+        call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%adjointVariables, success)
+     else
+        call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%adjointVariables, success)
+     end if
+
   case (QOI_RIGHT_HAND_SIDE)
-     call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%rightHandSide, success)
+     if (this%nSpecies == 0) then
+        call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%rightHandSide, success)
+     else
+        call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%rightHandSide, success)
+     end if
+
   case (QOI_TIME_AVERAGED_STATE)
-     call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                       &
-          grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
-          this%timeAverage, success)
+     if (this%nSpecies == 0) then
+        call plot3dWriteSingleSolution(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%timeAverage, success)
+     else
+        call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                    &
+             grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                             &
+             this%timeAverage, success)
+     end if
+
   case (QOI_DUMMY_FUNCTION)
      call plot3dWriteSingleFunction(grid%comm, trim(filename), offset,                       &
           grid%mpiDerivedTypeScalarSubarray, grid%globalSize,                                &
           this%dummyFunction, success)
      nullify(this%dummyFunction)
+
   end select
 
 end subroutine saveStateData

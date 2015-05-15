@@ -50,7 +50,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      write(message, '(A)') "Number of species must be non-negative!"
      call gracefulExit(comm_, message)
   end if
-  
+
   this%nUnknowns = nDimensions + 2 + this%nSpecies
 
   if (simulationFlags%viscosityOn) then
