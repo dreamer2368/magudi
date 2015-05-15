@@ -20,7 +20,7 @@ PURE_SUBROUTINE computeDependentVariables(nDimensions, conservedVariables,      
 
   assert(size(conservedVariables, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
-  assert(size(conservedVariables, 2) == nDimensions + 2)
+  assert(size(conservedVariables, 2) >= nDimensions + 2)
 
   ratioOfSpecificHeats_ = 1.4_wp
   if (present(ratioOfSpecificHeats)) then
@@ -393,12 +393,12 @@ PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, conservedVariables, 
 
   assert(size(conservedVariables, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
-  assert(size(conservedVariables, 2) == nDimensions + 2)
+  assert(size(conservedVariables, 2) >= nDimensions + 2)
   assert(size(velocity, 1) == size(conservedVariables, 1))
   assert(size(velocity, 2) == nDimensions)
   assert(size(pressure) == size(conservedVariables, 1))
   assert(size(inviscidFluxes, 1) == size(conservedVariables, 1))
-  assert(size(inviscidFluxes, 2) == nDimensions + 2)
+  assert(size(inviscidFluxes, 2) >= nDimensions + 2)
   assert(size(inviscidFluxes, 3) == nDimensions)
 
   select case (nDimensions)
@@ -460,7 +460,7 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, velocity,            
   assert(size(heatFlux, 1) == size(velocity, 1))
   assert(size(heatFlux, 2) == nDimensions)
   assert(size(viscousFluxes, 1) == size(velocity, 1))
-  assert(size(viscousFluxes, 2) == nDimensions + 2)
+  assert(size(viscousFluxes, 2) >= nDimensions + 2)
   assert(size(viscousFluxes, 3) == nDimensions)
 
   select case (nDimensions)
@@ -610,7 +610,7 @@ PURE_SUBROUTINE transformFluxes(nDimensions, fluxes, metrics,                   
 
   assert(size(fluxes, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
-  assert(size(fluxes, 2) == nDimensions + 2)
+  assert(size(fluxes, 2) >= nDimensions + 2)
   assert(size(fluxes, 3) == nDimensions)
   assert(size(metrics, 1) == size(fluxes, 1))
   assert(size(metrics, 2) == nDimensions ** 2)

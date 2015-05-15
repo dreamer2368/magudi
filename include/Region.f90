@@ -103,13 +103,15 @@ module Region_mod
 
   interface
 
-     subroutine loadRegionData(this, quantityOfInterest, filename)
+     subroutine loadRegionData(this, quantityOfInterest, filename, speciesFilename)
 
        import :: t_Region
 
        class(t_Region) :: this
        integer, intent(in) :: quantityOfInterest
        character(len = *), intent(in) :: filename
+
+       character(len = *), intent(in), optional :: speciesFilename
 
      end subroutine loadRegionData
 
