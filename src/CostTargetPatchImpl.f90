@@ -47,6 +47,7 @@ subroutine setupCostTargetPatch(this, index, comm, patchDescriptor,             
   if (this%nPatchPoints > 0) then
      allocate(this%norm(this%nPatchPoints, 1))
      allocate(this%adjointForcing(this%nPatchPoints, solverOptions%nUnknowns))
+     this%adjointForcing = 0.0_wp
   end if
 
 end subroutine setupCostTargetPatch

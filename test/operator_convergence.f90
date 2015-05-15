@@ -176,7 +176,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, n, startSize_, nLocal, offset, gridSize(3), nIterations_,                 &
-       proc, nProcs, numProcesses(3), cartesianCommunicator, ierror
+       proc, numProcs, numProcesses(3), cartesianCommunicator, ierror
   logical :: isPeriodic_(3), isPeriodicityOverlapping
   SCALAR_TYPE :: x
   SCALAR_TYPE, allocatable :: y(:,:), yExact(:,:)
@@ -217,10 +217,10 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
 
   ! Find the rank of this process and the number of processes in the communicator.
   call MPI_Comm_rank(MPI_COMM_WORLD, proc, ierror)
-  call MPI_Comm_size(MPI_COMM_WORLD, nProcs, ierror)
+  call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
 
   numProcesses = 1
-  numProcesses(direction) = nProcs
+  numProcesses(direction) = numProcs
 
   ! Create a Cartesian communicator.
   call MPI_Cart_create(MPI_COMM_WORLD, 3, numProcesses,                                      &
@@ -230,7 +230,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
   if (present(startSize)) then
      startSize_ = startSize
   else
-     startSize_ = max(nProcs * A%boundaryDepth, 32)
+     startSize_ = max(numProcs * A%boundaryDepth, 32)
   end if
   n = startSize_
 
@@ -238,7 +238,7 @@ subroutine testStencilOperatorConvergence(A, direction, f, g, convergenceRate, s
 
      ! Determine the offset and number of points that will be distributed to the current
      ! process.
-     call pigeonhole(n, nProcs, proc, offset, nLocal)
+     call pigeonhole(n, numProcs, proc, offset, nLocal)
      gridSize(direction) = nLocal
 
      ! If periodic, then exclude the x = 1 plane.

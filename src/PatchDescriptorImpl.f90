@@ -6,8 +6,11 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Patch_factory, only : t_PatchFactory
+  use Controller_mod, only : t_Controller
   use Functional_mod, only : t_Functional
   use SolverOptions_mod, only : t_SolverOptions
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use Controller_factory, only : t_ControllerFactory
   use Functional_factory, only : t_FunctionalFactory
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use PatchDescriptor_mod, only : t_PatchDescriptor
@@ -30,6 +33,8 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   type(t_PatchFactory) :: patchFactory
   class(t_Patch), pointer :: dummyPatch => null()
   character(len = STRING_LENGTH) :: str
+  type(t_ControllerFactory) :: controllerFactory
+  class(t_Controller), pointer :: dummyController => null()
   type(t_FunctionalFactory) :: functionalFactory
   class(t_Functional), pointer :: dummyFunctional => null()
 
@@ -114,11 +119,24 @@ subroutine validatePatchDescriptor(this, globalGridSizes,                       
   end if
 
   select type (dummyPatch)
-  class is (t_CostTargetPatch)
 
+  class is (t_CostTargetPatch)
      call functionalFactory%connect(dummyFunctional, trim(solverOptions%costFunctionalType))
      if (associated(dummyFunctional)) then
         success = dummyFunctional%isPatchValid(this, globalGridSizes(:,this%gridIndex),      &
+             this%normalDirection, extent, simulationFlags, str)
+        if (.not. success) then
+           write(message, '(3A,I0.0,2A)') "Patch '", trim(this%name), "' on grid ",          &
+                this%gridIndex, " reported: ", trim(str)
+           errorCode = 2
+           return
+        end if
+     end if
+
+  class is (t_ActuatorPatch)
+     call controllerFactory%connect(dummyController, trim(solverOptions%controllerType))
+     if (associated(dummyController)) then
+        success = dummyController%isPatchValid(this, globalGridSizes(:,this%gridIndex),      &
              this%normalDirection, extent, simulationFlags, str)
         if (.not. success) then
            write(message, '(3A,I0.0,2A)') "Patch '", trim(this%name), "' on grid ",          &

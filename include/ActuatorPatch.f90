@@ -14,7 +14,7 @@ module ActuatorPatch_mod
      integer :: iGradientBuffer = 0
      integer(kind = MPI_OFFSET_KIND) :: gradientFileOffset = int(0, MPI_OFFSET_KIND)
      character(len = STRING_LENGTH) :: gradientFilename
-     SCALAR_TYPE, allocatable :: mollifier(:), controlForcing(:,:), gradientBuffer(:,:,:)
+     SCALAR_TYPE, allocatable :: controlForcing(:,:), gradientBuffer(:,:,:)
 
    contains
 
@@ -22,8 +22,8 @@ module ActuatorPatch_mod
      procedure, pass :: cleanup => cleanupActuatorPatch
      procedure, pass :: verifyUsage => verifyActuatorPatchUsage
      procedure, pass :: updateRhs => updateActuatorPatch
-     procedure, pass :: startBufferedGradientIO => startBufferedActuatorGradientIO
-     procedure, pass :: finishBufferedGradientIO => finishBufferedActuatorGradientIO
+     procedure, pass :: loadGradient => loadActuatorGradient
+     procedure, pass :: saveGradient => saveActuatorGradient
 
   end type t_ActuatorPatch
 
@@ -109,27 +109,25 @@ module ActuatorPatch_mod
 
   interface
 
-     subroutine startBufferedActuatorGradientIO(this, mode)
+     subroutine loadActuatorGradient(this)
 
        import :: t_ActuatorPatch
 
        class(t_ActuatorPatch) :: this
-       integer, intent(in) :: mode
 
-     end subroutine startBufferedActuatorGradientIO
+     end subroutine loadActuatorGradient
 
   end interface
 
   interface
 
-     subroutine finishBufferedActuatorGradientIO(this, mode)
+     subroutine saveActuatorGradient(this)
 
        import :: t_ActuatorPatch
 
        class(t_ActuatorPatch) :: this
-       integer, intent(in) :: mode
 
-     end subroutine finishBufferedActuatorGradientIO
+     end subroutine saveActuatorGradient
 
   end interface
 

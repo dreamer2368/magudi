@@ -14,8 +14,6 @@ program main
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
-  use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
-  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
   implicit none
@@ -89,27 +87,15 @@ program main
   ! Initialize the solver.
   call solver%setup(region, outputPrefix = outputPrefix)
 
-  ! Setup boundary conditions.
-  call getRequiredOption("boundary_condition_file", filename)
-  call region%setupBoundaryConditions(filename)
-
-  ! Compute damping strength on sponge patches.
-  do i = 1, size(region%grids)
-     call computeSpongeStrengths(region%patchFactories, region%grids(i))
-  end do
-  call MPI_Barrier(region%comm, ierror)
-
-  ! Check continuity at block interfaces.
-  if (getOption("check_interface_continuity", .false.))                                      &
-       call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
-  call MPI_Barrier(region%comm, ierror)
-
-  ! Update patches.
-  do i = 1, size(region%grids)
-     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
-          region%solverOptions, region%grids(i), region%states(i))
-  end do
-  call MPI_Barrier(region%comm, ierror)
+  ! Save the control and target mollifier if using code-generated values.
+  if (.not. region%simulationFlags%predictionOnly) then
+     filename = getOption("control_mollifier_file", "")
+     if (len_trim(filename) == 0) call region%saveData(QOI_CONTROL_MOLLIFIER,                &
+          trim(outputPrefix) // ".control_mollifier.f")
+     filename = getOption("target_mollifier_file", "")
+     if (len_trim(filename) == 0) call region%saveData(QOI_TARGET_MOLLIFIER,                 &
+          trim(outputPrefix) // ".target_mollifier.f")
+  end if
 
   ! Main code logic.
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
