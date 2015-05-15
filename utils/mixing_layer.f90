@@ -478,21 +478,50 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
-    integer :: i, nDimensions, ierror
+    integer :: i, nSpecies, H2, O2, nDimensions, ierror
     real(wp) :: ratioOfSpecificHeats, upperVelocity, lowerVelocity,                          &
-         velocity, temperature
+         density, velocity, temperature, Z, fuel, oxidizer, YF0, YO0
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
 
     call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
-    ! Read input file.
+    ! Species
+    nSpecies = getOption("number_of_species", 0)
+    H2 = nDimensions+2+1
+    O2 = H2 + 1
+    YF0 = getOption("YF0", 0.0_wp)
+    YO0 = getOption("YO0", 0.0_wp)
+
+    ! Only implemented for 2 species
+    if (nspecies.gt.2) then
+       print *, 'WARNING, max of 2 species (for now)'
+       stop
+    end if
+
+    ! Mixing layer velocities.
     upperVelocity = getOption("upper_velocity", 0.0_wp)
     lowerVelocity = getOption("lower_velocity", 0.0_wp)
+
+    ! Gamma
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
 
     do i = 1, grid%nGridPoints
+
+       ! Mixture fraction
+       Z = 0.5_wp*(1.0_wp-erf(grid%coordinates(i,2)))
+
+       ! Components
+       fuel = YF0*Z
+       oxidizer = YO0*(1.0_wp-Z)
+
+       ! Density
+       if (nspecies.gt.0) then
+          density = 1.0_wp
+       else
+          density = 1.0_wp
+       end if
 
        ! Velocity
        velocity = lowerVelocity +                                                          &
@@ -502,13 +531,14 @@ contains
        temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
 
        ! State variables
-       state%conservedVariables(i,1) =                                                       &
-            1.0_wp / ((ratioOfSpecificHeats - 1.0_wp) * temperature)
+       state%conservedVariables(i,1) = density
        state%conservedVariables(i,2) = state%conservedVariables(i,1) * velocity
        state%conservedVariables(i,3:nDimensions+1) = 0.0_wp
        state%conservedVariables(i,nDimensions+2) =                                           &
             state%conservedVariables(i,1) * temperature / ratioOfSpecificHeats +             &
             0.5_wp * state%conservedVariables(i,1) * velocity ** 2
+       state%conservedVariables(i,H2) = fuel*state%conservedVariables(i,1)
+       state%conservedVariables(i,O2) = oxidizer*state%conservedVariables(i,1)
 
        ! Target solution
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)

@@ -37,7 +37,7 @@ program data2ensight
 
   ! EnSight stuff
   integer :: num, numFiles
-  integer :: i, j, k, nx, ny, nz, npart, reclength
+  integer :: i, j, k, nx, ny, nz, nspec, ndim, npart, reclength
   integer :: startIter, stopIter, skipIter, iter, var, nvar
   real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,rbuffer
   real(KIND=4) :: xmin, xmax, ymin, ymax, zmin, zmax
@@ -70,10 +70,10 @@ program data2ensight
   directory='ensight-3D'
 
   ! Check for errors.
-  If ((ib .NE. 'y') .AND. (ib .NE. 'n')) Then
-     Write (*,'(A)') 'Invalid value for IBLANK: use either "y" (yes) or "n" (no)'
-     Stop
-  End If
+  if ((ib .NE. 'y') .AND. (ib .NE. 'n')) then
+     write (*,'(A)') 'Invalid value for IBLANK: use either "y" (yes) or "n" (no)'
+     stop
+  end if
 
   ! Set the grid name.
   grid_name = trim(prefix)//'.xyz'
@@ -97,6 +97,21 @@ program data2ensight
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
+  ! Get number of dimensions.
+  ndim = size(region%grids(1)%coordinates(1,:))
+
+  ! Get number of variables.
+  write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
+
+  ! Load the solution file.
+  call region%loadData(QOI_FORWARD_STATE, fname)
+  nvar = size(region%states(1)%conservedVariables(1,:))
+  print *, 'Number of variables:',nvar
+  print *
+
+  ! Number of species
+  nspec = nvar - (ndim+2)
+
   ! Get number of files and time sereies.
   numFiles = 0
   do iter = startIter, stopIter, skipIter
@@ -110,29 +125,28 @@ program data2ensight
      time(numFiles) = real(numFiles-1,8)
   end do
 
-  ! Get number of variables.
-  write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
-
-  ! Load the solution file.
-  call region%loadData(QOI_FORWARD_STATE, fname)
-  nvar = size(region%states(1)%conservedVariables(1,:))
-  print *, 'Number of variables:',nvar
-  print *
-
   ! Assign variable names.
   allocate(names(nvar))
-  select case (nvar)
-  case(4)
+  select case (ndim)
+  case (2)
      names(1) = 'RHO'
      names(2) = 'U'
      names(3) = 'V'
      names(4) = 'E'
-  case (5)
+  case (3)
      names(1) = 'RHO'
      names(2) = 'U'
      names(3) = 'V'
      names(4) = 'W'
      names(5) = 'E'
+  end select
+
+  select case (nspec)
+  case (1)
+     names(ndim+3) = 'H2'
+  case (2)
+     names(ndim+3) = 'H2'
+     names(ndim+4) = 'O2'
   end select
 
   ! Create the EnSight directory
