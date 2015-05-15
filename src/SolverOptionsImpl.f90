@@ -57,6 +57,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
      this%reynoldsNumberInverse = max(0.0_wp, getOption("Reynolds_number", 0.0_wp))
      this%prandtlNumberInverse = max(0.0_wp, getOption("Prandtl_number", 0.72_wp))
+     this%schmidtNumberInverse = max(0.0_wp, getOption("Schmidt_number", 0.70_wp))
 
      if (this%reynoldsNumberInverse <= 0.0_wp .or. this%prandtlNumberInverse <= 0.0_wp) then
         this%powerLawExponent = 0.0_wp

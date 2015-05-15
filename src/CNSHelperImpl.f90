@@ -87,8 +87,8 @@ PURE_SUBROUTINE computeDependentVariables(nDimensions, conservedVariables,      
 end subroutine computeDependentVariables
 
 PURE_SUBROUTINE computeTransportVariables(temperature, powerLawExponent, bulkViscosityRatio, &
-     ratioOfSpecificHeats, reynoldsNumberInverse, prandtlNumberInverse, dynamicViscosity,    &
-     secondCoefficientOfViscosity, thermalDiffusivity)
+     ratioOfSpecificHeats, reynoldsNumberInverse, prandtlNumberInverse, schmidtNumberInverse, &
+     dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity)
 
   implicit none
 
@@ -96,7 +96,8 @@ PURE_SUBROUTINE computeTransportVariables(temperature, powerLawExponent, bulkVis
   SCALAR_TYPE, intent(in) :: temperature(:)
   real(SCALAR_KIND), intent(in) :: powerLawExponent,                                         &
        ratioOfSpecificHeats, reynoldsNumberInverse
-  real(SCALAR_KIND), intent(in), optional :: bulkViscosityRatio, prandtlNumberInverse
+  real(SCALAR_KIND), intent(in), optional :: bulkViscosityRatio, prandtlNumberInverse,       &
+       schmidtNumberInverse
   SCALAR_TYPE, intent(out), optional :: dynamicViscosity(:),                                 &
        secondCoefficientOfViscosity(:),                                                      &
        thermalDiffusivity(:)

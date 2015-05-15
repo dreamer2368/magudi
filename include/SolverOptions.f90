@@ -7,9 +7,9 @@ module SolverOptions_mod
 
   type, public :: t_SolverOptions
 
-     real(SCALAR_KIND) :: reynoldsNumberInverse, prandtlNumberInverse, ratioOfSpecificHeats, &
-          powerLawExponent, bulkViscosityRatio, dissipationAmount, densityRange(2),          &
-          temperatureRange(2), cfl, timeStepSize
+     real(SCALAR_KIND) :: reynoldsNumberInverse, prandtlNumberInverse, schmidtNumberInverse, &
+          ratioOfSpecificHeats, powerLawExponent, bulkViscosityRatio, dissipationAmount,     &
+          densityRange(2),temperatureRange(2), cfl, timeStepSize
      integer :: nSpecies, nUnknowns
      character(len = STRING_LENGTH) :: discretizationType, timeintegratorType,               &
           costFunctionalType, controllerType, checkpointingScheme
