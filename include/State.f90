@@ -62,6 +62,8 @@ module State_mod
           heatFlux, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,      &
           targetState, adjointVariables, timeAverage
 
+     SCALAR_TYPE, dimension(:,:,:), allocatable :: speciesFlux
+
      SCALAR_TYPE, dimension(:,:), pointer :: dummyFunction => null()
 
    contains
