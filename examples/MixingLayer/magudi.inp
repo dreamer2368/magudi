@@ -39,7 +39,7 @@ bulk_viscosity_ratio = 0.6
 ratio_of_specific_heats = 1.4
 
 # Species
-number_of_species = 0
+number_of_species = 2
 YF0 = 1.0
 YO0 = 0.233
 
