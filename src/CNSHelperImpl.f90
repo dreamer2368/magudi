@@ -392,6 +392,9 @@ PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, conservedVariables, 
   SCALAR_TYPE, intent(in) :: conservedVariables(:,:), velocity(:,:), pressure(:)
   SCALAR_TYPE, intent(out) :: inviscidFluxes(:,:,:)
 
+  ! <<< Local variables >>>
+  integer :: nSpecies, k
+
   assert(size(conservedVariables, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
   assert(size(conservedVariables, 2) >= nDimensions + 2)
@@ -402,12 +405,18 @@ PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, conservedVariables, 
   assert(size(inviscidFluxes, 2) >= nDimensions + 2)
   assert(size(inviscidFluxes, 3) == nDimensions)
 
+  ! Get number of species.
+  nSpecies = size(inviscidFluxes, 2) - nDimensions - 2
+
   select case (nDimensions)
 
   case (1)
      inviscidFluxes(:,1,1) = conservedVariables(:,2)
      inviscidFluxes(:,2,1) = conservedVariables(:,2) * velocity(:,1) + pressure
      inviscidFluxes(:,3,1) = velocity(:,1) * (conservedVariables(:,3) + pressure)
+     do k=1,nSpecies
+        inviscidFluxes(:,k+3,1) = conservedVariables(:,k+3) * velocity(:,1)
+     end do
 
   case (2)
      inviscidFluxes(:,1,1) = conservedVariables(:,2)
@@ -418,6 +427,10 @@ PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, conservedVariables, 
      inviscidFluxes(:,2,2) = inviscidFluxes(:,3,1)
      inviscidFluxes(:,3,2) = conservedVariables(:,3) * velocity(:,2) + pressure
      inviscidFluxes(:,4,2) = velocity(:,2) * (conservedVariables(:,4) + pressure)
+     do k=1,nSpecies
+        inviscidFluxes(:,k+4,1) = conservedVariables(:,k+3) * velocity(:,1)
+        inviscidFluxes(:,k+4,2) = conservedVariables(:,k+3) * velocity(:,2)
+     end do
 
   case (3)
      inviscidFluxes(:,1,1) = conservedVariables(:,2)
@@ -435,23 +448,30 @@ PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, conservedVariables, 
      inviscidFluxes(:,3,3) = inviscidFluxes(:,4,2)
      inviscidFluxes(:,4,3) = conservedVariables(:,4) * velocity(:,3) + pressure
      inviscidFluxes(:,5,3) = velocity(:,3) * (conservedVariables(:,5) + pressure)
+     do k=1,nSpecies
+        inviscidFluxes(:,k+5,1) = conservedVariables(:,k+3) * velocity(:,1)
+        inviscidFluxes(:,k+5,2) = conservedVariables(:,k+3) * velocity(:,2)
+        inviscidFluxes(:,k+5,3) = conservedVariables(:,k+3) * velocity(:,3)
+     end do
 
   end select
 
 end subroutine computeCartesianInvsicidFluxes
 
 PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, velocity,                         &
-     stressTensor, heatFlux, viscousFluxes)
+     stressTensor, heatFlux, speciesFlux, viscousFluxes)
 
   implicit none
 
   ! <<< Arguments >>>
   integer, intent(in) :: nDimensions
   SCALAR_TYPE, intent(in) :: velocity(:,:), stressTensor(:,:), heatFlux(:,:)
+  SCALAR_TYPE, intent(in), optional :: speciesFlux(:,:)
   SCALAR_TYPE, intent(out) :: viscousFluxes(:,:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  integer :: nSpecies, k
 
   assert(size(velocity, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
@@ -464,12 +484,18 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, velocity,            
   assert(size(viscousFluxes, 2) >= nDimensions + 2)
   assert(size(viscousFluxes, 3) == nDimensions)
 
+  ! Get number of species.
+  nSpecies = size(viscousFluxes, 2) - nDimensions - 2
+
   select case (nDimensions)
 
   case (1)
      viscousFluxes(:,1,1) = 0.0_wp
      viscousFluxes(:,2,1) = stressTensor(:,1)
      viscousFluxes(:,3,1) = velocity(:,1) * stressTensor(:,1) - heatFlux(:,1)
+     do k=1,nSpecies
+        viscousFluxes(:,k+3,1) = speciesFlux(:,1)
+     end do
 
   case (2)
      viscousFluxes(:,1,1) = 0.0_wp
@@ -482,6 +508,10 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, velocity,            
      viscousFluxes(:,3,2) = stressTensor(:,4)
      viscousFluxes(:,4,2) = velocity(:,1) * stressTensor(:,2) +                              &
           velocity(:,2) * stressTensor(:,4) - heatFlux(:,2)
+     do k=1,nSpecies
+        viscousFluxes(:,k+4,1) = speciesFlux(:,1)
+        viscousFluxes(:,k+4,2) = speciesFlux(:,2)
+     end do
 
   case (3)
      viscousFluxes(:,1,1) = 0.0_wp
@@ -505,6 +535,11 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, velocity,            
      viscousFluxes(:,5,3) = velocity(:,1) * stressTensor(:,3) +                              &
           velocity(:,2) * stressTensor(:,6) +                                                &
           velocity(:,3) * stressTensor(:,9) - heatFlux(:,3)
+     do k=1,nSpecies
+        viscousFluxes(:,k+5,1) = speciesFlux(:,1)
+        viscousFluxes(:,k+5,2) = speciesFlux(:,2)
+        viscousFluxes(:,k+5,3) = speciesFlux(:,3)
+     end do
 
   end select
 
