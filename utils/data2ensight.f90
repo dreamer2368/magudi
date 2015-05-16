@@ -27,7 +27,7 @@ program data2ensight
 
   ! I/O
   integer :: ierr, ierror
-  character(len = STRING_LENGTH) :: grid_name,fname,sfname
+  character(len = STRING_LENGTH) :: grid_name, fname
   character(LEN=80) :: prefix, directory
 
   ! Magudi stuff
@@ -105,10 +105,9 @@ program data2ensight
 
   ! Get number of variables.
   write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
-  write(sfname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.f'
 
   ! Load the solution file.
-  call region%loadData(QOI_FORWARD_STATE, fname, sfname)
+  call region%loadData(QOI_FORWARD_STATE, fname)
   nvar = size(region%states(1)%conservedVariables(1,:))
   
   print *, 'Number of variables:',nvar
