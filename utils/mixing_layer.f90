@@ -12,7 +12,7 @@ program mixing_layer
 
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
-  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat
 
   !> Generates the grid, BC, initial condition, and target state for a spatial mixing layer.
 
@@ -21,7 +21,6 @@ program mixing_layer
   integer :: i, numProcs, ierror
   integer :: i1, i2, j1, j2
   character(len = STRING_LENGTH) :: inputname,filename
-  logical :: success
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
 
@@ -122,14 +121,11 @@ contains
     use ErrorHandler, only : gracefulExit
 
     ! <<< Arguments >>>
-    type(t_State) :: state
-    type(t_Grid) :: grid
     integer, intent(out) :: i1, i2, j1, j2
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    logical :: generateTargetState_
-    integer :: i, j, k, n, nDimensions, ierror
+    integer :: i, j, k, n
     integer :: nx, ny, nz, nx_, ny_, nz_
     real(wp) :: xmini, xmaxi, ymini, ymaxi
     real(wp) :: xmino, xmaxo, ymino, ymaxo
@@ -434,18 +430,9 @@ contains
 
     ! Write the BC
     do i=1,nbc
-       write(iunit,'(2a22,8I5)') adjustl(name(i)),adjustl(type(i)),&
+       write(iunit,'(a2,2a21,8I5)') '  ',adjustl(name(i)),adjustl(type(i)),&
             grid(i),normDir(i),imin(i),imax(i),jmin(i),jmax(i),kmin(i),kmax(i)
     end do
-!!$    write(iunit,'(2a22,8I5)') 'inflow',            'SAT_FAR_FIELD',         1,    1,   1,   1,   1,  -1,   1,  -1
-!!$    write(iunit,'(2a22,8I5)') 'inflowSponge',      'SPONGE',                1,    1,   1,  i1,   1,  -1,   1,  -1
-!!$    write(iunit,'(2a22,8I5)') 'outflow',           'SAT_FAR_FIELD',         1,   -1,  -1,  -1,   1,  -1,   1,  -1
-!!$    write(iunit,'(2a22,8I5)') 'outflowSponge',     'SPONGE',                1,   -1,  i2,  -1,   1,  -1,   1,  -1
-!!$    write(iunit,'(2a22,8I5)') 'bottom',            'SAT_FAR_FIELD',         1,    2,   1,  -1,   1,   1,   1,  -1
-!!$    write(iunit,'(2a22,8I5)') 'bottomSponge',      'SPONGE',                1,    2,   1,  -1,   1,  j1,   1,  -1
-!!$    write(iunit,'(2a22,8I5)') 'top',               'SAT_FAR_FIELD',         1,   -2,   1,  -1,  -1,  -1,   1,  -1
-!!$    write(iunit,'(2a22,8I5)') 'topSponge',         'SPONGE',                1,   -2,   1,  -1,  j2,  -1,   1,  -1
-!!$    write(iunit,'(2a22,8I5)') 'excitationSupport', 'SOLENOIDAL_EXCITATION', 1,    0,   1,  i1,   1,  -1,   1,  -1
 
     ! Close the file
     close(iunit)
@@ -489,10 +476,6 @@ contains
 
     ! Species
     nSpecies = getOption("number_of_species", 0)
-    H2 = nDimensions+2+1
-    O2 = H2 + 1
-    YF0 = getOption("YF0", 0.0_wp)
-    YO0 = getOption("YO0", 0.0_wp)
 
     ! Only implemented for 2 species
     if (nspecies.gt.2) then
@@ -503,6 +486,12 @@ contains
     ! Mixing layer velocities.
     upperVelocity = getOption("upper_velocity", 0.0_wp)
     lowerVelocity = getOption("lower_velocity", 0.0_wp)
+
+    ! Species parameters.
+    H2 = nDimensions+2+1
+    O2 = H2 + 1
+    YF0 = getOption("YF0", 0.0_wp)
+    YO0 = getOption("YO0", 0.0_wp)
 
     ! Gamma
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
