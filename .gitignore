@@ -1,0 +1,9 @@
+# Ignore everything
+*
+
+# Except this stuff...
+src/*
+include/*
+utils/*
+examples/*
+CMakeLists.txt
