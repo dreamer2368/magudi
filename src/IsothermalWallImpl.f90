@@ -51,8 +51,8 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
         call computeTransportVariables(this%temperature, solverOptions%powerLawExponent,     &
              solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,           &
              solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,        &
-             this%dynamicViscosity, this%secondCoefficientOfViscosity,                       &
-             this%thermalDiffusivity)
+             solverOptions%schmidtNumberInverse, this%dynamicViscosity,                      &
+             this%secondCoefficientOfViscosity, this%thermalDiffusivity)
      end if
 
   end if

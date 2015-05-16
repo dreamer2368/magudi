@@ -519,8 +519,9 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
               call computeTransportVariables(patch%temperature,                              &
                    solverOptions%powerLawExponent, solverOptions%bulkViscosityRatio,         &
                    solverOptions%ratioOfSpecificHeats, solverOptions%reynoldsNumberInverse,  &
-                   solverOptions%prandtlNumberInverse, patch%dynamicViscosity,               &
-                   patch%secondCoefficientOfViscosity, patch%thermalDiffusivity)
+                   solverOptions%prandtlNumberInverse, solverOptions%schmidtNumberInverse,   &
+                   patch%dynamicViscosity, patch%secondCoefficientOfViscosity,               &
+                   patch%thermalDiffusivity)
            end select
 
         end do

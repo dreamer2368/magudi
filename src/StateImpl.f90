@@ -488,8 +488,8 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
      call computeTransportVariables(this%temperature(:,1), solverOptions%powerLawExponent,   &
           solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
           solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
-          this%dynamicViscosity(:,1), this%secondCoefficientOfViscosity(:,1),                &
-          this%thermalDiffusivity(:,1))
+          solverOptions%schmidtNumberInverse, this%dynamicViscosity(:,1),                    &
+          this%secondCoefficientOfViscosity(:,1), this%thermalDiffusivity(:,1))
 
      if (simulationFlags%repeatFirstDerivative) then
 
