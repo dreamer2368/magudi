@@ -6,6 +6,7 @@ output_prefix = "MixingLayer"
 grid_file = "MixingLayer.xyz"
 initial_condition_file = "MixingLayer.ic.q"
 boundary_condition_file = "bc.dat"
+target_state_file = "MixingLayer.target.q"
 #control_mollifier_file = "AcousticMonopole.control_mollifier.f"
 #target_mollifier_file = "AcousticMonopole.target_mollifier.f"
 
@@ -32,12 +33,15 @@ compute_time_average = false
 # Non-dimensional constants
 Reynolds_number = 200.0
 Prandtl_number = 0.7
-viscosity_power_law_exponent = 0.
-bulk_viscosity_ratio = 0.
-ratio_of_specific_heat = 1.4
+Schmidt_number = 0.7
+viscosity_power_law_exponent = 0.666
+bulk_viscosity_ratio = 0.6
+ratio_of_specific_heats = 1.4
 
 # Species
 number_of_species = 0
+YF0 = 1.0
+YO0 = 0.233
 
 # Discretization scheme
 defaults/discretization_scheme = "SBP 3-6"
@@ -46,7 +50,7 @@ defaults/discretization_scheme = "SBP 3-6"
 time_step_size = 0.05
 number_of_timesteps = 25000
 report_interval = 1
-save_interval = 50
+save_interval = 100
 
 # Artificial dissipation
 add_dissipation = true
