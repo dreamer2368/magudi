@@ -1,9 +1,13 @@
 # Ignore everything
-*
+#*
 
 # Except this stuff...
-src/*
-include/*
-utils/*
-examples/*
-CMakeLists.txt
+!.gitignore
+!src/*
+!include/*
+!utils/*
+!examples/*
+!CMakeLists.txt
+
+# Ignore everything
+*
