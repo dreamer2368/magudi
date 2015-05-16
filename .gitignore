@@ -1,4 +1,4 @@
 build
 build_debug
-!examples/*.inp
+!examples/*/*.inp
 examples/*
