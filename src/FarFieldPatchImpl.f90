@@ -56,8 +56,9 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
   ! Inviscid penalty amount.
-  this%inviscidPenaltyAmount = getOption(trim(key) //                                        &
-       "inviscid_penalty_amount", 1.0_wp) !... default value => dual-consistent.
+  this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount", 1.0_wp)
+  this%inviscidPenaltyAmount = getOption(trim(key) // "inviscid_penalty_amount",             &
+       this%inviscidPenaltyAmount)
   this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                              &
        real(this%normalDirection, wp))
   this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                                  &
@@ -65,8 +66,9 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
 
   ! Viscous penalty amount.
   if (simulationFlags%viscosityOn) then
-     this%viscousPenaltyAmount = getOption(trim(key) //                                      &
-          "viscous_penalty_amount", 1.0_wp)
+     this%viscousPenaltyAmount = getOption("defaults/viscous_penalty_amount", 1.0_wp)
+     this%viscousPenaltyAmount = getOption(trim(key) // "viscous_penalty_amount",            &
+          this%viscousPenaltyAmount)
      this%viscousPenaltyAmount = sign(this%viscousPenaltyAmount,                             &
           real(this%normalDirection, wp))
      this%viscousPenaltyAmount = this%viscousPenaltyAmount /                                 &
