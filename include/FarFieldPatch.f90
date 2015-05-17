@@ -10,8 +10,8 @@ module FarFieldPatch_mod
   type, extends(t_Patch), public :: t_FarFieldPatch
 
      real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
-     SCALAR_TYPE, allocatable :: metrics(:,:), viscousFluxes(:,:), targetViscousFluxes(:,:), &
-          adjointViscousPenalty(:,:)
+     SCALAR_TYPE, allocatable :: metrics(:,:), firstPartialViscousJacobians(:,:,:),          &
+          secondPartialViscousJacobians(:,:,:,:), viscousPenalty(:,:)
 
    contains
 
@@ -19,9 +19,7 @@ module FarFieldPatch_mod
      procedure, pass :: cleanup => cleanupFarFieldPatch
      procedure, pass :: verifyUsage => verifyFarFieldPatchUsage
      procedure, pass :: updateRhs => addFarFieldPenalty
-     procedure, pass :: collectViscousFluxes => collectFarFieldViscousFluxes
-     procedure, pass :: updateAdjointDiffusionPenaltyTerm =>                                 &
-          updateFarFieldAdjointDiffusionPenaltyTerm
+     procedure, pass :: computeViscousJacobians => computeFarFieldViscousJacobians
 
   end type t_FarFieldPatch
 
@@ -107,7 +105,7 @@ module FarFieldPatch_mod
 
   interface
 
-     subroutine collectFarFieldViscousFluxes(this, simulationFlags,                          &
+     subroutine computeFarFieldViscousJacobians(this, simulationFlags,                       &
           solverOptions, grid, state)
 
        use Grid_mod, only : t_Grid
@@ -123,31 +121,7 @@ module FarFieldPatch_mod
        class(t_Grid), intent(in) :: grid
        class(t_State) :: state
 
-     end subroutine collectFarFieldViscousFluxes
-
-  end interface
-
-  interface
-
-     subroutine updateFarFieldAdjointDiffusionPenaltyTerm(this, simulationFlags,             &
-          solverOptions, grid, state, direction, diffusionPenaltyTerm)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_FarFieldPatch
-
-       class(t_FarFieldPatch) :: this
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State) :: state
-       integer, intent(in) :: direction
-       SCALAR_TYPE, intent(out) :: diffusionPenaltyTerm(:,:)
-
-     end subroutine updateFarFieldAdjointDiffusionPenaltyTerm
+     end subroutine computeFarFieldViscousJacobians
 
   end interface
 

@@ -26,6 +26,8 @@ module Patch_mod
      generic :: collect => collectScalarAtPatch, collectVectorAtPatch, collectTensorAtPatch
      generic :: disperse => disperseScalarFromPatch,                                         &
           disperseVectorFromPatch, disperseTensorFromPatch
+     generic :: disperseAdd => disperseAddScalarFromPatch,                                   &
+          disperseAddVectorFromPatch, disperseAddTensorFromPatch
      generic :: gatherData => gatherScalarOnPatch, gatherVectorOnPatch, gatherTensorOnPatch
      generic :: scatterData => scatterScalarOnPatch, scatterVectorOnPatch,                   &
           scatterTensorOnPatch
@@ -42,6 +44,10 @@ module Patch_mod
      procedure, private, pass :: disperseScalarFromPatch
      procedure, private, pass :: disperseVectorFromPatch
      procedure, private, pass :: disperseTensorFromPatch
+
+     procedure, private, pass :: disperseAddScalarFromPatch
+     procedure, private, pass :: disperseAddVectorFromPatch
+     procedure, private, pass :: disperseAddTensorFromPatch
 
      procedure, private, pass :: gatherScalarOnPatch
      procedure, private, pass :: gatherVectorOnPatch
@@ -241,6 +247,43 @@ module Patch_mod
      end subroutine disperseTensorFromPatch
 
   end interface disperseFromPatch
+
+  interface disperseAddFromPatch
+
+     subroutine disperseAddScalarFromPatch(this, patchArray, gridArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+
+       SCALAR_TYPE, intent(in) :: patchArray(:)
+       SCALAR_TYPE, intent(inout) :: gridArray(:)
+
+     end subroutine disperseAddScalarFromPatch
+
+     subroutine disperseAddVectorFromPatch(this, patchArray, gridArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+
+       SCALAR_TYPE, intent(in) :: patchArray(:,:)
+       SCALAR_TYPE, intent(inout) :: gridArray(:,:)
+
+     end subroutine disperseAddVectorFromPatch
+
+     subroutine disperseAddTensorFromPatch(this, patchArray, gridArray)
+
+       import :: t_Patch
+
+       class(t_Patch) :: this
+
+       SCALAR_TYPE, intent(in) :: patchArray(:,:,:)
+       SCALAR_TYPE, intent(inout) :: gridArray(:,:,:)
+
+     end subroutine disperseAddTensorFromPatch
+
+  end interface disperseAddFromPatch
 
   interface gatherDataOnPatch
 
