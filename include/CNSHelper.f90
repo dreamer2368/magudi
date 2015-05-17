@@ -27,24 +27,24 @@ module CNSHelper
 
   interface
 
-     pure subroutine computeTransportVariables(temperature, powerLawExponent,                &
+     pure subroutine computeTransportVariables(nSpecies, temperature, powerLawExponent,      &
           bulkViscosityRatio, ratioOfSpecificHeats, reynoldsNumberInverse,                   &
           prandtlNumberInverse, schmidtNumberInverse, dynamicViscosity,                      &
-          secondCoefficientOfViscosity, thermalDiffusivity)
+          secondCoefficientOfViscosity, thermalDiffusivity, massDiffusivity)
 
        !> Computes the requested transport coefficient(s) including the dynamic viscosity,
        !> second coefficient of viscosity and the thermal conductivity assuming a power law
        !> dependence on temperature with exponent `powerLawExponent`.
 
+       integer, intent(in) :: nSpecies
        SCALAR_TYPE, intent(in) :: temperature(:)
        real(SCALAR_KIND), intent(in) :: powerLawExponent,                                    &
             ratioOfSpecificHeats, reynoldsNumberInverse
 
        real(SCALAR_KIND), intent(in), optional :: bulkViscosityRatio, prandtlNumberInverse,  &
-            schmidtNumberInverse
+            schmidtNumberInverse(:)
        SCALAR_TYPE, intent(out), optional :: dynamicViscosity(:),                            &
-            secondCoefficientOfViscosity(:),                                                 &
-            thermalDiffusivity(:)
+            secondCoefficientOfViscosity(:), thermalDiffusivity(:), massDiffusivity(:,:)
 
      end subroutine computeTransportVariables
 
@@ -66,16 +66,14 @@ module CNSHelper
 
   interface
 
-     pure subroutine computeStressTensor(nDimensions, nSpecies, velocityGradient,            &
-       dynamicViscosity, secondCoefficientOfViscosity, stressTensor, massFraction)
+     pure subroutine computeStressTensor(nDimensions, velocityGradient, dynamicViscosity,   &
+          secondCoefficientOfViscosity, stressTensor)
 
-       integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in) :: nDimensions
        SCALAR_TYPE, intent(inout) :: velocityGradient(:,:)
        SCALAR_TYPE, intent(in) :: dynamicViscosity(:), secondCoefficientOfViscosity(:)
 
        SCALAR_TYPE, intent(out), optional :: stressTensor(:,:)
-
-       SCALAR_TYPE, intent(inout), optional :: massFraction(:,:)
 
      end subroutine computeStressTensor
 
@@ -99,7 +97,7 @@ module CNSHelper
   interface
 
      pure subroutine computeCartesianInvsicidFluxes(nDimensions, nSpecies,                   &
-       conservedVariables, velocity, pressure, massFraction, inviscidFluxes)
+       conservedVariables, velocity, pressure, inviscidFluxes)
 
        !> Computes the Cartesian form of the inviscid fluxes. `velocity`, `pressure`, and
        !> `mass fraction` must be consistent with `conservedVariables`, otherwise the result
@@ -108,7 +106,6 @@ module CNSHelper
        integer, intent(in) :: nDimensions, nSpecies
        SCALAR_TYPE, intent(in) :: conservedVariables(:,:), velocity(:,:), pressure(:)
        SCALAR_TYPE, intent(out) :: inviscidFluxes(:,:,:)
-       SCALAR_TYPE, intent(in), optional :: massFraction(:,:)
 
      end subroutine computeCartesianInvsicidFluxes
 
@@ -117,7 +114,7 @@ module CNSHelper
   interface
 
      pure subroutine computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,          &
-       massFraction,stressTensor, heatFlux, speciesFlux, viscousFluxes)
+          massFraction, stressTensor, heatFlux, speciesFlux, viscousFluxes)
 
        !> Computes the Cartesian form of the viscous fluxes.
 
@@ -132,16 +129,15 @@ module CNSHelper
 
   interface
 
-     pure subroutine computeSpectralRadius(nDimensions, nSpecies, ratioOfSpecificHeats,      &
-       velocity, temperature, massFraction, metrics, spectralRadius, isDomainCurvilinear)
+     pure subroutine computeSpectralRadius(nDimensions, ratioOfSpecificHeats,                &
+       velocity, temperature, metrics, spectralRadius, isDomainCurvilinear)
 
        !> Compute the spectral radii along all the directions.
 
-       integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in) :: nDimensions
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(in) :: velocity(:,:), temperature(:), metrics(:,:)
        SCALAR_TYPE, intent(out) :: spectralRadius(:,:)
-       SCALAR_TYPE, intent(in), optional :: massFraction(:,:)
        logical, intent(in), optional :: isDomainCurvilinear
 
      end subroutine computeSpectralRadius
@@ -150,14 +146,14 @@ module CNSHelper
 
   interface
 
-     pure subroutine transformFluxes(nDimensions, nSpecies, fluxes, metrics,                 &
+     pure subroutine transformFluxes(nDimensions, fluxes, metrics,                           &
           transformedFluxes, isDomainCurvilinear)
 
        !> Transforms fluxes from Cartesian form to contravariant form. If the domain is not
        !> curvilinear as specified by `isDomainCurvilinear`, the arguments `fluxes` and
        !> `transformedFluxes` may reference the same array.
 
-       integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in) :: nDimensions
        SCALAR_TYPE, intent(in) :: fluxes(:,:,:), metrics(:,:)
        SCALAR_TYPE, intent(out) :: transformedFluxes(:,:,:)
        logical, intent(in), optional :: isDomainCurvilinear
@@ -207,23 +203,20 @@ module CNSHelper
   end interface
 
   interface
+
      pure subroutine computeJacobianOfInviscidFlux(nDimensions, nSpecies,                    &
           conservedVariables, metrics, ratioOfSpecificHeats, jacobianOfInviscidFlux,         &
-          deltaConservedVariables, specificVolume, velocity, temperature,                    &
-          massFraction, deltaJacobianOfInviscidFlux)
+          deltaConservedVariables, specificVolume, velocity, temperature, massFraction,      &
+          deltaJacobianOfInviscidFlux)
 
        integer, intent(in) :: nDimensions, nSpecies
-       SCALAR_TYPE, intent(in) :: conservedVariables(nDimensions + nSpecies + 2),            &
-            metrics(nDimensions)
+       SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-       SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux                                    &
-            (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2)
+       SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux(:,:)
 
-       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables                          &
-            (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),                         &
-            specificVolume, velocity(nDimensions), temperature, massFraction(nSpecies)
-       SCALAR_TYPE, intent(out), optional :: deltaJacobianOfInviscidFlux                     &
-            (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2,nDimensions + nSpecies + 2)
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables, specificVolume,         &
+            velocity(:), temperature, massFraction(:)
+       SCALAR_TYPE, intent(out), optional :: deltaJacobianOfInviscidFlux(:,:,:)
 
      end subroutine computeJacobianOfInviscidFlux
 
@@ -237,18 +230,14 @@ module CNSHelper
           deltaConservedVariables, specificVolume, velocity, temperature, massFraction)
 
        integer, intent(in) :: nDimensions, nSpecies
-       SCALAR_TYPE, intent(in) :: conservedVariables(nDimensions + nSpecies + 2),            &
-            metrics(nDimensions)
+       SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        integer, intent(in) :: incomingDirection
-       SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux                            &
-            (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2)
+       SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(:,:)
 
-       SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux             &
-            (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2,nDimensions + nSpecies + 2)
-       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables                          &
-            (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2), specificVolume,         &
-            velocity(nDimensions), temperature, massFraction(nSpecies)
+       SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(:,:,:)
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(:,:), specificVolume,    &
+            velocity(:), temperature, massFraction(:)
 
      end subroutine computeIncomingJacobianOfInviscidFlux
 
@@ -262,14 +251,13 @@ module CNSHelper
           specificVolume, velocity, temperature, massFraction)
 
        integer, intent(in) :: nDimensions, nSpecies
-       SCALAR_TYPE, intent(in) :: conservedVariables(nDimensions + nSpecies + 2),            &
-            metrics(nDimensions), stressTensor(nDimensions), heatFlux(nDimensions)
+       SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:),                         &
+            stressTensor(:), heatFlux(:)
        real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
-       SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian                               &
-            (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2)
+       SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(:,:)
 
-       SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(nDimensions),           &
-            temperature, massFraction(nSpecies), speciesFlux(nDimensions,nSpecies)
+       SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(:), temperature,        &
+            massFraction(:), speciesFlux(:,:)
 
      end subroutine computeFirstPartialViscousJacobian
      
@@ -283,10 +271,10 @@ module CNSHelper
           metricsAlongSecondDir, secondPartialViscousJacobian)
 
        integer, intent(in) :: nDimensions, nSpecies
-       SCALAR_TYPE, intent(in) :: velocity(nDimensions), dynamicViscosity,                   &
+       SCALAR_TYPE, intent(in) :: velocity(:), dynamicViscosity,                             &
             secondCoefficientOfViscosity, thermalDiffusivity, jacobian,                      &
-            metricsAlongFirstDir(nDimensions), metricsAlongSecondDir(nDimensions)
-       SCALAR_TYPE, intent(out) :: secondPartialViscousJacobian(nDimensions+1,nDimensions+1)
+            metricsAlongFirstDir(:), metricsAlongSecondDir(:)
+       SCALAR_TYPE, intent(out) :: secondPartialViscousJacobian(:,:)
 
      end subroutine computeSecondPartialViscousJacobian
 

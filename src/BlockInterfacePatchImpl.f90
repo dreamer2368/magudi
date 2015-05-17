@@ -327,7 +327,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
 
   ! <<< Local variables >>>
   integer :: i, direction, nDimensions, nUnknowns
-  SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux,              &
+  SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux, speciesFlux  &
        metricsAlongNormalDirection, dataToBeSent
   SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
 
@@ -356,17 +356,19 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      allocate(velocity(this%nPatchPoints, nDimensions))
      allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
      allocate(heatFlux(this%nPatchPoints, nDimensions))
+     allocate(speciesFlux(this%nPatchPoints, this%nSpecies, nDimensions))
      allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
      allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
 
      call this%collect(state%velocity, velocity)
      call this%collect(state%stressTensor, stressTensor)
      call this%collect(state%heatFlux, heatFlux)
+     call this%collect(state%speciesFlux, speciesFlux)
      call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
           metricsAlongNormalDirection)
 
      call computeCartesianViscousFluxes(nDimensions, velocity,                               &
-          stressTensor, heatFlux, viscousFluxes)
+          stressTensor, heatFlux, speciesFlux, viscousFluxes)
      do i = 1, this%nPatchPoints
         this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                     &
              metricsAlongNormalDirection(i,:))
@@ -377,6 +379,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      SAFE_DEALLOCATE(viscousFluxes)
      SAFE_DEALLOCATE(metricsAlongNormalDirection)
      SAFE_DEALLOCATE(heatFlux)
+     SAFE_DEALLOCATE(speciesFlux)
      SAFE_DEALLOCATE(stressTensor)
      SAFE_DEALLOCATE(velocity)
 

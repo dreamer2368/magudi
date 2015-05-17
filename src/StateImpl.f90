@@ -26,6 +26,7 @@ contains
     allocate(this%velocity(nGridPoints, nDimensions))
     allocate(this%pressure(nGridPoints, 1))
     allocate(this%temperature(nGridPoints, 1))
+    allocate(this%massFraction(nGridPoints, this%nSpecies))
 
     if (simulationFlags%useTargetState) then
        allocate(this%targetState(nGridPoints, solverOptions%nUnknowns))
@@ -44,6 +45,7 @@ contains
        if (simulationFlags%repeatFirstDerivative) then
           allocate(this%stressTensor(nGridPoints, nDimensions ** 2))
           allocate(this%heatFlux(nGridPoints, nDimensions))
+          allocate(this%speciesFlux(nGridPoints, this%nSpecies, nDimensions))
        else
           allocate(this%velocityGradient(nGridPoints, nDimensions ** 2))
        end if
@@ -158,6 +160,7 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%rightHandSide)
   SAFE_DEALLOCATE(this%specificVolume)
   SAFE_DEALLOCATE(this%velocity)
+  SAFE_DEALLOCATE(this%massfraction)
   SAFE_DEALLOCATE(this%pressure)
   SAFE_DEALLOCATE(this%temperature)
   SAFE_DEALLOCATE(this%dynamicViscosity)
@@ -166,6 +169,7 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%velocityGradient)
   SAFE_DEALLOCATE(this%stressTensor)
   SAFE_DEALLOCATE(this%heatFlux)
+  SAFE_DEALLOCATE(this%speciesFlux)
   SAFE_DEALLOCATE(this%timeAverage)
 
   this%adjointForcingFactor = 1.0_wp
@@ -474,13 +478,13 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
   assert_key(nDimensions, (1, 2, 3))
 
   if (present(conservedVariables)) then
-     call computeDependentVariables(nDimensions, conservedVariables,                         &
+     call computeDependentVariables(nDimensions, this%nSpecies, conservedVariables,          &
           solverOptions%ratioOfSpecificHeats, this%specificVolume(:,1), this%velocity,       &
-          this%pressure(:,1), this%temperature(:,1))
+          this%pressure(:,1), this%temperature(:,1), this%massFraction)
   else
-     call computeDependentVariables(nDimensions, this%conservedVariables,                    &
+     call computeDependentVariables(nDimensions, this%nSpecies, this%conservedVariables,     &
           solverOptions%ratioOfSpecificHeats, this%specificVolume(:,1), this%velocity,       &
-          this%pressure(:,1), this%temperature(:,1))
+          this%pressure(:,1), this%temperature(:,1), this%massFraction)
   end if
 
   if (simulationFlags%viscosityOn) then
