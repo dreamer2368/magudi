@@ -229,10 +229,9 @@ module CNSHelper
           incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux,               &
           deltaConservedVariables, specificVolume, velocity, temperature, massFraction)
 
-       integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in) :: nDimensions, nSpecies, incomingDirection
        SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-       integer, intent(in) :: incomingDirection
        SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(:,:)
 
        SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(:,:,:)
