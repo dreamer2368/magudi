@@ -950,6 +950,15 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
   phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * sum(velocity_**2)
 
   ! Compute jacobian of inviscid flux.
+  select case (nDimensions)
+
+  case (1)
+
+  case (2)
+
+  case (3)
+
+  end select
   jacobianOfInviscidFlux(1,1) = 0.0_wp
 
   do k = 1, nDimensions

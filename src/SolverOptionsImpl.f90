@@ -57,6 +57,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
      this%reynoldsNumberInverse = max(0.0_wp, getOption("Reynolds_number", 0.0_wp))
      this%prandtlNumberInverse = max(0.0_wp, getOption("Prandtl_number", 0.72_wp))
+
+     ! All species have constant Schmidt number for now.
      this%schmidtNumberInverse = max(0.0_wp, getOption("Schmidt_number", 0.70_wp))
 
      if (this%reynoldsNumberInverse <= 0.0_wp .or. this%prandtlNumberInverse <= 0.0_wp) then
@@ -65,6 +67,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      else
         this%reynoldsNumberInverse = 1.0_wp / this%reynoldsNumberInverse
         this%prandtlNumberInverse = 1.0_wp / this%prandtlNumberInverse
+        this%schmidtlNumberInverse = 1.0_wp / this%schmidtNumberInverse
         this%powerLawExponent = getOption("viscosity_power_law_exponent", 0.666_wp)
         this%bulkViscosityRatio = getOption("bulk_viscosity_ratio", 0.6_wp)
      end if
@@ -76,6 +79,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call getRequiredOption("maximum_density", this%densityRange(2), comm)
      call getRequiredOption("minimum_temperature", this%temperatureRange(1), comm)
      call getRequiredOption("maximum_temperature", this%temperatureRange(2), comm)
+     this%massFractionRange(1) = -0.01_wp
+     this%massFractionRange(2) = +1.01_wp
   end if
 
   if (simulationFlags%dissipationOn) then

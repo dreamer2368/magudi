@@ -470,7 +470,7 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
   SCALAR_TYPE, intent(in), optional :: conservedVariables(:,:)
 
   ! <<< Local variables >>>
-  integer :: i, nDimensions
+  integer :: i, k, nDimensions
 
   call startTiming("updateState")
 
@@ -504,6 +504,13 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
         call grid%computeGradient(this%temperature(:,1), this%heatFlux)
         do i = 1, nDimensions
            this%heatFlux(:,i) = - this%thermalDiffusivity(:,1) * this%heatFlux(:,i)
+        end do
+
+        do k = 1, this%nSpecies
+           call grid%computeGradient(this%massFraction(:,k), this%speciesFlux(:,k,:))
+           do i = 1, nDimensions
+              this%speciesFlux(:,k,i) = - this%massDiffusivity(:,k) * this%speciesFlux(:,k,i)
+           end do
         end do
 
      else
