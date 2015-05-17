@@ -181,7 +181,7 @@ contains
     integer, intent(in) :: mode
 
     ! <<< Local variables >>>
-    integer :: i, iGlobal, jGlobal, kGlobal, rankReportingError, procRank, ierror
+    integer :: i, k, iGlobal, jGlobal, kGlobal, rankReportingError, procRank, ierror
     character(len = STRING_LENGTH) :: message
     SCALAR_TYPE :: fOutsideRange
 
@@ -216,6 +216,22 @@ contains
           rankReportingError = procRank
           exit
        end if
+
+       do k = 1, region%solverOptions%nSpecies
+          if (.not. region%grids(i)%isVariableWithinRange(region%states(i)%massFraction(:,k),&
+               fOutsideRange, iGlobal, jGlobal, kGlobal,                                     &
+               minValue = region%solverOptions%massFractionRange(1),                         &
+               maxValue = region%solverOptions%massFractionRange(2))) then
+             write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Mass fraction on grid ",     &
+                  region%grids(i)%index,                                                     &
+                  " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, "): ",                     &
+                  fOutsideRange, " out of range (",                                          &
+                  region%solverOptions%massFractionRange(1), ", ",                            &
+                  region%solverOptions%massFractionRange(2), ")!"
+             rankReportingError = procRank
+             exit
+          end if
+       end do
 
     end do
 
