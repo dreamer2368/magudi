@@ -1227,7 +1227,6 @@ subroutine computeRhs(this, mode)
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
-  use Patch_factory, only : computeFarFieldAdjointViscousPenalty
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
   ! <<< Enumerations >>>
@@ -1256,10 +1255,10 @@ subroutine computeRhs(this, mode)
      select case (mode)
      case (FORWARD)
         call computeRhsForward(this%simulationFlags, this%solverOptions,                     &
-             this%grids(i), this%states(i))
+             this%grids(i), this%states(i), this%patchFactories)
      case (ADJOINT)
         call computeRhsAdjoint(this%simulationFlags, this%solverOptions,                     &
-             this%grids(i), this%states(i))
+             this%grids(i), this%states(i), this%patchFactories)
      end select
   end do
 
@@ -1270,14 +1269,6 @@ subroutine computeRhs(this, mode)
                 this%grids(i)%jacobian(:,1)
      end do
   end do
-
-  ! Patch updates that require grid-level operators.
-  if (mode == ADJOINT) then
-     do i = 1, size(this%states)
-        call computeFarFieldAdjointViscousPenalty(this%patchFactories, this%simulationFlags, &
-             this%solverOptions, this%grids(i), this%states(i))
-     end do
-  end if
 
   ! Exchange data at block interfaces.
   if (allocated(this%patchFactories)) then

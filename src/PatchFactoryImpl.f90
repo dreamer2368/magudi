@@ -464,8 +464,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   integer :: i, j, nDimensions, ierror
   logical :: flag
   class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: targetViscousFluxes(:,:,:), targetTemperature(:),              &
-       gridNorm(:,:)
+  SCALAR_TYPE, allocatable :: targetTemperature(:), gridNorm(:,:)
 
   call startTiming("updatePatches")
 
@@ -535,11 +534,8 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
      flag = queryPatchTypeExists(patchFactories, 'SAT_FAR_FIELD', grid%index)
      call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
-     if (flag) then
-        allocate(targetViscousFluxes(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
-        call state%update(grid, simulationFlags, solverOptions,                              &
-             conservedVariables = state%targetState)
-     end if
+     if (flag) call state%update(grid, simulationFlags, solverOptions,                       &
+          conservedVariables = state%targetState)
 
      if (allocated(patchFactories)) then
         do i = 1, size(patchFactories)
@@ -550,123 +546,14 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
            select type (patch)
            class is (t_FarFieldPatch)
-              call patch%collectViscousFluxes(simulationFlags, solverOptions, grid, state)
-              assert(allocated(patch%targetViscousFluxes))
-              assert(allocated(patch%viscousFluxes))
-              patch%targetViscousFluxes = patch%viscousFluxes
+              call patch%computeViscousJacobians(simulationFlags, solverOptions, grid, state)
            end select
 
         end do
      end if
-
-     SAFE_DEALLOCATE(targetViscousFluxes)
 
   end if !... simulationFlags%viscosityOn
 
   call endTiming("updatePatches")
 
 end subroutine updatePatchFactories
-
-subroutine computeFarFieldAdjointViscousPenalty(patchFactories,                              &
-     simulationFlags, solverOptions, grid, state)
-
-  ! <<< External modules >>>
-  use MPI
-
-  ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use Patch_mod, only : t_Patch
-  use State_mod, only : t_State
-  use Patch_factory, only : t_PatchFactory
-  use FarFieldPatch_mod, only : t_FarFieldPatch
-  use SolverOptions_mod, only : t_SolverOptions
-  use SimulationFlags_mod, only : t_SimulationFlags
-
-  ! <<< Internal modules >>>
-  use Patch_factory, only : queryPatchTypeExists
-
-  implicit none
-
-  ! <<< Arguments >>>
-  type(t_PatchFactory), allocatable :: patchFactories(:)
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
-  class(t_Grid) :: grid
-  class(t_State) :: state
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions, nUnknowns, ierror
-  logical :: flag
-  class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: temp(:,:), penaltyTerm(:,:)
-
-  if (.not. simulationFlags%viscosityOn) return
-
-  flag = queryPatchTypeExists(patchFactories, 'SAT_FAR_FIELD', grid%index)
-  call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
-  if (.not. flag) return
-
-  nDimensions = grid%nDimensions
-  assert_key(nDimensions, (1, 2, 3))
-
-  nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns >= nDimensions + 2)
-
-  allocate(temp(grid%nGridPoints, nUnknowns - 1))
-  allocate(penaltyTerm(grid%nGridPoints, nUnknowns))
-
-  penaltyTerm = 0.0_wp
-
-  do i = 1, nDimensions
-
-     temp = 0.0_wp
-
-     if (allocated(patchFactories)) then
-        do j = 1, size(patchFactories)
-           call patchFactories(j)%connect(patch)
-           if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
-           select type (patch)
-           class is (t_FarFieldPatch)
-              call patch%updateAdjointDiffusionPenaltyTerm(simulationFlags, solverOptions,   &
-                   grid, state, i, temp)
-           end select
-        end do
-     end if
-
-     call grid%adjointFirstDerivative(i)%apply(temp, grid%localSize)
-     penaltyTerm(:,2:nUnknowns) = penaltyTerm(:,2:nUnknowns) + temp
-
-  end do
-
-  penaltyTerm(:,nDimensions+2) = solverOptions%ratioOfSpecificHeats *                        &
-       state%specificVolume(:,1) * penaltyTerm(:,nDimensions+2)
-  do i = 1, nDimensions
-     penaltyTerm(:,i+1) = state%specificVolume(:,1) * penaltyTerm(:,i+1) -                   &
-          state%velocity(:,i) * penaltyTerm(:,nDimensions+2)
-  end do
-  penaltyTerm(:,1) = state%specificVolume(:,1) * state%conservedVariables(:,nDimensions+2) * &
-       penaltyTerm(:,nDimensions+2) + sum(state%velocity *                                   &
-       penaltyTerm(:,2:nDimensions+1), dim = 2)
-
-  do i = 1, nUnknowns
-     penaltyTerm(:,i) = grid%jacobian(:,1) * penaltyTerm(:,i)
-  end do
-
-  if (allocated(patchFactories)) then
-     do i = 1, size(patchFactories)
-        call patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
-        select type (patch)
-        class is (t_FarFieldPatch)
-           call patch%collect(penaltyTerm, patch%adjointViscousPenalty)
-        end select
-     end do
-  end if
-
-  SAFE_DEALLOCATE(penaltyTerm)
-  SAFE_DEALLOCATE(temp)
-
-end subroutine computeFarFieldAdjointViscousPenalty
