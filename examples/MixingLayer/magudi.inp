@@ -65,6 +65,7 @@ maximum_temperature = 4.
 
 # Damping
 defaults/sponge_amount = 0.2
+defaults/viscous_penalty_amount = 0.
 
 # Mixing layer velocity
 upper_velocity = 0.6
