@@ -40,6 +40,9 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns == nDimensions + 2 + nSpecies)
 
+  direction = abs(this%normalDirection)
+  assert(direction >= 1 .and. direction <= nDimensions)
+
   if (this%nPatchPoints > 0) then
      allocate(this%metrics(this%nPatchPoints, nDimensions))
      if (simulationFlags%viscosityOn) then
