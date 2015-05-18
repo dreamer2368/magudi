@@ -60,7 +60,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      this%prandtlNumberInverse = max(0.0_wp, getOption("Prandtl_number", 0.72_wp))
      allocate(this%schmidtNumberInverse(this%nSpecies))
      do k = 1, this%nSpecies
-        write(message, "(A,I1.1)") "Schmidt_number_k", k
+        write(message, "(A,I1.1)") "Schmidt_number_", k
         call getRequiredOption(trim(message), Schmidt_number_k, comm)
         this%schmidtNumberInverse(k) = max(0.0_wp, Schmidt_number_k)
      end do
