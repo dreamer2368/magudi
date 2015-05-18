@@ -84,8 +84,10 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call getRequiredOption("maximum_density", this%densityRange(2), comm)
      call getRequiredOption("minimum_temperature", this%temperatureRange(1), comm)
      call getRequiredOption("maximum_temperature", this%temperatureRange(2), comm)
-     this%massFractionRange(1) = -0.01_wp
-     this%massFractionRange(2) = +1.01_wp
+     if (this%nSpecies > 0) then
+        call getRequiredOption("minimum_massFraction", this%massFractionRange(1), comm)
+        call getRequiredOption("maximum_massFraction", this%massFractionRange(2), comm)
+     end if
   end if
 
   if (simulationFlags%dissipationOn) then
