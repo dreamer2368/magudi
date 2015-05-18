@@ -85,7 +85,7 @@ PURE_SUBROUTINE computeDependentVariables(nDimensions, nSpecies, conservedVariab
   end if
 
   ! Mass fraction.
-  if (present(massFraction)) then
+  if (present(massFraction) .and. nSpecies > 0) then
      assert(size(massFraction, 1) == size(conservedVariables, 1))
      assert(size(massFraction, 2) == nSpecies)
      if (present(specificVolume)) then
@@ -152,7 +152,7 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
      end if
 
      ! Mass diffusivity.
-     if (present(massDiffusivity)) then
+     if (present(massDiffusivity) .and. nSpecies > 0) then
         assert(size(massDiffusivity(:,1)) == size(temperature))
         assert(size(massDiffusivity(:,2)) == nSpecies)
         assert(present(schmidtNumberInverse))
@@ -203,7 +203,7 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
      end if
 
      ! Mass diffusivity.
-     if (present(massDiffusivity)) then
+     if (present(massDiffusivity) .and. nSpecies > 0) then
         assert(size(massDiffusivity(:,1)) == size(temperature))
         assert(size(massDiffusivity(:,2)) == nSpecies)
         assert(present(schmidtNumberInverse))
@@ -522,18 +522,20 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
   assert(size(velocity, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
   assert(size(velocity, 2) == nDimensions)
-  assert(size(massFraction, 1) == size(velocity, 1))
-  assert(size(massFraction, 2) == nSpecies)
   assert(size(stressTensor, 1) == size(velocity, 1))
   assert(size(stressTensor, 2) == nDimensions ** 2)
   assert(size(heatFlux, 1) == size(velocity, 1))
   assert(size(heatFlux, 2) == nDimensions)
-  assert(size(speciesFlux, 1) == size(velocity, 1))
-  assert(size(speciesFlux, 2) == nSpecies)
   assert(size(speciesFlux, 3) == nDimensions)
   assert(size(viscousFluxes, 1) == size(velocity, 1))
   assert(size(viscousFluxes, 2) >= nDimensions + 2)
   assert(size(viscousFluxes, 3) == nDimensions)
+  if (nSpecies > 0) then
+     assert(size(massFraction, 1) == size(velocity, 1))
+     assert(size(massFraction, 2) == nSpecies)
+     assert(size(speciesFlux, 1) == size(velocity, 1))
+     assert(size(speciesFlux, 2) == nSpecies)
+  end if
 
   select case (nDimensions)
 
@@ -941,7 +943,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
   end if
 
   ! Compute mass fraction if it was not specified.
-  if (present(massFraction)) then
+  if (present(massFraction) .and. nSpecies > 0) then
      assert(size(massFraction) == nSpecies)
      massFraction_ = massFraction
   else
@@ -1357,12 +1359,12 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
   if (present(temperature)) then
      temperature_ = temperature
   else
-     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(5) -        &
-          0.5_wp * sum(velocity_ ** 2))
+     temperature_ = ratioOfSpecificHeats * (specificVolume_ *                                &
+          conservedVariables(nDimensions + 2) - 0.5_wp * sum(velocity_ ** 2))
   end if
 
   ! Compute mass fraction if it was not specified.
-  if (present(massFraction)) then
+  if (present(massFraction) .and. nSpecies > 0) then
      massFraction_ = massFraction
   else
      do i = 1, nSpecies
@@ -2142,12 +2144,12 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
   if (present(temperature)) then
      temperature_ = temperature
   else
-     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(5) -        &
-          0.5_wp * sum(velocity_ ** 2))
+     temperature_ = ratioOfSpecificHeats * (specificVolume_ *                                &
+          conservedVariables(nDimensions + 2) - 0.5_wp * sum(velocity_ ** 2))
   end if
 
   ! Compute mass fraction if it was not specified.
-  if (present(velocity)) then
+  if (present(massFraction) .and. nSpecies > 0) then
      massFraction_ = massFraction
   else
      do i = 1, nSpecies
