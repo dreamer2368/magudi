@@ -153,8 +153,8 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
 
      ! Mass diffusivity.
      if (present(massDiffusivity) .and. nSpecies > 0) then
-        assert(size(massDiffusivity(:,1)) == size(temperature))
-        assert(size(massDiffusivity(:,2)) == nSpecies)
+        assert(size(massDiffusivity,1) == size(temperature))
+        assert(size(massDiffusivity,2) == nSpecies)
         assert(present(schmidtNumberInverse))
         assert(size(schmidtNumberInverse) == nSpecies)
         assert(schmidtNumberInverse > 0.0_wp)
@@ -204,8 +204,8 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
 
      ! Mass diffusivity.
      if (present(massDiffusivity) .and. nSpecies > 0) then
-        assert(size(massDiffusivity(:,1)) == size(temperature))
-        assert(size(massDiffusivity(:,2)) == nSpecies)
+        assert(size(massDiffusivity,1) == size(temperature))
+        assert(size(massDiffusivity,2) == nSpecies)
         assert(present(schmidtNumberInverse))
         assert(size(schmidtNumberInverse) == nSpecies)
         assert(schmidtNumberInverse > 0.0_wp)
@@ -901,7 +901,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: k, l
+  integer :: k
   SCALAR_TYPE :: specificVolume_, velocity_(nDimensions), temperature_,                      &
        massFraction_(nSpecies), contravariantVelocity, phiSquared,                           &
        deltaConservedVariables_(nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),      &
@@ -2316,7 +2316,6 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i
   SCALAR_TYPE :: temp1, temp2, temp3
 
   select case (nDimensions)
