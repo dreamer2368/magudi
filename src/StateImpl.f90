@@ -41,6 +41,7 @@ contains
        allocate(this%dynamicViscosity(nGridPoints, 1))
        allocate(this%secondCoefficientOfViscosity(nGridPoints, 1))
        allocate(this%thermalDiffusivity(nGridPoints, 1))
+       allocate(this%massDiffusivity(nGridPoints, this%nSpecies))
 
        if (simulationFlags%repeatFirstDerivative) then
           allocate(this%stressTensor(nGridPoints, nDimensions ** 2))
@@ -160,12 +161,13 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%rightHandSide)
   SAFE_DEALLOCATE(this%specificVolume)
   SAFE_DEALLOCATE(this%velocity)
-  SAFE_DEALLOCATE(this%massfraction)
+  SAFE_DEALLOCATE(this%massFraction)
   SAFE_DEALLOCATE(this%pressure)
   SAFE_DEALLOCATE(this%temperature)
   SAFE_DEALLOCATE(this%dynamicViscosity)
   SAFE_DEALLOCATE(this%secondCoefficientOfViscosity)
   SAFE_DEALLOCATE(this%thermalDiffusivity)
+  SAFE_DEALLOCATE(this%massDiffusivity)
   SAFE_DEALLOCATE(this%velocityGradient)
   SAFE_DEALLOCATE(this%stressTensor)
   SAFE_DEALLOCATE(this%heatFlux)
@@ -489,11 +491,12 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
 
   if (simulationFlags%viscosityOn) then
 
-     call computeTransportVariables(this%temperature(:,1), solverOptions%powerLawExponent,   &
-          solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
-          solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
-          solverOptions%schmidtNumberInverse, this%dynamicViscosity(:,1),                    &
-          this%secondCoefficientOfViscosity(:,1), this%thermalDiffusivity(:,1))
+     call computeTransportVariables(this%nSpecies, this%temperature(:,1),                    &
+          solverOptions%powerLawExponent, solverOptions%bulkViscosityRatio,                  &
+          solverOptions%ratioOfSpecificHeats, solverOptions%reynoldsNumberInverse,           &
+          solverOptions%prandtlNumberInverse, solverOptions%schmidtNumberInverse,            &
+          this%dynamicViscosity(:,1), this%secondCoefficientOfViscosity(:,1),                &
+          this%thermalDiffusivity(:,1), this%massDiffusivity)
 
      if (simulationFlags%repeatFirstDerivative) then
 

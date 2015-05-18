@@ -29,7 +29,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: comm_
+  integer :: k, comm_
+  real(SCALAR_KIND) :: Schmidt_number_k
   character(len = STRING_LENGTH) :: message
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   class(t_TimeIntegrator), pointer :: dummyTimeIntegrator => null()
@@ -57,9 +58,12 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
      this%reynoldsNumberInverse = max(0.0_wp, getOption("Reynolds_number", 0.0_wp))
      this%prandtlNumberInverse = max(0.0_wp, getOption("Prandtl_number", 0.72_wp))
-
-     ! All species have constant Schmidt number for now.
-     this%schmidtNumberInverse = max(0.0_wp, getOption("Schmidt_number", 0.70_wp))
+     allocate(this%schmidtNumberInverse(this%nSpecies))
+     do k = 1, this%nSpecies
+        write(message, "(A,I1.1)") "Schmidt_number_k", k
+        call getRequiredOption(trim(message), Schmidt_number_k, comm)
+        this%schmidtNumberInverse(k) = max(0.0_wp, Schmidt_number_k)
+     end if
 
      if (this%reynoldsNumberInverse <= 0.0_wp .or. this%prandtlNumberInverse <= 0.0_wp) then
         this%powerLawExponent = 0.0_wp

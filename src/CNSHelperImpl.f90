@@ -120,6 +120,7 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  integer :: k
 
   assert(size(temperature) > 0)
   assert(powerLawExponent >= 0.0_wp)
@@ -155,9 +156,11 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
         assert(size(massDiffusivity(:,1)) == size(temperature))
         assert(size(massDiffusivity(:,2)) == nSpecies)
         assert(present(schmidtNumberInverse))
-        assert(size(schmidtNumber) == nSpecies)
+        assert(size(schmidtNumberInverse) == nSpecies)
         assert(schmidtNumberInverse > 0.0_wp)
-        massDiffusivity = reynoldsNumberInverse * schmidtNumberInverse
+        do k = 1, nSpecies
+           massDiffusivity(:,k) = reynoldsNumberInverse * schmidtNumberInverse(k)
+        end do
      end if
 
   else
@@ -204,14 +207,18 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
         assert(size(massDiffusivity(:,1)) == size(temperature))
         assert(size(massDiffusivity(:,2)) == nSpecies)
         assert(present(schmidtNumberInverse))
-        assert(size(schmidtNumber) == nSpecies)
+        assert(size(schmidtNumberInverse) == nSpecies)
         assert(schmidtNumberInverse > 0.0_wp)
         if (present(dynamicViscosity)) then
-           massDiffusivity = dynamicViscosity * schmidtNumberInverse
+           do k = 1, nSpecies
+              massDiffusivity(:,k) = dynamicViscosity * schmidtNumberInverse(k)
+           end do
         else
-           massDiffusivity =                                                              &
-                ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent *        &
-                reynoldsNumberInverse * schmidtNumberInverse
+           do k = 1, nSpecies
+              massDiffusivity(:,k) =                                                           &
+                   ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent *     &
+                   reynoldsNumberInverse * schmidtNumberInverse(k)
+           end do
         end if
      end if
 
@@ -319,7 +326,7 @@ PURE_SUBROUTINE computeStressTensor(nDimensions, velocityGradient, dynamicViscos
              secondCoefficientOfViscosity * (velocityGradient(:,1) +                         &
              velocityGradient(:,5) + velocityGradient(:,9))
 
-     end select
+     end select !... nDimensions
 
   else !... in-place computation.
 
@@ -361,7 +368,7 @@ PURE_SUBROUTINE computeStressTensor(nDimensions, velocityGradient, dynamicViscos
         velocityGradient(:,9) = 2.0_wp * dynamicViscosity * velocityGradient(:,9) +          &
              divergenceOfVelocity
 
-     end select
+     end select !... nDimensions
 
   end if
 
@@ -420,7 +427,7 @@ PURE_SUBROUTINE computeVorticityMagnitudeAndDilatation(nDimensions, velocityGrad
              abs(velocityGradient(:,4) - velocityGradient(:,2)) ** 2)
      end if
 
-  end select
+  end select !... nDimensions
 
 end subroutine computeVorticityMagnitudeAndDilatation
 
@@ -493,7 +500,7 @@ PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, nSpecies, conservedV
         inviscidFluxes(:,k+5,3) = conservedVariables(:,k+5) * velocity(:,3)
      end do
 
-  end select
+  end select !... nDimensions
 
 end subroutine computeCartesianInvsicidFluxes
 
@@ -582,7 +589,7 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
         viscousFluxes(:,k+5,3) = speciesFlux(:,k,3)
      end do
 
-  end select
+  end select !... nDimensions
 
 end subroutine computeCartesianViscousFluxes
 
@@ -663,7 +670,7 @@ PURE_SUBROUTINE computeSpectralRadius(nDimensions, ratioOfSpecificHeats,        
              spectralRadius(:,3) * abs(metrics(:,9))
      end if
 
-  end select
+  end select !... nDimensions
 
 end subroutine computeSpectralRadius
 
@@ -733,7 +740,7 @@ PURE_SUBROUTINE transformFluxes(nDimensions, fluxes, metrics,                   
         end do
      end if
 
-  end select
+  end select !... nDimensions
 
 end subroutine transformFluxes
 
@@ -903,10 +910,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
        deltaContravariantVelocity(nDimensions + nSpecies + 2),                               &
        deltaPhiSquared(nDimensions + nSpecies + 2)
 
-  assert(size(conservedVariables, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
   assert(nSpecies >= 0)
-  assert(size(conservedVariables, 2) >= nDimensions + 2)
+  assert(size(conservedVariables) >= nDimensions + 2)
   assert(size(metrics) == size(velocity))
 
   ! Compute specific volume if it was not specified.
@@ -1055,7 +1061,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(4,5) = (ratioOfSpecificHeats - 1.0_wp) * metrics(3)
      jacobianOfInviscidFlux(5,5) = ratioOfSpecificHeats * contravariantVelocity
         
-  end select
+  end select !... nDimensions
 
   ! Compute variations in jacobian of inviscid flux.
   if (present(deltaJacobianOfInviscidFlux)) then
@@ -1282,7 +1288,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
         deltaJacobianOfInviscidFlux(5,5,:) = ratioOfSpecificHeats *                          &
              deltaContravariantVelocity
 
-     end select
+     end select !... nDimensions
 
   end if
 
@@ -1352,7 +1358,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      temperature_ = temperature
   else
      temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(5) -        &
-          0.5_wp * sum(velocity_ ** 2)
+          0.5_wp * sum(velocity_ ** 2))
   end if
 
   ! Compute mass fraction if it was not specified.
@@ -2088,7 +2094,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
 
      end if
 
-  end select
+  end select !... nDimensions
 
 
 end subroutine computeIncomingJacobianOfInviscidFlux
@@ -2288,7 +2294,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(4,5) = temp2 * contravariantStressTensor(3)
      firstPartialViscousJacobian(5,5) = temp2 * temp1
 
-  end select
+  end select !... nDimensions
 
 end subroutine computeFirstPartialViscousJacobian
 
@@ -2302,7 +2308,8 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
   integer, intent(in) :: nDimensions, nSpecies
   SCALAR_TYPE, intent(in) :: velocity(:), dynamicViscosity,                                  &
        secondCoefficientOfViscosity, thermalDiffusivity, jacobian,                           &
-       metricsAlongFirstDir(:), metricsAlongSecondDir(:)
+       metricsAlongFirstDir(:)
+  SCALAR_TYPE, intent(in), optional :: metricsAlongSecondDir(:)
   SCALAR_TYPE, intent(out) :: secondPartialViscousJacobian(:,:)
 
   ! <<< Local variables >>>
@@ -2315,15 +2322,15 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
   case (1)
 
      ! Temporary variables.
-     temp1 = metrics(1) * metrics(1)
-     temp2 = dynamicViscosity * metrics(1) * velocity(1)
-     temp3 = secondCoefficientOfViscosity * metrics(1) * velocity(1)
+     temp1 = metricsAlongFirstDir(1) * metricsAlongFirstDir(1)
+     temp2 = dynamicViscosity * metricsAlongFirstDir(1) * velocity(1)
+     temp3 = secondCoefficientOfViscosity * metricsAlongFirstDir(1) * velocity(1)
 
      secondPartialViscousJacobian(1,1) = dynamicViscosity * temp1 +                          &
           (dynamicViscosity + secondCoefficientOfViscosity) *                                &
-          metrics(1) * metrics(1)
+          metricsAlongFirstDir(1) * metricsAlongFirstDir(1)
      secondPartialViscousJacobian(2,1) = dynamicViscosity * temp1 * velocity(1) +            &
-          metrics(1) * temp2 + metrics(1) * temp3
+          metricsAlongFirstDir(1) * temp2 + metricsAlongFirstDir(1) * temp3
 
      secondPartialViscousJacobian(1,2) = 0.0_wp
      secondPartialViscousJacobian(2,2) = thermalDiffusivity * temp1
@@ -2412,7 +2419,7 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
      secondPartialViscousJacobian(3,4) = 0.0_wp
      secondPartialViscousJacobian(4,4) = thermalDiffusivity * temp1
 
-  end select
+  end select !... nDimensions
 
   ! Multiply by the Jacobian.
   secondPartialViscousJacobian = jacobian * secondPartialViscousJacobian

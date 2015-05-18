@@ -420,7 +420,7 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, ierror
+  integer :: i, nDimensions, nSpecies, ierror
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
   logical :: flag
 
@@ -428,6 +428,8 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
+  nSpecies = solverOptions%nSpecies
+  assert(nSpecies >= 0)
 
   allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
   allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
@@ -435,14 +437,15 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   state%rightHandSide = 0.0_wp
 
   ! Compute Cartesian form of inviscid fluxes.
-  call computeCartesianInvsicidFluxes(nDimensions, state%conservedVariables,                 &
+  call computeCartesianInvsicidFluxes(nDimensions, nSpecies, state%conservedVariables,       &
        state%velocity, state%pressure(:,1), fluxes1)
 
   ! Compute Cartesian form of viscous fluxes if viscous terms are included and computed using
   ! repeated first derivatives.
   if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
-     call computeCartesianViscousFluxes(nDimensions, state%velocity,                         &
-          state%stressTensor, state%heatFlux, fluxes2)
+     call computeCartesianViscousFluxes(nDimensions, nSpecies, state%velocity,               &
+          state%massFraction, state%stressTensor, state%heatFlux, state%speciesFlux,         &
+          fluxes2)
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
 
@@ -508,17 +511,20 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, ierror
+  integer :: i, j, k, nDimensions, nSpecies, ierror
   SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:),                                      &
        localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
-       localVelocity(:), localMetricsAlongDirection1(:), localMetricsAlongDirection2(:),     &
-       localStressTensor(:), localHeatFlux(:), localAdjointDiffusion(:,:)
+       localVelocity(:), localMassFraction(:), localMetricsAlongDirection1(:),               &
+       localMetricsAlongDirection2(:), localStressTensor(:), localHeatFlux(:),               &
+       localAdjointDiffusion(:,:), localSpeciesFlux(:,:)
   logical :: flag
 
   call startTiming("computeRhsAdjoint")
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
+  nspecies = solverOptions%nSpecies
+  assert(nSpecies >= 0)
 
   allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
 
@@ -533,12 +539,14 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
   allocate(localFluxJacobian1(solverOptions%nUnknowns, solverOptions%nUnknowns))
   allocate(localConservedVariables(solverOptions%nUnknowns))
   allocate(localVelocity(nDimensions))
+  allocate(localMassFraction(nSpecies))
   allocate(localMetricsAlongDirection1(nDimensions))
 
   if (simulationFlags%viscosityOn) then
      allocate(localFluxJacobian2(solverOptions%nUnknowns, solverOptions%nUnknowns))
      allocate(localStressTensor(nDimensions ** 2))
      allocate(localHeatFlux(nDimensions))
+     allocate(localSpeciesFlux(nSpecies,nDimensions))
   end if
 
   do i = 1, grid%nGridPoints
@@ -548,51 +556,26 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
      if (simulationFlags%viscosityOn) then
         localStressTensor = state%stressTensor(i,:)
         localHeatFlux = state%heatFlux(i,:)
+        localSpeciesFlux = state%speciesFlux(i,:,:)
      end if
 
      do j = 1, nDimensions
 
         localMetricsAlongDirection1 = grid%metrics(i,1+nDimensions*(j-1):nDimensions*j)
 
-        select case (nDimensions)
-        case (1)
-           call computeJacobianOfInviscidFlux1D(localConservedVariables,                     &
-                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
-                localFluxJacobian1, specificVolume = state%specificVolume(i,1),              &
-                velocity = localVelocity, temperature = state%temperature(i,1))
-        case (2)
-           call computeJacobianOfInviscidFlux2D(localConservedVariables,                     &
-                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
-                localFluxJacobian1, specificVolume = state%specificVolume(i,1),              &
-                velocity = localVelocity, temperature = state%temperature(i,1))
-        case (3)
-           call computeJacobianOfInviscidFlux3D(localConservedVariables,                     &
-                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
-                localFluxJacobian1, specificVolume = state%specificVolume(i,1),              &
-                velocity = localVelocity, temperature = state%temperature(i,1))
-        end select !... nDimensions
+        call computeJacobianOfInviscidFlux(nDimensions, nSpecies,                            &
+             localConservedVariables, localMetricsAlongDirection1,                           &
+             solverOptions%ratioOfSpecificHeats, localFluxJacobian1,                         &
+             specificVolume = state%specificVolume(i,1), velocity = localVelocity,           &
+             temperature = state%temperature(i,1), massFraction = localMassFraction)
 
         if (simulationFlags%viscosityOn) then
-           select case (nDimensions)
-           case (1)
-              call computeFirstPartialViscousJacobian1D(localConservedVariables,             &
-                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
-                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localFluxJacobian2, specificVolume = state%specificVolume(i,1),           &
-                   velocity = localVelocity, temperature = state%temperature(i,1))
-           case (2)
-              call computeFirstPartialViscousJacobian2D(localConservedVariables,             &
-                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
-                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localFluxJacobian2, specificVolume = state%specificVolume(i,1),           &
-                   velocity = localVelocity, temperature = state%temperature(i,1))
-           case (3)
-              call computeFirstPartialViscousJacobian3D(localConservedVariables,             &
-                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
-                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localFluxJacobian2, specificVolume = state%specificVolume(i,1),           &
-                   velocity = localVelocity, temperature = state%temperature(i,1))
-           end select
+           call computeFirstPartialViscousJacobian(nDimensions, nSpecies,                    &
+                localConservedVariables, localMetricsAlongDirection1, localStressTensor,     &
+                localHeatFlux, localSpeciesFlux, solverOptions%powerLawExponent,             &
+                solverOptions%ratioOfSpecificHeats, localFluxJacobian2,                      &
+                specificVolume = state%specificVolume(i,1), velocity = localVelocity,        &
+                temperature = state%temperature(i,1), massFraction = localMassFraction)
            localFluxJacobian1 = localFluxJacobian1 - localFluxJacobian2
         end if
 
@@ -631,25 +614,12 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
 
               localMetricsAlongDirection2 = grid%metrics(i,1+nDimensions*(k-1):nDimensions*k)
 
-              select case (nDimensions)
-              case (1)
-                 call computeSecondPartialViscousJacobian1D(localVelocity,                   &
-                      state%dynamicViscosity(i,1), state%secondCoefficientOfViscosity(i,1),  &
-                      state%thermalDiffusivity(i,1), grid%jacobian(i,1),                     &
-                      localMetricsAlongDirection1(1), localFluxJacobian2)
-              case (2)
-                 call computeSecondPartialViscousJacobian2D(localVelocity,                   &
-                      state%dynamicViscosity(i,1), state%secondCoefficientOfViscosity(i,1),  &
-                      state%thermalDiffusivity(i,1), grid%jacobian(i,1),                     &
-                      localMetricsAlongDirection2, localMetricsAlongDirection1,              &
-                      localFluxJacobian2)
-              case (3)
-                 call computeSecondPartialViscousJacobian3D(localVelocity,                   &
-                      state%dynamicViscosity(i,1), state%secondCoefficientOfViscosity(i,1),  &
-                      state%thermalDiffusivity(i,1), grid%jacobian(i,1),                     &
-                      localMetricsAlongDirection2, localMetricsAlongDirection1,              &
-                      localFluxJacobian2)
-              end select !... nDimensions
+              call computeSecondPartialViscousJacobian(nDimensions, nSpecies,                &
+                   localVelocity, state%dynamicViscosity(i,1),                               &
+                   state%secondCoefficientOfViscosity(i,1),                                  &
+                   state%thermalDiffusivity(i,1), grid%jacobian(i,1),                        &
+                   localMetricsAlongDirection2, localMetricsAlongDirection1,                 &
+                   localFluxJacobian2)
 
               localAdjointDiffusion(:,j) = localAdjointDiffusion(:,j) +                      &
                    matmul(transpose(localFluxJacobian2), temp1(i,2:solverOptions%nUnknowns,k))
