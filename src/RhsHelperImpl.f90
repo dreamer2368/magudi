@@ -624,9 +624,9 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
               call computeSecondPartialViscousJacobian(nDimensions, nSpecies,                &
                    localVelocity, state%dynamicViscosity(i,1),                               &
                    state%secondCoefficientOfViscosity(i,1),                                  &
-                   state%thermalDiffusivity(i,1), grid%jacobian(i,1),                        &
-                   localMetricsAlongDirection2, localMetricsAlongDirection1,                 &
-                   localFluxJacobian2)
+                   state%thermalDiffusivity(i,1), state%massDiffusivity(i,:),                &
+                   grid%jacobian(i,1), localMetricsAlongDirection2,                          &
+                   localMetricsAlongDirection1, localFluxJacobian2)
 
               localAdjointDiffusion(:,j) = localAdjointDiffusion(:,j) +                      &
                    matmul(transpose(localFluxJacobian2), temp1(i,2:solverOptions%nUnknowns,k))

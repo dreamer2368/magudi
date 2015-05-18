@@ -908,13 +908,13 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
        deltaSpecificVolume(nDimensions + nSpecies + 2),                                      &
        deltaVelocity(nDimensions,nDimensions + nSpecies + 2),                                &
        deltaTemperature(nDimensions + nSpecies + 2),                                         &
-       deltaMassFraction(nSpecies,nDimensions + nSpecies + 2),                               &
+       deltaMassFraction(nSpecies, nDimensions + nSpecies + 2),                               &
        deltaContravariantVelocity(nDimensions + nSpecies + 2),                               &
        deltaPhiSquared(nDimensions + nSpecies + 2)
 
   assert_key(nDimensions, (1, 2, 3))
   assert(nSpecies >= 0)
-  assert(size(conservedVariables) >= nDimensions + 2)
+  assert(size(conservedVariables) == nDimensions + 2 + nSpecies)
   assert(size(metrics) == size(velocity))
 
   ! Compute specific volume if it was not specified.
@@ -957,6 +957,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
 
   phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * sum(velocity_**2)
 
+  ! Zero-out Jacobian of inviscid flux.
+  jacobianOfInviscidFlux = 0.0_wp
+
   ! Compute jacobian of inviscid flux.
   select case (nDimensions)
 
@@ -967,6 +970,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           contravariantVelocity * velocity_(1)
      jacobianOfInviscidFlux(3,1) = contravariantVelocity * ((ratioOfSpecificHeats - 2.0_wp)  &
           / (ratioOfSpecificHeats - 1.0_wp) * phiSquared - temperature_)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(3 + k, 1) = -massFraction_(k) * contravariantVelocity
+     end do
 
      jacobianOfInviscidFlux(1,2) = metrics(1)
      jacobianOfInviscidFlux(2,2) = contravariantVelocity -                                   &
@@ -974,10 +980,17 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(3,2) = (temperature_ + phiSquared /                              &
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(1)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(3 + k, 2) = massFraction_(k) * metrics(1)
+     end do
 
      jacobianOfInviscidFlux(1,3) = 0.0_wp
      jacobianOfInviscidFlux(2,3) = (ratioOfSpecificHeats - 1.0_wp) * metrics(1)
      jacobianOfInviscidFlux(3,3) = ratioOfSpecificHeats * contravariantVelocity
+
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(3 + k, 3 + k) = contravariantVelocity
+     end do
 
   case (2)
 
@@ -988,6 +1001,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           contravariantVelocity * velocity_(2)
      jacobianOfInviscidFlux(4,1) = contravariantVelocity * ((ratioOfSpecificHeats - 2.0_wp)  &
           / (ratioOfSpecificHeats - 1.0_wp) * phiSquared - temperature_)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(4 + k, 1) = -massFraction_(k) * contravariantVelocity
+     end do
 
      jacobianOfInviscidFlux(1,2) = metrics(1)
      jacobianOfInviscidFlux(2,2) = contravariantVelocity -                                   &
@@ -997,6 +1013,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(4,2) = (temperature_ + phiSquared /                              &
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(1)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(4 + k, 2) = massFraction_(k) * metrics(1)
+     end do
 
      jacobianOfInviscidFlux(1,3) = metrics(2)
      jacobianOfInviscidFlux(2,3) = velocity_(1) * metrics(2) -                               &
@@ -1006,11 +1025,18 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(4,3) = (temperature_ + phiSquared /                              &
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(2) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(2)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(4 + k, 3) = massFraction_(k) * metrics(2)
+     end do
 
      jacobianOfInviscidFlux(1,4) = 0.0_wp
      jacobianOfInviscidFlux(2,4) = (ratioOfSpecificHeats - 1.0_wp) * metrics(1)
      jacobianOfInviscidFlux(3,4) = (ratioOfSpecificHeats - 1.0_wp) * metrics(2)
      jacobianOfInviscidFlux(4,4) = ratioOfSpecificHeats * contravariantVelocity
+
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(4 + k, 4 + k) = contravariantVelocity
+     end do
 
   case (3)
 
@@ -1023,6 +1049,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           contravariantVelocity * velocity_(3)
      jacobianOfInviscidFlux(5,1) = contravariantVelocity * ((ratioOfSpecificHeats - 2.0_wp)  &
           / (ratioOfSpecificHeats - 1.0_wp) * phiSquared - temperature_)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(5 + k, 1) = -massFraction_(k) * contravariantVelocity
+     end do
 
      jacobianOfInviscidFlux(1,2) = metrics(1)
      jacobianOfInviscidFlux(2,2) = contravariantVelocity -                                   &
@@ -1034,6 +1063,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(5,2) = (temperature_ + phiSquared /                              &
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(1)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(5 + k, 2) = massFraction_(k) * metrics(1)
+     end do
 
      jacobianOfInviscidFlux(1,3) = metrics(2)
      jacobianOfInviscidFlux(2,3) = velocity_(1) * metrics(2) -                               &
@@ -1045,6 +1077,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(5,3) = (temperature_ + phiSquared /                              &
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(2) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(2)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(5 + k, 3) = massFraction_(k) * metrics(2)
+     end do
 
      jacobianOfInviscidFlux(1,4) = metrics(3)
      jacobianOfInviscidFlux(2,4) = velocity_(1) * metrics(3) -                               &
@@ -1056,12 +1091,19 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(5,4) = (temperature_ + phiSquared /                              &
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(3) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(3)
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(5 + k, 4) = massFraction_(k) * metrics(3)
+     end do
 
      jacobianOfInviscidFlux(1,5) = 0.0_wp
      jacobianOfInviscidFlux(2,5) = (ratioOfSpecificHeats - 1.0_wp) * metrics(1)
      jacobianOfInviscidFlux(3,5) = (ratioOfSpecificHeats - 1.0_wp) * metrics(2)
      jacobianOfInviscidFlux(4,5) = (ratioOfSpecificHeats - 1.0_wp) * metrics(3)
      jacobianOfInviscidFlux(5,5) = ratioOfSpecificHeats * contravariantVelocity
+
+     do k = 1, nSpecies
+        jacobianOfInviscidFlux(5 + k, 5 + k) = contravariantVelocity
+     end do
         
   end select !... nDimensions
 
@@ -1080,6 +1122,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
            deltaConservedVariables_(1,1) = 1.0_wp
            deltaConservedVariables_(2,2) = 1.0_wp
            deltaConservedVariables_(3,3) = 1.0_wp
+           do k = 1, nSpecies
+              deltaConservedVariables_(3 + k, 3 + k) = 1.0_wp
+           end do
         end if
 
         ! Compute variations of specific volume, velocity and temperature.
@@ -1132,6 +1177,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
            deltaConservedVariables_(2,2) = 1.0_wp
            deltaConservedVariables_(3,3) = 1.0_wp
            deltaConservedVariables_(4,4) = 1.0_wp
+           do k = 1, nSpecies
+              deltaConservedVariables_(4 + k, 4 + k) = 1.0_wp
+           end do
         end if
 
         ! Compute variations of specific volume, velocity and temperature.
@@ -1204,6 +1252,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
            deltaConservedVariables_(3,3) = 1.0_wp
            deltaConservedVariables_(4,4) = 1.0_wp
            deltaConservedVariables_(5,5) = 1.0_wp
+           do k = 1, nSpecies
+              deltaConservedVariables_(5 + k, 5 + k) = 1.0_wp
+           end do
         end if
 
         ! Compute variations of specific volume, velocity and temperature.
@@ -2119,7 +2170,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i
+  integer :: i,  k
   SCALAR_TYPE :: specificVolume_, velocity_(nDimensions), temperature_, phiSquared,          &
        contravariantStressTensor(nDimensions), contravariantHeatFlux, temp1, temp2,          &
        massFraction_(nSpecies), contravariantSpeciesFlux(nSpecies)
@@ -2152,10 +2203,13 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
   if (present(massFraction) .and. nSpecies > 0) then
      massFraction_ = massFraction
   else
-     do i = 1, nSpecies
-        massFraction_(i) = specificVolume_ * conservedVariables(nDimensions + 2 + i)
+     do k = 1, nSpecies
+        massFraction_(k) = specificVolume_ * conservedVariables(nDimensions + 2 + k)
      end do
   end if
+
+  ! Zero-out first partial viscous Jacobian
+  firstPartialViscousJacobian = 0.0_wp
 
   select case (nDimensions)
      
@@ -2165,6 +2219,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * velocity_(1) ** 2
      contravariantStressTensor(1) = metrics(1) * stressTensor(1) !... not normalized.
      contravariantHeatFlux = metrics(1) * heatFlux(1) !... not normalized.
+     contravariantSpeciesFlux = metrics(1) * speciesFlux(:,1) !... not normalized
      temp1 = velocity(1) * contravariantStressTensor(1) - contravariantHeatFlux
 
      temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_ *      &
@@ -2174,6 +2229,10 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(2,1) = temp2 * contravariantStressTensor(1)
      firstPartialViscousJacobian(3,1) = temp2 * temp1 - specificVolume_ *                    &
           (velocity(1) * contravariantStressTensor(1))
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(3 + k,1) = - temp2 * contravariantSpeciesFlux(k)
+     end do
+     
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
           specificVolume_ / temperature_ * velocity(1)
@@ -2181,11 +2240,17 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(2,2) = temp2 * contravariantStressTensor(1)
      firstPartialViscousJacobian(3,2) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(1)
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(3 + k,2) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
      temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
      firstPartialViscousJacobian(1,3) = 0.0_wp
      firstPartialViscousJacobian(2,3) = temp2 * contravariantStressTensor(1)
      firstPartialViscousJacobian(3,3) = temp2 * temp1
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(3 + k,3) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
   case (2)
 
@@ -2210,6 +2275,9 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(4,1) = temp2 * temp1 - specificVolume_ *                    &
           (velocity(1) * contravariantStressTensor(1) +                                      &
           velocity(2) * contravariantStressTensor(2))
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(4 + k,1) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
           specificVolume_ / temperature_ * velocity(1)
@@ -2218,6 +2286,9 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(3,2) = temp2 * contravariantStressTensor(2)
      firstPartialViscousJacobian(4,2) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(1)
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(4 + k,2) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
           specificVolume_ / temperature_ * velocity(2)
@@ -2226,12 +2297,18 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(3,3) = temp2 * contravariantStressTensor(2)
      firstPartialViscousJacobian(4,3) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(2)
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(4 + k,3) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
      temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
      firstPartialViscousJacobian(1,4) = 0.0_wp
      firstPartialViscousJacobian(2,4) = temp2 * contravariantStressTensor(1)
      firstPartialViscousJacobian(3,4) = temp2 * contravariantStressTensor(2)
      firstPartialViscousJacobian(4,4) = temp2 * temp1
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(4 + k,4) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
   case (3)
 
@@ -2261,6 +2338,9 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
           (velocity(1) * contravariantStressTensor(1) +                                      &
           velocity(2) * contravariantStressTensor(2) +                                       &
           velocity(3) * contravariantStressTensor(3))
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(5 + k,1) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
           specificVolume_ / temperature_ * velocity(1)
@@ -2270,6 +2350,9 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(4,2) = temp2 * contravariantStressTensor(3)
      firstPartialViscousJacobian(5,2) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(1)
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(5 + k,2) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
           specificVolume_ / temperature_ * velocity(2)
@@ -2279,6 +2362,9 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(4,3) = temp2 * contravariantStressTensor(3)
      firstPartialViscousJacobian(5,3) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(2)
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(5 + k,3) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
           specificVolume_ / temperature_ * velocity(3)
@@ -2288,6 +2374,9 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(4,4) = temp2 * contravariantStressTensor(3)
      firstPartialViscousJacobian(5,4) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(3)
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(5 + k,4) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
      temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
      firstPartialViscousJacobian(1,5) = 0.0_wp
@@ -2295,6 +2384,9 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(3,5) = temp2 * contravariantStressTensor(2)
      firstPartialViscousJacobian(4,5) = temp2 * contravariantStressTensor(3)
      firstPartialViscousJacobian(5,5) = temp2 * temp1
+     do k = 1, nSpecies
+        firstPartialViscousJacobian(5 + k,5) = - temp2 * contravariantSpeciesFlux(k)
+     end do
 
   end select !... nDimensions
 
@@ -2302,7 +2394,8 @@ end subroutine computeFirstPartialViscousJacobian
 
 PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,                   &
      velocity, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,           &
-     jacobian, metricsAlongFirstDir, metricsAlongSecondDir, secondPartialViscousJacobian)
+     massDiffusivity, jacobian, metricsAlongFirstDir, metricsAlongSecondDir,                 &
+     secondPartialViscousJacobian)
 
   implicit none
 
@@ -2311,12 +2404,16 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
   SCALAR_TYPE, intent(in) :: velocity(:), dynamicViscosity,                                  &
        secondCoefficientOfViscosity, thermalDiffusivity, jacobian,                           &
        metricsAlongFirstDir(:)
-  SCALAR_TYPE, intent(in), optional :: metricsAlongSecondDir(:)
+  SCALAR_TYPE, intent(in), optional :: massDiffusivity(:), metricsAlongSecondDir(:)
   SCALAR_TYPE, intent(out) :: secondPartialViscousJacobian(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  integer :: k
   SCALAR_TYPE :: temp1, temp2, temp3
+
+  ! Zero-out second partial viscous Jacobian
+  secondPartialViscousJacobian = 0.0_wp
 
   select case (nDimensions)
 
@@ -2335,6 +2432,10 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
 
      secondPartialViscousJacobian(1,2) = 0.0_wp
      secondPartialViscousJacobian(2,2) = thermalDiffusivity * temp1
+
+     do k = 1, nSpecies
+        secondPartialViscousJacobian(2 + k,2 + k) = massDiffusivity(k) * temp1
+     end do
 
   case (2)
      
@@ -2367,6 +2468,10 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
      secondPartialViscousJacobian(1,3) = 0.0_wp
      secondPartialViscousJacobian(2,3) = 0.0_wp
      secondPartialViscousJacobian(3,3) = thermalDiffusivity * temp1
+
+     do k = 1, nSpecies
+        secondPartialViscousJacobian(3 + k,3 + k) = massDiffusivity(k) * temp1
+     end do
 
   case (3)
 
@@ -2419,6 +2524,10 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
      secondPartialViscousJacobian(2,4) = 0.0_wp
      secondPartialViscousJacobian(3,4) = 0.0_wp
      secondPartialViscousJacobian(4,4) = thermalDiffusivity * temp1
+
+     do k = 1, nSpecies
+        secondPartialViscousJacobian(4 + k,4 + k) = massDiffusivity(k) * temp1
+     end do
 
   end select !... nDimensions
 

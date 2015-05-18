@@ -384,7 +384,8 @@ subroutine computeFarFieldViscousJacobians(this, simulationFlags,               
               call computeSecondPartialViscousJacobian(nDimensions, nSpecies,                &
                    localVelocity, state%dynamicViscosity(gridIndex,1),                       &
                    state%secondCoefficientOfViscosity(gridIndex,1),                          &
-                   state%thermalDiffusivity(gridIndex,1), grid%jacobian(gridIndex,1),        &
+                   state%thermalDiffusivity(gridIndex,1),                                    &
+                   state%massDiffusivity(gridIndex,:), grid%jacobian(gridIndex,1),           &
                    localMetricsAlongFirstDir, localMetricsAlongSecondDir,                    &
                    localSecondPartialViscousJacobian)
 
