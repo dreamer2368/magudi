@@ -19,7 +19,7 @@ subroutine setupResidualManager(this, prefix, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = 3), parameter :: directions = "xyz"
-  integer :: i, nDimensions, nUnknowns
+  integer :: i, nDimensions, nUnknowns, nSpecies
   character(len = STRING_LENGTH) :: message
 
   call this%cleanup()
@@ -32,8 +32,11 @@ subroutine setupResidualManager(this, prefix, region)
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
+  nSpecies = region%solverOptions%nSpecies
+  assert(nSpecies >= 0)
+
   nUnknowns = region%solverOptions%nUnknowns
-  assert(nUnknowns >= nDimensions + 2)
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
 
   allocate(this%residuals(nUnknowns))
   allocate(this%tolerances(nUnknowns))

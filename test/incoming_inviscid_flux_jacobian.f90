@@ -78,7 +78,7 @@ program incoming_inviscid_flux_jacobian
 
      end do
 
-     call computeDependentVariables(nDimensions, conservedVariables,                         &
+     call computeDependentVariables(nDimensions, 0, conservedVariables,                      &
           ratioOfSpecificHeats, specificVolume = specificVolume,                             &
           velocity = velocity, temperature = temperature)
      assert(all(specificVolume > 0.0_wp))
@@ -93,35 +93,15 @@ program incoming_inviscid_flux_jacobian
 
            localMetricsAlongDirection = metrics(i,1+nDimensions*(j-1):nDimensions*j)
 
-           select case (nDimensions)
-           case (1)
-              call computeJacobianOfInviscidFlux1D(localConservedVariables,                  &
+           call computeJacobianOfInviscidFlux(nDimensions, 0, localConservedVariables,       &
                    localMetricsAlongDirection, ratioOfSpecificHeats,                         &
                    jacobianOfInviscidFlux, specificVolume = specificVolume(i),               &
                    velocity = localVelocity, temperature = temperature(i))
-              call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,          &
-                   localMetricsAlongDirection, ratioOfSpecificHeats, 1,                      &
-                   incomingJacobianOfInviscidFlux1, specificVolume = specificVolume(i),      &
-                   velocity = localVelocity, temperature = temperature(i))
-           case (2)
-              call computeJacobianOfInviscidFlux2D(localConservedVariables,                  &
-                   localMetricsAlongDirection, ratioOfSpecificHeats,                         &
-                   jacobianOfInviscidFlux, specificVolume = specificVolume(i),               &
-                   velocity = localVelocity, temperature = temperature(i))
-              call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,          &
-                   localMetricsAlongDirection, ratioOfSpecificHeats, 1,                      &
-                   incomingJacobianOfInviscidFlux1, specificVolume = specificVolume(i),      &
-                   velocity = localVelocity, temperature = temperature(i))
-           case (3)
-              call computeJacobianOfInviscidFlux3D(localConservedVariables,                  &
-                   localMetricsAlongDirection, ratioOfSpecificHeats,                         &
-                   jacobianOfInviscidFlux, specificVolume = specificVolume(i),               &
-                   velocity = localVelocity, temperature = temperature(i))
-              call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,          &
-                   localMetricsAlongDirection, ratioOfSpecificHeats, 1,                      &
-                   incomingJacobianOfInviscidFlux1, specificVolume = specificVolume(i),      &
-                   velocity = localVelocity, temperature = temperature(i))
-           end select
+              call computeIncomingJacobianOfInviscidFlux(nDimensions, 0,                     &
+                   localConservedVariables, localMetricsAlongDirection,                      &
+                   ratioOfSpecificHeats, 1, incomingJacobianOfInviscidFlux1,                 &
+                   specificVolume = specificVolume(i), velocity = localVelocity,             &
+                   temperature = temperature(i))
 
            call lapackComputeIncomingJacobianOfInviscidFlux(jacobianOfInviscidFlux, 1,       &
                 incomingJacobianOfInviscidFlux2)

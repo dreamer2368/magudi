@@ -202,7 +202,7 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, direction, nDimensions, nUnknowns, gridIndex, patchIndex
+  integer :: i, j, k, direction, nDimensions, nUnknowns, nSpecies, gridIndex, patchIndex
   real(SCALAR_KIND) :: normBoundaryFactor
   SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
        unitNormal(:), incomingJacobianOfInviscidFlux(:,:)
@@ -211,11 +211,14 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  direction = abs(patch%normalDirection)
-  assert(direction >= 1 .and. direction <= nDimensions)
+  nSpecies = solverOptions%nSpecies
+  assert(nSpecies >= 0)
 
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns >= nDimensions + 2)
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
+
+  direction = abs(patch%normalDirection)
+  assert(direction >= 1 .and. direction <= nDimensions)
 
   normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(direction)%normBoundary(1),        &
        real(patch%normalDirection, wp))
@@ -248,26 +251,12 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
                    dot_product(state%adjointVariables(gridIndex,2:nDimensions+1) -           &
                    this%direction(1:nDimensions), unitNormal)
 
-              select case (nDimensions)
-              case (1)
-                 call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,       &
-                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      - patch%normalDirection, incomingJacobianOfInviscidFlux,               &
-                      specificVolume = state%specificVolume(gridIndex, 1),                   &
-                      temperature = state%temperature(gridIndex, 1))
-              case (2)
-                 call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,       &
-                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      - patch%normalDirection, incomingJacobianOfInviscidFlux,               &
-                      specificVolume = state%specificVolume(gridIndex, 1),                   &
-                      temperature = state%temperature(gridIndex, 1))
-              case (3)
-                 call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,       &
-                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      - patch%normalDirection, incomingJacobianOfInviscidFlux,               &
-                      specificVolume = state%specificVolume(gridIndex, 1),                   &
-                      temperature = state%temperature(gridIndex, 1))
-              end select !... nDimensions
+              call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,              &
+                   localConservedVariables, metricsAlongNormalDirection,                     &
+                   solverOptions%ratioOfSpecificHeats, - patch%normalDirection,              &
+                   incomingJacobianOfInviscidFlux,                                           &
+                   specificVolume = state%specificVolume(gridIndex, 1),                      &
+                   temperature = state%temperature(gridIndex, 1))
 
               patch%adjointForcing(patchIndex,:) = - patch%inviscidPenaltyAmount * F *       &
                    matmul(transpose(incomingJacobianOfInviscidFlux(2:nDimensions+1,:)),      &

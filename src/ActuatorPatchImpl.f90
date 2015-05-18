@@ -100,7 +100,7 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, nDimensions, nUnknowns, gridIndex, patchIndex
+  integer :: i, j, k, l, nDimensions, nUnknowns, nSpecies, gridIndex, patchIndex
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -114,8 +114,11 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
+  nSpecies = solverOptions%nSpecies
+  assert(nSpecies >= 0)
+
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns >= nDimensions + 2)
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
 
   select case (mode)
 

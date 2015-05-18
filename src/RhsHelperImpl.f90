@@ -130,7 +130,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, nDimensions, nUnknowns
+    integer :: i, j, k, nDimensions, nUnknowns, nSpecies
     class(t_Patch), pointer :: patch => null()
     SCALAR_TYPE, allocatable :: patchConservedVariables(:,:), patchTargetState(:,:),         &
          viscousPenaltyAlongDirection(:,:), temp(:,:)
@@ -140,8 +140,11 @@ contains
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
 
+    nSpecies = solverOptions%nSpecies
+    assert(nSpecies >= 0)
+
     nUnknowns = solverOptions%nUnknowns
-    assert(nUnknowns >= nDimensions + 2)
+    assert(nUnknowns == nDimensions + nSpecies + 2)
 
     assert(grid%nGridPoints > 0)
     assert(allocated(state%targetState))
@@ -270,7 +273,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, nDimensions, nUnknowns
+    integer :: i, j, k, nDimensions, nUnknowns, nSpecies
     class(t_Patch), pointer :: patch => null()
     SCALAR_TYPE, allocatable :: patchAdjointVariables(:,:), patchTargetState(:,:),           &
          viscousPenaltyAlongDirection(:,:), temp(:,:)
@@ -280,8 +283,11 @@ contains
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
 
+    nSpecies = solverOptions%nSpecies
+    assert(nSpecies >= 0)
+
     nUnknowns = solverOptions%nUnknowns
-    assert(nUnknowns >= nDimensions + 2)
+    assert(nUnknowns == nDimensions + nSpecies + 2)
 
     assert(grid%nGridPoints > 0)
     assert(allocated(state%targetState))
@@ -428,6 +434,7 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
+
   nSpecies = solverOptions%nSpecies
   assert(nSpecies >= 0)
 

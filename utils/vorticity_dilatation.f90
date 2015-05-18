@@ -160,7 +160,7 @@ subroutine saveVorticityDilatation(region, filename)
      if (.not. allocated(region%states(i)%velocityGradient))                                 &
           allocate(region%states(i)%velocityGradient(region%grids(i)%nGridPoints,            &
           nDimensions ** 2))
-     call computeDependentVariables(nDimensions, region%states(i)%conservedVariables,        &
+     call computeDependentVariables(nDimensions, 0, region%states(i)%conservedVariables,     &
           velocity = region%states(i)%velocity)
      call region%grids(i)%computeGradient(region%states(i)%velocity,                         &
           region%states(i)%velocityGradient)

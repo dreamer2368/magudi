@@ -88,12 +88,12 @@ program inviscid_flux_jacobian
 
      end do
 
-     call computeDependentVariables(nDimensions, conservedVariables1,                        &
+     call computeDependentVariables(nDimensions, 0, conservedVariables1,                     &
           ratioOfSpecificHeats, specificVolume = specificVolume, velocity = velocity,        &
           pressure = pressure, temperature = temperature)
      assert(all(specificVolume > 0.0_wp))
      assert(all(temperature > 0.0_wp))
-     call computeCartesianInvsicidFluxes(nDimensions, conservedVariables1,                   &
+     call computeCartesianInvsicidFluxes(nDimensions, 0, conservedVariables1,                &
           velocity, pressure, fluxes1)
      call transformFluxes(nDimensions, fluxes1, metrics, fluxes2, isDomainCurvilinear)
 
@@ -124,13 +124,13 @@ program inviscid_flux_jacobian
         conservedVariables2 = conservedVariables1 + stepSizes(i) * deltaConservedVariables
         assert(all(conservedVariables2(:,1) > 0.0_wp))
 
-        call computeDependentVariables(nDimensions, conservedVariables2,                     &
+        call computeDependentVariables(nDimensions, 0, conservedVariables2,                  &
              ratioOfSpecificHeats, specificVolume = specificVolume, velocity = velocity,     &
              pressure = pressure, temperature = temperature)
 
         assert(all(specificVolume > 0.0_wp))
         assert(all(temperature > 0.0_wp))
-        call computeCartesianInvsicidFluxes(nDimensions, conservedVariables2,                &
+        call computeCartesianInvsicidFluxes(nDimensions, 0, conservedVariables2,              &
              velocity, pressure, fluxes1)
         call transformFluxes(nDimensions, fluxes1, metrics, fluxes3, isDomainCurvilinear)
 
@@ -145,23 +145,10 @@ program inviscid_flux_jacobian
 
               localMetricsAlongDirection = metrics(j,1+nDimensions*(k-1):nDimensions*k)
 
-              select case (nDimensions)
-              case (1)
-                 call computeJacobianOfInviscidFlux1D(localConservedVariables,               &
-                      localMetricsAlongDirection, ratioOfSpecificHeats,                      &
-                      jacobianOfInviscidFlux, specificVolume = specificVolume(j),            &
-                      velocity = localVelocity, temperature = temperature(j))
-              case (2)
-                 call computeJacobianOfInviscidFlux2D(localConservedVariables,               &
-                      localMetricsAlongDirection, ratioOfSpecificHeats,                      &
-                      jacobianOfInviscidFlux, specificVolume = specificVolume(j),            &
-                      velocity = localVelocity, temperature = temperature(j))
-              case (3)
-                 call computeJacobianOfInviscidFlux3D(localConservedVariables,               &
-                      localMetricsAlongDirection, ratioOfSpecificHeats,                      &
-                      jacobianOfInviscidFlux, specificVolume = specificVolume(j),            &
-                      velocity = localVelocity, temperature = temperature(j))
-              end select
+              call computeJacobianOfInviscidFlux(nDimensions, 0, localConservedVariables,    &
+                   localMetricsAlongDirection, ratioOfSpecificHeats,                         &
+                   jacobianOfInviscidFlux, specificVolume = specificVolume(j),               &
+                   velocity = localVelocity, temperature = temperature(j))
 
               errorHistory(i) = max(errorHistory(i),                                         &
                    maxval(abs(fluxes3(j,:,k) - fluxes2(j,:,k) - stepSizes(i) *               &

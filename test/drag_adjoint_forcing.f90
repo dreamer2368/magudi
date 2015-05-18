@@ -16,7 +16,7 @@ program drag_adjoint_forcing
 
   use Region_enum, only : ADJOINT
 
-  use CNSHelper, only : computeDependentVariables, computeJacobianOfInviscidFlux2D
+  use CNSHelper, only : computeDependentVariables, computeJacobianOfInviscidFlux
 
   implicit none
 
@@ -143,7 +143,8 @@ program drag_adjoint_forcing
         region(2)%grids(1)%metrics = region(1)%grids(1)%metrics
         region(2)%states(1)%conservedVariables = region(1)%states(1)%conservedVariables
         region(2)%states(1)%adjointVariables = region(1)%states(1)%adjointVariables
-        call computeDependentVariables(nDimensions, region(2)%states(1)%conservedVariables,  &
+        call computeDependentVariables(nDimensions, region(2)%solverOptions%nSpecies,        &
+             region(2)%states(1)%conservedVariables,                                         &
              region(2)%solverOptions%ratioOfSpecificHeats,                                   &
              region(2)%states(1)%specificVolume(:,1), region(2)%states(1)%velocity,          &
              region(2)%states(1)%pressure(:,1), region(2)%states(1)%temperature(:,1))
@@ -406,7 +407,7 @@ subroutine randomizeTestRegionData(grid, state, patchFactories, ratioOfSpecificH
   call applyForwardBoundaryConditions(impenetrableWall, grid, state)
 
   ! Compute dependent variables.
-  call computeDependentVariables(nDimensions, state%conservedVariables,                      &
+  call computeDependentVariables(nDimensions, 0, state%conservedVariables,                   &
        ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,                      &
        state%pressure(:,1), state%temperature(:,1))
 

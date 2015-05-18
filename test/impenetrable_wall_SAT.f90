@@ -168,9 +168,10 @@ program impenetrable_wall_SAT
 
         ! Apply forward boundary conditions.
         call applyForwardBoundaryConditions(patch, grid, state)
-        call computeDependentVariables(nDimensions, state%conservedVariables,                &
-          solverOptions%ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,     &
-          state%pressure(:,1), state%temperature(:,1))
+        call computeDependentVariables(nDimensions, solverOptions%nSpecies,                  &
+             state%conservedVariables, solverOptions%ratioOfSpecificHeats,                   &
+             state%specificVolume(:,1), state%velocity, state%pressure(:,1),                 &
+             state%temperature(:,1))
         assert(all(state%specificVolume(:,1) > 0.0_wp))
         assert(all(state%temperature(:,1) > 0.0_wp))
 
@@ -361,18 +362,21 @@ subroutine addSurfaceIntegralContribution(patch, grid, state, solverOptions)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, gridIndex, patchIndex, direction, nDimensions, nUnknowns
+  integer :: i, j, k, gridIndex, patchIndex, direction, nDimensions, nUnknowns, nSpecies
   SCALAR_TYPE, allocatable :: localConservedVariables(:), localMetricsAlongDirection(:),     &
        localFluxJacobian(:,:)
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  direction = patch%normalDirection
-  assert(abs(direction) >= 1 .and. abs(direction) <= nDimensions)
+  nSpecies = solverOptions%nSpecies
+  assert(nSpecies >= 0)
 
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns == nDimensions + 2)
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
+
+  direction = patch%normalDirection
+  assert(abs(direction) >= 1 .and. abs(direction) <= nDimensions)
 
   allocate(localConservedVariables(nUnknowns))
   allocate(localMetricsAlongDirection(nDimensions))
@@ -393,20 +397,9 @@ subroutine addSurfaceIntegralContribution(patch, grid, state, solverOptions)
            localMetricsAlongDirection = grid%metrics(gridIndex, 1 + nDimensions *            &
                 (abs(direction) - 1) : nDimensions * abs(direction))
 
-           select case (nDimensions)
-           case (1)
-              call computeJacobianOfInviscidFlux1D(localConservedVariables,                  &
-                   localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,           &
-                   localFluxJacobian)
-           case (2)
-              call computeJacobianOfInviscidFlux2D(localConservedVariables,                  &
-                   localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,           &
-                   localFluxJacobian)
-           case (3)
-              call computeJacobianOfInviscidFlux3D(localConservedVariables,                  &
-                   localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,           &
-                   localFluxJacobian)
-           end select !... nDimensions
+           call computeJacobianOfInviscidFlux(nDimensions, nSpecies,                         &
+                localConservedVariables, localMetricsAlongDirection,                         &
+                solverOptions%ratioOfSpecificHeats, localFluxJacobian)
 
            state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -             &
                 sign(1.0_wp / grid%firstDerivative(abs(direction))%normBoundary(1),          &

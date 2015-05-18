@@ -63,7 +63,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
         write(message, "(A,I1.1)") "Schmidt_number_k", k
         call getRequiredOption(trim(message), Schmidt_number_k, comm)
         this%schmidtNumberInverse(k) = max(0.0_wp, Schmidt_number_k)
-     end if
+     end do
 
      if (this%reynoldsNumberInverse <= 0.0_wp .or. this%prandtlNumberInverse <= 0.0_wp) then
         this%powerLawExponent = 0.0_wp
@@ -71,7 +71,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      else
         this%reynoldsNumberInverse = 1.0_wp / this%reynoldsNumberInverse
         this%prandtlNumberInverse = 1.0_wp / this%prandtlNumberInverse
-        this%schmidtlNumberInverse = 1.0_wp / this%schmidtNumberInverse
+        if (this%nSpecies > 0)                                                               &
+             this%schmidtNumberInverse = 1.0_wp / this%schmidtNumberInverse
         this%powerLawExponent = getOption("viscosity_power_law_exponent", 0.666_wp)
         this%bulkViscosityRatio = getOption("bulk_viscosity_ratio", 0.6_wp)
      end if

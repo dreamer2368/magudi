@@ -84,7 +84,7 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, nDimensions, nUnknowns, direction, gridIndex, patchIndex
+  integer :: i, j, k, l, nDimensions, nUnknowns, nSpecies, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
        inviscidPenalty(:), deltaPressure(:), deltaInviscidPenalty(:,:)
   SCALAR_TYPE :: normalMomentum
@@ -104,8 +104,11 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
   direction = abs(this%normalDirection)
   assert(direction >= 1 .and. direction <= nDimensions)
 
+  nSpecies = solverOptions%nSpecies
+  assert(nSpecies >= 0)
+
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns >= nDimensions + 2)
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
 
   allocate(localConservedVariables(nUnknowns))
   allocate(metricsAlongNormalDirection(nDimensions))
@@ -153,23 +156,10 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
               deltaPressure(nDimensions+2) = 1.0_wp
               deltaPressure = deltaPressure * (solverOptions%ratioOfSpecificHeats - 1.0_wp)
 
-              select case (nDimensions)
-              case (1)
-                 call computeJacobianOfInviscidFlux1D(localConservedVariables,               &
-                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      deltaInviscidPenalty, temperature = state%temperature(gridIndex, 1),   &
-                      specificVolume = state%specificVolume(gridIndex, 1))
-              case (2)
-                 call computeJacobianOfInviscidFlux2D(localConservedVariables,               &
-                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      deltaInviscidPenalty, temperature = state%temperature(gridIndex, 1),   &
-                      specificVolume = state%specificVolume(gridIndex, 1))
-              case (3)
-                 call computeJacobianOfInviscidFlux3D(localConservedVariables,               &
-                      metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                      deltaInviscidPenalty, temperature = state%temperature(gridIndex, 1),   &
-                      specificVolume = state%specificVolume(gridIndex, 1))
-              end select !... nDimensions
+              call computeJacobianOfInviscidFlux(nDimensions, nSpecies, localConservedVariables,               &
+                   metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
+                   deltaInviscidPenalty, temperature = state%temperature(gridIndex, 1),   &
+                   specificVolume = state%specificVolume(gridIndex, 1))
 
               do l = 1, nDimensions
                  deltaInviscidPenalty(l+1,:) = deltaInviscidPenalty(l+1,:) -                 &

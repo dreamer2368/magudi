@@ -11,7 +11,7 @@ module IsothermalWall_mod
 
      real(SCALAR_KIND) :: viscousPenaltyAmounts(2)
      SCALAR_TYPE, allocatable :: temperature(:), dynamicViscosity(:),                        &
-          secondCoefficientOfViscosity(:), thermalDiffusivity(:)
+          secondCoefficientOfViscosity(:), thermalDiffusivity(:), massDiffusivity(:,:)
 
    contains
 

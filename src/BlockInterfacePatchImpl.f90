@@ -126,7 +126,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
+  integer :: i, j, k, nDimensions, nUnknowns, nSpecies, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: receivedData(:,:), interfaceConservedVariables(:,:),           &
        interfaceViscousFluxes(:,:), localConservedVariables(:),                              &
        localInterfaceConservedVariables(:), localRoeAverage(:),                              &
@@ -142,11 +142,14 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  direction = abs(this%normalDirection)
-  assert(direction >= 1 .and. direction <= nDimensions)
+  nSpecies = solverOptions%nSpecies
+  assert(nSpecies >= 0)
 
   nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns >= nDimensions + 2)
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
+
+  direction = abs(this%normalDirection)
+  assert(direction >= 1 .and. direction <= nDimensions)
 
   if (this%comm /= MPI_COMM_NULL) then
 
@@ -194,20 +197,10 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                 localInterfaceConservedVariables, solverOptions%ratioOfSpecificHeats,        &
                 localRoeAverage)
 
-           select case (nDimensions)
-           case (1)
-              call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,                  &
-                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
-           case (2)
-              call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,                  &
-                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
-           case (3)
-              call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,                  &
-                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
-                   this%normalDirection, incomingJacobianOfInviscidFlux)
-           end select !... nDimensions
+           call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,                 &
+                localRoeAverage, localMetricsAlongNormalDirection,                           &
+                solverOptions%ratioOfSpecificHeats,this%normalDirection,                     &
+                incomingJacobianOfInviscidFlux)
 
            select case (mode)
 
@@ -326,20 +319,24 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   class(t_State), intent(in) :: state
 
   ! <<< Local variables >>>
-  integer :: i, direction, nDimensions, nUnknowns
-  SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux, speciesFlux  &
-       metricsAlongNormalDirection, dataToBeSent
-  SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
+  integer :: i, direction, nDimensions, nUnknowns, nSpecies
+  SCALAR_TYPE, dimension(:,:), allocatable :: velocity, massFraction, stressTensor,          &
+       heatFlux, metricsAlongNormalDirection, dataToBeSent
+  SCALAR_TYPE, dimension(:,:,:), allocatable :: speciesFlux, viscousFluxes
 
   if (this%comm == MPI_COMM_NULL) return
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  direction = abs(this%normalDirection)
-  assert(direction >= 1 .and. direction <= nDimensions)
+  nSpecies = solverOptions%nSpecies
+  assert(nSpecies >= 0)
 
   nUnknowns = solverOptions%nUnknowns
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
+
+  direction = abs(this%normalDirection)
+  assert(direction >= 1 .and. direction <= nDimensions)
 
   assert(this%nPatchPoints > 0)
 
@@ -354,21 +351,23 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   if (simulationFlags%viscosityOn) then
 
      allocate(velocity(this%nPatchPoints, nDimensions))
+     allocate(massFraction(this%nPatchPoints, nSpecies))
      allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
      allocate(heatFlux(this%nPatchPoints, nDimensions))
-     allocate(speciesFlux(this%nPatchPoints, this%nSpecies, nDimensions))
+     allocate(speciesFlux(this%nPatchPoints, nSpecies, nDimensions))
      allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
      allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
 
      call this%collect(state%velocity, velocity)
+     call this%collect(state%massFraction, massFraction)
      call this%collect(state%stressTensor, stressTensor)
      call this%collect(state%heatFlux, heatFlux)
      call this%collect(state%speciesFlux, speciesFlux)
      call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
           metricsAlongNormalDirection)
 
-     call computeCartesianViscousFluxes(nDimensions, velocity,                               &
-          stressTensor, heatFlux, speciesFlux, viscousFluxes)
+     call computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,                     &
+          massFraction, stressTensor, heatFlux, speciesFlux, viscousFluxes)
      do i = 1, this%nPatchPoints
         this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                     &
              metricsAlongNormalDirection(i,:))
@@ -382,6 +381,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      SAFE_DEALLOCATE(speciesFlux)
      SAFE_DEALLOCATE(stressTensor)
      SAFE_DEALLOCATE(velocity)
+     SAFE_DEALLOCATE(massFraction)
 
   end if
 

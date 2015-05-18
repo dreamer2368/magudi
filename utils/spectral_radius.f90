@@ -161,7 +161,7 @@ subroutine saveSpectralRadius(region, filename)
           allocate(region%states(i)%temperature(region%grids(i)%nGridPoints, 1))
 
 
-     call computeDependentVariables(nDimensions, region%states(i)%conservedVariables,        &
+     call computeDependentVariables(nDimensions, 0, region%states(i)%conservedVariables,     &
           velocity = region%states(i)%velocity,                                              &
           temperature = region%states(i)%temperature(:,1))
      call computeSpectralRadius(nDimensions, region%solverOptions%ratioOfSpecificHeats,      &
