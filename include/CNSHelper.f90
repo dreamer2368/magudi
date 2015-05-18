@@ -272,7 +272,8 @@ module CNSHelper
        integer, intent(in) :: nDimensions, nSpecies
        SCALAR_TYPE, intent(in) :: velocity(:), dynamicViscosity,                             &
             secondCoefficientOfViscosity, thermalDiffusivity, jacobian,                      &
-            metricsAlongFirstDir(:), metricsAlongSecondDir(:)
+            metricsAlongFirstDir(:)
+       SCALAR_TYPE, intent(in), optional :: metricsAlongSecondDir(:)
        SCALAR_TYPE, intent(out) :: secondPartialViscousJacobian(:,:)
 
      end subroutine computeSecondPartialViscousJacobian
