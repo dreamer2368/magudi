@@ -948,7 +948,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      massFraction_ = massFraction
   else
      do k = 1, nSpecies
-        massFraction_(k) = conservedVariables(nDimensions + 2 + k) * specificVolume_
+        massFraction_(k) = conservedVariables(nDimensions+2+k) * specificVolume_
      end do
   end if
 
@@ -960,7 +960,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
   ! Zero-out Jacobian of inviscid flux.
   jacobianOfInviscidFlux = 0.0_wp
 
-  ! Compute jacobian of inviscid flux.
+  ! Compute Jacobian of inviscid flux.
   select case (nDimensions)
 
   case (1)
@@ -971,7 +971,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(3,1) = contravariantVelocity * ((ratioOfSpecificHeats - 2.0_wp)  &
           / (ratioOfSpecificHeats - 1.0_wp) * phiSquared - temperature_)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(3 + k, 1) = -massFraction_(k) * contravariantVelocity
+        jacobianOfInviscidFlux(3+k,1) = -massFraction_(k) * contravariantVelocity
      end do
 
      jacobianOfInviscidFlux(1,2) = metrics(1)
@@ -981,7 +981,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(1)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(3 + k, 2) = massFraction_(k) * metrics(1)
+        jacobianOfInviscidFlux(3+k,2) = massFraction_(k) * metrics(1)
      end do
 
      jacobianOfInviscidFlux(1,3) = 0.0_wp
@@ -989,7 +989,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(3,3) = ratioOfSpecificHeats * contravariantVelocity
 
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(3 + k, 3 + k) = contravariantVelocity
+        jacobianOfInviscidFlux(3+k,3+k) = contravariantVelocity
      end do
 
   case (2)
@@ -1002,7 +1002,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(4,1) = contravariantVelocity * ((ratioOfSpecificHeats - 2.0_wp)  &
           / (ratioOfSpecificHeats - 1.0_wp) * phiSquared - temperature_)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(4 + k, 1) = -massFraction_(k) * contravariantVelocity
+        jacobianOfInviscidFlux(4+k,1) = -massFraction_(k) * contravariantVelocity
      end do
 
      jacobianOfInviscidFlux(1,2) = metrics(1)
@@ -1014,7 +1014,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(1)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(4 + k, 2) = massFraction_(k) * metrics(1)
+        jacobianOfInviscidFlux(4+k,2) = massFraction_(k) * metrics(1)
      end do
 
      jacobianOfInviscidFlux(1,3) = metrics(2)
@@ -1026,7 +1026,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(2) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(2)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(4 + k, 3) = massFraction_(k) * metrics(2)
+        jacobianOfInviscidFlux(4+k,3) = massFraction_(k) * metrics(2)
      end do
 
      jacobianOfInviscidFlux(1,4) = 0.0_wp
@@ -1035,7 +1035,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(4,4) = ratioOfSpecificHeats * contravariantVelocity
 
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(4 + k, 4 + k) = contravariantVelocity
+        jacobianOfInviscidFlux(4+k,4+k) = contravariantVelocity
      end do
 
   case (3)
@@ -1050,7 +1050,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(5,1) = contravariantVelocity * ((ratioOfSpecificHeats - 2.0_wp)  &
           / (ratioOfSpecificHeats - 1.0_wp) * phiSquared - temperature_)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(5 + k, 1) = -massFraction_(k) * contravariantVelocity
+        jacobianOfInviscidFlux(5+k,1) = -massFraction_(k) * contravariantVelocity
      end do
 
      jacobianOfInviscidFlux(1,2) = metrics(1)
@@ -1064,7 +1064,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(1)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(5 + k, 2) = massFraction_(k) * metrics(1)
+        jacobianOfInviscidFlux(5+k,2) = massFraction_(k) * metrics(1)
      end do
 
      jacobianOfInviscidFlux(1,3) = metrics(2)
@@ -1078,7 +1078,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(2) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(2)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(5 + k, 3) = massFraction_(k) * metrics(2)
+        jacobianOfInviscidFlux(5+k,3) = massFraction_(k) * metrics(2)
      end do
 
      jacobianOfInviscidFlux(1,4) = metrics(3)
@@ -1092,7 +1092,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
           (ratioOfSpecificHeats - 1.0_wp)) * metrics(3) - (ratioOfSpecificHeats - 1.0_wp) *  &
           contravariantVelocity * velocity_(3)
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(5 + k, 4) = massFraction_(k) * metrics(3)
+        jacobianOfInviscidFlux(5+k,4) = massFraction_(k) * metrics(3)
      end do
 
      jacobianOfInviscidFlux(1,5) = 0.0_wp
@@ -1102,13 +1102,16 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
      jacobianOfInviscidFlux(5,5) = ratioOfSpecificHeats * contravariantVelocity
 
      do k = 1, nSpecies
-        jacobianOfInviscidFlux(5 + k, 5 + k) = contravariantVelocity
+        jacobianOfInviscidFlux(5+k,5+k) = contravariantVelocity
      end do
         
   end select !... nDimensions
 
-  ! Compute variations in jacobian of inviscid flux.
+  ! Compute variations in Jacobian of inviscid flux.
   if (present(deltaJacobianOfInviscidFlux)) then
+
+     ! Zero-out the variations of the Jacobian of inviscid flux.
+     deltaJacobianOfInviscidFlux = 0.0_wp
 
      select case (nDimensions)
 
@@ -1123,11 +1126,11 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
            deltaConservedVariables_(2,2) = 1.0_wp
            deltaConservedVariables_(3,3) = 1.0_wp
            do k = 1, nSpecies
-              deltaConservedVariables_(3 + k, 3 + k) = 1.0_wp
+              deltaConservedVariables_(3+k,3+k) = 1.0_wp
            end do
         end if
 
-        ! Compute variations of specific volume, velocity and temperature.
+        ! Compute variations of specific volume, velocity, temperature and mass fraction.
         deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                         &
              deltaConservedVariables_(1,:)
         deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                   &
@@ -1135,6 +1138,10 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
         deltaTemperature = ratioOfSpecificHeats * (deltaSpecificVolume *                     &
              conservedVariables(3) + specificVolume_ * deltaConservedVariables_(2,:) -       &
              (velocity_(1) * deltaVelocity(1,:)))
+        do k = 1, nSpecies
+           deltaMassFraction(k,:) = deltaSpecificVolume * conservedVariables(3+k) +          &
+                specificVolume_ * deltaConservedVariables_(3+k,:)
+        end do
 
         ! Compute variations of other dependent variables:
 
@@ -1152,6 +1159,11 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              phiSquared - temperature_) + contravariantVelocity *                            &
              ((ratioOfSpecificHeats - 2.0_wp) / (ratioOfSpecificHeats - 1.0_wp) *            &
              deltaPhiSquared - deltaTemperature)
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(3+k,1,:) = -massFraction_(k) *                        &
+                deltacontravariantVelocity - deltaMassFraction(k,:) *                        &
+                contravariantVelocity
+        end do
 
         deltaJacobianOfInviscidFlux(1,2,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,2,:) = deltaContravariantVelocity -                    &
@@ -1160,11 +1172,21 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) -                                 &
              (ratioOfSpecificHeats - 1.0_wp) * (deltaContravariantVelocity * velocity_(1) +  &
              contravariantVelocity * deltaVelocity(1,:))
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(3+k,2,:) = deltaMassFraction(k,:) * metrics(1)
+        end do
 
         deltaJacobianOfInviscidFlux(1,3,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,3,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(3,3,:) = ratioOfSpecificHeats *                          &
              deltaContravariantVelocity
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(3+k,3,:) = 0.0_wp
+        end do
+
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(3+k,3+k,:) = deltaContravariantVelocity
+        end do
 
      case (2)
 
@@ -1178,11 +1200,11 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
            deltaConservedVariables_(3,3) = 1.0_wp
            deltaConservedVariables_(4,4) = 1.0_wp
            do k = 1, nSpecies
-              deltaConservedVariables_(4 + k, 4 + k) = 1.0_wp
+              deltaConservedVariables_(4+k,4+k) = 1.0_wp
            end do
         end if
 
-        ! Compute variations of specific volume, velocity and temperature.
+        ! Compute variations of specific volume, velocity, temperature and mass fraction.
         deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                         &
              deltaConservedVariables_(1,:)
         deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                   &
@@ -1192,6 +1214,10 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
         deltaTemperature = ratioOfSpecificHeats * (deltaSpecificVolume *                     &
              conservedVariables(4) + specificVolume_ * deltaConservedVariables_(4,:) -       &
              (velocity_(1) * deltaVelocity(1,:) + velocity_(2) * deltaVelocity(2,:)))
+        do k = 1, nSpecies
+           deltaMassFraction(k,:) = deltaSpecificVolume * conservedVariables(4+k) +          &
+                specificVolume_ * deltaConservedVariables_(4+k,:)
+        end do
 
         ! Compute variations of other dependent variables:
 
@@ -1213,6 +1239,11 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              phiSquared - temperature_) + contravariantVelocity *                            &
              ((ratioOfSpecificHeats - 2.0_wp) / (ratioOfSpecificHeats - 1.0_wp) *            &
              deltaPhiSquared - deltaTemperature)
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(4+k,1,:) = -massFraction_(k) *                        &
+                deltacontravariantVelocity - deltaMassFraction(k,:) *                        &
+                contravariantVelocity
+        end do
 
         deltaJacobianOfInviscidFlux(1,2,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,2,:) = deltaContravariantVelocity -                    &
@@ -1223,6 +1254,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) -                                 &
              (ratioOfSpecificHeats - 1.0_wp) * (deltaContravariantVelocity * velocity_(1) +  &
              contravariantVelocity * deltaVelocity(1,:))
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(4+k,2,:) = deltaMassFraction(k,:) * metrics(1)
+        end do
 
         deltaJacobianOfInviscidFlux(1,3,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,3,:) = deltaVelocity(1,:) * metrics(2) -               &
@@ -1233,12 +1267,22 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              (ratioOfSpecificHeats - 1.0_wp)) * metrics(2) -                                 &
              (ratioOfSpecificHeats - 1.0_wp) * (deltaContravariantVelocity * velocity_(2) +  &
              contravariantVelocity * deltaVelocity(2,:))
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(4+k,3,:) = deltaMassFraction(k,:) * metrics(2)
+        end do
 
         deltaJacobianOfInviscidFlux(1,4,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,4,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(3,4,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(4,4,:) = ratioOfSpecificHeats *                          &
              deltaContravariantVelocity
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(4+k,4,:) = 0.0_wp
+        end do
+
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(4+k,4+k,:) = deltaContravariantVelocity
+        end do
 
      case (3)
 
@@ -1253,11 +1297,11 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
            deltaConservedVariables_(4,4) = 1.0_wp
            deltaConservedVariables_(5,5) = 1.0_wp
            do k = 1, nSpecies
-              deltaConservedVariables_(5 + k, 5 + k) = 1.0_wp
+              deltaConservedVariables_(5+k,5+k) = 1.0_wp
            end do
         end if
 
-        ! Compute variations of specific volume, velocity and temperature.
+        ! Compute variations of specific volume, velocity, temperature and mass fraction.
         deltaSpecificVolume = -1.0_wp / conservedVariables(1) ** 2 *                         &
              deltaConservedVariables_(1,:)
         deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                   &
@@ -1270,6 +1314,10 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              conservedVariables(5) + specificVolume_ * deltaConservedVariables_(5,:) -       &
              (velocity_(1) * deltaVelocity(1,:) + velocity_(2) * deltaVelocity(2,:) +        &
              velocity_(3) * deltaVelocity(3,:)))
+        do k = 1, nSpecies
+           deltaMassFraction(k,:) = deltaSpecificVolume * conservedVariables(5+k) +          &
+                specificVolume_ * deltaConservedVariables_(5+k,:)
+        end do
 
         ! Compute variations of other dependent variables:
 
@@ -1297,6 +1345,11 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              phiSquared -  temperature_) + contravariantVelocity *                           &
              ((ratioOfSpecificHeats - 2.0_wp) / (ratioOfSpecificHeats - 1.0_wp) *            &
              deltaPhiSquared - deltaTemperature)
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(5+k,1,:) = -massFraction_(k) *                        &
+                deltacontravariantVelocity - deltaMassFraction(k,:) *                        &
+                contravariantVelocity
+        end do
 
         deltaJacobianOfInviscidFlux(1,2,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,2,:) = deltaContravariantVelocity -                    &
@@ -1309,6 +1362,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              (ratioOfSpecificHeats - 1.0_wp)) * metrics(1) -                                 &
              (ratioOfSpecificHeats - 1.0_wp) * (deltaContravariantVelocity * velocity_(1) +  &
              contravariantVelocity * deltaVelocity(1,:))
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(5+k,2,:) = deltaMassFraction(k,:) * metrics(1)
+        end do
 
         deltaJacobianOfInviscidFlux(1,3,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,3,:) = deltaVelocity(1,:) * metrics(2) -               &
@@ -1321,6 +1377,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              (ratioOfSpecificHeats - 1.0_wp)) * metrics(2) -                                 &
              (ratioOfSpecificHeats - 1.0_wp) * (deltaContravariantVelocity * velocity_(2) +  &
              contravariantVelocity * deltaVelocity(2,:))
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(5+k,3,:) = deltaMassFraction(k,:) * metrics(2)
+        end do
 
         deltaJacobianOfInviscidFlux(1,4,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,4,:) = deltaVelocity(1,:) * metrics(3) -               &
@@ -1333,6 +1392,9 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
              (ratioOfSpecificHeats - 1.0_wp)) * metrics(3) -                                 &
              (ratioOfSpecificHeats - 1.0_wp) * (deltaContravariantVelocity * velocity_(3) +  &
              contravariantVelocity * deltaVelocity(3,:))
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(5+k,4,:) = deltaMassFraction(k,:) * metrics(3)
+        end do
 
         deltaJacobianOfInviscidFlux(1,5,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(2,5,:) = 0.0_wp
@@ -1340,6 +1402,13 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
         deltaJacobianOfInviscidFlux(4,5,:) = 0.0_wp
         deltaJacobianOfInviscidFlux(5,5,:) = ratioOfSpecificHeats *                          &
              deltaContravariantVelocity
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(5+k,5,:) = 0.0_wp
+        end do
+
+        do k = 1, nSpecies
+           deltaJacobianOfInviscidFlux(5+k,5+k,:) = deltaContravariantVelocity
+        end do
 
      end select !... nDimensions
 
@@ -1364,7 +1433,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
        velocity(:), temperature, massFraction(:)
 
   ! <<< Local variables >>>
-  integer :: i, j
+  integer :: i, j, k
   integer, parameter :: wp = SCALAR_KIND
   SCALAR_TYPE :: arcLength, normalizedMetrics(nDimensions), specificVolume_,                 &
        velocity_(nDimensions), temperature_, massFraction_(nSpecies),                        &
@@ -1376,7 +1445,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
        deltaSpecificVolume(nDimensions + nSpecies + 2),                                      &
        deltaVelocity(nDimensions,nDimensions + nSpecies + 2),                                &
        deltaTemperature(nDimensions + nSpecies + 2),                                         &
-       deltaMassFraction(nDimensions + nSpecies + 2),                                        &
+       deltaMassFraction(nSpecies, nDimensions + nSpecies + 2),                              &
        deltaContravariantVelocity(nDimensions + nSpecies + 2),                               &
        deltaSpeedOfSound(nDimensions + nSpecies + 2),                                        &
        deltaPhiSquared(nDimensions + nSpecies + 2), deltaRightEigenvectors                   &
@@ -1418,8 +1487,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
   if (present(massFraction) .and. nSpecies > 0) then
      massFraction_ = massFraction
   else
-     do i = 1, nSpecies
-        massFraction_(i) = specificVolume_ * conservedVariables(nDimensions + 2 + i)
+     do k = 1, nSpecies
+        massFraction_(k) = specificVolume_ * conservedVariables(nDimensions+2+k)
      end do
   end if
 
@@ -1436,6 +1505,9 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      eigenvalues(1) = contravariantVelocity
      eigenvalues(2) = contravariantVelocity + speedOfSound
      eigenvalues(3) = contravariantVelocity - speedOfSound
+     do k = 1, nSpecies
+        eigenvalues(3+k) = contravariantVelocity
+     end do
      eigenvalues = arcLength * eigenvalues
 
      if (present(deltaIncomingJacobianOfInviscidFlux)) then
@@ -1448,9 +1520,12 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
            deltaConservedVariables_(1,1) = 1.0_wp
            deltaConservedVariables_(2,2) = 1.0_wp
            deltaConservedVariables_(3,3) = 1.0_wp
+           do k = 1, nSpecies
+              deltaConservedVariables_(3+k,3+k) = 1.0_wp
+           end do
         end if
 
-        ! Compute variations of specific volume, velocity and temperature.
+        ! Compute variations of specific volume, velocity, temperature and mass fraction.
         deltaSpecificVolume = - specificVolume_ ** 2 * deltaConservedVariables_(1,:)
         deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                   &
              specificVolume_ * deltaConservedVariables_(2,:)
@@ -1458,6 +1533,10 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
              (deltaSpecificVolume * conservedVariables(3) +                                  &
              specificVolume_ * deltaConservedVariables_(3,:) -                               &
              (velocity_(1) * deltaVelocity(1,:)))
+        do k = 1, nSpecies
+           deltaMassFraction(k,:) = deltaSpecificVolume * conservedVariables(3+k) +          &
+             specificVolume_ * deltaConservedVariables_(3+k,:)
+        end do
 
         ! Compute variations of other dependent variables.
         deltaContravariantVelocity = normalizedMetrics(1) * deltaVelocity(1,:)
@@ -1470,13 +1549,16 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
         deltaEigenvalues(1,:) = deltaContravariantVelocity
         deltaEigenvalues(2,:) = deltaContravariantVelocity + deltaSpeedOfSound
         deltaEigenvalues(3,:) = deltaContravariantVelocity - deltaSpeedOfSound
+        do k = 1, nSpecies
+           deltaEigenvalues(3+k,:) = deltaContravariantVelocity
+        end do
         deltaEigenvalues = arcLength * deltaEigenvalues
 
      end if
 
      ! Zero-out the eigenvalues corresponding to outgoing characteristics and
      ! corresponding variations.
-     do i = 1, 3
+     do i = 1, 3 + nSpecies
         if (incomingDirection * real(eigenvalues(i), wp) < 0.0_wp) then
            eigenvalues(i) = 0.0_wp
            if (present(deltaIncomingJacobianOfInviscidFlux)) deltaEigenvalues(i,:) = 0.0_wp
@@ -1485,51 +1567,79 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
 
      ! Matrix whose columns are the right eigenvectors:
 
+     rightEigenvectors = 0.0_wp
+
      rightEigenvectors(1,1) = 1.0_wp
      rightEigenvectors(2,1) = velocity_(1)
      rightEigenvectors(3,1) = phiSquared / (ratioOfSpecificHeats - 1.0_wp)
+     do k = 1, nSpecies
+        rightEigenvectors(3+k,1) = massFraction_(k)
+     end do
 
      rightEigenvectors(1,2) = 1.0_wp
      rightEigenvectors(2,2) = velocity_(1) + normalizedMetrics(1) * speedOfSound
      rightEigenvectors(3,2) = temperature_ + phiSquared / (ratioOfSpecificHeats - 1.0_wp) +  &
           speedOfSound * contravariantVelocity
+     do k = 1, nSpecies
+        rightEigenvectors(3+k,2) = massFraction_(k)
+     end do
 
      rightEigenvectors(1,3) = 1.0_wp
      rightEigenvectors(2,3) = velocity_(1) - normalizedMetrics(1) * speedOfSound
      rightEigenvectors(3,3) = temperature_ + phiSquared / (ratioOfSpecificHeats - 1.0_wp) -  &
           speedOfSound * contravariantVelocity
+     do k = 1, nSpecies
+        rightEigenvectors(3+k,3) = massFraction_(k)
+     end do
 
      ! Matrix whose rows are the left eigenvectors:
+
+     leftEigenvectors = 0.0_wp
 
      leftEigenvectors(1,1) = 1.0_wp - phiSquared / speedOfSound ** 2
      leftEigenvectors(2,1) = 0.5_wp * (phiSquared / speedOfSound ** 2 -                      &
           contravariantVelocity / speedOfSound)
      leftEigenvectors(3,1) = 0.5_wp * (phiSquared / speedOfSound ** 2 +                      &
           contravariantVelocity / speedOfSound)
+     do k = 1, nSpecies
+        !leftEigenvectors(3+k,1) =
+     end do
 
      leftEigenvectors(1,2) = velocity_(1) / temperature_
      leftEigenvectors(2,2) = - 0.5_wp * (velocity_(1) / temperature_ -                       &
           normalizedMetrics(1) / speedOfSound)
      leftEigenvectors(3,2) = - 0.5_wp * (velocity_(1) / temperature_ +                       &
           normalizedMetrics(1) / speedOfSound)
+     do k = 1, nSpecies
+        !leftEigenvectors(3+k,2) =
+     end do
 
      leftEigenvectors(1,3) = - 1.0_wp / temperature_
      leftEigenvectors(2,3) = 0.5_wp / temperature_
      leftEigenvectors(3,3) = 0.5_wp / temperature_
+     do k = 1, nSpecies
+        !leftEigenvectors(3+k,3) =
+     end do
 
      ! ``Incoming'' part.
-     do j = 1, 3
-        do i = 1, 3
+     do j = 1, 3 + nSpecies
+        do i = 1, 3 + nSpecies
            incomingJacobianOfInviscidFlux(i,j) =                                             &
                 rightEigenvectors(i,1) * eigenvalues(1) * leftEigenvectors(1,j) +            &
                 rightEigenvectors(i,2) * eigenvalues(2) * leftEigenvectors(2,j) +            &
                 rightEigenvectors(i,3) * eigenvalues(3) * leftEigenvectors(3,j)
+           do k = 1, nSpecies
+              incomingJacobianOfInviscidFlux(i,j) = incomingJacobianOfInviscidFlux(i,j) +    &
+                   rightEigenvectors(i,3+k) * eigenvalues(3+k) * leftEigenvectors(3+k,j)
+           end do
         end do
      end do
 
      if (present(deltaIncomingJacobianOfInviscidFlux)) then
 
         ! Variation of the matrix whose columns are the right eigenvectors:
+
+        deltaRightEigenvectors = 0.0_wp
 
         deltaRightEigenvectors(1,1,:) = 0.0_wp
         deltaRightEigenvectors(2,1,:) = deltaVelocity(1,:)
@@ -1553,6 +1663,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
              speedOfSound * deltaContravariantVelocity
 
         ! Variation of the matrix whose rows are the left eigenvectors:
+
+        deltaLeftEigenvectors = 0.0_wp
 
         temp = deltaPhiSquared / speedOfSound ** 2 -                                         &
              2.0_wp * phiSquared / speedOfSound ** 3 * deltaSpeedOfSound
@@ -1578,8 +1690,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
         deltaLeftEigenvectors(3,3,:) = 0.5_wp * temp
 
         ! Variation of the ``incoming'' part.
-        do j = 1, 3
-           do i = 1, 3
+        do j = 1, 3 + nSpecies
+           do i = 1, 3 + nSpecies
               deltaIncomingJacobianOfInviscidFlux(i,j,:) =                                   &
                    deltaRightEigenvectors(i,1,:) * eigenvalues(1) * leftEigenvectors(1,j) +  &
                    deltaRightEigenvectors(i,2,:) * eigenvalues(2) * leftEigenvectors(2,j) +  &
@@ -1590,6 +1702,15 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
                    rightEigenvectors(i,1) * eigenvalues(1) * deltaLeftEigenvectors(1,j,:) +  &
                    rightEigenvectors(i,2) * eigenvalues(2) * deltaLeftEigenvectors(2,j,:) +  &
                    rightEigenvectors(i,3) * eigenvalues(3) * deltaLeftEigenvectors(3,j,:)
+              do k = 1, nSpecies
+                 deltaIncomingJacobianOfInviscidFlux(i,j,:) =                                &
+                      deltaIncomingJacobianOfInviscidFlux(i,j,:) +                           &
+                      deltaRightEigenvectors(i,3+k,:) * eigenvalues(3+k) *                   &
+                      leftEigenvectors(3+k,j) + rightEigenvectors(i,3+k) *                   &
+                      deltaEigenvalues(3+k,:) * leftEigenvectors(3+k,j) +                    &
+                      rightEigenvectors(i,3+k) * eigenvalues(3+k) *                          &
+                      deltaLeftEigenvectors(3+k,j,:)
+              end do
            end do
         end do
 
@@ -1602,6 +1723,9 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      eigenvalues(2) = contravariantVelocity
      eigenvalues(3) = contravariantVelocity + speedOfSound
      eigenvalues(4) = contravariantVelocity - speedOfSound
+     do k = 1, nSpecies
+        eigenvalues(4+k) = contravariantVelocity
+     end do
      eigenvalues = arcLength * eigenvalues
 
      if (present(deltaIncomingJacobianOfInviscidFlux)) then
@@ -1615,9 +1739,12 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
            deltaConservedVariables_(2,2) = 1.0_wp
            deltaConservedVariables_(3,3) = 1.0_wp
            deltaConservedVariables_(4,4) = 1.0_wp
+           do k = 1, nSpecies
+              deltaConservedVariables_(4+k,4+k) = 1.0_wp
+           end do
         end if
 
-        ! Compute variations of specific volume, velocity and temperature.
+        ! Compute variations of specific volume, velocity, temperature and mass fraction.
         deltaSpecificVolume = - specificVolume_ ** 2 * deltaConservedVariables_(1,:)
         deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                   &
              specificVolume_ * deltaConservedVariables_(2,:)
@@ -1627,6 +1754,10 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
              (deltaSpecificVolume * conservedVariables(4) +                                  &
              specificVolume_ * deltaConservedVariables_(4,:) -                               &
              (velocity_(1) * deltaVelocity(1,:) + velocity_(2) * deltaVelocity(2,:)))
+        do k = 1, nSpecies
+           deltaMassFraction(k,:) = deltaSpecificVolume * conservedVariables(4+k) +          &
+                specificVolume_ * deltaConservedVariables_(4+k,:)
+        end do
 
         ! Compute variations of other dependent variables.
         deltaContravariantVelocity = normalizedMetrics(1) * deltaVelocity(1,:) +             &
@@ -1641,13 +1772,16 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
         deltaEigenvalues(2,:) = deltaContravariantVelocity
         deltaEigenvalues(3,:) = deltaContravariantVelocity + deltaSpeedOfSound
         deltaEigenvalues(4,:) = deltaContravariantVelocity - deltaSpeedOfSound
+        do k = 1, nSpecies
+           deltaEigenvalues(4+k,:) = deltaContravariantVelocity
+        end do
         deltaEigenvalues = arcLength * deltaEigenvalues
 
      end if
 
      ! Zero-out the eigenvalues corresponding to outgoing characteristics and corresponding
      ! variations.
-     do i = 1, 4
+     do i = 1, 4 + nSpecies
         if (incomingDirection * real(eigenvalues(i), wp) < 0.0_wp) then
            eigenvalues(i) = 0.0_wp
            if (present(deltaIncomingJacobianOfInviscidFlux)) deltaEigenvalues(i,:) = 0.0_wp
@@ -1656,30 +1790,46 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
 
      ! Matrix whose columns are the right eigenvectors:
 
+     rightEigenvectors = 0.0_wp
+
      rightEigenvectors(1,1) = 1.0_wp
      rightEigenvectors(2,1) = velocity_(1)
      rightEigenvectors(3,1) = velocity_(2)
      rightEigenvectors(4,1) = phiSquared / (ratioOfSpecificHeats - 1.0_wp)
+     do k = 1, nSpecies
+        rightEigenvectors(4+k,1) = massFraction_(k)
+     end do
 
      rightEigenvectors(1,2) = 0.0_wp
      rightEigenvectors(2,2) = normalizedMetrics(2) * conservedVariables(1)
      rightEigenvectors(3,2) = - normalizedMetrics(1) * conservedVariables(1)
      rightEigenvectors(4,2) = conservedVariables(1) * (normalizedMetrics(2) * velocity_(1) - &
           normalizedMetrics(1) * velocity_(2))
+     do k = 1, nSpecies
+        rightEigenvectors(4+k,2) = massFraction_(k)
+     end do
 
      rightEigenvectors(1,3) = 1.0_wp
      rightEigenvectors(2,3) = velocity_(1) + normalizedMetrics(1) * speedOfSound
      rightEigenvectors(3,3) = velocity_(2) + normalizedMetrics(2) * speedOfSound
      rightEigenvectors(4,3) = temperature_ + phiSquared / (ratioOfSpecificHeats - 1.0_wp) +  &
           speedOfSound * contravariantVelocity
+     do k = 1, nSpecies
+        rightEigenvectors(4+k,3) = massFraction_(k)
+     end do
 
      rightEigenvectors(1,4) = 1.0_wp
      rightEigenvectors(2,4) = velocity_(1) - normalizedMetrics(1) * speedOfSound
      rightEigenvectors(3,4) = velocity_(2) - normalizedMetrics(2) * speedOfSound
      rightEigenvectors(4,4) = temperature_ + phiSquared / (ratioOfSpecificHeats - 1.0_wp) -  &
           speedOfSound * contravariantVelocity
+     do k = 1, nSpecies
+        rightEigenvectors(4+k,4) = massFraction_(k)
+     end do
 
      ! Matrix whose rows are the left eigenvectors:
+
+     leftEigenvectors = 0.0_wp
 
      leftEigenvectors(1,1) = 1.0_wp - phiSquared / speedOfSound ** 2
      leftEigenvectors(2,1) = - specificVolume_ * (normalizedMetrics(2) * velocity_(1) -      &
@@ -1709,19 +1859,25 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      leftEigenvectors(4,4) = 0.5_wp / temperature_
 
      ! ``Incoming'' part.
-     do j = 1, 4
-        do i = 1, 4
+     do j = 1, 4 + nSpecies
+        do i = 1, 4 + nSpecies
            incomingJacobianOfInviscidFlux(i,j) =                                             &
                 rightEigenvectors(i,1) * eigenvalues(1) * leftEigenvectors(1,j) +            &
                 rightEigenvectors(i,2) * eigenvalues(2) * leftEigenvectors(2,j) +            &
                 rightEigenvectors(i,3) * eigenvalues(3) * leftEigenvectors(3,j) +            &
                 rightEigenvectors(i,4) * eigenvalues(4) * leftEigenvectors(4,j)
+           do k = 1, nSpecies
+              incomingJacobianOfInviscidFlux(i,j) = incomingJacobianOfInviscidFlux(i,j) +    &
+                   rightEigenvectors(i,4+k) * eigenvalues(4+k) * leftEigenvectors(4+k,j)
+           end do
         end do
      end do
 
      if (present(deltaIncomingJacobianOfInviscidFlux)) then
 
         ! Variation of the matrix whose columns are the right eigenvectors:
+
+        deltaRightEigenvectors = 0.0_wp
 
         deltaRightEigenvectors(1,1,:) = 0.0_wp
         deltaRightEigenvectors(2,1,:) = deltaVelocity(1,:)
@@ -1758,6 +1914,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
              speedOfSound * deltaContravariantVelocity
 
         ! Variation of the matrix whose rows are the left eigenvectors:
+
+        deltaLeftEigenvectors = 0.0_wp
 
         temp = deltaPhiSquared / speedOfSound ** 2 -                                         &
              2.0_wp * phiSquared / speedOfSound ** 3 * deltaSpeedOfSound
@@ -1798,8 +1956,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
         deltaLeftEigenvectors(4,4,:) = 0.5_wp * temp
 
         ! Variation of the ``incoming'' part.
-        do j = 1, 4
-           do i = 1, 4
+        do j = 1, 4 + nSpecies
+           do i = 1, 4 + nSpecies
               deltaIncomingJacobianOfInviscidFlux(i,j,:) =                                   &
                    deltaRightEigenvectors(i,1,:) * eigenvalues(1) * leftEigenvectors(1,j) +  &
                    deltaRightEigenvectors(i,2,:) * eigenvalues(2) * leftEigenvectors(2,j) +  &
@@ -1813,6 +1971,15 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
                    rightEigenvectors(i,2) * eigenvalues(2) * deltaLeftEigenvectors(2,j,:) +  &
                    rightEigenvectors(i,3) * eigenvalues(3) * deltaLeftEigenvectors(3,j,:) +  &
                    rightEigenvectors(i,4) * eigenvalues(4) * deltaLeftEigenvectors(4,j,:)
+              do k = 1, nSpecies
+                 deltaIncomingJacobianOfInviscidFlux(i,j,:) =                                &
+                      deltaIncomingJacobianOfInviscidFlux(i,j,:) +                           &
+                      deltaRightEigenvectors(i,4+k,:) * eigenvalues(4+k) *                   &
+                      leftEigenvectors(4+k,j) + rightEigenvectors(i,4+k) *                   &
+                      deltaEigenvalues(4+k,:) * leftEigenvectors(4+k,j) +                    &
+                      rightEigenvectors(i,4+k) * eigenvalues(4+k) *                          &
+                      deltaLeftEigenvectors(4+k,j,:)
+              end do
            end do
         end do
 
@@ -1826,6 +1993,9 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      eigenvalues(3) = contravariantVelocity
      eigenvalues(4) = contravariantVelocity + speedOfSound
      eigenvalues(5) = contravariantVelocity - speedOfSound
+     do k = 1, nSpecies
+        eigenvalues(5+k) = contravariantVelocity
+     end do
      eigenvalues = arcLength * eigenvalues
 
      if (present(deltaIncomingJacobianOfInviscidFlux)) then
@@ -1840,9 +2010,12 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
            deltaConservedVariables_(3,3) = 1.0_wp
            deltaConservedVariables_(4,4) = 1.0_wp
            deltaConservedVariables_(5,5) = 1.0_wp
+           do k = 1, nSpecies
+              deltaConservedVariables_(5+k,5+k) = 1.0_wp
+           end do
         end if
 
-        ! Compute variations of specific volume, velocity and temperature.
+        ! Compute variations of specific volume, velocity, temperature and mass fraction.
         deltaSpecificVolume = - specificVolume_ ** 2 * deltaConservedVariables_(1,:)
         deltaVelocity(1,:) = deltaSpecificVolume * conservedVariables(2) +                   &
              specificVolume_ * deltaConservedVariables_(2,:)
@@ -1855,6 +2028,10 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
              specificVolume_ * deltaConservedVariables_(5,:) -                               &
              (velocity_(1) * deltaVelocity(1,:) + velocity_(2) * deltaVelocity(2,:) +        &
              velocity_(3) * deltaVelocity(3,:)))
+        do k = 1, nSpecies
+           deltaMassFraction(k,:) = deltaSpecificVolume * conservedVariables(5+k) +          &
+                specificVolume_ * deltaConservedVariables_(5+k,:)
+        end do
 
         ! Compute variations of other dependent variables.
         deltaContravariantVelocity = normalizedMetrics(1) * deltaVelocity(1,:) +             &
@@ -1872,13 +2049,16 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
         deltaEigenvalues(3,:) = deltaContravariantVelocity
         deltaEigenvalues(4,:) = deltaContravariantVelocity + deltaSpeedOfSound
         deltaEigenvalues(5,:) = deltaContravariantVelocity - deltaSpeedOfSound
+        do k = 1, nSpecies
+           deltaEigenvalues(5+k,:) = deltaContravariantVelocity
+        end do
         deltaEigenvalues = arcLength * deltaEigenvalues
 
      end if
 
      ! Zero-out the eigenvalues corresponding to outgoing characteristics and corresponding
      ! variations.
-     do i = 1, 5
+     do i = 1, 5 + nSpecies
         if (incomingDirection * real(eigenvalues(i), wp) < 0.0_wp) then
            eigenvalues(i) = 0.0_wp
            if (present(deltaIncomingJacobianOfInviscidFlux)) deltaEigenvalues(i,:) = 0.0_wp
@@ -1886,6 +2066,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      end do
 
      ! Matrix whose columns are the right eigenvectors:
+
+     rightEigenvectors = 0.0_wp
 
      rightEigenvectors(1,1) = normalizedMetrics(1)
      rightEigenvectors(2,1) = normalizedMetrics(1) * velocity_(1)
@@ -1932,6 +2114,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
           speedOfSound * contravariantVelocity
 
      ! Matrix whose rows are the left eigenvectors:
+
+     leftEigenvectors = 0.0_wp
 
      leftEigenvectors(1,1) = normalizedMetrics(1) *                                          &
           (1.0_wp - phiSquared / speedOfSound ** 2) - specificVolume_ *                      &
@@ -1984,20 +2168,26 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      leftEigenvectors(5,5) = 0.5_wp / temperature_
 
      ! ``Incoming'' part.
-     do j = 1, 5
-        do i = 1, 5
+     do j = 1, 5 + nSpecies
+        do i = 1, 5 + nSpecies
            incomingJacobianOfInviscidFlux(i,j) =                                             &
                 rightEigenvectors(i,1) * eigenvalues(1) * leftEigenvectors(1,j) +            &
                 rightEigenvectors(i,2) * eigenvalues(2) * leftEigenvectors(2,j) +            &
                 rightEigenvectors(i,3) * eigenvalues(3) * leftEigenvectors(3,j) +            &
                 rightEigenvectors(i,4) * eigenvalues(4) * leftEigenvectors(4,j) +            &
                 rightEigenvectors(i,5) * eigenvalues(5) * leftEigenvectors(5,j)
+           do k = 1, nSpecies
+              incomingJacobianOfInviscidFlux(i,j) = incomingJacobianOfInviscidFlux(i,j) +    &
+                   rightEigenvectors(i,3+k) * eigenvalues(5+k) * leftEigenvectors(5+k,j)
+           end do
         end do
      end do
 
      if (present(deltaIncomingJacobianOfInviscidFlux)) then
 
         ! Variation of the matrix whose columns are the right eigenvectors:
+
+        deltaRightEigenvectors = 0.0_wp
 
         deltaRightEigenvectors(1,1,:) = 0.0_wp
         deltaRightEigenvectors(2,1,:) = normalizedMetrics(1) * deltaVelocity(1,:)
@@ -2060,6 +2250,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
              speedOfSound * deltaContravariantVelocity
 
         ! Variation of the matrix whose rows are the left eigenvectors:
+
+        deltaLeftEigenvectors = 0.0_wp
 
         temp = deltaPhiSquared / speedOfSound ** 2 -                                         &
              2.0_wp * phiSquared / speedOfSound ** 3 * deltaSpeedOfSound
@@ -2124,8 +2316,8 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
         deltaLeftEigenvectors(5,5,:) = 0.5_wp * temp
 
         ! Variation of the ``incoming'' part.
-        do j = 1, 5
-           do i = 1, 5
+        do j = 1, 5 + nSpecies
+           do i = 1, 5 + nSpecies
               deltaIncomingJacobianOfInviscidFlux(i,j,:) =                                   &
                    deltaRightEigenvectors(i,1,:) * eigenvalues(1) * leftEigenvectors(1,j) +  &
                    deltaRightEigenvectors(i,2,:) * eigenvalues(2) * leftEigenvectors(2,j) +  &
@@ -2142,6 +2334,15 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
                    rightEigenvectors(i,3) * eigenvalues(3) * deltaLeftEigenvectors(3,j,:) +  &
                    rightEigenvectors(i,4) * eigenvalues(4) * deltaLeftEigenvectors(4,j,:) +  &
                    rightEigenvectors(i,5) * eigenvalues(5) * deltaLeftEigenvectors(5,j,:)
+              do k = 1, nSpecies
+                 deltaIncomingJacobianOfInviscidFlux(i,j,:) =                                &
+                      deltaIncomingJacobianOfInviscidFlux(i,j,:) +                           &
+                      deltaRightEigenvectors(i,5+k,:) * eigenvalues(5+k) *                   &
+                      leftEigenvectors(5+k,j) + rightEigenvectors(i,5+k) *                   &
+                      deltaEigenvalues(5+k,:) * leftEigenvectors(5+k,j) +                    &
+                      rightEigenvectors(i,5+k) * eigenvalues(5+k) *                          &
+                      deltaLeftEigenvectors(5+k,j,:)
+              end do
            end do
         end do
 
@@ -2230,7 +2431,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(3,1) = temp2 * temp1 - specificVolume_ *                    &
           (velocity(1) * contravariantStressTensor(1))
      do k = 1, nSpecies
-        firstPartialViscousJacobian(3 + k,1) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(3+k,1) = - temp2 * contravariantSpeciesFlux(k)
      end do
      
 
@@ -2241,7 +2442,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(3,2) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(1)
      do k = 1, nSpecies
-        firstPartialViscousJacobian(3 + k,2) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(3+k,2) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
      temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
@@ -2249,7 +2450,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(2,3) = temp2 * contravariantStressTensor(1)
      firstPartialViscousJacobian(3,3) = temp2 * temp1
      do k = 1, nSpecies
-        firstPartialViscousJacobian(3 + k,3) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(3+k,3) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
   case (2)
@@ -2276,7 +2477,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
           (velocity(1) * contravariantStressTensor(1) +                                      &
           velocity(2) * contravariantStressTensor(2))
      do k = 1, nSpecies
-        firstPartialViscousJacobian(4 + k,1) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(4+k,1) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
@@ -2287,7 +2488,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(4,2) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(1)
      do k = 1, nSpecies
-        firstPartialViscousJacobian(4 + k,2) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(4+k,2) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
@@ -2298,7 +2499,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(4,3) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(2)
      do k = 1, nSpecies
-        firstPartialViscousJacobian(4 + k,3) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(4+k,3) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
      temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
@@ -2307,7 +2508,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(3,4) = temp2 * contravariantStressTensor(2)
      firstPartialViscousJacobian(4,4) = temp2 * temp1
      do k = 1, nSpecies
-        firstPartialViscousJacobian(4 + k,4) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(4+k,4) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
   case (3)
@@ -2339,7 +2540,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
           velocity(2) * contravariantStressTensor(2) +                                       &
           velocity(3) * contravariantStressTensor(3))
      do k = 1, nSpecies
-        firstPartialViscousJacobian(5 + k,1) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(5+k,1) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
@@ -2351,7 +2552,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(5,2) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(1)
      do k = 1, nSpecies
-        firstPartialViscousJacobian(5 + k,2) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(5+k,2) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
@@ -2363,7 +2564,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(5,3) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(2)
      do k = 1, nSpecies
-        firstPartialViscousJacobian(5 + k,3) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(5+k,3) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
@@ -2375,7 +2576,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(5,4) = temp2 * temp1 +                                      &
           specificVolume_ * contravariantStressTensor(3)
      do k = 1, nSpecies
-        firstPartialViscousJacobian(5 + k,4) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(5+k,4) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
      temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
@@ -2385,7 +2586,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      firstPartialViscousJacobian(4,5) = temp2 * contravariantStressTensor(3)
      firstPartialViscousJacobian(5,5) = temp2 * temp1
      do k = 1, nSpecies
-        firstPartialViscousJacobian(5 + k,5) = - temp2 * contravariantSpeciesFlux(k)
+        firstPartialViscousJacobian(5+k,5) = - temp2 * contravariantSpeciesFlux(k)
      end do
 
   end select !... nDimensions
@@ -2434,7 +2635,7 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
      secondPartialViscousJacobian(2,2) = thermalDiffusivity * temp1
 
      do k = 1, nSpecies
-        secondPartialViscousJacobian(2 + k,2 + k) = massDiffusivity(k) * temp1
+        secondPartialViscousJacobian(2+k,2+k) = massDiffusivity(k) * temp1
      end do
 
   case (2)
@@ -2470,7 +2671,7 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
      secondPartialViscousJacobian(3,3) = thermalDiffusivity * temp1
 
      do k = 1, nSpecies
-        secondPartialViscousJacobian(3 + k,3 + k) = massDiffusivity(k) * temp1
+        secondPartialViscousJacobian(3+k,3+k) = massDiffusivity(k) * temp1
      end do
 
   case (3)
@@ -2526,7 +2727,7 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
      secondPartialViscousJacobian(4,4) = thermalDiffusivity * temp1
 
      do k = 1, nSpecies
-        secondPartialViscousJacobian(4 + k,4 + k) = massDiffusivity(k) * temp1
+        secondPartialViscousJacobian(4+k,4+k) = massDiffusivity(k) * temp1
      end do
 
   end select !... nDimensions
