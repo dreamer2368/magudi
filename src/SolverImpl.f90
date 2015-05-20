@@ -607,7 +607,6 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
         ! Take a single sub-step using the time integrator.
         call timeIntegrator%substepForward(region, time, timeStepSize, timestep, i)
 
-        region%states(:)%time = time
         do j = 1, size(region%states) !... update state
            call region%states(j)%update(region%grids(j), region%simulationFlags,             &
                 region%solverOptions)
@@ -754,10 +753,8 @@ function runAdjoint(this, region) result(costSensitivity)
   timemarchDirection = -1
   if (region%simulationFlags%steadyStateSimulation) timemarchDirection = 1
 
-  time = startTime
-
   if (region%simulationFlags%steadyStateSimulation) then
-     region%states(:)%time = time
+     region%states(:)%time = startTime
      do i = 1, size(region%states) !... update state only once at converged primal solution.
         call region%states(i)%update(region%grids(i), region%simulationFlags,                &
              region%solverOptions)
@@ -773,43 +770,24 @@ function runAdjoint(this, region) result(costSensitivity)
   ! Call controller hooks before time marching starts.
   call controller%hookBeforeTimemarch(region, ADJOINT)
 
+  time = startTime
+
   do timestep = startTimestep + sign(1, timemarchDirection),                                 &
        startTimestep + sign(this%nTimesteps, timemarchDirection), timemarchDirection
 
      region%timestep = timestep
-     region%states(:)%time = time
-
-     ! Load adjoint coefficients for a constant CFL mode predictive simulation (obsolete?).
-     if (region%simulationFlags%useConstantCfl .and.                                         &
-          .not. region%simulationFlags%steadyStateSimulation) then
-        call reverseMigrator%migrateTo(region, timeIntegrator, timestep, 1)
-        region%states(:)%time = time
-        do i = 1, size(region%states) !... update state
-           call region%states(i)%update(region%grids(i), region%simulationFlags,             &
-                region%solverOptions)
-        end do
-     end if
-
      timeStepSize = region%getTimeStepSize()
 
      do i = timeIntegrator%nStages, 1, -1
 
+        ! Load adjoint coefficients.
         if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
-
-           ! Load adjoint coefficients.
            if (i == 1) then
               call reverseMigrator%migrateTo(region, timeIntegrator,                         &
                    timestep, timeIntegrator%nStages)
            else
               call reverseMigrator%migrateTo(region, timeIntegrator, timestep + 1, i - 1)
            end if
-
-           region%states(:)%time = time
-           do j = 1, size(region%states) !... update state
-              call region%states(j)%update(region%grids(j), region%simulationFlags,          &
-                   region%solverOptions)
-           end do
-
         end if
 
         ! Update gradient.

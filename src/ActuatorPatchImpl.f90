@@ -107,7 +107,8 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
 
-  if (mode == FORWARD .and. abs(state%actuationAmount) <= 0.0_wp) return
+  if (mode == ADJOINT .or. (mode == FORWARD .and.                                            &
+       abs(state%actuationAmount) <= 0.0_wp)) return
 
   call startTiming("updateActuatorPatch")
 
@@ -117,34 +118,25 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns >= nDimensions + 2)
 
-  select case (mode)
+  do l = 1, nUnknowns
+     do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+        do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+           do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+              gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                   &
+                   (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                     &
+                   (k - 1 - this%gridOffset(3)))
+              if (grid%iblank(gridIndex) == 0) cycle
+              patchIndex = i - this%offset(1) + this%localSize(1) *                          &
+                   (j - 1 - this%offset(2) + this%localSize(2) *                             &
+                   (k - 1 - this%offset(3)))
 
-  case (FORWARD)
+              state%rightHandSide(gridIndex, l) = state%rightHandSide(gridIndex, l) +        &
+                   grid%controlMollifier(gridIndex, 1) * this%controlForcing(patchIndex, l)
 
-     do l = 1, nUnknowns
-        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
-           do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
-              do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
-                 gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                &
-                      (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                  &
-                      (k - 1 - this%gridOffset(3)))
-                 if (grid%iblank(gridIndex) == 0) cycle
-                 patchIndex = i - this%offset(1) + this%localSize(1) *                       &
-                      (j - 1 - this%offset(2) + this%localSize(2) *                          &
-                      (k - 1 - this%offset(3)))
-
-                 state%rightHandSide(gridIndex, l) = state%rightHandSide(gridIndex, l) +     &
-                      grid%controlMollifier(gridIndex, 1) * this%controlForcing(patchIndex, l)
-
-              end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
-           end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
-        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
-     end do !... l = 1, nUnknowns
-
-  ! case (ADJOINT)
-
-
-  end select
+           end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+        end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+     end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+  end do !... l = 1, nUnknowns
 
   call endTiming("updateActuatorPatch")
 

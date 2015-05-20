@@ -41,10 +41,6 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
-  if (this%nPatchPoints > 0) then
-
-  end if
-
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
   call getRequiredOption(trim(key) // "number_of_modes", this%nModes, this%comm)

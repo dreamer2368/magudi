@@ -62,7 +62,7 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                              &
        real(this%normalDirection, wp))
   this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                                  &
-       grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
+       grid%firstDerivative(direction)%normBoundary(1)
 
   ! Viscous penalty amount.
   if (simulationFlags%viscosityOn) then
@@ -72,7 +72,7 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
      this%viscousPenaltyAmount = sign(this%viscousPenaltyAmount,                             &
           real(this%normalDirection, wp))
      this%viscousPenaltyAmount = this%viscousPenaltyAmount /                                 &
-          grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
+          grid%firstDerivative(direction)%normBoundary(1)
   else
      this%viscousPenaltyAmount = 0.0_wp
   end if
