@@ -15,6 +15,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use JetExcitationPatch_mod, only : t_JetExcitationPatch
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
+  use GaussianIgnitionPatch_mod, only : t_GaussianIgnitionPatch
 
   implicit none
 
@@ -65,6 +66,9 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
 
      case ('SOLENOIDAL_EXCITATION')
         allocate(t_SolenoidalExcitationPatch :: this%patch)
+
+     case ('GAUSSIAN_IGNITION')
+        allocate(t_GaussianIgnitionPatch :: this%patch)
 
      case ('JET_EXCITATION')
         allocate(t_JetExcitationPatch :: this%patch)

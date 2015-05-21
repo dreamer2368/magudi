@@ -34,7 +34,7 @@ compute_time_average = false
 Reynolds_number = 200.0
 Prandtl_number = 0.7
 Schmidt_number_1 = 0.7
-Schmidt_number_2 = 0.7
+Schmidt_number_2 = 0.3
 viscosity_power_law_exponent = 0.666
 bulk_viscosity_ratio = 0.6
 ratio_of_specific_heats = 1.4
@@ -47,22 +47,30 @@ YO0 = 0.233
 # Discretization scheme
 defaults/discretization_scheme = "SBP 3-6"
 
+# Periodicity
+#grid001/dir1/periodicity_type = 'PLANE'
+#grid001/dir2/periodicity_type = 'PLANE'
+#grid001/dir1/periodic_length = 201.
+#grid001/dir2/periodic_length = 101.
+
 # Time stepping options
 time_step_size = 0.05
 number_of_timesteps = 25000
 report_interval = 1
-save_interval = 100
+save_interval = 10
 
 # Artificial dissipation
 add_dissipation = true
 dissipation_amount = 0.005
 
 # Solution limits
-enable_solution_limits = false
-minimum_density = 0.1
+enable_solution_limits = true
+minimum_density = 0.01
 minimum_temperature = 0.05
-maximum_density = 5.
-maximum_temperature = 4.
+maximum_density = 10.
+maximum_temperature = 100.
+minimum_massFraction = -0.1
+maximum_massFraction = 1.1
 
 # Damping
 defaults/sponge_amount = 0.2
@@ -80,6 +88,14 @@ patches/excitationSupport/amplitude = 0.008
 patches/excitationSupport/frequency = 0.128
 patches/excitationSupport/radius = 4.7434164902525691
 patches/excitationSupport/random_seed = 685785
+
+# Localized ignition
+patches/localizedIgnition/amplitude = 2.0
+patches/localizedIgnition/radius = 0.25
+patches/localizedIgnition/origin_x = 8.0
+patches/localizedIgnition/time_start = 0.0
+patches/localizedIgnition/time_duration = 0.1
+patches/localizedIgnition/heat_release = 0.86
 
 # Adjoint optimization flags
 disable_adjoint_solver = true

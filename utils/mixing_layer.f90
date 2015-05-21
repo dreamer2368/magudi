@@ -303,12 +303,12 @@ contains
     implicit none
 
     integer, intent(in) :: i1, i2, j1, j2
-    integer :: i,nbc,iunit
+    integer :: i, bc, nbc, iunit
     integer, allocatable, dimension(:) :: grid,normDir,imin,imax,jmin,jmax,kmin,kmax
     character(len = 22), allocatable, dimension(:) :: name,type
 
     ! Number of BC
-    nbc = 9
+    nbc = 10
 
     ! Allocate BC
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
@@ -319,103 +319,124 @@ contains
     grid(:)    = 1
 
     ! BC 1
-    name   (1) = 'inflow'
-    type   (1) = 'SAT_FAR_FIELD'
-    normDir(1) =  1
-    imin   (1) =  1
-    imax   (1) =  1
-    jmin   (1) =  1
-    jmax   (1) = -1
-    kmin   (1) =  1
-    kmax   (1) = -1
+    bc = 1
+    name   (bc) = 'inflow'
+    type   (bc) = 'SAT_FAR_FIELD'
+    normDir(bc) =  1
+    imin   (bc) =  1
+    imax   (bc) =  1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! BC 2
-    name   (2) = 'inflowSponge'
-    type   (2) = 'SPONGE'
-    normDir(2) =  1
-    imin   (2) =  1
-    imax   (2) =  i1
-    jmin   (2) =  1
-    jmax   (2) = -1
-    kmin   (2) =  1
-    kmax   (2) = -1
+    bc = 2
+    name   (bc) = 'inflowSponge'
+    type   (bc) = 'SPONGE'
+    normDir(bc) =  1
+    imin   (bc) =  1
+    imax   (bc) =  i1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! BC 3
-    name   (3) = 'outflow'
-    type   (3) = 'SAT_FAR_FIELD'
-    normDir(3) = -1
-    imin   (3) = -1
-    imax   (3) = -1
-    jmin   (3) =  1
-    jmax   (3) = -1
-    kmin   (3) =  1
-    kmax   (3) = -1
+    bc = 3
+    name   (bc) = 'outflow'
+    type   (bc) = 'SAT_FAR_FIELD'
+    normDir(bc) = -1
+    imin   (bc) = -1
+    imax   (bc) = -1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! BC 4
-    name   (4) = 'outflowSponge'
-    type   (4) = 'SPONGE'
-    normDir(4) = -1
-    imin   (4) =  i2
-    imax   (4) = -1
-    jmin   (4) =  1
-    jmax   (4) = -1
-    kmin   (4) =  1
-    kmax   (4) = -1
+    bc = 4
+    name   (bc) = 'outflowSponge'
+    type   (bc) = 'SPONGE'
+    normDir(bc) = -1
+    imin   (bc) =  i2
+    imax   (bc) = -1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! BC 5
-    name   (5) = 'bottom'
-    type   (5) = 'SAT_FAR_FIELD'
-    normDir(5) =  2
-    imin   (5) =  1
-    imax   (5) = -1
-    jmin   (5) =  1
-    jmax   (5) =  1
-    kmin   (5) =  1
-    kmax   (5) = -1
+    bc = 5
+    name   (bc) = 'bottom'
+    type   (bc) = 'SAT_FAR_FIELD'
+    normDir(bc) =  2
+    imin   (bc) =  1
+    imax   (bc) = -1
+    jmin   (bc) =  1
+    jmax   (bc) =  1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! BC 6
-    name   (6) = 'bottomSponge'
-    type   (6) = 'SPONGE'
-    normDir(6) =  2
-    imin   (6) =  1
-    imax   (6) = -1
-    jmin   (6) =  1
-    jmax   (6) =  j1
-    kmin   (6) =  1
-    kmax   (6) = -1
+    bc = 6
+    name   (bc) = 'bottomSponge'
+    type   (bc) = 'SPONGE'
+    normDir(bc) =  2
+    imin   (bc) =  1
+    imax   (bc) = -1
+    jmin   (bc) =  1
+    jmax   (bc) =  j1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! BC 7
-    name   (7) = 'top'
-    type   (7) = 'SAT_FAR_FIELD'
-    normDir(7) = -2
-    imin   (7) =  1
-    imax   (7) = -1
-    jmin   (7) = -1
-    jmax   (7) = -1
-    kmin   (7) =  1
-    kmax   (7) = -1
+    bc = 7
+    name   (bc) = 'top'
+    type   (bc) = 'SAT_FAR_FIELD'
+    normDir(bc) = -2
+    imin   (bc) =  1
+    imax   (bc) = -1
+    jmin   (bc) = -1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! BC 8
-    name   (8) = 'topSponge'
-    type   (8) = 'SPONGE'
-    normDir(8) = -2
-    imin   (8) =  1
-    imax   (8) = -1
-    jmin   (8) =  j2
-    jmax   (8) = -1
-    kmin   (8) =  1
-    kmax   (8) = -1
+    bc = 8
+    name   (bc) = 'topSponge'
+    type   (bc) = 'SPONGE'
+    normDir(bc) = -2
+    imin   (bc) =  1
+    imax   (bc) = -1
+    jmin   (bc) =  j2
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! BC 9
-    name   (9) = 'excitationSupport'
-    type   (9) = 'SOLENOIDAL_EXCITATION'
-    normDir(9) =  0
-    imin   (9) =  1
-    imax   (9) =  i1
-    jmin   (9) =  1
-    jmax   (9) = -1
-    kmin   (9) =  1
-    kmax   (9) = -1
+    bc = 9
+    name   (bc) = 'excitationSupport'
+    type   (bc) = 'SOLENOIDAL_EXCITATION'
+    normDir(bc) =  0
+    imin   (bc) =  1
+    imax   (bc) =  i1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
+    ! BC 10
+    bc = 10
+    name   (bc) = 'localizedIgnition'
+    type   (bc) = 'GAUSSIAN_IGNITION'
+    normDir(bc) =  0
+    imin   (bc) =  1
+    imax   (bc) =  -1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
    ! Open the file
     iunit=11
