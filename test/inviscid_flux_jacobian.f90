@@ -8,15 +8,16 @@ program inviscid_flux_jacobian
 
   implicit none
 
-  integer, parameter :: wp = SCALAR_KIND, n = 1024
+  integer, parameter :: wp = SCALAR_KIND, n = 1024, maxSpecies = 6
   real(wp), parameter :: ratioOfSpecificHeats = 1.4_wp
   logical :: success
-  integer :: i, j, k, nDimensions
+  integer :: i, j, k, nDimensions, nSpecies
   SCALAR_TYPE, allocatable :: conservedVariables1(:,:), deltaPrimitiveVariables(:,:),        &
        deltaConservedVariables(:,:),  conservedVariables2(:,:), metrics(:,:),                &
-       specificVolume(:), velocity(:,:), pressure(:), temperature(:),                        &
+       specificVolume(:), velocity(:,:), pressure(:), temperature(:), massFraction(:,:),     &
        fluxes1(:,:,:), fluxes2(:,:,:), fluxes3(:,:,:), localConservedVariables(:),           &
-       localVelocity(:), localMetricsAlongDirection(:), jacobianOfInviscidFlux(:,:)
+       localVelocity(:), localMassFraction(:), localMetricsAlongDirection(:),                &
+       jacobianOfInviscidFlux(:,:)
   logical :: isDomainCurvilinear
   real(wp), allocatable :: stepSizes(:), errorHistory(:), convergenceHistory(:)
 
@@ -37,24 +38,28 @@ program inviscid_flux_jacobian
   call initializeErrorHandler()
   call initializeRandomNumberGenerator()
 
+  nSpecies = random(0, maxSpecies)
+
   do nDimensions = 1, 3
 
-     allocate(conservedVariables1(n, nDimensions + 2))
-     allocate(deltaPrimitiveVariables(n, nDimensions + 2))
-     allocate(deltaConservedVariables(n, nDimensions + 2))
-     allocate(conservedVariables2(n, nDimensions + 2))
+     allocate(conservedVariables1(n, nDimensions + 2 + nSpecies))
+     allocate(deltaPrimitiveVariables(n, nDimensions + 2 + nSpecies))
+     allocate(deltaConservedVariables(n, nDimensions + 2 + nSpecies))
+     allocate(conservedVariables2(n, nDimensions + 2 + nSpecies))
      allocate(metrics(n, nDimensions ** 2))
      allocate(specificVolume(n))
      allocate(velocity(n, nDimensions))
      allocate(pressure(n))
      allocate(temperature(n))
-     allocate(fluxes1(n, nDimensions + 2, nDimensions))
-     allocate(fluxes2(n, nDimensions + 2, nDimensions))
-     allocate(fluxes3(n, nDimensions + 2, nDimensions))
-     allocate(localConservedVariables(nDimensions + 2))
+     allocate(massFraction(n, nSpecies))
+     allocate(fluxes1(n, nDimensions + 2 + nSpecies, nDimensions))
+     allocate(fluxes2(n, nDimensions + 2 + nSpecies, nDimensions))
+     allocate(fluxes3(n, nDimensions + 2 + nSpecies, nDimensions))
+     allocate(localConservedVariables(nDimensions + 2 + nSpecies))
      allocate(localVelocity(nDimensions))
+     allocate(localVelocity(nSpecies))
      allocate(localMetricsAlongDirection(nDimensions))
-     allocate(jacobianOfInviscidFlux(nDimensions + 2, nDimensions + 2))
+     allocate(jacobianOfInviscidFlux(nDimensions + 2 + nSpecies, nDimensions + 2 + nSpecies))
 
      isDomainCurvilinear = (random(0, 1) == 0)
 
@@ -68,6 +73,10 @@ program inviscid_flux_jacobian
              random(0.01_wp, 10.0_wp) / ratioOfSpecificHeats +                               &
              0.5_wp / conservedVariables1(i,1) *                                             &
              sum(conservedVariables1(i,2:nDimensions+1) ** 2)
+        do k = 1, nSpecies
+           conservedVariables1(i, nDimensions + 2 + k) = conservedVariables1(i,1) *          &
+                random(0.0_wp, 1.0_wp)
+        end do
 
         assert(conservedVariables1(i,1) > 0.0_wp)
 
@@ -82,18 +91,19 @@ program inviscid_flux_jacobian
            end do
         end if
 
-        do j = 1, nDimensions + 2
+        do j = 1, nDimensions + 2 + nSpecies
            deltaPrimitiveVariables(i,j) = random(-1.0_wp, 1.0_wp)
         end do
 
      end do
 
-     call computeDependentVariables(nDimensions, 0, conservedVariables1,                     &
+     call computeDependentVariables(nDimensions, nSpecies, conservedVariables1,              &
           ratioOfSpecificHeats, specificVolume = specificVolume, velocity = velocity,        &
-          pressure = pressure, temperature = temperature)
+          pressure = pressure, temperature = temperature, massFraction = massFraction)
      assert(all(specificVolume > 0.0_wp))
      assert(all(temperature > 0.0_wp))
-     call computeCartesianInvsicidFluxes(nDimensions, 0, conservedVariables1,                &
+     assert(all(massFraction > 0.0_wp))
+     call computeCartesianInvsicidFluxes(nDimensions, nSpecies, conservedVariables1,         &
           velocity, pressure, fluxes1)
      call transformFluxes(nDimensions, fluxes1, metrics, fluxes2, isDomainCurvilinear)
 
@@ -120,17 +130,23 @@ program inviscid_flux_jacobian
              deltaPrimitiveVariables(:,2:nDimensions+1), dim = 2) +                          &
              conservedVariables1(:,1) / ratioOfSpecificHeats *                               &
              deltaPrimitiveVariables(:,nDimensions+2)
+        do k = 1, nSpecies
+           deltaConservedVariables(:,nDimensions+2+k) =                                      &
+                conservedVariables1(:,nDimensions+2+k) / conservedVariables1(:,1) *          &
+                deltaPrimitiveVariables(:,1) + conservedVariables1(:,1) *                    &
+                deltaPrimitiveVariables(:,nDimensions+2+k)
+        end do
 
         conservedVariables2 = conservedVariables1 + stepSizes(i) * deltaConservedVariables
         assert(all(conservedVariables2(:,1) > 0.0_wp))
 
-        call computeDependentVariables(nDimensions, 0, conservedVariables2,                  &
+        call computeDependentVariables(nDimensions, nSpecies, conservedVariables2,           &
              ratioOfSpecificHeats, specificVolume = specificVolume, velocity = velocity,     &
-             pressure = pressure, temperature = temperature)
+             pressure = pressure, temperature = temperature, massFraction = massFraction)
 
         assert(all(specificVolume > 0.0_wp))
         assert(all(temperature > 0.0_wp))
-        call computeCartesianInvsicidFluxes(nDimensions, 0, conservedVariables2,              &
+        call computeCartesianInvsicidFluxes(nDimensions, nSpecies, conservedVariables2,      &
              velocity, pressure, fluxes1)
         call transformFluxes(nDimensions, fluxes1, metrics, fluxes3, isDomainCurvilinear)
 
@@ -140,6 +156,7 @@ program inviscid_flux_jacobian
 
            localConservedVariables = conservedVariables1(j,:)
            localVelocity = velocity(j,:)
+           localMassFraction = massFraction(j,:)
 
            do k = 1, nDimensions
 
@@ -148,7 +165,8 @@ program inviscid_flux_jacobian
               call computeJacobianOfInviscidFlux(nDimensions, 0, localConservedVariables,    &
                    localMetricsAlongDirection, ratioOfSpecificHeats,                         &
                    jacobianOfInviscidFlux, specificVolume = specificVolume(j),               &
-                   velocity = localVelocity, temperature = temperature(j))
+                   velocity = localVelocity, temperature = temperature(j),                   &
+                   massFraction = localMassFraction)
 
               errorHistory(i) = max(errorHistory(i),                                         &
                    maxval(abs(fluxes3(j,:,k) - fluxes2(j,:,k) - stepSizes(i) *               &
@@ -184,6 +202,7 @@ program inviscid_flux_jacobian
      SAFE_DEALLOCATE(fluxes3)
      SAFE_DEALLOCATE(fluxes2)
      SAFE_DEALLOCATE(fluxes1)
+     SAFE_DEALLOCATE(massFraction)
      SAFE_DEALLOCATE(temperature)
      SAFE_DEALLOCATE(pressure)
      SAFE_DEALLOCATE(velocity)
