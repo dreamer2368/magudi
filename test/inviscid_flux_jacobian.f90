@@ -40,6 +40,10 @@ program inviscid_flux_jacobian
 
   nSpecies = random(0, maxSpecies)
 
+  print *
+  print *, 'Number of species:',nSpecies
+  print *
+
   do nDimensions = 1, 3
 
      allocate(conservedVariables1(n, nDimensions + 2 + nSpecies))
@@ -57,7 +61,7 @@ program inviscid_flux_jacobian
      allocate(fluxes3(n, nDimensions + 2 + nSpecies, nDimensions))
      allocate(localConservedVariables(nDimensions + 2 + nSpecies))
      allocate(localVelocity(nDimensions))
-     allocate(localVelocity(nSpecies))
+     allocate(localMassFraction(nSpecies))
      allocate(localMetricsAlongDirection(nDimensions))
      allocate(jacobianOfInviscidFlux(nDimensions + 2 + nSpecies, nDimensions + 2 + nSpecies))
 
@@ -162,11 +166,11 @@ program inviscid_flux_jacobian
 
               localMetricsAlongDirection = metrics(j,1+nDimensions*(k-1):nDimensions*k)
 
-              call computeJacobianOfInviscidFlux(nDimensions, 0, localConservedVariables,    &
-                   localMetricsAlongDirection, ratioOfSpecificHeats,                         &
-                   jacobianOfInviscidFlux, specificVolume = specificVolume(j),               &
-                   velocity = localVelocity, temperature = temperature(j),                   &
-                   massFraction = localMassFraction)
+              call computeJacobianOfInviscidFlux(nDimensions, nSpecies,                      &
+                   localConservedVariables, localMetricsAlongDirection,                      &
+                   ratioOfSpecificHeats, jacobianOfInviscidFlux,                             &
+                   specificVolume = specificVolume(j), velocity = localVelocity,             &
+                   temperature = temperature(j), massFraction = localMassFraction)
 
               errorHistory(i) = max(errorHistory(i),                                         &
                    maxval(abs(fluxes3(j,:,k) - fluxes2(j,:,k) - stepSizes(i) *               &
@@ -197,6 +201,7 @@ program inviscid_flux_jacobian
 
      SAFE_DEALLOCATE(jacobianOfInviscidFlux)
      SAFE_DEALLOCATE(localMetricsAlongDirection)
+     SAFE_DEALLOCATE(localMassFraction)
      SAFE_DEALLOCATE(localVelocity)
      SAFE_DEALLOCATE(localConservedVariables)
      SAFE_DEALLOCATE(fluxes3)
