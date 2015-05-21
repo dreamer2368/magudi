@@ -2166,7 +2166,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
           normalizedMetrics(2) * velocity_(3)) + phiSquared /                                &
           (ratioOfSpecificHeats - 1.0_wp) * normalizedMetrics(1)
      do k = 1, nSpecies
-        rightEigenvectors(5+k,1) = 0.0_wp
+        rightEigenvectors(5+k,1) = massFraction_(k) * normalizedMetrics(1)
      end do
 
      rightEigenvectors(1,2) = normalizedMetrics(2)
@@ -2179,7 +2179,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
           normalizedMetrics(3) * velocity_(1))                                               &
           + phiSquared / (ratioOfSpecificHeats - 1.0_wp) * normalizedMetrics(2)
      do k = 1, nSpecies
-        rightEigenvectors(5+k,2) = 0.0_wp
+        rightEigenvectors(5+k,2) = massFraction_(k) * normalizedMetrics(2)
      end do
 
      rightEigenvectors(1,3) = normalizedMetrics(3)
@@ -2192,7 +2192,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
           normalizedMetrics(1) * velocity_(2))                                               &
           + phiSquared / (ratioOfSpecificHeats - 1.0_wp) * normalizedMetrics(3)
      do k = 1, nSpecies
-        rightEigenvectors(5+k,3) = 0.0_wp
+        rightEigenvectors(5+k,3) = massFraction_(k) * normalizedMetrics(3)
      end do
 
      rightEigenvectors(1,4) = 1.0_wp
