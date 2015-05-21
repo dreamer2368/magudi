@@ -2303,7 +2303,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
                 rightEigenvectors(i,5) * eigenvalues(5) * leftEigenvectors(5,j)
            do k = 1, nSpecies
               incomingJacobianOfInviscidFlux(i,j) = incomingJacobianOfInviscidFlux(i,j) +    &
-                   rightEigenvectors(i,3+k) * eigenvalues(5+k) * leftEigenvectors(5+k,j)
+                   rightEigenvectors(i,5+k) * eigenvalues(5+k) * leftEigenvectors(5+k,j)
            end do
         end do
      end do
