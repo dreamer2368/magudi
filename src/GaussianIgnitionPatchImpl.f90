@@ -49,9 +49,9 @@ subroutine setupGaussianIgnitionPatch(this, index, comm, patchDescriptor,       
 
   call getRequiredOption(trim(key) // "amplitude", this%amplitude, this%comm)
   call getRequiredOption(trim(key) // "radius", this%radius, this%comm)
-  call getRequiredOption(trim(key) // "heat_release", heatRelease, this%comm)
   call getRequiredOption(trim(key) // "time_start", this%timeStart, this%comm)
   call getRequiredOption(trim(key) // "time_duration", this%timeDuration, this%comm)
+  call getRequiredOption("heat_release", heatRelease, this%comm)
 
   this%origin = 0.0_wp
 

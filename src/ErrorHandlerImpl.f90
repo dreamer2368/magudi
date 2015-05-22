@@ -67,7 +67,7 @@ subroutine assertImpl(condition, conditionString, filename, lineNo)
   integer, intent(in) :: lineNo
 
   ! <<< Local variables >>>
-  integer :: i, j, one = 1, flag = 0, procRank, ierror
+  integer :: i, j, flag = 0, procRank, ierror
   character(len = len_trim(conditionString)) :: str1
   character(len = len_trim(filename)) :: str2
 
