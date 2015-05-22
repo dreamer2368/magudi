@@ -12,6 +12,7 @@ contains
 
     ! <<< External modules >>>
     use iso_fortran_env, only : output_unit
+    use MPI
 
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
@@ -34,8 +35,8 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: nDimensions
-    real(SCALAR_KIND) :: timeStepSize, cfl, residuals(3)
+    integer :: i, nDimensions, ierror
+    real(SCALAR_KIND) :: timeStepSize, cfl, residuals(3), maxTemperature
     character(len = STRING_LENGTH) :: str, str_, filename
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
@@ -46,22 +47,26 @@ contains
     nDimensions = size(region%globalGridSizes, 1)
     assert_key(nDimensions, (1, 2, 3))
 
-    ! Report time step size in constant CFL mode
-    if (region%simulationFlags%useConstantCfl) then
-       timeStepSize = region%getTimeStepSize()
-    else
-       cfl = region%getCfl()
-    end if
-
     if (this%reportInterval > 0 .and. mod(timestep, max(1, this%reportInterval)) == 0) then
 
-       if (region%simulationFlags%useConstantCfl) then
-          write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep,          &
-               ", dt = ", timeStepSize, ", time = ", abs(time)
-       else
-          write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", timestep,          &
-               ", CFL = ", cfl, ", time = ", abs(time)
+       timeStepSize = region%getTimeStepSize()
+       cfl = region%getCfl()
+
+       do i = 1, size(region%states)
+          maxTemperature = max(maxTemperature,maxval(region%states(i)%temperature(:,1)))
+       end do
+       call MPI_Allreduce(MPI_IN_PLACE, maxTemperature, 1, REAL_TYPE_MPI, MPI_MAX,           &
+            region%comm, ierror)
+       maxTemperature = maxTemperature *                                                     &
+            (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) * 298.15_wp
+
+       if (timestep == 1) then
+          write(str,'(a12,a2,a12,a2,3a12)') 'Step','  ','Time','   ','dt','CFL','Tmax [K]'
+          call writeAndFlush(region%comm, output_unit, str)
        end if
+
+       write(str, '(I12,a2,1ES12.5,a2,1ES12.5,1F12.4,1F12.4)') timestep, '   ', abs(time),      &
+            '   ',timeStepSize, cfl, maxTemperature
 
        if (.not. region%simulationFlags%predictionOnly) then
 
