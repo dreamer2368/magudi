@@ -511,8 +511,8 @@ contains
     ! Species parameters.
     H2 = nDimensions+2+1
     O2 = H2 + 1
-    YF0 = getOption("YF0", 0.0_wp)
-    YO0 = getOption("YO0", 0.0_wp)
+    YF0 = getOption("initial_fuel_mass_fraction", 0.0_wp)
+    YO0 = getOption("initial_oxidizer_mass_fraction", 0.0_wp)
 
     ! Gamma
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
@@ -535,7 +535,8 @@ contains
 
        ! Velocity
        velocity = lowerVelocity +                                                          &
-            0.5_wp*(upperVelocity-lowerVelocity)*(1.0_wp+tanh(2.0_wp*grid%coordinates(i,2)))
+            0.5_wp * (upperVelocity - lowerVelocity) * (1.0_wp + tanh(2.0_wp *             &
+            grid%coordinates(i,2)))
 
        ! Temperature
        temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)

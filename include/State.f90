@@ -19,6 +19,7 @@ end module State_enum
 module State_mod
 
   use AcousticSource_mod, only : t_AcousticSource
+  use Combustion_mod, only : t_Combustion
 
   implicit none
   private
@@ -52,6 +53,7 @@ module State_mod
   type, public :: t_State
 
      type(t_AcousticSource), allocatable :: acousticSources(:)
+     type(t_Combustion) :: combustion
 
      integer :: nSpecies
      real(wp) :: time, adjointForcingFactor = 1.0_wp, actuationAmount = 0.0_wp
@@ -242,15 +244,17 @@ module State_mod
 
   interface
 
-     subroutine addSources(this, mode, grid)
+     subroutine addSources(this, mode, grid, solverOptions)
 
        use Grid_mod, only : t_Grid
+       use SolverOptions_mod, only : t_SolverOptions
 
        import :: t_State
 
        class(t_State) :: this
        integer, intent(in) :: mode
        class(t_Grid) :: grid
+       type(t_SolverOptions), intent(in) :: solverOptions
 
      end subroutine addSources
 

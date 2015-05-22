@@ -39,10 +39,15 @@ viscosity_power_law_exponent = 0.666
 bulk_viscosity_ratio = 0.6
 ratio_of_specific_heats = 1.4
 
-# Species
+# Chemistry
 number_of_species = 2
-YF0 = 1.0
-YO0 = 0.233
+number_of_reactions = 1
+initial_fuel_mass_fraction = 1.0
+initial_oxidizer_mass_fraction = 0.233
+stoichiometric_ratio = 8.0
+heat_release = 0.86
+Zel_Dovich = 6.0
+Damkohler_number = 50000.0
 
 # Discretization scheme
 defaults/discretization_scheme = "SBP 3-6"
@@ -95,7 +100,6 @@ patches/localizedIgnition/radius = 0.25
 patches/localizedIgnition/origin_x = 8.0
 patches/localizedIgnition/time_start = 0.0
 patches/localizedIgnition/time_duration = 0.1
-patches/localizedIgnition/heat_release = 0.86
 
 # Adjoint optimization flags
 disable_adjoint_solver = true

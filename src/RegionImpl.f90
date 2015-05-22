@@ -1302,7 +1302,7 @@ subroutine computeRhs(this, mode)
 
   ! Source terms.
   do i = 1, size(this%states)
-     call this%states(i)%addSources(mode, this%grids(i))
+     call this%states(i)%addSources(mode, this%grids(i), this%solverOptions)
   end do
 
   ! Zero out right-hand-side in holes.

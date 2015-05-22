@@ -139,6 +139,9 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      end do
   end if
 
+  if (this%nSpecies > 0)                                                                     &
+       call this%combustion%setup(this%nSpecies, grid%comm)
+
 end subroutine setupState
 
 subroutine cleanupState(this)
@@ -667,11 +670,12 @@ function computeStateTimeStepSize(this, grid, simulationFlags,                  
 
 end function computeStateTimeStepSize
 
-subroutine addSources(this, mode, grid)
+subroutine addSources(this, mode, grid, solverOptions)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
+  use SolverOptions_mod, only : t_SolverOptions
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD
@@ -685,6 +689,7 @@ subroutine addSources(this, mode, grid)
   class(t_State) :: this
   integer, intent(in) :: mode
   class(t_Grid) :: grid
+  type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
   integer :: i
@@ -696,6 +701,12 @@ subroutine addSources(this, mode, grid)
         call this%acousticSources(i)%add(this%time, grid%coordinates,                        &
              grid%iblank, this%rightHandSide)
      end do
+  end if
+
+  if (this%nSpecies > 0) then
+     call this%combustion%add(this%conservedVariables(:,1), this%temperature(:,1),           &
+          this%massFraction, solverOptions%ratioOfSpecificHeats, grid%coordinates,           &
+          grid%iblank, this%rightHandSide)
   end if
 
   call endTiming("addSources")
