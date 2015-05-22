@@ -11,8 +11,8 @@ target_state_file = "MixingLayer.target.q"
 #target_mollifier_file = "AcousticMonopole.target_mollifier.f"
 
 # Grid information
-nx = 257
-ny = 129
+nx = 1025
+ny = 513
 xmin_interior = 0
 xmax_interior = 120
 ymin_interior =-30
@@ -25,7 +25,7 @@ stretch_y = true
 
 # Simulation flags
 include_viscous_terms = true
-use_constant_CFL_mode = false
+use_constant_CFL_mode = true
 use_target_state = true
 curvilinear_domain = false
 compute_time_average = false
@@ -59,7 +59,8 @@ defaults/discretization_scheme = "SBP 3-6"
 #grid001/dir2/periodic_length = 101.
 
 # Time stepping options
-time_step_size = 0.05
+time_step_size = 0.01
+cfl = 0.5
 number_of_timesteps = 25000
 report_interval = 1
 save_interval = 10
