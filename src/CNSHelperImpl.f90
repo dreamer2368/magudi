@@ -215,7 +215,7 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
            end do
         else
            do k = 1, nSpecies
-              massDiffusivity(:,k) =                                                           &
+              massDiffusivity(:,k) =                                                         &
                    ((ratioOfSpecificHeats - 1.0_wp) * temperature) ** powerLawExponent *     &
                    reynoldsNumberInverse * schmidtNumberInverse(k)
            end do
@@ -544,7 +544,7 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
      viscousFluxes(:,2,1) = stressTensor(:,1)
      viscousFluxes(:,3,1) = velocity(:,1) * stressTensor(:,1) - heatFlux(:,1)
      do k=1,nSpecies
-        viscousFluxes(:,k+3,1) = speciesFlux(:,k,1)
+        viscousFluxes(:,k+3,1) = - speciesFlux(:,k,1)
      end do
 
   case (2)
@@ -559,8 +559,8 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
      viscousFluxes(:,4,2) = velocity(:,1) * stressTensor(:,2) +                              &
           velocity(:,2) * stressTensor(:,4) - heatFlux(:,2)
      do k=1,nSpecies
-        viscousFluxes(:,k+4,1) = speciesFlux(:,k,1)
-        viscousFluxes(:,k+4,2) = speciesFlux(:,k,2)
+        viscousFluxes(:,k+4,1) = - speciesFlux(:,k,1)
+        viscousFluxes(:,k+4,2) = - speciesFlux(:,k,2)
      end do
 
   case (3)
@@ -586,9 +586,9 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
           velocity(:,2) * stressTensor(:,6) +                                                &
           velocity(:,3) * stressTensor(:,9) - heatFlux(:,3)
      do k=1,nSpecies
-        viscousFluxes(:,k+5,1) = speciesFlux(:,k,1)
-        viscousFluxes(:,k+5,2) = speciesFlux(:,k,2)
-        viscousFluxes(:,k+5,3) = speciesFlux(:,k,3)
+        viscousFluxes(:,k+5,1) = - speciesFlux(:,k,1)
+        viscousFluxes(:,k+5,2) = - speciesFlux(:,k,2)
+        viscousFluxes(:,k+5,3) = - speciesFlux(:,k,3)
      end do
 
   end select !... nDimensions
