@@ -165,7 +165,7 @@ subroutine fillGhostPoints(cartesianCommunicator, arrayWithGhostPoints,         
   periodicOffset_ = 0
   if (present(periodicOffset)) periodicOffset_ = periodicOffset
 
-  !. Initialize MPI variables.
+  ! Initialize MPI variables.
   request = MPI_REQUEST_NULL
   tagPrev = 1
   tagNext = 2

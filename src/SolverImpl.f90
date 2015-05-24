@@ -58,7 +58,7 @@ contains
        call MPI_Allreduce(MPI_IN_PLACE, maxTemperature, 1, REAL_TYPE_MPI, MPI_MAX,           &
             region%comm, ierror)
        maxTemperature = maxTemperature *                                                     &
-            (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) * 298.15_wp
+            (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) * 293.15_wp
 
        if (timestep == 1) then
           write(str,'(a12,a2,a12,a2,3a12)') 'Step','  ','Time','   ','dt','CFL','Tmax [K]'

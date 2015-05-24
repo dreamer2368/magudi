@@ -11,8 +11,9 @@ target_state_file = "MixingLayer.target.q"
 #target_mollifier_file = "AcousticMonopole.target_mollifier.f"
 
 # Grid information
-nx = 1025
-ny = 513
+nx = 257
+ny = 129
+#nz = 128
 xmin_interior = 0
 xmax_interior = 120
 ymin_interior =-30
@@ -21,7 +22,13 @@ xmin_outer = -40
 xmax_outer = 160
 ymin_outer = -50
 ymax_outer = 50
+#zmin = -25.0
+#zmax = 25.0
 stretch_y = true
+
+# Periodicity
+#grid001/dir3/periodicity_type = 'PLANE'
+#grid001/dir3/periodic_length = 50.0
 
 # Simulation flags
 include_viscous_terms = true
@@ -34,7 +41,7 @@ compute_time_average = false
 Reynolds_number = 200.0
 Prandtl_number = 0.7
 Schmidt_number_1 = 0.7
-Schmidt_number_2 = 0.3
+Schmidt_number_2 = 0.7
 viscosity_power_law_exponent = 0.666
 bulk_viscosity_ratio = 0.6
 ratio_of_specific_heats = 1.4
@@ -50,20 +57,14 @@ Zel_Dovich = 6.0
 Damkohler_number = 50000.0
 
 # Discretization scheme
-defaults/discretization_scheme = "SBP 3-6"
-
-# Periodicity
-#grid001/dir1/periodicity_type = 'PLANE'
-#grid001/dir2/periodicity_type = 'PLANE'
-#grid001/dir1/periodic_length = 201.
-#grid001/dir2/periodic_length = 101.
+defaults/discretization_scheme = "SBP 4-8"
 
 # Time stepping options
 time_step_size = 0.01
-cfl = 0.5
-number_of_timesteps = 25000
-report_interval = 1
-save_interval = 10
+cfl = 0.3
+number_of_timesteps = 100000
+report_interval = 10
+save_interval = 1000
 
 # Artificial dissipation
 add_dissipation = true
@@ -79,7 +80,7 @@ minimum_massFraction = -0.1
 maximum_massFraction = 1.1
 
 # Damping
-defaults/sponge_amount = 0.2
+defaults/sponge_amount = 0.5
 defaults/viscous_penalty_amount = 0.
 
 # Mixing layer velocity
@@ -99,11 +100,11 @@ patches/excitationSupport/random_seed = 685785
 patches/localizedIgnition/amplitude = 2.0
 patches/localizedIgnition/radius = 0.25
 patches/localizedIgnition/origin_x = 8.0
-patches/localizedIgnition/time_start = 0.0
+patches/localizedIgnition/time_start = 0.6
 patches/localizedIgnition/time_duration = 0.1
 
 # Adjoint optimization flags
 disable_adjoint_solver = true
 baseline_prediction_available = false
-cost_functional_type = "TEMP"
+cost_functional_type = "TEMPERATURE"
 use_continuous_adjoint = false

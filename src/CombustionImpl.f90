@@ -86,6 +86,7 @@ subroutine addCombustion(this, density, temperature, massFraction, ratioOfSpecif
   if (this%nReactions == 1) then
 
      ! One-step chemistry.
+     ! H2 + sO2 -> (1+s)P
 
      yfsi = 1.0_wp / this%Yfs
 
