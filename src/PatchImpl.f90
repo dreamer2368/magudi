@@ -1,7 +1,7 @@
 #include "config.h"
 
 subroutine setupPatch(this, index, comm, patchDescriptor,                                    &
-     grid, simulationFlags, solverOptions, combustionOptions)
+     grid, simulationFlags, solverOptions)
 
   ! <<< External modules >>>
   use MPI
@@ -12,7 +12,6 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
-  use Combustion_mod, only : t_Combustion
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
@@ -26,7 +25,6 @@ subroutine setupPatch(this, index, comm, patchDescriptor,                       
   class(t_Grid), intent(in) :: grid
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
-  type(t_Combustion), intent(in), optional :: combustionOptions
 
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: key
