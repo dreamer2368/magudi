@@ -7,12 +7,13 @@ grid_file = "MixingLayer.xyz"
 initial_condition_file = "MixingLayer.ic.q"
 boundary_condition_file = "bc.dat"
 target_state_file = "MixingLayer.target.q"
+decomposition_map_file = "decomp.map"
 #control_mollifier_file = "AcousticMonopole.control_mollifier.f"
 #target_mollifier_file = "AcousticMonopole.target_mollifier.f"
 
 # Grid information
-nx = 257
-ny = 129
+nx = 513
+ny = 257
 #nz = 128
 xmin_interior = 0
 xmax_interior = 120
@@ -36,6 +37,7 @@ use_constant_CFL_mode = true
 use_target_state = true
 curvilinear_domain = false
 compute_time_average = false
+use_manual_domain_decomposition = false
 
 # Non-dimensional constants
 Reynolds_number = 200.0
@@ -63,12 +65,12 @@ defaults/discretization_scheme = "SBP 4-8"
 time_step_size = 0.01
 cfl = 0.3
 number_of_timesteps = 100000
-report_interval = 10
-save_interval = 1000
+report_interval = 1
+save_interval = 2000
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.005
+dissipation_amount = 0.01
 
 # Solution limits
 enable_solution_limits = true
