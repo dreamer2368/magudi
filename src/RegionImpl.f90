@@ -158,7 +158,7 @@ contains
     allocate(this%gridCommunicators(size(this%globalGridSizes, 2)), source = MPI_COMM_NULL)
 
     ! Split the region communicator into grid-level communicators:
-    if (numProcs > size(this%globalGridSizes, 2) .and.                                         &
+    if (numProcs > size(this%globalGridSizes, 2) .and.                                       &
          this%simulationFlags%manualDomainDecomp) then
        call splitCommunicatorMultigrid(this%comm, this%globalGridSizes,                      &
             this%gridCommunicators, numProcsInGrid) !... manual process distribution.

@@ -9,6 +9,7 @@ module UniformCheckpointer_mod
 
   type, private :: t_IntermediateStorage
      SCALAR_TYPE, allocatable :: buffer(:,:,:)
+     real(SCALAR_KIND), allocatable :: times(:)
   end type t_IntermediateStorage
 
   type, extends(t_ReverseMigrator), public :: t_UniformCheckpointer
