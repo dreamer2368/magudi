@@ -562,7 +562,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
   end if
 
   if (nSpecies > 0 .and. combustion%nReactions > 0) then
-     allocate(localSourceJacobian(solverOptions%nUnknowns, solverOptions%nUnknowns))
+     allocate(localSourceJacobian(nUnknowns, nUnknowns))
   end if
 
   do j = 1, grid%nGridPoints
@@ -646,8 +646,8 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
                    localVelocity, state%dynamicViscosity(k,1),                               &
                    state%secondCoefficientOfViscosity(k,1),                                  &
                    state%thermalDiffusivity(k,1), state%massDiffusivity(k,:),                &
-                   grid%jacobian(k,1), localMetricsAlongDirection2,                          &
-                   localMetricsAlongDirection1, localFluxJacobian2)
+                   grid%jacobian(k,1), localMetricsAlongDirection1,                          &
+                   localMetricsAlongDirection2, localFluxJacobian2)
 
               localAdjointDiffusion(:,j) = localAdjointDiffusion(:,j) +                      &
                    matmul(transpose(localFluxJacobian2), temp1(k,2:nUnknowns,i))
