@@ -160,7 +160,7 @@ contains
 
   end subroutine showProgress
 
-  subroutine checkSolutionLimits(region, mode)
+  subroutine checkSolutionLimits(region, mode, outputPrefix)
 
     ! <<< External modules >>>
     use MPI
@@ -179,6 +179,7 @@ contains
     ! <<< Arguments >>>
     class(t_Region) :: region
     integer, intent(in) :: mode
+    character(len = *), intent(in) :: outputPrefix
 
     ! <<< Local variables >>>
     integer :: i, iGlobal, jGlobal, kGlobal, rankReportingError, procRank, ierror
@@ -233,7 +234,7 @@ contains
 
        select case (mode)
        case (FORWARD)
-          call region%saveData(QOI_FORWARD_STATE, PROJECT_NAME // "-crashed.q")
+          call region%saveData(QOI_FORWARD_STATE, trim(outputPrefix) // "-crashed.q")
        end select
 
        call gracefulExit(region%comm, message)
@@ -600,7 +601,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
         ! Check if physical quantities are within allowed limits.
         if (region%simulationFlags%enableSolutionLimits)                                     &
-             call checkSolutionLimits(region, FORWARD)
+             call checkSolutionLimits(region, FORWARD, this%outputPrefix)
 
         ! Update control forcing.
         if (.not. region%simulationFlags%predictionOnly .and.                                &
@@ -805,7 +806,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
         ! TODO: how to enforce limits on adjoint variables... check for NaN?
         if (region%simulationFlags%enableSolutionLimits)                                     &
-             call checkSolutionLimits(region, ADJOINT)
+             call checkSolutionLimits(region, ADJOINT, this%outputPrefix)
 
      end do
 
