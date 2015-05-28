@@ -37,8 +37,10 @@ def TargetAnimation(width = None, height = None):
 
 def TargetJournal(width = None, height = None):
     TargetPresentation(width, height)
+    matplotlib.rcParams['backend'] = 'pgf'
     matplotlib.rcParams['font.family'] = 'serif'
-    matplotlib.rcParams['text.latex.preamble'] = r"\usepackage{amsmath}\usepackage{amsfonts}"
+    matplotlib.rcParams['font.size'] = 8.0
+    matplotlib.rcParams['text.latex.preamble'] = r"\usepackage{amsmath}\usepackage{amssymb}"
 
 def ApplyTecplotStyle(ax):
     ax.minorticks_on()
