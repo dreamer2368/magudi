@@ -118,7 +118,7 @@ subroutine addDamping(this, mode, simulationFlags, solverOptions, grid, state)
               end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
            end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
         end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
-     end do !... l = 1, size(state%rightHandSide, 2)
+     end do !... l = 1, solverOptions%nUnknowns
 
   case (ADJOINT)
      do l = 1, solverOptions%nUnknowns

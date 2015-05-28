@@ -70,8 +70,8 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
 
      allocate(this%angularFrequencies(this%nModes))
      allocate(this%phases(this%nModes, 3))
-     call random_number(this%angularFrequencies)
      call random_number(this%phases)
+     call random_number(this%angularFrequencies)
      this%phases = 2.0_real64 * pi * this%phases
 
      do i = 1, this%nModes

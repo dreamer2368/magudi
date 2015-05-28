@@ -334,11 +334,14 @@ contains
                    if (patch%gridIndex /= region%grids(j)%index) cycle
                    call patch%updateRhs(ADJOINT, region%simulationFlags,                     &
                         region%solverOptions, region%grids(j), region%states(j))
-                   region%states(j)%adjointVariables = region%states(j)%adjointVariables +   &
-                        region%states(j)%rightHandSide
                 end do
              end select
           end do
+
+          do i = 1, size(region%states)
+             region%states(i)%adjointVariables = region%states(i)%rightHandSide
+          end do
+          region%states(:)%adjointForcingFactor = 1.0_wp !... restore
 
        end if
 
@@ -734,6 +737,10 @@ function runAdjoint(this, region) result(costSensitivity)
           region%timestep + this%nTimesteps, ".q"
   end if
   call region%loadData(QOI_FORWARD_STATE, filename)
+  do i = 1, size(region%states) !... update state
+     call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
+          region%solverOptions)
+  end do
 
   startTimestep = region%timestep
   startTime = region%states(1)%time
@@ -752,14 +759,6 @@ function runAdjoint(this, region) result(costSensitivity)
   ! March forward for adjoint steady-state simulation.
   timemarchDirection = -1
   if (region%simulationFlags%steadyStateSimulation) timemarchDirection = 1
-
-  if (region%simulationFlags%steadyStateSimulation) then
-     region%states(:)%time = startTime
-     do i = 1, size(region%states) !... update state only once at converged primal solution.
-        call region%states(i)%update(region%grids(i), region%simulationFlags,                &
-             region%solverOptions)
-     end do
-  end if
 
   ! Adjoint initial condition (if specified).
   call loadInitialCondition(this, region, ADJOINT)
