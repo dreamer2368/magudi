@@ -2899,3 +2899,104 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
   secondPartialViscousJacobian = jacobian * secondPartialViscousJacobian
 
 end subroutine computeSecondPartialViscousJacobian
+
+PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                               &
+     conservedVariables, metrics, ratioOfSpecificHeats, combustion, jacobianOfSource,        &
+     specificVolume, velocity, temperature, massFraction)
+
+  ! <<< Derived types >>>
+  use Combustion_mod, only : t_Combustion
+
+  ! <<< Arguments >>>
+  integer, intent(in) :: nDimensions, nSpecies
+  SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(out) :: jacobianOfSource(:,:)
+  SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(:), temperature,             &
+       massFraction(:)
+  type(t_Combustion), intent(in) :: combustion
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: k, l
+  real(SCALAR_KIND) :: referenceTemperature, flameTemperature, activationTemperature,        &
+       chemicalSource(nSpecies), H
+  SCALAR_TYPE :: specificVolume_, velocity_(nDimensions), temperature_,                      &
+       massFraction_(nSpecies), temp
+
+  assert_key(nDimensions, (1, 2, 3))
+  assert(nSpecies >= 0)
+  assert(combustion%nReactions == 1) ! Only implemented for single-step chemistry.
+  assert(size(conservedVariables) == nDimensions + 2 + nSpecies)
+  assert(size(metrics) == size(velocity))
+
+  ! Compute specific volume if it was not specified.
+  if (present(specificVolume)) then
+     specificVolume_ = specificVolume
+  else
+     specificVolume_ = 1.0_wp / conservedVariables(1)
+  end if
+
+  ! Compute velocity if it was not specified.
+  if (present(velocity)) then
+     assert(size(velocity) == nDimensions)
+     velocity_ = velocity
+  else
+     do k = 1, nDimensions
+        velocity_(k) = specificVolume_ * conservedVariables(k+1)
+     end do
+  end if
+
+  ! Compute temperature if it was not specified.
+  if (present(temperature)) then
+     temperature_ = temperature
+  else
+     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(nDimensions + 2) &
+          - 0.5_wp * (sum(velocity_ ** 2)))
+  end if
+
+  ! Compute mass fraction if it was not specified.
+  if (present(massFraction) .and. nSpecies > 0) then
+     assert(size(massFraction) == nSpecies)
+     massFraction_ = massFraction
+  else
+     do k = 1, nSpecies
+        massFraction_(k) = conservedVariables(nDimensions+2+k) * specificVolume_
+     end do
+  end if
+
+  ! Other dependent variables.
+  referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
+  flameTemperature = referenceTemperature / (1.0_wp - combustion%heatRelease)
+  activationTemperature = combustion%zelDovich / combustion%heatRelease * flameTemperature
+  do k = 1, nSpecies
+     chemicalSource(k) = combustion%stoichiometricCoefficient(k) * combustion%Damkohler /    &
+          specificVolume * massFraction_(combustion%H2) * massFraction_(combustion%O2) *     &
+          exp(- activationTemperature / temperature_)
+  end do
+  H = combustion%heatRelease * flameTemperature / combustion%Yfs
+
+  ! Zero-out Jacobian of source.
+  jacobianOfSource = 0.0_wp
+
+  jacobianOfSource(1,nDimensions+2) = H * chemicalSource(combustion%H2) * specificVolume_
+  do k = 1, nSpecies
+     jacobianOfSource(1,nDimensions+2+k) = chemicalSource(k) * specificVolume_
+  end do
+
+  temp = activationTemperature / temperature_**2
+  jacobianOfSource(nDimensions+2,nDimensions+2) = H * chemicalSource(combustion%H2) * temp
+  do k = 1, nSpecies
+     jacobianOfSource(nDimensions+2,nDimensions+2+k) = chemicalSource(k) * temp
+  end do
+
+  do k = 1, nSpecies
+     jacobianOfSource(nDimensions+2+k,nDimensions+2) = H * chemicalSource(combustion%H2) /   &
+          massFraction_(k)
+     do l = 1, nSpecies
+        jacobianOfSource(nDimensions+2+k,nDimensions+2+l) = chemicalSource(l) /              &
+             massFraction_(k)
+     end do
+  end do
+
+end subroutine computeJacobianOfSource

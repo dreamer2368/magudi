@@ -71,7 +71,8 @@ subroutine addCombustion(this, density, temperature, massFraction, ratioOfSpecif
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, k, nDimensions, nSpecies
-  real(SCALAR_KIND) :: chemicalSource, referenceTemperature, flameTemperature, Yfsi
+  real(SCALAR_KIND) :: referenceTemperature, flameTemperature, activationTemperature,        &
+       chemicalSource, Yfsi
   SCALAR_TYPE :: massFraction_(size(massFraction,2))
 
   nSpecies = size(massFraction,2)
@@ -88,6 +89,9 @@ subroutine addCombustion(this, density, temperature, massFraction, ratioOfSpecif
      ! One-step chemistry.
      ! H2 + sO2 -> (1+s)P
 
+     referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
+     flameTemperature = referenceTemperature / (1.0_wp - this%heatRelease)
+     activationTemperature = this%zelDovich / this%heatRelease * flameTemperature
      yfsi = 1.0_wp / this%Yfs
 
      do i = 1, size(rightHandSide, 1)
@@ -99,12 +103,8 @@ subroutine addCombustion(this, density, temperature, massFraction, ratioOfSpecif
            massFraction_(k) = min(massFraction_(k), 1.0_wp)
         end do
 
-        referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
-        flameTemperature = referenceTemperature / (1.0_wp - this%heatRelease)
-
         chemicalSource = this%Damkohler * density(i) * massFraction_(this%H2) *              &
-             massFraction_(this%O2) * exp(-this%zelDovich / this%heatRelease *               &
-             flameTemperature / temperature(i))
+             massFraction_(this%O2) * exp(- activationTemperature / temperature(i))
 
         ! Heat release due to combustion.
         rightHandSide(i,nDimensions+2) = rightHandSide(i,nDimensions+2) +                    &

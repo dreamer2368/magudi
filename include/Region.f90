@@ -19,6 +19,7 @@ module Region_mod
   use State_mod, only : t_State
   use Patch_factory, only : t_PatchFactory
   use SolverOptions_mod, only : t_SolverOptions
+  use Combustion_mod, only : t_combustion
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -31,6 +32,7 @@ module Region_mod
      type(t_State), allocatable :: states(:)
      type(t_PatchFactory), allocatable :: patchFactories(:)
      type(t_SolverOptions) :: solverOptions
+     type(t_combustion) :: combustion
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)
      integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL, timestep = 0
@@ -57,10 +59,11 @@ module Region_mod
   interface
 
      subroutine setupRegion(this, comm, globalGridSizes, boundaryConditionFilename,          &
-          simulationFlags, solverOptions, verbose)
+          simulationFlags, solverOptions, combustion, verbose)
 
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
+       use Combustion_mod, only : t_Combustion
 
        import :: t_Region
 
@@ -70,6 +73,7 @@ module Region_mod
        character(len = *), intent(in), optional :: boundaryConditionFilename
        type(t_SimulationFlags), intent(in), optional :: simulationFlags
        type(t_SolverOptions), intent(in), optional :: solverOptions
+       type(t_Combustion), intent(in), optional :: combustion
        logical, intent(in), optional :: verbose
 
      end subroutine setupRegion

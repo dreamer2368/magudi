@@ -484,7 +484,8 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
 
 end subroutine computeRhsForward
 
-subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchFactories)
+subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, state,        &
+     patchFactories)
 
   ! <<< External modules >>>
   use MPI
@@ -495,6 +496,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
   use Patch_factory, only : t_PatchFactory
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
+  use Combustion_mod, only : t_Combustion
 
   ! <<< Enumerations >>>
   use Region_enum, only : ADJOINT
@@ -512,6 +514,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
   ! <<< Arguments >>>
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
+  type(t_Combustion), intent(in) :: combustion
   class(t_Grid) :: grid
   class(t_State) :: state
   type(t_PatchFactory), allocatable :: patchFactories(:)
@@ -523,7 +526,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
        localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
        localVelocity(:), localMassFraction(:), localMetricsAlongDirection1(:),               &
        localMetricsAlongDirection2(:), localStressTensor(:), localHeatFlux(:),               &
-       localAdjointDiffusion(:,:), localSpeciesFlux(:,:)
+       localAdjointDiffusion(:,:), localSpeciesFlux(:,:), localSourceJacobian(:,:)
   logical :: flag
 
   call startTiming("computeRhsAdjoint")
@@ -556,6 +559,10 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
      allocate(localSpeciesFlux(nSpecies,nDimensions))
   end if
 
+  if (nSpecies > 0 .and. combustion%nReactions > 0) then
+     allocate(localSourceJacobian(solverOptions%nUnknowns, solverOptions%nUnknowns))
+  end if
+
   do i = 1, grid%nGridPoints
 
      localConservedVariables = state%conservedVariables(i,:)
@@ -584,6 +591,15 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
                 specificVolume = state%specificVolume(i,1), velocity = localVelocity,        &
                 temperature = state%temperature(i,1), massFraction = localMassFraction)
            localFluxJacobian1 = localFluxJacobian1 - localFluxJacobian2
+        end if
+
+        if (nSpecies > 0 .and. combustion%nReactions > 0) then
+           call computeJacobianOfSource(nDimensions, nSpecies,                               &
+                localConservedVariables, localMetricsAlongDirection1,                        &
+                solverOptions%ratioOfSpecificHeats, combustion,                              &
+                localSourceJacobian, specificVolume = state%specificVolume(i,1),             &
+                velocity = localVelocity, temperature = state%temperature(i,1),              &
+                massFraction = localMassFraction)
         end if
 
         state%rightHandSide(i,:) = state%rightHandSide(i,:) +                                &
@@ -667,6 +683,10 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
      SAFE_DEALLOCATE(localMetricsAlongDirection2)
 
   end if !... simulationFlags%viscosityOn
+
+  if (nSpecies > 0 .and. combustion%nReactions > 0) then
+     SAFE_DEALLOCATE(localSourceJacobian)
+  end if
 
   SAFE_DEALLOCATE(localMetricsAlongDirection1)
   SAFE_DEALLOCATE(localVelocity)
