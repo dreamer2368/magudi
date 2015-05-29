@@ -41,17 +41,11 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   assert(direction >= 1 .and. direction <= nDimensions)
 
   if (this%nPatchPoints > 0) then
-     allocate(this%metrics(this%nPatchPoints, nDimensions))
      if (simulationFlags%viscosityOn) then
-        allocate(this%firstPartialViscousJacobians(this%nPatchPoints, nUnknowns, nUnknowns))
-        allocate(this%secondPartialViscousJacobians(this%nPatchPoints,                       &
-             nUnknowns - 1, nUnknowns - 1, nDimensions))
-        allocate(this%viscousPenalty(this%nPatchPoints, nUnknowns))
+        allocate(this%viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
+        allocate(this%targetViscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
      end if
   end if
-
-  call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),       &
-       this%metrics)
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
@@ -91,10 +85,8 @@ subroutine cleanupFarFieldPatch(this)
 
   call this%cleanupBase()
 
-  SAFE_DEALLOCATE(this%metrics)
-  SAFE_DEALLOCATE(this%viscousPenalty)
-  SAFE_DEALLOCATE(this%firstPartialViscousJacobians)
-  SAFE_DEALLOCATE(this%secondPartialViscousJacobians)
+  SAFE_DEALLOCATE(this%viscousFluxes)
+  SAFE_DEALLOCATE(this%targetViscousFluxes)
 
 end subroutine cleanupFarFieldPatch
 
@@ -170,7 +162,8 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                 (k - 1 - this%offset(3)))
 
            localTargetState = state%targetState(gridIndex,:)
-           metricsAlongNormalDirection = this%metrics(patchIndex,:)
+           metricsAlongNormalDirection =                                                     &
+                grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
            select case (nDimensions)
            case (1)
@@ -199,7 +192,8 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
               if (simulationFlags%viscosityOn)                                               &
                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +     &
                    this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *                 &
-                   this%viscousPenalty(patchIndex,:)
+                   matmul(this%viscousFluxes(patchIndex,:,:) -                               &
+                   this%targetViscousFluxes(patchIndex,:,:), metricsAlongNormalDirection)
 
            case (ADJOINT)
 
@@ -214,11 +208,6 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       state%adjointVariables(gridIndex,:))
               end if
-
-              if (simulationFlags%viscosityOn)                                               &
-                   state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -     &
-                   this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *                 &
-                   this%viscousPenalty(patchIndex,:)
 
            end select !... mode
 
@@ -291,150 +280,3 @@ function verifyFarFieldPatchUsage(this, patchDescriptor, gridSize, normalDirecti
   isPatchUsed = .true.
 
 end function verifyFarFieldPatchUsage
-
-subroutine computeFarFieldViscousJacobians(this, simulationFlags,                            &
-     solverOptions, grid, state)
-
-    ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use State_mod, only : t_State
-  use FarFieldPatch_mod, only : t_FarFieldPatch
-  use SolverOptions_mod, only : t_SolverOptions
-  use SimulationFlags_mod, only : t_SimulationFlags
-
-  ! <<< Internal modules >>>
-  use CNSHelper
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_FarFieldPatch) :: this
-  type(t_SimulationFlags), intent(in) :: simulationFlags
-  type(t_SolverOptions), intent(in) :: solverOptions
-  class(t_Grid), intent(in) :: grid
-  class(t_State) :: state
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, nDimensions, nUnknowns, direction, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: localTargetState(:), localMetricsAlongFirstDir(:),             &
-       localMetricsAlongSecondDir(:), localStressTensor(:), localHeatFlux(:),                &
-       localVelocity(:), localFirstPartialViscousJacobian(:,:),                              &
-       localSecondPartialViscousJacobian(:,:)
-
-  if (.not. simulationFlags%viscosityOn) return
-
-  assert(this%gridIndex == grid%index)
-  assert(all(grid%offset == this%gridOffset))
-  assert(all(grid%localSize == this%gridLocalSize))
-  assert(allocated(state%targetState))
-
-  nDimensions = grid%nDimensions
-  assert_key(nDimensions, (1, 2, 3))
-
-  direction = abs(this%normalDirection)
-  assert(direction >= 1 .and. direction <= nDimensions)
-
-  nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns >= nDimensions + 2)
-
-  allocate(localTargetState(nUnknowns))
-  allocate(localMetricsAlongFirstDir(nDimensions))
-  allocate(localMetricsAlongSecondDir(nDimensions))
-  allocate(localStressTensor(nDimensions ** 2))
-  allocate(localHeatFlux(nDimensions))
-  allocate(localVelocity(nDimensions))
-  allocate(localFirstPartialViscousJacobian(nUnknowns, nUnknowns))
-  allocate(localSecondPartialViscousJacobian(nUnknowns - 1, nUnknowns - 1))
-
-  do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
-     do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
-        do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
-           gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                      &
-                (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                        &
-                (k - 1 - this%gridOffset(3)))
-           if (grid%iblank(gridIndex) == 0) cycle
-           patchIndex = i - this%offset(1) + this%localSize(1) *                             &
-                (j - 1 - this%offset(2) + this%localSize(2) *                                &
-                (k - 1 - this%offset(3)))
-
-           localTargetState = state%targetState(gridIndex,:)
-           localMetricsAlongFirstDir = this%metrics(patchIndex,:)
-           localStressTensor = state%stressTensor(gridIndex,:)
-           localHeatFlux = state%heatFlux(gridIndex,:)
-           localVelocity = state%velocity(gridIndex,:)
-
-           select case (nDimensions)
-           case (1)
-              call computeFirstPartialViscousJacobian1D(localTargetState,                    &
-                   localMetricsAlongFirstDir, localStressTensor, localHeatFlux,              &
-                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localFirstPartialViscousJacobian,                                         &
-                   specificVolume = state%specificVolume(gridIndex, 1),                      &
-                   velocity = localVelocity, temperature = state%temperature(gridIndex, 1))
-           case (2)
-              call computeFirstPartialViscousJacobian2D(localTargetState,                    &
-                   localMetricsAlongFirstDir, localStressTensor, localHeatFlux,              &
-                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localFirstPartialViscousJacobian,                                         &
-                   specificVolume = state%specificVolume(gridIndex, 1),                      &
-                   velocity = localVelocity, temperature = state%temperature(gridIndex, 1))
-           case (3)
-              call computeFirstPartialViscousJacobian3D(localTargetState,                    &
-                   localMetricsAlongFirstDir, localStressTensor, localHeatFlux,              &
-                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
-                   localFirstPartialViscousJacobian,                                         &
-                   specificVolume = state%specificVolume(gridIndex, 1),                      &
-                   velocity = localVelocity, temperature = state%temperature(gridIndex, 1))
-           end select
-
-           this%firstPartialViscousJacobians(patchIndex,:,:) =                               &
-                localFirstPartialViscousJacobian
-
-           do l = 1, nDimensions
-
-              localMetricsAlongSecondDir =                                                   &
-                   grid%metrics(gridIndex,1+nDimensions*(l-1):nDimensions*l)
-
-              select case (nDimensions)
-              case (1)
-                 call computeSecondPartialViscousJacobian1D(localVelocity,                   &
-                      state%dynamicViscosity(gridIndex,1),                                   &
-                      state%secondCoefficientOfViscosity(gridIndex,1),                       &
-                      state%thermalDiffusivity(gridIndex,1), grid%jacobian(gridIndex,1),     &
-                      localMetricsAlongFirstDir(1), localSecondPartialViscousJacobian)
-              case (2)
-                 call computeSecondPartialViscousJacobian2D(localVelocity,                   &
-                      state%dynamicViscosity(gridIndex,1),                                   &
-                      state%secondCoefficientOfViscosity(gridIndex,1),                       &
-                      state%thermalDiffusivity(gridIndex,1), grid%jacobian(gridIndex,1),     &
-                      localMetricsAlongFirstDir, localMetricsAlongSecondDir,                 &
-                      localSecondPartialViscousJacobian)
-              case (3)
-                 call computeSecondPartialViscousJacobian3D(localVelocity,                   &
-                      state%dynamicViscosity(gridIndex,1),                                   &
-                      state%secondCoefficientOfViscosity(gridIndex,1),                       &
-                      state%thermalDiffusivity(gridIndex,1), grid%jacobian(gridIndex,1),     &
-                      localMetricsAlongFirstDir, localMetricsAlongSecondDir,                 &
-                      localSecondPartialViscousJacobian)
-              end select
-
-              this%secondPartialViscousJacobians(patchIndex,:,:,l) =                         &
-                   localSecondPartialViscousJacobian
-
-           end do !... l = 1, nDimensions
-
-        end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
-     end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
-  end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
-
-  SAFE_DEALLOCATE(localSecondPartialViscousJacobian)
-  SAFE_DEALLOCATE(localFirstPartialViscousJacobian)
-  SAFE_DEALLOCATE(localVelocity)
-  SAFE_DEALLOCATE(localHeatFlux)
-  SAFE_DEALLOCATE(localStressTensor)
-  SAFE_DEALLOCATE(localMetricsAlongSecondDir)
-  SAFE_DEALLOCATE(localMetricsAlongFirstDir)
-  SAFE_DEALLOCATE(localTargetState)
-
-end subroutine computeFarFieldViscousJacobians

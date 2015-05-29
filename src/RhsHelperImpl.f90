@@ -109,281 +109,6 @@ contains
 
   end subroutine addDissipation
 
-  subroutine computeForwardFarFieldViscousPenalty(simulationFlags,                           &
-       solverOptions, grid, state, patchFactories)
-
-    ! <<< Derived types >>>
-    use Grid_mod, only : t_Grid
-    use Patch_mod, only : t_Patch
-    use State_mod, only : t_State
-    use Patch_factory, only : t_PatchFactory
-    use FarFieldPatch_mod, only : t_FarFieldPatch
-    use SolverOptions_mod, only : t_SolverOptions
-    use SimulationFlags_mod, only : t_SimulationFlags
-
-    ! <<< Arguments >>>
-    type(t_SimulationFlags), intent(in) :: simulationFlags
-    type(t_SolverOptions), intent(in) :: solverOptions
-    class(t_Grid) :: grid
-    class(t_State) :: state
-    type(t_PatchFactory), allocatable :: patchFactories(:)
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, nDimensions, nUnknowns
-    class(t_Patch), pointer :: patch => null()
-    SCALAR_TYPE, allocatable :: patchConservedVariables(:,:), patchTargetState(:,:),         &
-         viscousPenaltyAlongDirection(:,:), temp(:,:)
-
-    if (.not. simulationFlags%viscosityOn) return
-
-    nDimensions = grid%nDimensions
-    assert_key(nDimensions, (1, 2, 3))
-
-    nUnknowns = solverOptions%nUnknowns
-    assert(nUnknowns >= nDimensions + 2)
-
-    assert(grid%nGridPoints > 0)
-    assert(allocated(state%targetState))
-    assert(size(state%targetState, 1) == grid%nGridPoints)
-    assert(size(state%targetState, 2) == nUnknowns)
-
-    allocate(temp(grid%nGridPoints, nUnknowns - 1))
-
-    do i = 1, nDimensions
-
-       temp = 0.0_wp
-
-       if (allocated(patchFactories)) then
-          do j = 1, size(patchFactories)
-             call patchFactories(j)%connect(patch)
-             if (.not. associated(patch)) cycle
-             if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
-             select type (patch)
-             class is (t_FarFieldPatch)
-
-                allocate(patchConservedVariables(patch%nPatchPoints, nUnknowns))
-                allocate(patchTargetState(patch%nPatchPoints, nUnknowns))
-                call patch%collect(state%conservedVariables, patchConservedVariables)
-                call patch%collect(state%targetState, patchTargetState)
-
-                patchConservedVariables = patchConservedVariables - patchTargetState
-                do k = 1, patch%nPatchPoints
-                   patchConservedVariables(k,2:nDimensions+1) =                              &
-                        (patchConservedVariables(k,2:nDimensions+1) -                        &
-                        patchTargetState(k,2:nDimensions+1) * patchConservedVariables(k,1) / &
-                        patchTargetState(k,1)) / patchTargetState(k,1)
-                   patchConservedVariables(k,nDimensions+2) =                                &
-                        solverOptions%ratioOfSpecificHeats *                                 &
-                        (patchConservedVariables(k,nDimensions+2) -                          &
-                        sum(patchConservedVariables(k,2:nDimensions+1) *                     &
-                        patchTargetState(k,2:nDimensions+1)) -                               &
-                        patchTargetState(k,nDimensions+2) * patchConservedVariables(k,1) /   &
-                        patchTargetState(k,1)) / patchTargetState(k,1)
-                end do
-
-                call patch%disperseAdd(patchConservedVariables(:,2:nUnknowns), temp)
-
-                SAFE_DEALLOCATE(patchTargetState)
-                SAFE_DEALLOCATE(patchConservedVariables)
-
-             end select !... type(patch)
-          end do !... j = 1, size(patchFactories)
-       end if !... allocated(patchFactories)
-
-       call grid%firstDerivative(i)%apply(temp, grid%localSize)
-
-       if (allocated(patchFactories)) then
-          do j = 1, size(patchFactories)
-             call patchFactories(j)%connect(patch)
-             if (.not. associated(patch)) cycle
-             if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
-             select type (patch)
-             class is (t_FarFieldPatch)
-
-                allocate(viscousPenaltyAlongDirection(patch%nPatchPoints, nUnknowns - 1))
-
-                patch%viscousPenalty(:,1) = 0.0_wp
-                call patch%collect(temp, viscousPenaltyAlongDirection)
-                do k = 1, patch%nPatchPoints
-                   viscousPenaltyAlongDirection(k,:) =                                       &
-                        matmul(patch%secondPartialViscousJacobians(k,:,:,i),                 &
-                        viscousPenaltyAlongDirection(k,:))
-                end do
-
-                if (i == 1) then
-                   patch%viscousPenalty(:,1) = 0.0_wp
-                   patch%viscousPenalty(:,2:nUnknowns) = viscousPenaltyAlongDirection
-                else
-                   patch%viscousPenalty(:,2:nUnknowns) =                                     &
-                        patch%viscousPenalty(:,2:nUnknowns) + viscousPenaltyAlongDirection
-                end if
-
-                SAFE_DEALLOCATE(viscousPenaltyAlongDirection)
-
-                if (i == nDimensions) then
-
-                   allocate(patchConservedVariables(patch%nPatchPoints, nUnknowns))
-                   allocate(patchTargetState(patch%nPatchPoints, nUnknowns))
-                   call patch%collect(state%conservedVariables, patchConservedVariables)
-                   call patch%collect(state%targetState, patchTargetState)
-
-                   do k = 1, patch%nPatchPoints
-                      patch%viscousPenalty(k,:) = patch%viscousPenalty(k,:) +                &
-                           matmul(patch%firstPartialViscousJacobians(k,:,:),                 &
-                           patchConservedVariables(k,:) - patchTargetState(k,:))
-                   end do
-
-                   SAFE_DEALLOCATE(patchTargetState)
-                   SAFE_DEALLOCATE(patchConservedVariables)
-
-                end if
-
-             end select !... type(patch)
-          end do !... j = 1, size(patchFactories)
-       end if !... allocated(patchFactories)
-
-    end do !... i = 1, nDimensions
-
-    SAFE_DEALLOCATE(temp)
-
-  end subroutine computeForwardFarFieldViscousPenalty
-
-  subroutine computeAdjointFarFieldViscousPenalty(simulationFlags,                           &
-       solverOptions, grid, state, patchFactories)
-
-    ! <<< Derived types >>>
-    use Grid_mod, only : t_Grid
-    use Patch_mod, only : t_Patch
-    use State_mod, only : t_State
-    use Patch_factory, only : t_PatchFactory
-    use FarFieldPatch_mod, only : t_FarFieldPatch
-    use SolverOptions_mod, only : t_SolverOptions
-    use SimulationFlags_mod, only : t_SimulationFlags
-
-    ! <<< Arguments >>>
-    type(t_SimulationFlags), intent(in) :: simulationFlags
-    type(t_SolverOptions), intent(in) :: solverOptions
-    class(t_Grid) :: grid
-    class(t_State) :: state
-    type(t_PatchFactory), allocatable :: patchFactories(:)
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, nDimensions, nUnknowns
-    class(t_Patch), pointer :: patch => null()
-    SCALAR_TYPE, allocatable :: patchAdjointVariables(:,:), patchTargetState(:,:),           &
-         viscousPenaltyAlongDirection(:,:), temp(:,:)
-
-    if (.not. simulationFlags%viscosityOn) return
-
-    nDimensions = grid%nDimensions
-    assert_key(nDimensions, (1, 2, 3))
-
-    nUnknowns = solverOptions%nUnknowns
-    assert(nUnknowns >= nDimensions + 2)
-
-    assert(grid%nGridPoints > 0)
-    assert(allocated(state%targetState))
-    assert(size(state%targetState, 1) == grid%nGridPoints)
-    assert(size(state%targetState, 2) == nUnknowns)
-
-    allocate(temp(grid%nGridPoints, nUnknowns - 1))
-
-    do i = 1, nDimensions
-
-       temp = 0.0_wp
-
-       if (allocated(patchFactories)) then
-          do j = 1, size(patchFactories)
-             call patchFactories(j)%connect(patch)
-             if (.not. associated(patch)) cycle
-             if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
-             select type (patch)
-             class is (t_FarFieldPatch)
-
-                allocate(patchAdjointVariables(patch%nPatchPoints, nUnknowns))
-                call patch%collect(state%adjointVariables, patchAdjointVariables)
-
-                do k = 1, patch%nPatchPoints
-                   patchAdjointVariables(k,1) = 0.0_wp
-                   patchAdjointVariables(k,2:nUnknowns) =                                    &
-                        matmul(transpose(patch%secondPartialViscousJacobians(k,:,:,i)),      &
-                        patchAdjointVariables(k,2:nUnknowns))
-                end do
-
-                call patch%disperseAdd(patchAdjointVariables(:,2:nUnknowns), temp)
-
-                SAFE_DEALLOCATE(patchAdjointVariables)
-
-             end select !... type(patch)
-          end do !... j = 1, size(patchFactories)
-       end if !... allocated(patchFactories)
-
-       call grid%adjointFirstDerivative(i)%apply(temp, grid%localSize)
-
-       if (allocated(patchFactories)) then
-          do j = 1, size(patchFactories)
-             call patchFactories(j)%connect(patch)
-             if (.not. associated(patch)) cycle
-             if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
-             select type (patch)
-             class is (t_FarFieldPatch)
-
-                allocate(viscousPenaltyAlongDirection(patch%nPatchPoints, nUnknowns))
-                allocate(patchTargetState(patch%nPatchPoints, nUnknowns))
-                call patch%collect(state%targetState, patchTargetState)
-
-                viscousPenaltyAlongDirection(:,1) = 0.0_wp
-                call patch%collect(temp, viscousPenaltyAlongDirection(:,2:nUnknowns))
-
-                viscousPenaltyAlongDirection(:,nDimensions+2) =                              &
-                     solverOptions%ratioOfSpecificHeats *                                    &
-                     viscousPenaltyAlongDirection(:,nDimensions+2) / patchTargetState(:,1)
-                do k = 1, nDimensions
-                   viscousPenaltyAlongDirection(:,k+1) =                                     &
-                        (viscousPenaltyAlongDirection(:,k+1) - patchTargetState(:,k+1) *     &
-                        viscousPenaltyAlongDirection(:,nDimensions+2)) / patchTargetState(:,1)
-                end do
-                viscousPenaltyAlongDirection(:,1) =                                          &
-                     - sum(patchTargetState(:,2:nDimensions+2) *                             &
-                     viscousPenaltyAlongDirection(:,2:nDimensions+2), dim = 2) /             &
-                     patchTargetState(:,1)
-
-                if (i == 1) then
-                   patch%viscousPenalty = viscousPenaltyAlongDirection
-                else
-                   patch%viscousPenalty = patch%viscousPenalty + viscousPenaltyAlongDirection
-                end if
-
-                SAFE_DEALLOCATE(patchTargetState)
-                SAFE_DEALLOCATE(viscousPenaltyAlongDirection)
-
-                if (i == nDimensions) then
-
-                   allocate(patchAdjointVariables(patch%nPatchPoints, nUnknowns))
-                   call patch%collect(state%adjointVariables, patchAdjointVariables)
-
-                   do k = 1, patch%nPatchPoints
-                      patch%viscousPenalty(k,:) = patch%viscousPenalty(k,:) +                &
-                           matmul(transpose(patch%firstPartialViscousJacobians(k,:,:)),      &
-                           patchAdjointVariables(k,:))
-                   end do
-
-                   SAFE_DEALLOCATE(patchAdjointVariables)
-
-                end if
-
-             end select !... type(patch)
-          end do !... j = 1, size(patchFactories)
-       end if !... allocated(patchFactories)
-
-    end do !... i = 1, nDimensions
-
-    SAFE_DEALLOCATE(temp)
-
-  end subroutine computeAdjointFarFieldViscousPenalty
-
 end module RhsHelperImpl
 
 subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchFactories)
@@ -394,7 +119,9 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
+  use Patch_mod, only : t_Patch
   use Patch_factory, only : t_PatchFactory
+  use FarFieldPatch_mod, only : t_FarFieldPatch
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -402,7 +129,7 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   use Region_enum, only : FORWARD
 
   ! <<< Private members >>>
-  use RhsHelperImpl, only : addDissipation, computeForwardFarFieldViscousPenalty
+  use RhsHelperImpl, only : addDissipation
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -422,7 +149,7 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
-  logical :: flag
+  class(t_Patch), pointer :: patch => null()
 
   call startTiming("computeRhsForward")
 
@@ -446,6 +173,19 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
 
+  ! Send viscous fluxes to far-field patches.
+  if (allocated(patchFactories)) then
+     do i = 1, size(patchFactories)
+        call patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%gridIndex /= grid%index) cycle
+        select type (patch)
+        class is (t_FarFieldPatch)
+           call patch%collect(fluxes2, patch%viscousFluxes)
+        end select
+     end do
+  end if
+
   ! Transform fluxes from Cartesian to contravariant form: `fluxes1` has the Cartesian form of
   ! total fluxes... upon return, `fluxes2` has the contravariant form.
   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
@@ -463,12 +203,6 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   ! Add dissipation if required.
   if (simulationFlags%dissipationOn)                                                         &
        call addDissipation(FORWARD, simulationFlags, solverOptions, grid, state)
-
-  ! Update penalties on patches that require grid-level derivatives.
-  flag = queryPatchTypeExists(patchFactories, 'SAT_FAR_FIELD', grid%index)
-  call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
-  if (flag) call computeForwardFarFieldViscousPenalty(simulationFlags,                       &
-       solverOptions, grid, state, patchFactories)
 
   call endTiming("computeRhsForward")
 
@@ -490,7 +224,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
   use Region_enum, only : ADJOINT
 
   ! <<< Private members >>>
-  use RhsHelperImpl, only : addDissipation, computeAdjointFarFieldViscousPenalty
+  use RhsHelperImpl, only : addDissipation
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -698,12 +432,6 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
   ! Add dissipation if required.
   if (simulationFlags%dissipationOn)                                                         &
        call addDissipation(ADJOINT, simulationFlags, solverOptions, grid, state)
-
-  ! Update penalties on patches that require grid-level derivatives.
-  flag = queryPatchTypeExists(patchFactories, 'SAT_FAR_FIELD', grid%index)
-  call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
-  if (flag) call computeAdjointFarFieldViscousPenalty(simulationFlags,                       &
-       solverOptions, grid, state, patchFactories)
 
   call endTiming("computeRhsAdjoint")
 

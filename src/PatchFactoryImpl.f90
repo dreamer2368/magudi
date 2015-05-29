@@ -464,7 +464,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   integer :: i, j, nDimensions, ierror
   logical :: flag
   class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: targetTemperature(:), gridNorm(:,:)
+  SCALAR_TYPE, allocatable :: gridNorm(:,:), targetTemperature(:), targetViscousFluxes(:,:,:)
 
   call startTiming("updatePatches")
 
@@ -527,14 +527,14 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
      SAFE_DEALLOCATE(targetTemperature)
 
-  end if
-
-  if (simulationFlags%viscosityOn) then
-
      flag = queryPatchTypeExists(patchFactories, 'SAT_FAR_FIELD', grid%index)
      call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
-     if (flag) call state%update(grid, simulationFlags, solverOptions,                       &
-          conservedVariables = state%targetState)
+     if (flag) then
+        allocate(targetViscousFluxes(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+        call state%update(grid, simulationFlags, solverOptions, state%targetState)
+        call computeCartesianViscousFluxes(nDimensions, state%velocity,                      &
+             state%stressTensor, state%heatFlux, targetViscousFluxes)
+     end if
 
      if (allocated(patchFactories)) then
         do i = 1, size(patchFactories)
@@ -545,13 +545,15 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
            select type (patch)
            class is (t_FarFieldPatch)
-              call patch%computeViscousJacobians(simulationFlags, solverOptions, grid, state)
+              call patch%collect(targetViscousFluxes, patch%viscousFluxes)
            end select
 
         end do
      end if
 
-  end if !... simulationFlags%viscosityOn
+     SAFE_DEALLOCATE(targetViscousFluxes)
+
+  end if
 
   call endTiming("updatePatches")
 
