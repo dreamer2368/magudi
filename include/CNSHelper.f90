@@ -283,13 +283,13 @@ module CNSHelper
   interface
 
      pure subroutine computeJacobianOfSource(nDimensions, nSpecies,                          &
-          conservedVariables, metrics, ratioOfSpecificHeats, combustion, jacobianOfSource,   &
+          conservedVariables, ratioOfSpecificHeats, combustion, jacobianOfSource,            &
           specificVolume, velocity, temperature, massFraction)
 
        use Combustion_mod, only : t_Combustion
 
        integer, intent(in) :: nDimensions, nSpecies
-       SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
+       SCALAR_TYPE, intent(in) :: conservedVariables(:)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: jacobianOfSource(:,:)
        type(t_Combustion), intent(in) :: combustion

@@ -2901,7 +2901,7 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies,      
 end subroutine computeSecondPartialViscousJacobian
 
 PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                               &
-     conservedVariables, metrics, ratioOfSpecificHeats, combustion, jacobianOfSource,        &
+     conservedVariables, ratioOfSpecificHeats, combustion, jacobianOfSource,                 &
      specificVolume, velocity, temperature, massFraction)
 
   ! <<< Derived types >>>
@@ -2909,7 +2909,7 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
 
   ! <<< Arguments >>>
   integer, intent(in) :: nDimensions, nSpecies
-  SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
+  SCALAR_TYPE, intent(in) :: conservedVariables(:)
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: jacobianOfSource(:,:)
   SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(:), temperature,             &
@@ -2928,7 +2928,6 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   assert(nSpecies >= 0)
   assert(combustion%nReactions == 1) ! Only implemented for single-step chemistry.
   assert(size(conservedVariables) == nDimensions + 2 + nSpecies)
-  assert(size(metrics) == size(velocity))
 
   ! Compute specific volume if it was not specified.
   if (present(specificVolume)) then
