@@ -27,22 +27,45 @@ def HyperbolicTangentSupport(x, xMin, xMax, steepness, rampFraction):
 
     return y - y.min()
 
+def findExtents(x, xMin, xMax):
+
+    # Fortran indexing
+    iMin = 1
+    iMax = x.size
+
+    while x[iMin-1] < xMin:
+        iMin += 1
+    iMin -= 1
+
+    while x[iMax-1] > xMax:
+        iMax -= 1
+    iMax += 1
+
+    assert iMin >= 1 and iMin <= x.size
+    assert iMax >= 1 and iMax <= x.size
+
+    return iMin, iMax
+
 if __name__ == '__main__':
 
     outputPrefix = 'WeiFreundSDML'
 
-    xMinTarget =   0.
-    xMaxTarget = 100.
-    yMinTarget = -75.
-    yMaxTarget = -65.
+    grid = PLOT3D.Grid()
+    grid.Import(outputPrefix + '.xyz')
+
+    yMinTarget = -80.
+    yMaxTarget = -60.
+    jMinTarget, jMaxTarget = findExtents(grid.X[0][0,:,0,1], yMinTarget, yMaxTarget)
+    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format('targetRegion', 'COST_TARGET', 1, 0, 1, -1, jMinTarget, jMaxTarget, 1, -1)
 
     xMinControl =  1.
     xMaxControl =  7.
     yMinControl = -3.
     yMaxControl =  3.
 
-    grid = PLOT3D.Grid()
-    grid.Import(outputPrefix + '.xyz')
+    iMinControl, iMaxControl = findExtents(grid.X[0][:,0,0,0], xMinControl, xMaxControl)
+    jMinControl, jMaxControl = findExtents(grid.X[0][0,:,0,1], yMinControl, yMaxControl)
+    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format('controlRegion', 'ACTUATOR', 1, 0, iMinControl, iMaxControl, jMinControl, jMaxControl, 1, -1)
 
     func = PLOT3D.Function()
     func.nComponents = 1
@@ -53,8 +76,6 @@ if __name__ == '__main__':
         func.F[l][:,:,:,0] = 1.
         for i in range(gridSize[0]):
             func.F[l][i,:,:,0] *= CubicBsplineSupport(grid.X[l][i,:,:,1], yMinTarget, yMaxTarget)
-        for j in range(gridSize[1]):
-            func.F[l][:,j,:,0] *= HyperbolicTangentSupport(grid.X[l][:,j,:,0], xMinTarget, xMaxTarget, 80., 0.2)
     func.Export(outputPrefix + '.target_mollifier.f')
 
     for l in range(grid.nGrids):

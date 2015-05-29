@@ -15,6 +15,7 @@ include_viscous_terms = true
 use_constant_CFL_mode = false
 use_target_state = true
 curvilinear_domain = false
+compute_time_average = false
 
 # Non-dimensional constants
 Reynolds_number = 714.2857142857143
@@ -23,7 +24,7 @@ viscosity_power_law_exponent = 0.
 bulk_viscosity_ratio = 0.
 
 # Discretization scheme
-defaults/discretization_scheme = "SBP 4-8"
+defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_step_size = 0.025
@@ -33,7 +34,7 @@ save_interval = 200
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.005
+dissipation_amount = 0.02
 
 # Sponge options
 defaults/sponge_amount = 0.2
@@ -53,3 +54,6 @@ patches/excitationSupport/amplitude = 0.008
 patches/excitationSupport/frequency = 0.128
 patches/excitationSupport/radius = 4.7434164902525691
 patches/excitationSupport/random_seed = 685785
+
+# Penalty parameters
+defaults/viscous_penalty_amount = 0.

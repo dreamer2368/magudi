@@ -1,16 +1,13 @@
 #!/bin/bash
-#MSUB -l nodes=8:ppn=8
-#MSUB -l walltime=10:00:00
-#MSUB -V
-#MSUB -j oe
-#MSUB -o log.o%j
+
+export MAGUDI_MPIRUN="mpiexec --bind-to-core --npernode 8 --n 256"
 
 function setOption() {
     if grep -q "$1" magudi.inp
     then
 	sed -i "s/^.*$1.*$/$1 = $2/g" magudi.inp
     else
-	cat "$1 = $2" >> magudi.inp
+	echo "$1 = $2" >> magudi.inp
     fi
 }
 
@@ -24,20 +21,20 @@ function toggleOption() {
     fi
 }
 
+rm -f WeiFreundSDML* Bootstrap/WeiFreundSDML*
 python generateMesh.py
-python generateInitialCondition.py
 python generateTargetState.py
-cp WeiFreundSDML.xyz WeiFreundSDML.ic.q WeiFreundSDML.target.q Bootstrap
+python generateInitialCondition.py
+cp WeiFreundSDML.xyz WeiFreundSDML.target.q WeiFreundSDML.ic.q Bootstrap
 cd Bootstrap
-srun ../magudi
+$MAGUDI_MPIRUN ../magudi
 cp WeiFreundSDML-00033600.q ../WeiFreundSDML.ic.q
 cd ..
 setOption "disable_adjoint_solver" true
 setOption "compute_time_average" true
-srun ./magudi
+$MAGUDI_MPIRUN ./magudi
 python generateMeanPressure.py
 python generateMollifiers.py
 toggleOption "disable_adjoint_solver"
 toggleOption "compute_time_average"
-setOption "check_solution_limits" false
-srun ./magudi
+$MAGUDI_MPIRUN ./magudi
