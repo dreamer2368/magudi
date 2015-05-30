@@ -107,5 +107,6 @@ patches/localizedIgnition/time_duration = 0.1
 disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "TEMPERATURE"
+controller_type = "FLAME_IGNITION"
 use_continuous_adjoint = true
 number_of_control_iterations = 0

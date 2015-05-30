@@ -1,5 +1,49 @@
 #include "config.h"
 
+module FlameTemperatureImpl
+
+  implicit none
+  public
+
+contains
+
+  subroutine computeWeight(nGridPoints, massFraction, combustion, W)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Combustion_mod, only : t_Combustion
+
+    implicit none
+
+    ! <<< Arguments >>>
+    integer, intent(in) :: nGridPoints
+    type(t_Combustion), intent(in) :: combustion
+    SCALAR_TYPE, intent(in) :: massFraction(:,:)
+    SCALAR_TYPE, intent(out) :: W(nGridPoints)
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i
+    SCALAR_TYPE :: equivalenceRatio, YF, YO
+
+    assert(size(W) == nGridPoints)
+    assert(size(massFraction,1) == nGridPoints)
+
+    do i = 1, nGridPoints
+       YF = max(massFraction(i, combustion%H2), 0.0_wp)
+       YF = min(YF, 1.0_wp)
+       YO = max(massFraction(i, combustion%O2), 0.0_wp)
+       YO = min(YO, 1.0_wp)
+       equivalenceRatio = combustion%stoichiometricRatio * YF / (YO + epsilon(0.0_wp))
+       W(i) = min(equivalenceRatio, 1.0_wp / (equivalenceRatio + epsilon(0.0_wp)) )
+    end do
+
+  end subroutine computeWeight
+
+end module FlameTemperatureImpl
+
 subroutine setupFlameTemperature(this, region)
 
   ! <<< External modules >>>
@@ -86,6 +130,9 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   use Region_mod, only : t_Region
   use FlameTemperature_mod, only : t_FlameTemperature
 
+  ! <<< Private members >>>
+  use FlameTemperatureImpl, only : computeWeight
+
   ! <<< Arguments >>>
   class(t_FlameTemperature) :: this
   class(t_Region), intent(in) :: region
@@ -96,14 +143,12 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
-  SCALAR_TYPE, allocatable :: F(:,:)
+  SCALAR_TYPE, allocatable :: F(:,:), W(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
   assert(region%solverOptions%nSpecies > 0)
-
-  call dynamicTargetMollifier(region, 'BURN_REGION')
 
   instantaneousFunctional = 0.0_wp
 
@@ -125,9 +170,13 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
      assert(size(this%data_(j)%meanTemperature, 2) == 1)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
+     allocate(W(region%grids(i)%nGridPoints))
+     call computeWeight(region%grids(i)%nGridPoints, region%states(i)%massFraction,          &
+          region%states(i)%combustion, W)
      F = region%states(i)%temperature - this%data_(j)%meanTemperature(1,1)
      instantaneousFunctional = instantaneousFunctional +                                     &
-          region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
+          region%grids(i)%computeInnerProduct(F, F, W)
+     SAFE_DEALLOCATE(W)
      SAFE_DEALLOCATE(F)
 
   end do
@@ -156,6 +205,9 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use SimulationFlags_mod, only : t_SimulationFlags
 
+  ! <<< Private members >>>
+  use FlameTemperatureImpl, only : computeWeight
+
   implicit none
 
   ! <<< Arguments >>>
@@ -169,17 +221,18 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: meanTemperature(:)
+  SCALAR_TYPE, allocatable :: meanTemperature(:), W(:)
   SCALAR_TYPE :: F
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  !call dynamicTargetMollifier(region, 'BURN_REGION')
-
   allocate(meanTemperature(patch%nPatchPoints))
   i = grid%index
   call patch%collect(this%data_(i)%meanTemperature(:,1), meanTemperature)
+
+  allocate(W(grid%nGridPoints))
+  call computeWeight(grid%nGridPoints, state%massFraction, state%combustion, W)
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -192,8 +245,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
                 (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
-           F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
-                (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
+           F = - 2.0_wp * W(gridIndex) * (solverOptions%ratioOfSpecificHeats - 1.0_wp) *     &
                 (state%temperature(gridIndex, 1) - meanTemperature(patchIndex))
 
            patch%adjointForcing(patchIndex,nDimensions+2) = F
@@ -207,6 +259,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
   SAFE_DEALLOCATE(meanTemperature)
+  SAFE_DEALLOCATE(W)
 
 end subroutine computeFlameTemperatureAdjointForcing
 
