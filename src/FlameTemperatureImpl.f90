@@ -7,38 +7,84 @@ module FlameTemperatureImpl
 
 contains
 
-  subroutine computeWeight(nGridPoints, massFraction, combustion, W)
+  subroutine computeWeight(grid, patch, combustion, massFraction, W)
 
     ! <<< External modules >>>
     use MPI
 
     ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+    use CostTargetPatch_mod, only : t_CostTargetPatch
     use Combustion_mod, only : t_Combustion
 
     implicit none
 
     ! <<< Arguments >>>
-    integer, intent(in) :: nGridPoints
+    class(t_Grid), intent(in) :: grid
+    class(t_CostTargetPatch), intent(in) :: patch
     type(t_Combustion), intent(in) :: combustion
     SCALAR_TYPE, intent(in) :: massFraction(:,:)
-    SCALAR_TYPE, intent(out) :: W(nGridPoints)
+    SCALAR_TYPE, intent(out) :: W(:)
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i
+    integer :: i, j, k, gridIndex, ierror
     SCALAR_TYPE :: equivalenceRatio, YF, YO
+    SCALAR_TYPE, allocatable :: mask(:)
+    real(wp) :: weightNorm 
+    logical :: hasNegativeWeight
+    character(len = STRING_LENGTH) :: str
 
-    assert(size(W) == nGridPoints)
-    assert(size(massFraction,1) == nGridPoints)
+    assert(size(W) == grid%nGridPoints)
+    assert(size(massFraction,1) == grid%nGridPoints)
 
-    do i = 1, nGridPoints
-       YF = max(massFraction(i, combustion%H2), 0.0_wp)
-       YF = min(YF, 1.0_wp)
-       YO = max(massFraction(i, combustion%O2), 0.0_wp)
-       YO = min(YO, 1.0_wp)
-       equivalenceRatio = combustion%stoichiometricRatio * YF / (YO + epsilon(0.0_wp))
-       W(i) = min(equivalenceRatio, 1.0_wp / (equivalenceRatio + epsilon(0.0_wp)) )
-    end do
+    allocate(mask(grid%nGridPoints))
+    mask = 0.0_wp
+
+    W = 0.0_wp
+
+    do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+       do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+          do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+             gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                  &
+                  (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                    &
+                  (k - 1 - patch%gridOffset(3)))
+             if (grid%iblank(gridIndex) == 0) cycle
+
+              mask(i - grid%offset(1) + grid%localSize(1) * (j - 1 - grid%offset(2) +        &
+                   grid%localSize(2) * (k - 1 - grid%offset(3)))) = 1.0_wp
+
+              YF = max(massFraction(gridIndex, combustion%H2), 0.0_wp)
+              YF = min(YF, 1.0_wp)
+              YO = max(massFraction(gridIndex, combustion%O2), 0.0_wp)
+              YO = min(YO, 1.0_wp)
+              equivalenceRatio = combustion%stoichiometricRatio * YF /                       &
+                   (YO + epsilon(0.0_wp))
+              W(gridIndex) = min(equivalenceRatio, 1.0_wp /                                  &
+                   (equivalenceRatio + epsilon(0.0_wp)) )
+
+          end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+       end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+    end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+
+    hasNegativeWeight = any(real(W, wp) < 0.0_wp)
+    call MPI_Allreduce(MPI_IN_PLACE, hasNegativeWeight, 1, MPI_LOGICAL, MPI_LOR, grid%comm,  &
+         ierror)
+    if (hasNegativeWeight) then
+       write(str, '(A)') "Target weight is not non-negative!"
+       call gracefulExit(grid%comm, str)
+    end if
+
+    weightNorm = grid%computeInnerProduct(mask, W)
+
+    call MPI_Allreduce(MPI_IN_PLACE, weightNorm, 1, REAL_TYPE_MPI, MPI_SUM, grid%comm,       &
+         ierror)
+
+    if (weightNorm <= 0.0_wp)                                                                &
+         call issueWarning(grid%comm,                                                        &
+         "Target weight is trivial! Is a cost target patch present?")
+
+    W = W / weightNorm
 
   end subroutine computeWeight
 
@@ -129,6 +175,8 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use FlameTemperature_mod, only : t_FlameTemperature
+  use Patch_mod, only : t_Patch
+  use CostTargetPatch_mod, only : t_CostTargetPatch
 
   ! <<< Private members >>>
   use FlameTemperatureImpl, only : computeWeight
@@ -144,9 +192,12 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
   SCALAR_TYPE, allocatable :: F(:,:), W(:)
+  class(t_Patch), pointer :: patch => null()
+  class(t_CostTargetPatch), pointer :: costTargetPatch => null()
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
+  assert(allocated(region%patchFactories))
   assert(size(region%grids) == size(region%states))
   assert(region%solverOptions%nSpecies > 0)
 
@@ -163,6 +214,29 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
      assert(size(region%states(i)%massFraction, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%massFraction, 2) == region%solverOptions%nSpecies)
 
+     allocate(W(region%grids(i)%nGridPoints))
+
+     do j = 1, size(region%patchFactories)
+
+        call region%patchFactories(j)%connect(patch)
+        if (.not. associated(patch)) cycle
+
+        nullify(costTargetPatch)
+        select type (patch)
+        type is (t_CostTargetPatch)
+           costTargetPatch => patch
+        end select
+
+        if (.not. associated(costTargetPatch)) cycle
+
+        if (costTargetPatch%gridIndex /= region%grids(i)%index .or.                          &
+             costTargetPatch%nPatchPoints <= 0) cycle
+
+        call computeWeight(region%grids(i), costTargetPatch, region%states(i)%combustion,    &
+             region%states(i)%massFraction, W)
+
+     end do !... j = 1, size(region%patchFactories)
+
      j = region%grids(i)%index
 
      assert(associated(this%data_(j)%meanTemperature))
@@ -170,16 +244,13 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
      assert(size(this%data_(j)%meanTemperature, 2) == 1)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
-     allocate(W(region%grids(i)%nGridPoints))
-     call computeWeight(region%grids(i)%nGridPoints, region%states(i)%massFraction,          &
-          region%states(i)%combustion, W)
      F = region%states(i)%temperature - this%data_(j)%meanTemperature(1,1)
      instantaneousFunctional = instantaneousFunctional +                                     &
           region%grids(i)%computeInnerProduct(F, F, W)
      SAFE_DEALLOCATE(W)
      SAFE_DEALLOCATE(F)
 
-  end do
+  end do !... i = 1, size(region%grids)
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
        call MPI_Allreduce(MPI_IN_PLACE, instantaneousFunctional, 1,                          &
@@ -232,7 +303,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   call patch%collect(this%data_(i)%meanTemperature(:,1), meanTemperature)
 
   allocate(W(grid%nGridPoints))
-  call computeWeight(grid%nGridPoints, state%massFraction, state%combustion, W)
+  call computeWeight(grid, patch, state%combustion, state%massFraction, W)
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
