@@ -180,7 +180,7 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
   real(SCALAR_KIND) :: excitationAmount
   real(SCALAR_KIND), allocatable :: temporalFunctions(:,:)
-  SCALAR_TYPE, allocatable :: temp(:,:)
+  SCALAR_TYPE, allocatable :: temp(:,:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -196,15 +196,27 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
 
   if (this%nModes > 0) then
      allocate(temporalFunctions(this%nModes, 4))
-     allocate(temp(this%nModes, 4))
+     do i = 1, this%nModes
+        temporalFunctions(i,1) = sin(this%angularFrequencies(i) * this%speed(1) * state%time)
+        temporalFunctions(i,2) = cos(this%angularFrequencies(i) * this%speed(1) * state%time)
+        temporalFunctions(i,3) = sin(this%angularFrequencies(i) * this%speed(2) * state%time)
+        temporalFunctions(i,4) = cos(this%angularFrequencies(i) * this%speed(2) * state%time)
+     end do
   end if
 
-  do i = 1, this%nModes
-     temporalFunctions(i,1) = sin(this%angularFrequencies(i) * this%speed(1) * state%time)
-     temporalFunctions(i,2) = cos(this%angularFrequencies(i) * this%speed(1) * state%time)
-     temporalFunctions(i,3) = sin(this%angularFrequencies(i) * this%speed(2) * state%time)
-     temporalFunctions(i,4) = cos(this%angularFrequencies(i) * this%speed(2) * state%time)
-  end do
+  if (this%nPatchPoints > 0 .and. this%nModes > 0) then
+     allocate(temp(this%nPatchPoints, this%nModes, 4))
+     do i = 1, this%nModes
+        temp(:,i,1) = this%spatialFunctionsCache(:,i,1) * temporalFunctions(i,2) -           &
+             this%spatialFunctionsCache(:,i,2) * temporalFunctions(i,1)
+        temp(:,i,2) = this%spatialFunctionsCache(:,i,2) * temporalFunctions(i,2) +           &
+             this%spatialFunctionsCache(:,i,1) * temporalFunctions(i,1)
+        temp(:,i,3) = this%spatialFunctionsCache(:,i,3) * temporalFunctions(i,4) -           &
+             this%spatialFunctionsCache(:,i,4) * temporalFunctions(i,3)
+        temp(:,i,4) = this%spatialFunctionsCache(:,i,4) * temporalFunctions(i,4) +           &
+             this%spatialFunctionsCache(:,i,3) * temporalFunctions(i,3)
+     end do
+  end if
 
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -219,23 +231,14 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
 
            excitationAmount = this%strength(patchIndex)
 
-           temp(:,1) = this%spatialFunctionsCache(patchIndex,:,1) * temporalFunctions(:,2) - &
-                this%spatialFunctionsCache(patchIndex,:,2) * temporalFunctions(:,1)
-           temp(:,2) = this%spatialFunctionsCache(patchIndex,:,2) * temporalFunctions(:,2) + &
-                this%spatialFunctionsCache(patchIndex,:,1) * temporalFunctions(:,1)
-           temp(:,3) = this%spatialFunctionsCache(patchIndex,:,3) * temporalFunctions(:,4) - &
-                this%spatialFunctionsCache(patchIndex,:,4) * temporalFunctions(:,3)
-           temp(:,4) = this%spatialFunctionsCache(patchIndex,:,4) * temporalFunctions(:,4) + &
-                this%spatialFunctionsCache(patchIndex,:,3) * temporalFunctions(:,3)
-
            state%rightHandSide(gridIndex, 2) = state%rightHandSide(gridIndex, 2) +           &
-                excitationAmount * sum(temp(:,1) * (this%angularFrequencies * temp(:,4)      &
-                - 2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 2) -           &
-                this%origin(2)) * temp(:,3)))
+                excitationAmount * sum(temp(patchIndex,:,1) * (this%angularFrequencies *     &
+                temp(patchIndex,:,4) - 2.0_wp * this%gaussianFactor *                        &
+                (grid%coordinates(gridIndex, 2) - this%origin(2)) * temp(patchIndex,:,3)))
            state%rightHandSide(gridIndex, 3) = state%rightHandSide(gridIndex, 3) +           &
-                excitationAmount * sum(temp(:,3) * (this%angularFrequencies * temp(:,2) -    &
-                2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 1) -             &
-                this%origin(1)) * temp(:,1)))
+                excitationAmount * sum(temp(patchIndex,:,3) * (this%angularFrequencies *     &
+                temp(patchIndex,:,2) - 2.0_wp * this%gaussianFactor *                        &
+                (grid%coordinates(gridIndex, 1) - this%origin(1)) * temp(patchIndex,:,1)))
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
