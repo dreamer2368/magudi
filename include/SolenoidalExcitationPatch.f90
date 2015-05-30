@@ -17,7 +17,7 @@ module SolenoidalExcitationPatch_mod
 
      real(real64), allocatable :: angularFrequencies(:), phases(:,:)
 
-     SCALAR_TYPE, allocatable :: strength(:)
+     SCALAR_TYPE, allocatable :: strength(:), spatialFunctionsCache(:,:,:)
 
    contains
 
