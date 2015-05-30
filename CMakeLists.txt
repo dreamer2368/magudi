@@ -173,12 +173,16 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/UniformCheckpointerImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ThermalActuator.f90
   ${PROJECT_SOURCE_DIR}/src/ThermalActuatorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/FlameIgnition.f90
+  ${PROJECT_SOURCE_DIR}/src/FlameIgnitionImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PressureDrag.f90
   ${PROJECT_SOURCE_DIR}/src/PressureDragImpl.f90
   ${PROJECT_SOURCE_DIR}/include/DragForce.f90
   ${PROJECT_SOURCE_DIR}/src/DragForceImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/FlameTemperature.f90
+  ${PROJECT_SOURCE_DIR}/src/FlameTemperatureImpl.f90
   ${PROJECT_SOURCE_DIR}/include/UniformMap.f90
   ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
 

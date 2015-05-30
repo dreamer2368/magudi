@@ -7,6 +7,7 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
   use Functional_mod, only : t_Functional
   use PressureDrag_mod, only : t_PressureDrag
   use AcousticNoise_mod, only : t_AcousticNoise
+  use FlameTemperature_mod, only : t_FlameTemperature
   use Functional_factory, only : t_FunctionalFactory
 
   implicit none
@@ -41,6 +42,9 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
 
      case ('DRAG')
         allocate(t_DragForce :: this%functional)
+
+     case ('TEMPERATURE')
+        allocate(t_FlameTemperature :: this%functional)
 
      case default
         this%functionalType = ""
