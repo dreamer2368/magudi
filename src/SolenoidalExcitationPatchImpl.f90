@@ -32,7 +32,7 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
   real(real64), parameter :: pi = 4.0_real64 * atan(1.0_real64)
   character(len = 3), parameter :: directions = "xyz"
   character(len = STRING_LENGTH) :: key
-  integer :: i, j, k, gridIndex, patchIndex, nDimensions, n, seed, ierror
+  integer :: i, j, k, l, gridIndex, patchIndex, nDimensions, n, seed, ierror
   integer, allocatable :: seed_(:)
 
   nDimensions = grid%nDimensions
@@ -91,6 +91,9 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
      allocate(this%strength(this%nPatchPoints))
      this%strength = 0.0_wp
 
+     if (this%nModes > 0)                                                                    &
+          allocate(this%spatialFunctionsCache(this%nPatchPoints, this%nModes, 4))
+
      do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
         do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
            do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
@@ -101,8 +104,25 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
               patchIndex = i - this%offset(1) + this%localSize(1) *                          &
                    (j - 1 - this%offset(2) + this%localSize(2) *                             &
                    (k - 1 - this%offset(3)))
+
               this%strength(patchIndex) = this%amplitude * exp(- this%gaussianFactor *       &
                    sum((grid%coordinates(gridIndex,1:2) - this%origin) ** 2))
+
+              do l = 1, this%nModes
+                 this%spatialFunctionsCache(patchIndex,l,1) =                                &
+                      sin(this%angularFrequencies(l) * (grid%coordinates(gridIndex,1) -      &
+                      this%origin(1)) + this%phases(l,1))
+                 this%spatialFunctionsCache(patchIndex,l,2) =                                &
+                      cos(this%angularFrequencies(l) * (grid%coordinates(gridIndex,1) -      &
+                      this%origin(1)) + this%phases(l,1))
+                 this%spatialFunctionsCache(patchIndex,l,3) =                                &
+                      sin(this%angularFrequencies(l) * (grid%coordinates(gridIndex,2) -      &
+                      this%origin(2)) + this%phases(l,2))
+                 this%spatialFunctionsCache(patchIndex,l,4) =                                &
+                      cos(this%angularFrequencies(l) * (grid%coordinates(gridIndex,2) -      &
+                      this%origin(2)) + this%phases(l,2))
+              end do
+
            end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
         end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
      end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
@@ -126,6 +146,7 @@ subroutine cleanupSolenoidalExcitationPatch(this)
   SAFE_DEALLOCATE(this%angularFrequencies)
   SAFE_DEALLOCATE(this%phases)
   SAFE_DEALLOCATE(this%strength)
+  SAFE_DEALLOCATE(this%spatialFunctionsCache)
 
 end subroutine cleanupSolenoidalExcitationPatch
 
@@ -156,9 +177,10 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, nDimensions, gridIndex, patchIndex
+  integer :: i, j, k, nDimensions, gridIndex, patchIndex
   real(SCALAR_KIND) :: excitationAmount
-  SCALAR_TYPE :: phaseAngles(2), temp(4)
+  real(SCALAR_KIND), allocatable :: temporalFunctions(:,:)
+  SCALAR_TYPE, allocatable :: temp(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -172,6 +194,18 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (2, 3))
 
+  if (this%nModes > 0) then
+     allocate(temporalFunctions(this%nModes, 4))
+     allocate(temp(this%nModes, 4))
+  end if
+
+  do i = 1, this%nModes
+     temporalFunctions(i,1) = sin(this%angularFrequencies(i) * this%speed(1) * state%time)
+     temporalFunctions(i,2) = cos(this%angularFrequencies(i) * this%speed(1) * state%time)
+     temporalFunctions(i,3) = sin(this%angularFrequencies(i) * this%speed(2) * state%time)
+     temporalFunctions(i,4) = cos(this%angularFrequencies(i) * this%speed(2) * state%time)
+  end do
+
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
         do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
@@ -184,27 +218,31 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
                 (k - 1 - this%offset(3)))
 
            excitationAmount = this%strength(patchIndex)
-           phaseAngles = grid%coordinates(gridIndex,1:2) -                                   &
-                this%origin - this%speed * state%time
 
-           do l = 1, this%nModes
-              temp(1) = sin(this%angularFrequencies(l) * phaseAngles(1) + this%phases(l,1))
-              temp(2) = cos(this%angularFrequencies(l) * phaseAngles(1) + this%phases(l,1))
-              temp(3) = sin(this%angularFrequencies(l) * phaseAngles(2) + this%phases(l,2))
-              temp(4) = cos(this%angularFrequencies(l) * phaseAngles(2) + this%phases(l,2))
-              state%rightHandSide(gridIndex, 2) = state%rightHandSide(gridIndex, 2) +        &
-                   excitationAmount * temp(1) * (this%angularFrequencies(l) * temp(4)        &
-                   - 2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 2) -        &
-                   this%origin(2)) * temp(3))
-              state%rightHandSide(gridIndex, 3) = state%rightHandSide(gridIndex, 3) +        &
-                   excitationAmount * temp(3) * (this%angularFrequencies(l) * temp(2) -      &
-                   2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 1) -          &
-                   this%origin(1)) * temp(1))
-           end do
+           temp(:,1) = this%spatialFunctionsCache(patchIndex,:,1) * temporalFunctions(:,2) - &
+                this%spatialFunctionsCache(patchIndex,:,2) * temporalFunctions(:,1)
+           temp(:,2) = this%spatialFunctionsCache(patchIndex,:,2) * temporalFunctions(:,2) + &
+                this%spatialFunctionsCache(patchIndex,:,1) * temporalFunctions(:,1)
+           temp(:,3) = this%spatialFunctionsCache(patchIndex,:,3) * temporalFunctions(:,4) - &
+                this%spatialFunctionsCache(patchIndex,:,4) * temporalFunctions(:,3)
+           temp(:,4) = this%spatialFunctionsCache(patchIndex,:,4) * temporalFunctions(:,4) + &
+                this%spatialFunctionsCache(patchIndex,:,3) * temporalFunctions(:,3)
+
+           state%rightHandSide(gridIndex, 2) = state%rightHandSide(gridIndex, 2) +           &
+                excitationAmount * sum(temp(:,1) * (this%angularFrequencies * temp(:,4)      &
+                - 2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 2) -           &
+                this%origin(2)) * temp(:,3)))
+           state%rightHandSide(gridIndex, 3) = state%rightHandSide(gridIndex, 3) +           &
+                excitationAmount * sum(temp(:,3) * (this%angularFrequencies * temp(:,2) -    &
+                2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 1) -             &
+                this%origin(1)) * temp(:,1)))
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
   end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+
+  SAFE_DEALLOCATE(temp)
+  SAFE_DEALLOCATE(temporalFunctions)
 
   call endTiming("addSolenoidalExcitation")
 
