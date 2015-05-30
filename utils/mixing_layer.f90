@@ -308,7 +308,7 @@ contains
     character(len = 22), allocatable, dimension(:) :: name,type
 
     ! Number of BC
-    nbc = 10
+    nbc = 12
 
     ! Allocate BC
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
@@ -431,10 +431,34 @@ contains
     name   (bc) = 'localizedIgnition'
     type   (bc) = 'GAUSSIAN_IGNITION'
     normDir(bc) =  0
-    imin   (bc) =  1
-    imax   (bc) =  -1
-    jmin   (bc) =  1
-    jmax   (bc) = -1
+    imin   (bc) =  i1
+    imax   (bc) =  i2
+    jmin   (bc) =  j1
+    jmax   (bc) =  j2
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
+    ! BC 11
+    bc = 11
+    name   (bc) = 'targetRegion'
+    type   (bc) = 'COST_TARGET'
+    normDir(bc) =  0
+    imin   (bc) =  i1
+    imax   (bc) =  i2
+    jmin   (bc) =  j1
+    jmax   (bc) =  j2
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
+    ! BC 12
+    bc = 12
+    name   (bc) = 'controlRegion'
+    type   (bc) = 'ACTUATOR'
+    normDir(bc) =  0
+    imin   (bc) =  i1
+    imax   (bc) =  i2
+    jmin   (bc) =  j1
+    jmax   (bc) =  j2
     kmin   (bc) =  1
     kmax   (bc) = -1
 

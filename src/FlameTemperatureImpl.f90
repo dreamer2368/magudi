@@ -25,6 +25,8 @@ subroutine setupFlameTemperature(this, region)
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
+  assert(region%solverOptions%nSpecies > 0)
+  assert(region%states(1)%combustion%nReactions > 0)
 
   call this%cleanup()
 
@@ -99,18 +101,22 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
+  assert(region%solverOptions%nSpecies > 0)
+
+  call dynamicTargetMollifier(region, 'BURN_REGION')
 
   instantaneousFunctional = 0.0_wp
 
   do i = 1, size(region%grids)
 
+     assert(region%states(i)%combustion%nReactions > 0)
      assert(region%grids(i)%nGridPoints > 0)
-     assert(allocated(region%grids(i)%targetMollifier))
-     assert(size(region%grids(i)%targetMollifier, 1) == region%grids(i)%nGridPoints)
-     assert(size(region%grids(i)%targetMollifier, 2) == 1)
-     assert(allocated(region%states(i)%pressure))
-     assert(size(region%states(i)%pressure, 1) == region%grids(i)%nGridPoints)
-     assert(size(region%states(i)%pressure, 2) == 1)
+     assert(allocated(region%states(i)%temperature))
+     assert(size(region%states(i)%temperature, 1) == region%grids(i)%nGridPoints)
+     assert(size(region%states(i)%temperature, 2) == 1)
+     assert(allocated(region%states(i)%massFraction))
+     assert(size(region%states(i)%massFraction, 1) == region%grids(i)%nGridPoints)
+     assert(size(region%states(i)%massFraction, 2) == region%solverOptions%nSpecies)
 
      j = region%grids(i)%index
 
@@ -119,7 +125,7 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
      assert(size(this%data_(j)%meanTemperature, 2) == 1)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
-     F = region%states(i)%pressure - this%data_(j)%meanTemperature
+     F = region%states(i)%temperature - this%data_(j)%meanTemperature(1,1)
      instantaneousFunctional = instantaneousFunctional +                                     &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
      SAFE_DEALLOCATE(F)
@@ -169,6 +175,8 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
+  !call dynamicTargetMollifier(region, 'BURN_REGION')
+
   allocate(meanTemperature(patch%nPatchPoints))
   i = grid%index
   call patch%collect(this%data_(i)%meanTemperature(:,1), meanTemperature)
@@ -186,7 +194,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
                 (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
-                (state%pressure(gridIndex, 1) - meanTemperature(patchIndex))
+                (state%temperature(gridIndex, 1) - meanTemperature(patchIndex))
 
            patch%adjointForcing(patchIndex,nDimensions+2) = F
            patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &

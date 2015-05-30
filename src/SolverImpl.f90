@@ -72,9 +72,9 @@ contains
 
           select case (mode)
           case (FORWARD)
-             write(str_, '(A,E13.6)') ", cost = ", instantaneousFunctional
+             write(str_, '(A,F12.4)') ", cost = ", instantaneousFunctional
           case (ADJOINT)
-             write(str_, '(A,E13.6)') ", gradient = ", instantaneousFunctional
+             write(str_, '(A,F12.4)') ", gradient = ", instantaneousFunctional
           end select
 
           str = trim(str) // trim(str_)

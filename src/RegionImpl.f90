@@ -1460,3 +1460,68 @@ subroutine saveSpongeStrength(this, filename)
   SAFE_DEALLOCATE(data)
 
 end subroutine saveSpongeStrength
+
+subroutine dynamicTargetMollifier(this, type)
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+
+  ! <<< Private members >>>
+  use RegionImpl
+
+  ! <<< Internal modules >>>
+  use ErrorHandler, only : gracefulExit, issueWarning
+
+  ! <<< Arguments >>>
+  class(t_Region) :: this
+  character(len = *), intent(in) :: type
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j
+  SCALAR_TYPE :: equivalenceRatio, YF, YO
+  character(len = STRING_LENGTH) :: str
+
+  assert(allocated(this%grids))
+
+  do i = 1, size(this%grids)
+
+     assert(allocated(this%grids(i)%targetMollifier))
+
+     select case (trim(type))
+
+     case ('BURN_REGION')
+
+        assert(this%solverOptions%nSpecies > 0)
+        assert(this%states(i)%combustion%nReactions > 0)
+        assert(this%grids(i)%nGridPoints > 0)
+        assert(allocated(this%states(i)%temperature))
+        assert(size(this%states(i)%temperature, 1) == this%grids(i)%nGridPoints)
+        assert(size(this%states(i)%temperature, 2) == 1)
+        assert(allocated(this%states(i)%massFraction))
+        assert(size(this%states(i)%massFraction, 1) == this%grids(i)%nGridPoints)
+        assert(size(this%states(i)%massFraction, 2) == this%solverOptions%nSpecies)
+
+        do j = 1, this%grids(i)%nGridPoints
+           YF = max(this%states(i)%massFraction(j, this%states(i)%combustion%H2), 0.0_wp)
+           YF = min(YF, 1.0_wp)
+           YO = max(this%states(i)%massFraction(j, this%states(i)%combustion%O2), 0.0_wp)
+           YO = min(YO, 1.0_wp)
+           equivalenceRatio = this%states(i)%combustion%stoichiometricRatio * YF /           &
+                (YO + epsilon(0.0_wp))
+           this%grids(i)%targetMollifier(j,1) = min(equivalenceRatio, 1.0_wp /               &
+                (equivalenceRatio + epsilon(0.0_wp)) )
+        end do
+
+     case default
+
+        write(str, '(A)') "Unknown target mollifier type!"
+        call gracefulExit(this%grids(i)%comm, str)
+       
+     end select
+
+  end do
+
+  call normalizeTargetMollifier(this)
+
+end subroutine dynamicTargetMollifier

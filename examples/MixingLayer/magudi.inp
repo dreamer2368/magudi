@@ -8,8 +8,6 @@ initial_condition_file = "MixingLayer.ic.q"
 boundary_condition_file = "bc.dat"
 target_state_file = "MixingLayer.target.q"
 decomposition_map_file = "decomp.map"
-#control_mollifier_file = "AcousticMonopole.control_mollifier.f"
-#target_mollifier_file = "AcousticMonopole.target_mollifier.f"
 
 # Grid information
 nx = 513
@@ -106,7 +104,8 @@ patches/localizedIgnition/time_start = 0.6
 patches/localizedIgnition/time_duration = 0.1
 
 # Adjoint optimization flags
-disable_adjoint_solver = true
+disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "TEMPERATURE"
-use_continuous_adjoint = false
+use_continuous_adjoint = true
+number_of_control_iterations = 0
