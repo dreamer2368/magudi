@@ -37,17 +37,18 @@ program data2ensight
 
   ! EnSight stuff
   integer :: num, numFiles
-  integer :: i, j, k, nx, ny, nz, nspec, ndim, npart, reclength
+  integer :: i, j, k, nx, ny, nz, nspec, ndim, npart, reclength, ii
   integer :: startIter, stopIter, skipIter, iter, var, nvar
-  real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,rbuffer
+  real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,iblank,rbuffer
   real(KIND=4) :: xmin, xmax, ymin, ymax, zmin, zmax
+  real(KIND=8) :: phi
   real(KIND=8), Dimension(:), Allocatable :: time
-  character(LEN=2)  :: ib
   character(LEN=80), dimension(:), Allocatable :: names
   character(LEN=80) :: binary_form
   character(LEN=80) :: file_description1,file_description2
   character(LEN=80) :: node_id,element_id
   character(LEN=80) :: part,description_part,cblock,extents,cbuffer
+  logical :: use_iblank
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -68,15 +69,7 @@ program data2ensight
   read "(i6)", stopIter
   write (*,"(a13)",advance="no")  " skip iter "
   read "(i6)", skipIter
-  write (*,"(a14)",advance="no")  " use iblank "
-  read "(a)", ib
   directory='ensight-3D'
-
-  ! Check for errors.
-  if ((ib .NE. 'y') .AND. (ib .NE. 'n')) then
-     write (*,'(A)') 'Invalid value for IBLANK: use either "y" (yes) or "n" (no)'
-     stop
-  end if
 
   ! Set the grid name.
   grid_name = trim(prefix)//'.xyz'
@@ -130,7 +123,7 @@ program data2ensight
   end do
 
   ! Assign variable names.
-  allocate(names(nvar))
+  allocate(names(nvar+2))
   select case (ndim)
   case (2)
      names(1) = 'RHO'
@@ -153,6 +146,14 @@ program data2ensight
      names(ndim+4) = 'O2'
   end select
 
+  ! Include temperature and cost function weight
+  names(nvar+1) = 'Temperature'
+  names(nvar+2) = 'CostWeight'
+
+  ! Check if iblank is used
+  use_iblank = .false.
+  if (size(region%grids(1)%iblank) > 0) use_iblank = .true.
+
   ! Create the EnSight directory
   !call system("mkdir -p "//trim(directory))
 
@@ -165,10 +166,11 @@ program data2ensight
   ny = region%grids(1)%globalSize(2)
   nz = region%grids(1)%globalSize(3)
 
-  ! Store the coordinates in 3D
-  allocate(X(nx,ny,nz))
-  allocate(Y(nx,ny,nz))
-  allocate(Z(nx,ny,nz))
+  ! Store the coordinates and iblank in 3D
+  allocate(x(nx,ny,nz))
+  allocate(y(nx,ny,nz))
+  allocate(z(nx,ny,nz))
+  if (use_iblank) allocate(iblank(nx,ny,nz))
   do k=1,nz
      do j=1,ny
         do i=1,nx
@@ -179,6 +181,7 @@ program data2ensight
            else
               z(i,j,k) = 0.0_4
            end if
+           if (use_iblank) iblank(i,j,k) = real(region%grids(1)%iblank(i+nx*(j-1+ny*(k-1))),4)
         end do
      end do
   end do
@@ -199,7 +202,7 @@ program data2ensight
   part             ='part'
   npart            =1
   write(description_part,'(A)') 'Grid'
-  if (ib .eq. 'y') then
+  if (use_iblank) then
      cblock        ='block iblanked'
   else
      cblock        ='block'
@@ -207,7 +210,7 @@ program data2ensight
   extents          ='extents'
 
   ! Size of file.
-  if (ib .EQ. 'y') then
+  if (use_iblank) then
      reclength=80*8+4*(4+4*NX*NY*NZ)
   else
      reclength=80*9+4*(4+3*NX*NY*NZ)
@@ -216,9 +219,8 @@ program data2ensight
   ! Write the file.
   write(fname,'(2A)') trim(directory), '/geometry'
   print *, 'Writing: ',fname
-  !fname = trim(directory) // '/geometry'
   open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
-  if (ib .EQ. 'y') then
+  if (use_iblank) then
      write(unit=10,rec=1) binary_form, &
           file_description1, &
           file_description2, &
@@ -227,11 +229,11 @@ program data2ensight
           part,npart, &
           description_part, &
           cblock, &
-          NX,NY,NZ, &
-          (((real(X(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ), &
-          (((real(Y(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ), &
-          (((real(Z(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ)!, &
-          !(((IBLANK1(I,J,K), I=1,NX), J=1,NY), K=1,NZ)
+          nx,ny,nz, &
+          (((x(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
+          (((y(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
+          (((z(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
+          (((iblank(i,j,k), i=1,nx), j=1,ny), k=1,nz)
   else
      write(unit=10,rec=1) binary_form, &
           file_description1, &
@@ -242,9 +244,9 @@ program data2ensight
           description_part, &
           cblock, &
           NX,NY,NZ, &
-          (((real(X(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ), &
-          (((real(Y(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ), &
-          (((real(Z(I,J,K),4), I=1,NX), J=1,NY), K=1,NZ)
+          (((x(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
+          (((y(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
+          (((z(i,j,k), i=1,nx), j=1,ny), k=1,nz)
   end if
   
   ! Close the file.
@@ -261,14 +263,14 @@ program data2ensight
   ! Loop through files and write
   num = 1
   do iter = startIter, stopIter, skipIter
-    print *, 'Writing timestep',iter
+     print *, 'Writing timestep',iter
     
-    write(fname,'(2A,I8.8,A)') trim(prefix),'-', iter, '.q'
+     write(fname,'(2A,I8.8,A)') trim(prefix),'-', iter, '.q'
      write (*,'(A)') fname
      call region%loadData(QOI_FORWARD_STATE, fname)
 
-     ! Binary file length
-     reclength=80*3+4*(1+NX*NY*NZ)
+    ! Binary file length
+    reclength=80*3+4*(1+nx*ny*nz)
 
      do var=1, nvar
 
@@ -277,7 +279,8 @@ program data2ensight
            do j=1,ny
               do i=1,nx
                  ! Store solution in buffer
-                 rbuffer(i,j,k) = real(region%states(1)%conservedVariables(i+nx*(j-1+ny*(k-1)),var),4)
+                 ii = i+nx*(j-1+ny*(k-1))
+                 rbuffer(i,j,k) = real(region%states(1)%conservedVariables(ii,var),4)
 
                  ! Divide out rho
                  if (var > 1) then
@@ -296,10 +299,67 @@ program data2ensight
 
      end do ! var
 
+     ! Temperature
+     do k=1,nz
+        do j=1,ny
+           do i=1,nx
+              ii = i+nx*(j-1+ny*(k-1))
+              ! Store temperature in buffer
+              select case (ndim)
+              case (2)
+                 rbuffer(i,j,k) = real(1.4_8 * (region%states(1)%conservedVariables(ii,ndim+2) - &
+                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                    &
+                      region%states(1)%conservedVariables(ii,3)**2) /                            &
+                      region%states(1)%conservedVariables(ii,1)) /                               &
+                      region%states(1)%conservedVariables(ii,1),4)
+
+              case (3)
+                 rbuffer(i,j,k) = real(1.4_8 * (region%states(1)%conservedVariables(ii,ndim+2) - &
+                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                    &
+                      region%states(1)%conservedVariables(ii,3)**2 +                             &
+                      region%states(1)%conservedVariables(ii,4)**2) /                            &
+                      region%states(1)%conservedVariables(ii,1)) /                               &
+                      region%states(1)%conservedVariables(ii,1),4)
+
+              end select
+           end do
+        end do
+     end do
+
+     ! Dimenionalize
+     rbuffer = rbuffer * 0.4_4 * 293.15_4
+
+     ! Write temperature to Ensight file
+     cbuffer=trim(names(nvar+1))
+     write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(nvar+1)),'.',num
+     open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+     write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
+     close(10)
+
+     ! Cost functional weight
+     do k=1,nz
+        do j=1,ny
+           do i=1,nx
+              ii = i+nx*(j-1+ny*(k-1))
+              ! Store weight in buffer
+              phi = 8.0_8 * region%states(1)%conservedVariables(ii,ndim+3) / &
+                   (region%states(1)%conservedVariables(ii,4) + epsilon(1.0_8))
+              rbuffer(i,j,k) = real(min(phi, 1.0_8/(phi+epsilon(1.0_8))),4)
+              
+           end do
+        end do
+     end do
+     
+     ! Write temperature to Ensight file
+     cbuffer=trim(names(nvar+2))
+     write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(nvar+2)),'.',num
+     open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+     write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
+     close(10)
+
      ! ... counter
      num = num + 1
   end do
-  
 
   ! =================== !
   ! Write the case file !
@@ -319,7 +379,7 @@ program data2ensight
 
   cbuffer='VARIABLE'
   write(10,'(a)') cbuffer
-  do var=1,nvar
+  do var=1,nvar+2
      write(cbuffer,'(5A)') 'scalar per node: 1 ',  trim(names(var)), ' ', trim(names(var)), '.******'
      write(10,'(a80)') cbuffer
   end do
@@ -340,5 +400,6 @@ program data2ensight
 
   ! Clean up & leave
   deallocate(X, Y, Z, rbuffer, time)
+  if (use_iblank) deallocate(iblank)
 
 end program data2ensight
