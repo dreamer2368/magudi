@@ -1,3 +1,6 @@
+Merged follows the Pimpl Idiom (see http://www.c2.com/cgi/wiki?PimplIdiom)
+
+Installation directions:
 (1) Magudi uses a build system based on cmake. You will need to install it first. apt-get/brew/port install cmake should work on Linux/Mac.
 (2) Create a separate directory for building that is not inside the source root. This is called an out-of-source build and is the preferred method to build my code.
 (3) Run cmake <path to source directory>
