@@ -25,7 +25,8 @@ contains
     character(len = *), intent(in) :: filename
 
     ! <<< Local variables >>>
-    integer :: i, fileUnit, proc, numProcs, lineNo, gridIndex, numProcsInGrid(3), istat, ierror
+    integer :: i, fileUnit, proc, numProcs, lineNo, gridIndex,                               &
+         numProcsInGrid(3), istat, ierror
     character(len = STRING_LENGTH) :: line, message
     character(len = 1), parameter :: commentMarker = '#'
 
@@ -107,7 +108,7 @@ contains
     ! Validate process distribution.
     if (sum(product(this%processDistributions, dim = 1)) /= numProcs) then
        write(message, '(A,2(A,I0.0),A)') trim(filename),                                     &
-            ": Invalid process distribution: expected a total of ", numProcs,                  &
+            ": Invalid process distribution: expected a total of ", numProcs,                &
             " processes, got ", sum(product(this%processDistributions, dim = 1)),            &
             " processes!"
        call gracefulExit(this%comm, message)

@@ -1,12 +1,8 @@
-#!/usr/bin/env python
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from numpy import sqrt, log10
-GoldenRatio = 0.5 * (1 + sqrt(5))
-
 def TargetPresentation(width = None, height = None):
-    matplotlib.rcParams['backend'] = 'Agg'    
+    import numpy as np
+    import matplotlib
+    GoldenRatio = 0.5 * (1 + np.sqrt(5))
+    matplotlib.rcParams['backend'] = 'Agg'
     matplotlib.rcParams['font.size'] = 10.0
     matplotlib.rcParams['text.usetex'] = True
     matplotlib.rcParams['font.family'] = 'sans-serif'
@@ -32,10 +28,12 @@ def TargetPresentation(width = None, height = None):
     matplotlib.rcParams['legend.fontsize'] = 'medium'
 
 def TargetAnimation(width = None, height = None):
+    import matplotlib
     TargetPresentation(width, height)
     matplotlib.rcParams['animation.bitrate'] = 18000
 
 def TargetJournal(width = None, height = None):
+    import matplotlib
     TargetPresentation(width, height)
     matplotlib.rcParams['backend'] = 'pgf'
     matplotlib.rcParams['font.family'] = 'serif'
@@ -63,29 +61,22 @@ def EmptyLabels(t):
     return t, [("") for t_ in t]
 
 def NiceLogLabels(t):
-    return t, [(r"$10^{%g}$" % t_ if t_ != 0 else r"$1$") for t_ in log10(t)]
+    import numpy as np
+    return t, [(r"$10^{%g}$" % t_ if t_ != 0 else r"$1$") for t_ in np.log10(t)]
 
-from matplotlib.collections import Collection
-from matplotlib.artist import allow_rasterization
-
-class ListCollection(Collection):
-     def __init__(self, collections, **kwargs):
-         Collection.__init__(self, **kwargs)
-         self.set_collections(collections)
-     def set_collections(self, collections):
-         self._collections = collections
-     def get_collections(self):
-         return self._collections
-     @allow_rasterization
-     def draw(self, renderer):
-         for _c in self._collections:
-             _c.draw(renderer)
-
-def RasterizeContour(c):
-     collections = c.collections
-     for _c in collections:
-         _c.remove()
-     cc = ListCollection(collections, rasterized = True)
-     ax = plt.gca()
-     ax.add_artist(cc)
-     return cc
+def ReadDigitizedLines(csvFile):
+    """Reads CSV output of Engauge plot digitzer and returns a list of numpy
+    ndarrays of shape (2, n) containing x-y data.
+    """
+    import numpy as np
+    rawData = open(csvFile, 'r').readlines()
+    curveOffsets = []
+    for i, line in enumerate(rawData):
+        if line[0] == '#':
+            curveOffsets = curveOffsets + [i + 1]
+    curves = [ None ] * len(curveOffsets)
+    curveOffsets = curveOffsets + [len(rawData)+1]
+    for i in range(len(curves)):
+        curves[i] = np.array([float(s) for s in ''.join(rawData[curveOffsets[i]:curveOffsets[i+1]-1]).replace(',', ' ').split()])
+        curves[i] = np.reshape(curves[i], [2, curves[i].size / 2], order = 'F')
+    return curves

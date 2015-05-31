@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import numpy as np
 import struct
 
@@ -110,7 +109,7 @@ class MultiBlockObject(object):
     @nGrids.setter
     def nGrids(self, value):
         if not isinstance(value, (int, long)):
-            raise TypeError("Number of grids must be an integer")        
+            raise TypeError("Number of grids must be an integer")
         if value <= 0:
             raise ValueError("Number of grids must be positive")
         self._nGrids = value
@@ -282,7 +281,7 @@ class Grid(MultiBlockObject):
                 if self._hasIBLANK is True:
                     f.seek(np.product(gridSize[iGrid]) * self.integerType.itemsize, 1)
             else:
-                
+
                 if showProgress is True:
                     if self._hasIBLANK is True:
                         progressBar = ProgressBar(maxval = 4 * (endIndices[2] - startIndices[2] + 1) * (endIndices[1] - startIndices[1] + 1))
@@ -434,7 +433,7 @@ class Solution(MultiBlockObject):
 
         gridSize = np.copy(self.GetSize())
         nGrids = len(gridSize)
- 
+
         self.nGrids = 1
         self.SetSize(0, [ endIndices[i] - startIndices[i] + 1 for i in range(3) ])
 
@@ -448,7 +447,7 @@ class Solution(MultiBlockObject):
                 f.seek(self.offsetType.itemsize, 1)
                 self._auxiliaryData[0] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
                 f.seek(2 * self.offsetType.itemsize, 1)
-                
+
                 if showProgress is True:
                     progressBar = ProgressBar(maxval = 5 * (endIndices[2] - startIndices[2] + 1) * (endIndices[1] - startIndices[1] + 1))
                     progressBar.start()
@@ -490,7 +489,7 @@ class Solution(MultiBlockObject):
             gridSize_ = self.GetSize(i)
             gridSize_[axis] = 1
             self.SetSize(i, gridSize_)
- 
+
         f = open(filename, "rb")
         f.seek(4 * self.offsetType.itemsize + (3 * self.nGrids + 1) * self.integerType.itemsize)
 
@@ -512,7 +511,7 @@ class Solution(MultiBlockObject):
                 elif axis == 1:
                     for k in range(gridSize[iGrid][2]):
                         for j in range(gridSize[iGrid][1]):
-                            self._Q[iGrid][:,0,k,l] += np.fromstring(f.read(gridSize[iGrid][0] * self.scalarType.itemsize), dtype = self.scalarType)                    
+                            self._Q[iGrid][:,0,k,l] += np.fromstring(f.read(gridSize[iGrid][0] * self.scalarType.itemsize), dtype = self.scalarType)
                             if showProgress is True:
                                 progressBar.update(j + gridSize[iGrid][1] * (k + gridSize[iGrid][2] * (l + 5 * iGrid)))
                     self._Q[iGrid][:,:,:,l] /= gridSize[iGrid][1]
@@ -529,6 +528,15 @@ class Solution(MultiBlockObject):
         f.close()
 
         return None
+
+    def TransformToPrimitiveVariables(self, ratioOfSpecificHeats = 1.4, transformEnergyToPressure = True):
+        for iGrid in range(self._nGrids):
+            for i in range(3):
+                self._Q[iGrid][:,:,:,i+1] /= self._Q[iGrid][:,:,:,0]
+                if transformEnergyToPressure is True:
+                    self._Q[iGrid][:,:,:,-1] = (ratioOfSpecificHeats - 1.) * (self._Q[iGrid][:,:,:,-1] - 0.5 * self._Q[iGrid][:,:,:,0] * np.sum(self._Q[iGrid][:,:,:,1:-1] ** 2, axis = -1))
+                else:
+                    self._Q[iGrid][:,:,:,-1] = ratioOfSpecificHeats * (self._Q[iGrid][:,:,:,-1] / self._Q[iGrid][:,:,:,0] - 0.5 * np.sum(self._Q[iGrid][:,:,:,1:-1] ** 2, axis = -1))
 
 class Function(MultiBlockObject):
 
@@ -594,7 +602,7 @@ class Function(MultiBlockObject):
             else:
                 number_of_components, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
                 if number_of_components != self._nComponents:
-                    raise IOError("%s: Invalid PLOT3D function file: number of components in block %i (= %i) differs from %i" % (filename, iGrid + 1, number_of_components, self._nComponents))                
+                    raise IOError("%s: Invalid PLOT3D function file: number of components in block %i (= %i) differs from %i" % (filename, iGrid + 1, number_of_components, self._nComponents))
             self.Update(iGrid)
         f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
@@ -617,7 +625,7 @@ class Function(MultiBlockObject):
             else:
                 number_of_components, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
                 if number_of_components != self._nComponents:
-                    raise IOError("%s: Invalid PLOT3D function file: number of components in block %i (= %i) differs from %i" % (filename, iGrid + 1, number_of_components, self._nComponents))                
+                    raise IOError("%s: Invalid PLOT3D function file: number of components in block %i (= %i) differs from %i" % (filename, iGrid + 1, number_of_components, self._nComponents))
         f.close()
         return None
 
@@ -642,7 +650,7 @@ class Function(MultiBlockObject):
 
         gridSize = np.copy(self.GetSize())
         nGrids = len(gridSize)
- 
+
         self.nGrids = 1
         self.SetSize(0, [ endIndices[i] - startIndices[i] + 1 for i in range(3) ])
 
@@ -653,7 +661,7 @@ class Function(MultiBlockObject):
             if iGrid != gridIndex:
                 f.seek(self._nComponents * np.product(gridSize[iGrid]) * self.scalarType.itemsize, 1)
             else:
-                
+
                 if showProgress is True:
                     progressBar = ProgressBar(maxval = self._nComponents * (endIndices[2] - startIndices[2] + 1) * (endIndices[1] - startIndices[1] + 1))
                     progressBar.start()
