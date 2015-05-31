@@ -147,7 +147,7 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, ierror
+  integer :: i, nDimensions
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
   class(t_Patch), pointer :: patch => null()
 
@@ -174,11 +174,11 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   end if
 
   ! Send viscous fluxes to far-field patches.
-  if (allocated(patchFactories)) then
+  if (simulationFlags%viscosityOn .and. allocated(patchFactories)) then
      do i = 1, size(patchFactories)
         call patchFactories(i)%connect(patch)
         if (.not. associated(patch)) cycle
-        if (patch%gridIndex /= grid%index) cycle
+        if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
         select type (patch)
         class is (t_FarFieldPatch)
            call patch%collect(fluxes2, patch%viscousFluxes)
@@ -242,12 +242,11 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, ierror
+  integer :: i, j, k, nDimensions, nUnknowns
   SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:),                                      &
        localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
        localVelocity(:), localMetricsAlongDirection1(:), localMetricsAlongDirection2(:),     &
        localStressTensor(:), localHeatFlux(:), localAdjointDiffusion(:,:)
-  logical :: flag
 
   call startTiming("computeRhsAdjoint")
 

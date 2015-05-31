@@ -510,7 +510,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
            call patchFactories(i)%connect(patch)
            if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= grid%index) cycle
+           if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
 
            select type (patch)
            class is (t_IsothermalWall)
@@ -541,7 +541,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
            call patchFactories(i)%connect(patch)
            if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= grid%index) cycle
+           if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
 
            select type (patch)
            class is (t_FarFieldPatch)
