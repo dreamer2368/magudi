@@ -292,15 +292,14 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: meanTemperature(:), W(:)
-  SCALAR_TYPE :: F
+  SCALAR_TYPE, allocatable :: W(:)
+  SCALAR_TYPE :: F, meanTemperature
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  allocate(meanTemperature(patch%nPatchPoints))
   i = grid%index
-  call patch%collect(this%data_(i)%meanTemperature(:,1), meanTemperature)
+  meanTemperature = this%data_(i)%meanTemperature(1,1)
 
   allocate(W(grid%nGridPoints))
   call computeWeight(grid, patch, state%combustion, state%massFraction, W)
@@ -316,20 +315,31 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
                 (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
-           F = - 2.0_wp * W(gridIndex) * (solverOptions%ratioOfSpecificHeats - 1.0_wp) *     &
-                (state%temperature(gridIndex, 1) - meanTemperature(patchIndex))
+           F = - 2.0_wp * W(gridIndex) * solverOptions%ratioOfSpecificHeats *                &
+                state%specificVolume(gridIndex, 1) *                                         &
+                (state%temperature(gridIndex, 1) - meanTemperature)
 
+           patch%adjointForcing(patchIndex,:) = 0.0_wp
            patch%adjointForcing(patchIndex,nDimensions+2) = F
            patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
                 - state%velocity(gridIndex,:) * F
-           patch%adjointForcing(patchIndex,1) =                                              &
-                0.5_wp * sum(state%velocity(gridIndex,:) ** 2) * F
+           patch%adjointForcing(patchIndex,1) = ( sum(state%velocity(gridIndex,:) ** 2) -    &
+                state%conservedVariables(gridIndex,nDimensions+2) *                          &
+                state%specificVolume(gridIndex,1) ) * F
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
-  SAFE_DEALLOCATE(meanTemperature)
+
+
+
+
+
+
+
+
+
   SAFE_DEALLOCATE(W)
 
 end subroutine computeFlameTemperatureAdjointForcing
