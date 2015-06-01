@@ -178,11 +178,11 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   end if
 
   ! Send viscous fluxes to far-field patches.
-  if (allocated(patchFactories)) then
+  if (simulationFlags%viscosityOn .and. allocated(patchFactories)) then
      do i = 1, size(patchFactories)
         call patchFactories(i)%connect(patch)
         if (.not. associated(patch)) cycle
-        if (patch%gridIndex /= grid%index) cycle
+        if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
         select type (patch)
         class is (t_FarFieldPatch)
            call patch%collect(fluxes2, patch%viscousFluxes)
