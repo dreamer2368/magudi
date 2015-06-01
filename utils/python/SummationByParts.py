@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 def derivative(a, order = 1, axis = -1, scheme = 'SBP 1-2', periodic = False):
 
     import numpy as np
@@ -25,7 +23,7 @@ def derivative(a, order = 1, axis = -1, scheme = 'SBP 1-2', periodic = False):
                 An array of the same shape as `a` giving the finite-difference approximation of `a` using the SBP operator given by `scheme`.
 
     """
-    
+
     allowedOrders = [1, 2]
     if order not in allowedOrders:
         raise ValueError("'%s' is not a valid order (allowed values are: %s)" % (order, ", ".join(map(str, allowedOrders))))
