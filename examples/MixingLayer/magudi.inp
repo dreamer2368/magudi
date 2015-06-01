@@ -61,17 +61,17 @@ defaults/discretization_scheme = "SBP 4-8"
 
 # Time stepping options
 time_step_size = 0.01
-cfl = 0.3
+cfl = 0.1
 number_of_timesteps = 100000
 report_interval = 1
-save_interval = 2000
+save_interval = 10
 
 # Artificial dissipation
 add_dissipation = true
 dissipation_amount = 0.01
 
 # Solution limits
-enable_solution_limits = true
+enable_solution_limits = false
 minimum_density = 0.01
 minimum_temperature = 0.05
 maximum_density = 10.
@@ -98,9 +98,9 @@ patches/excitationSupport/random_seed = 685785
 
 # Localized ignition
 patches/localizedIgnition/amplitude = 2.0
-patches/localizedIgnition/radius = 0.25
+patches/localizedIgnition/radius = 0.5
 patches/localizedIgnition/origin_x = 8.0
-patches/localizedIgnition/time_start = 0.6
+patches/localizedIgnition/time_start = 0.3
 patches/localizedIgnition/time_duration = 0.1
 
 # Adjoint optimization flags
