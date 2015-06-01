@@ -1,16 +1,12 @@
 #include "config.h"
 
-program data2ensight
+program mollifier2ensight
 ! ============================================================= !
 !                                                               !
-! Converts PLOT3D data file to EnSight format                   !
+! Converts PLOT3D mollifier file to EnSight format              !
 !                                                               !
 ! ============================================================= !
-!                                                               !
-! Written by Jesse Capecelatro (jcaps@illinois.edu)             !
-! 9 August 2014                                                 !
-!                                                               !
-! ============================================================= !
+
   use MPI
   use, intrinsic :: iso_fortran_env
 
@@ -36,13 +32,9 @@ program data2ensight
   Logical :: success
 
   ! EnSight stuff
-  integer :: num, numFiles
-  integer :: nx, ny, nz, nspec, ndim, npart, reclength, ii
-  integer :: startIter, stopIter, skipIter, iter, var, nvar
+  integer :: nx, ny, nz, ndim, npart, reclength, ii
   real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,iblank,rbuffer
   real(KIND=4) :: xmin, xmax, ymin, ymax, zmin, zmax
-  real(KIND=8), Dimension(:), Allocatable :: time
-  character(LEN=80), dimension(:), Allocatable :: names
   character(LEN=80) :: binary_form
   character(LEN=80) :: file_description1,file_description2
   character(LEN=80) :: node_id,element_id
@@ -51,7 +43,7 @@ program data2ensight
 
   ! Local variables
   integer :: i, j, k
-
+  
   ! Initialize MPI.
   call MPI_Init(ierror)
 
@@ -66,12 +58,6 @@ program data2ensight
   print*,'| Magudi - data to ENSIGHT GOLD converter |'
   print*,'==========================================='
   print*
-  write (*,"(a14)",advance="no")  " start iter "
-  read "(i6)", startIter
-  write (*,"(a13)",advance="no")  " stop iter "
-  read "(i6)", stopIter
-  write (*,"(a13)",advance="no")  " skip iter "
-  read "(i6)", skipIter
   directory='ensight-3D'
 
   ! Set the grid name.
@@ -99,58 +85,9 @@ program data2ensight
   ! Get number of dimensions.
   ndim = size(region%grids(1)%coordinates(1,:))
 
-  ! Get number of variables.
-  write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
-
-  ! Load the solution file.
-  call region%loadData(QOI_FORWARD_STATE, fname)
-  nvar = size(region%states(1)%conservedVariables(1,:))
-  
-  print *, 'Number of variables:',nvar
-  print *
-
-  ! Number of species
-  nspec = nvar - (ndim+2)
-
-  ! Get number of files and time sereies.
-  numFiles = 0
-  do iter = startIter, stopIter, skipIter
-     numFiles = numFiles + 1
-  end do
-  allocate(time(numFiles))
-  time = 0.0_8
-  numFiles = 0
-  do iter = startIter, stopIter, skipIter
-     numFiles = numFiles + 1
-     time(numFiles) = real(numFiles-1,8)
-  end do
-
-  ! Assign variable names.
-  allocate(names(nvar+1))
-  select case (ndim)
-  case (2)
-     names(1) = 'RHO'
-     names(2) = 'U'
-     names(3) = 'V'
-     names(4) = 'E'
-  case (3)
-     names(1) = 'RHO'
-     names(2) = 'U'
-     names(3) = 'V'
-     names(4) = 'W'
-     names(5) = 'E'
-  end select
-
-  select case (nspec)
-  case (1)
-     names(ndim+3) = 'H2'
-  case (2)
-     names(ndim+3) = 'H2'
-     names(ndim+4) = 'O2'
-  end select
-
-  ! Include temperature
-  names(nvar+1) = 'Temperature'
+  ! Load the mollifier file.
+  fname = trim(prefix)//'.target_mollifier.f'
+  call region%loadData(QOI_TARGET_MOLLIFIER, fname)
 
   ! Check if iblank is used
   use_iblank = .false.
@@ -255,98 +192,38 @@ program data2ensight
   close (10)
 
 
-  ! ===================================== !
-  ! Loop through and write the data files !
-  ! ===================================== !
+  ! =================== !
+  ! Write the mollifier !
+  ! =================== !
 
   ! Allocate single-precision array
   allocate(rbuffer(nx,ny,nz))
 
-  ! Loop through files and write
-  num = 1
-  do iter = startIter, stopIter, skipIter
-     print *, 'Writing timestep',iter
-    
-     write(fname,'(2A,I8.8,A)') trim(prefix),'-', iter, '.q'
-     write (*,'(A)') fname
-     call region%loadData(QOI_FORWARD_STATE, fname)
+  ! Binary file length
+  reclength=80*3+4*(1+nx*ny*nz)
 
-    ! Binary file length
-    reclength=80*3+4*(1+nx*ny*nz)
-
-     do var=1, nvar
-
-        ! Convert the data to single precision
-        do k=1,nz
-           do j=1,ny
-              do i=1,nx
-                 ! Store solution in buffer
-                 ii = i+nx*(j-1+ny*(k-1))
-                 rbuffer(i,j,k) = real(region%states(1)%conservedVariables(ii,var),4)
-
-                 ! Divide out rho
-                 if (var > 1) then
-                    rbuffer(i,j,k) = rbuffer(i,j,k)/real(region%states(1)%conservedVariables(i+nx*(j-1+ny*(k-1)),1),4)
-                 end if
-              end do
-           end do
-        end do
-
-        ! Write Ensight scalar file
-        cbuffer=trim(names(var))
-        write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(var)),'.',num
-        open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
-        write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
-        close(10)
-
-     end do ! var
-
-     ! Temperature
-     rbuffer = 0.0_4
-     do k=1,nz
-        do j=1,ny
-           do i=1,nx
-              ii = i+nx*(j-1+ny*(k-1))
-              ! Store temperature in buffer
-              select case (ndim)
-              case (2)
-                 rbuffer(i,j,k) = real(1.4_8 * (region%states(1)%conservedVariables(ii,ndim+2) - &
-                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                    &
-                      region%states(1)%conservedVariables(ii,3)**2) /                            &
-                      region%states(1)%conservedVariables(ii,1)) /                               &
-                      region%states(1)%conservedVariables(ii,1),4)
-
-              case (3)
-                 rbuffer(i,j,k) = real(1.4_8 * (region%states(1)%conservedVariables(ii,ndim+2) - &
-                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                    &
-                      region%states(1)%conservedVariables(ii,3)**2 +                             &
-                      region%states(1)%conservedVariables(ii,4)**2) /                            &
-                      region%states(1)%conservedVariables(ii,1)) /                               &
-                      region%states(1)%conservedVariables(ii,1),4)
-
-              end select
-           end do
+  ! Convert the data to single precision
+  do k=1,nz
+     do j=1,ny
+        do i=1,nx
+           ! Store solution in buffer
+           ii = i+nx*(j-1+ny*(k-1))
+           rbuffer(i,j,k) = real(region%grids(1)%targetMollifier(ii,1),4)
         end do
      end do
-
-     ! Dimenionalize
-     rbuffer = rbuffer * 0.4_4 * 293.15_4
-
-     ! Write temperature to Ensight file
-     cbuffer=trim(names(nvar+1))
-     write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(nvar+1)),'.',num
-     open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
-     write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
-     close(10)
-
-     ! ... counter
-     num = num + 1
   end do
+
+  ! Write Ensight scalar file
+  cbuffer='TARGET_MOLLIFIER'
+  write(fname,'(4A,I6.6)') trim(directory),'/',trim(cbuffer),'.',1
+  open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+  write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
+  close(10)
 
   ! =================== !
   ! Write the case file !
   ! =================== !
-  write(fname,'(2A)') trim(directory), '/magudi.case'
+  write(fname,'(2A)') trim(directory), '/mollifier.case'
   open(10,file=trim(fname),form="formatted",iostat=ierr,status="REPLACE")
 
   ! Write the case
@@ -361,27 +238,25 @@ program data2ensight
 
   cbuffer='VARIABLE'
   write(10,'(a)') cbuffer
-  do var=1,nvar+1
-     write(cbuffer,'(5A)') 'scalar per node: 1 ',  trim(names(var)), ' ', trim(names(var)), '.******'
-     write(10,'(a80)') cbuffer
-  end do
+  write(cbuffer,'(5A)') 'scalar per node: 1 ',  'TARGET_MOLLIFIER', ' ', 'TARGET_MOLLIFIER', '.******'
+  write(10,'(a80)') cbuffer
   
   cbuffer='TIME'
   write(10,'(a80)') cbuffer
   cbuffer='time set: 1'
   write(10,'(a80)') cbuffer
-  write(10,'(a16,i12)') 'number of steps:',numFiles
+  write(10,'(a16,i12)') 'number of steps:',1
   cbuffer='filename start number: 1'
   write(10,'(a80)') cbuffer
   cbuffer='filename increment: 1'
   write(10,'(a80)') cbuffer
-  write(10,'(a12,10000000(3(ES12.5),/))') 'time values:',time
+  write(10,'(a12,10000000(3(ES12.5),/))') 'time values:',0.0_8
 
   ! Close the file
   close(10)
 
   ! Clean up & leave
-  deallocate(X, Y, Z, rbuffer, time)
+  deallocate(X, Y, Z, rbuffer)
   if (use_iblank) deallocate(iblank)
 
-end program data2ensight
+end program mollifier2ensight
