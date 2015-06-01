@@ -701,7 +701,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_Functional), pointer :: functional => null()
   type(t_ReverseMigratorFactory) :: reverseMigratorFactory
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
-  integer :: i, j, timestep, startTimestep, timemarchDirection
+  integer :: i, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostSensitivity
 

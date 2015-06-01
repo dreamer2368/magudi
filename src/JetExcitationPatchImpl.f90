@@ -166,6 +166,7 @@ subroutine addJetExcitation(this, mode, simulationFlags, solverOptions, grid, st
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, nDimensions, gridIndex, patchIndex
+  real(SCALAR_KIND), allocatable :: temp(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -178,6 +179,12 @@ subroutine addJetExcitation(this, mode, simulationFlags, solverOptions, grid, st
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (2, 3))
+
+  if (this%nModes > 0) then
+     allocate(temp(this%nModes, 2))
+     temp(:,1) = cos(this%angularFrequencies * state%time)
+     temp(:,2) = sin(this%angularFrequencies * state%time)
+  end if
 
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -192,10 +199,8 @@ subroutine addJetExcitation(this, mode, simulationFlags, solverOptions, grid, st
            do l = 1, this%nModes
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
                    this%amount * this%spongeStrength(patchIndex) *                           &
-                   (this%perturbationReal(patchIndex,:,l) *                                  &
-                   cos(this%angularFrequencies(l) * state%time) -                            &
-                   this%perturbationImag(patchIndex,:,l) *                                   &
-                   sin(this%angularFrequencies(l) * state%time))
+                   (this%perturbationReal(patchIndex,:,l) * temp(l,1) -                      &
+                   this%perturbationImag(patchIndex,:,l) * temp(l,2))
            end do
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
