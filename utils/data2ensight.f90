@@ -37,11 +37,10 @@ program data2ensight
 
   ! EnSight stuff
   integer :: num, numFiles
-  integer :: i, j, k, nx, ny, nz, nspec, ndim, npart, reclength, ii
+  integer :: nx, ny, nz, nspec, ndim, npart, reclength, ii
   integer :: startIter, stopIter, skipIter, iter, var, nvar
   real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,iblank,rbuffer
   real(KIND=4) :: xmin, xmax, ymin, ymax, zmin, zmax
-  real(KIND=8) :: phi
   real(KIND=8), Dimension(:), Allocatable :: time
   character(LEN=80), dimension(:), Allocatable :: names
   character(LEN=80) :: binary_form
@@ -49,6 +48,11 @@ program data2ensight
   character(LEN=80) :: node_id,element_id
   character(LEN=80) :: part,description_part,cblock,extents,cbuffer
   logical :: use_iblank
+
+  ! Local variables
+  integer :: i, j, k
+  real(KIND=8) :: phi, YF, YO
+  
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -300,6 +304,7 @@ program data2ensight
      end do ! var
 
      ! Temperature
+     rbuffer = 0.0_4
      do k=1,nz
         do j=1,ny
            do i=1,nx
@@ -337,15 +342,20 @@ program data2ensight
      close(10)
 
      ! Cost functional weight
+     rbuffer = 0.0_4
      do k=1,nz
         do j=1,ny
            do i=1,nx
               ii = i+nx*(j-1+ny*(k-1))
               ! Store weight in buffer
-              phi = 8.0_8 * region%states(1)%conservedVariables(ii,ndim+3) / &
-                   (region%states(1)%conservedVariables(ii,4) + epsilon(1.0_8))
-              rbuffer(i,j,k) = real(min(phi, 1.0_8/(phi+epsilon(1.0_8))),4)
-              
+              YF = region%states(1)%conservedVariables(ii,ndim+3) /                          &
+                   region%states(1)%conservedVariables(ii,1)
+              YF = max(YF, 0.0_8); YF = min(YF, 1.0_8)
+              YO = region%states(1)%conservedVariables(ii,ndim+4) /                          &
+                   region%states(1)%conservedVariables(ii,1)
+              YO = max(YO, 0.0_8); YO = min(YO, 1.0_8)
+              phi = 8.0_8 * YF / (YO + epsilon(1.0_8))
+              rbuffer(i,j,k) = real(min(phi, 1.0_8/(phi+epsilon(1.0_8))),4)  
            end do
         end do
      end do
