@@ -14,13 +14,16 @@ program mixing_layer
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat
 
-  !> Generates the grid, BC, initial condition, and target state for a spatial mixing layer.
+  !> Generates the grid, BC, initial condition, target state, and adjoint mollifiers
+  !> for a reactive spatial mixing layer.
 
   implicit none
 
   integer :: i, numProcs, ierror
-  integer :: i1, i2, j1, j2
-  character(len = STRING_LENGTH) :: inputname,filename
+  integer :: imin_sponge, imax_sponge, jmin_sponge, jmax_sponge
+  integer :: imin_tmol, imax_tmol, jmin_tmol, jmax_tmol
+  integer :: imin_cmol, imax_cmol, jmin_cmol, jmax_cmol
+  character(len = STRING_LENGTH) :: inputname, filename
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
 
@@ -32,7 +35,8 @@ program mixing_layer
   print *, '!               - Cartesian grid                    !'
   print *, '!               - Target/initial solution           !'
   print *, '!               - Boundary conditions               !'
-  print *, '!    for a spatially-evolving mixing layer          !'
+  print *, '!               - Adjoint mollifiers                !'
+  print *, '!    for a spatially evolving mixing layer          !'
   print *, '!                                                   !'
   print *, '! ================================================= !'
   print *
@@ -52,7 +56,7 @@ program mixing_layer
   call parseInputFile(inputname)
 
   ! Generate the grid
-  call mixingLayerGrid(i1,i2,j1,j2)
+  call mixingLayerGrid(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
 
   ! Save the grid
   call getRequiredOption("grid_file", filename)
@@ -67,8 +71,34 @@ program mixing_layer
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
+  ! Create taget mollifier
+  filename = getOption("target_mollifier_file", "")
+  if (len_trim(filename) /= 0) then
+     do i = 1, size(region%grids)
+        call mixingLayerTargetMollifier(region%states(i), region%grids(i),                   &
+             imin_tmol,imax_tmol,jmin_tmol,jmax_tmol)
+     end do
+
+     ! Write the target mollifier.
+     call region%saveData(QOI_TARGET_MOLLIFIER, filename)
+  end if
+
+  ! Create control mollifier
+  filename = getOption("control_mollifier_file", "")
+  if (len_trim(filename) /= 0) then
+     do i = 1, size(region%grids)
+        call mixingLayerControlMollifier(region%states(i), region%grids(i),                   &
+             imin_cmol,imax_cmol,jmin_cmol,jmax_cmol)
+     end do
+
+     ! Write the control mollifier.
+     call region%saveData(QOI_CONTROL_MOLLIFIER, filename)
+  end if
+
   ! Generate the BC
-  call mixingLayerBC(i1,i2,j1,j2)
+  call mixingLayerBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge,                        &
+       imin_tmol,imax_tmol,jmin_tmol,jmax_tmol,                                              &
+       imin_cmol,imax_cmol,jmin_cmol,jmax_cmol)
 
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
@@ -136,7 +166,7 @@ contains
     ! Read in grid size and dimensions.
     nx = getOption("nx", 1025)
     ny = getOption("ny", 513)
-    nz = 1
+    nz = getOption("nz", 1)
     xmini = getOption("xmin_interior", 0.0_wp)
     xmaxi = getOption("xmax_interior", 120.0_wp)
     ymini = getOption("ymin_interior", -30.0_wp)
@@ -253,7 +283,7 @@ contains
     end do
 
     print *
-    print *, 'Extents:',i1,i2,j1,j2
+    print *, 'Interior domain extents: [',i1,',',i2,'] x [',j1,',',j2,']'
     print*
 
     return
@@ -299,10 +329,13 @@ contains
   ! =================== !
   ! Boundary conditions !
   ! =================== !
-  subroutine mixingLayerBC(i1,i2,j1,j2)
+  subroutine mixingLayerBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge,                  &
+       imin_tmol,imax_tmol,jmin_tmol,jmax_tmol,                                              &
+       imin_cmol,imax_cmol,jmin_cmol,jmax_cmol)
     implicit none
 
-    integer, intent(in) :: i1, i2, j1, j2
+    integer, intent(in) :: imin_sponge,imax_sponge,jmin_sponge,jmax_sponge,                  &
+         imin_tmol,imax_tmol,jmin_tmol,jmax_tmol,imin_cmol,imax_cmol,jmin_cmol,jmax_cmol
     integer :: i, bc, nbc, iunit
     integer, allocatable, dimension(:) :: grid,normDir,imin,imax,jmin,jmax,kmin,kmax
     character(len = 22), allocatable, dimension(:) :: name,type
@@ -336,7 +369,7 @@ contains
     type   (bc) = 'SPONGE'
     normDir(bc) =  1
     imin   (bc) =  1
-    imax   (bc) =  i1
+    imax   (bc) =  imin_sponge
     jmin   (bc) =  1
     jmax   (bc) = -1
     kmin   (bc) =  1
@@ -359,7 +392,7 @@ contains
     name   (bc) = 'outflowSponge'
     type   (bc) = 'SPONGE'
     normDir(bc) = -1
-    imin   (bc) =  i2
+    imin   (bc) =  imax_sponge
     imax   (bc) = -1
     jmin   (bc) =  1
     jmax   (bc) = -1
@@ -386,7 +419,7 @@ contains
     imin   (bc) =  1
     imax   (bc) = -1
     jmin   (bc) =  1
-    jmax   (bc) =  j1
+    jmax   (bc) =  jmin_sponge
     kmin   (bc) =  1
     kmax   (bc) = -1
 
@@ -409,7 +442,7 @@ contains
     normDir(bc) = -2
     imin   (bc) =  1
     imax   (bc) = -1
-    jmin   (bc) =  j2
+    jmin   (bc) =  jmax_sponge
     jmax   (bc) = -1
     kmin   (bc) =  1
     kmax   (bc) = -1
@@ -420,7 +453,7 @@ contains
     type   (bc) = 'SOLENOIDAL_EXCITATION'
     normDir(bc) =  0
     imin   (bc) =  1
-    imax   (bc) =  i1
+    imax   (bc) =  imin_sponge
     jmin   (bc) =  1
     jmax   (bc) = -1
     kmin   (bc) =  1
@@ -431,10 +464,10 @@ contains
     name   (bc) = 'localizedIgnition'
     type   (bc) = 'GAUSSIAN_IGNITION'
     normDir(bc) =  0
-    imin   (bc) =  i1
-    imax   (bc) =  i2
-    jmin   (bc) =  j1
-    jmax   (bc) =  j2
+    imin   (bc) =  imin_sponge
+    imax   (bc) =  imax_sponge
+    jmin   (bc) =  jmin_sponge
+    jmax   (bc) =  jmax_sponge
     kmin   (bc) =  1
     kmax   (bc) = -1
 
@@ -443,10 +476,10 @@ contains
     name   (bc) = 'targetRegion'
     type   (bc) = 'COST_TARGET'
     normDir(bc) =  0
-    imin   (bc) =  i1
-    imax   (bc) =  i2
-    jmin   (bc) =  j1
-    jmax   (bc) =  j2
+    imin   (bc) =  imin_tmol
+    imax   (bc) =  imax_tmol
+    jmin   (bc) =  jmin_tmol
+    jmax   (bc) =  jmax_tmol
     kmin   (bc) =  1
     kmax   (bc) = -1
 
@@ -455,10 +488,10 @@ contains
     name   (bc) = 'controlRegion'
     type   (bc) = 'ACTUATOR'
     normDir(bc) =  0
-    imin   (bc) =  i1
-    imax   (bc) =  i2
-    jmin   (bc) =  j1
-    jmax   (bc) =  j2
+    imin   (bc) =  imin_cmol
+    imax   (bc) =  imax_cmol
+    jmin   (bc) =  jmin_cmol
+    jmax   (bc) =  jmax_cmol
     kmin   (bc) =  1
     kmax   (bc) = -1
 
@@ -582,5 +615,277 @@ contains
 
     return
   end subroutine mixingLayerInitialCondition
+
+
+  ! ================ !
+  ! Target mollifier !
+  ! ================ !
+  subroutine mixingLayerTargetMollifier(state, grid, imin, imax, jmin, jmax)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+    use State_mod
+
+    ! <<< Internal modules >>>
+    use InputHelper, only : getOption
+    use ErrorHandler, only : gracefulExit
+
+    ! <<< Arguments >>>
+    type(t_State) :: state
+    type(t_Grid) :: grid
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, gridIndex
+    integer, intent(out) :: imin, imax, jmin, jmax
+    integer :: nx, ny, nz
+    real(wp) :: xmin, xmax, ymin, ymax
+    real(wp) :: x
+    real(wp), dimension(:,:,:), allocatable :: mollifier, mollifier2
+    real(wp), parameter :: s = 40.0_wp, r = 0.2_wp
+
+    ! Read the mollifier extents.
+    call getRequiredOption("targer_mollifier_xmin", xmin)
+    call getRequiredOption("targer_mollifier_xmax", xmax)
+    call getRequiredOption("targer_mollifier_ymin", ymin)
+    call getRequiredOption("targer_mollifier_ymax", ymax)
+
+    ! Get domain size
+    nx = grid%globalSize(1)
+    ny = grid%globalSize(2)
+    if (size(grid%globalSize)>2) nz = grid%globalSize(3)
+
+    ! Initialize the target mollifier.
+    allocate(mollifier(nx,ny,nz))
+    mollifier = 1.0_wp
+    allocate(mollifier2(nx,ny,nz))
+    mollifier2 = 1.0_wp
+
+    ! Hyperbolic tangent profile in y.
+    do k = 1, nz
+       do j = 1, ny
+          do i = 1, nx
+             gridIndex = i+nx*(j-1+ny*(k-1))
+             x = 2.0_wp * (grid%coordinates(gridIndex,2) - ymin) / (ymax - ymin) - 1.0_wp
+             mollifier(i,j,k) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                 &
+                  tanh(s * (x - 1.0_wp + 0.5_wp*r))
+          end do
+       end do
+    end do
+    mollifier = 0.5_wp * (mollifier - minval(mollifier))
+
+    ! Hyperbolic tangent profile in x.
+    do k = 1, nz
+       do j = 1, ny
+          do i = 1, nx
+             gridIndex = i+nx*(j-1+ny*(k-1))
+             x = 2.0_wp * (grid%coordinates(gridIndex,1) - xmin) / (xmax - xmin) - 1.0_wp
+             mollifier2(i,j,k) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                         &
+                  tanh(s * (x - 1.0_wp + 0.5_wp*r))
+          end do
+       end do
+    end do
+    mollifier2 = 0.5_wp * (mollifier2 - minval(mollifier2))
+    mollifier = mollifier * mollifier2
+
+    ! Transfer to Magudi.
+    do k = 1, nz
+       do j = 1, ny
+          do i = 1, nx
+             gridIndex = i+nx*(j-1+ny*(k-1))
+             grid%targetMollifier(gridIndex,1) = mollifier(i,j,k)
+          end do
+       end do
+    end do
+
+    ! Find initial extents in y.
+    jmin = 1; jmax = 1
+    i = 1; k = 1
+    do j = 1, ny
+       gridIndex = i+nx*(j-1+ny*(k-1))
+       if (grid%coordinates(gridIndex,2) <= ymin) jmin = j
+       if (grid%coordinates(gridIndex,2) < ymax) jmax = j+1
+    end do
+
+    ! Find new extents in x.
+    j = int(0.5_wp*(jmin+jmax)); k = 1
+    do i = 1, nx
+       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+          imin = i
+       else
+          exit
+       end if
+    end do
+    do i = imin+1, nx
+       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+          imax = i
+          exit
+       end if
+    end do
+
+    ! Find new extents in y.
+    i = int(0.5_wp*(imin+imax)); k = 1
+    do j = 1, ny
+       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+          jmin = j
+       else
+          exit
+       end if
+    end do
+    do j = jmin+1, ny
+       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+          jmax = j
+          exit
+       end if
+    end do
+
+    print *
+    print *, 'Target mollifier extents: [',imin,',',imax,'] x [',jmin,',',jmax,']'
+    print *
+
+    ! Clean up.
+    deallocate(mollifier, mollifier2)
+
+    return
+  end subroutine mixingLayerTargetMollifier
+
+
+  ! ================= !
+  ! Control mollifier !
+  ! ================= !
+  subroutine mixingLayerControlMollifier(state, grid, imin, imax, jmin, jmax)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+    use State_mod
+
+    ! <<< Internal modules >>>
+    use InputHelper, only : getOption
+    use ErrorHandler, only : gracefulExit
+
+    ! <<< Arguments >>>
+    type(t_State) :: state
+    type(t_Grid) :: grid
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, gridIndex
+    integer, intent(out) :: imin, imax, jmin, jmax
+    integer :: nx, ny, nz
+    real(wp) :: xmin, xmax, ymin, ymax
+    real(wp) :: x
+    real(wp), dimension(:,:,:), allocatable :: mollifier, mollifier2
+    real(wp), parameter :: s = 20.0_wp, r = 0.2_wp
+
+    ! Read the mollifier extents.
+    call getRequiredOption("control_mollifier_xmin", xmin)
+    call getRequiredOption("control_mollifier_xmax", xmax)
+    call getRequiredOption("control_mollifier_ymin", ymin)
+    call getRequiredOption("control_mollifier_ymax", ymax)
+
+    ! Get domain size
+    nx = grid%globalSize(1)
+    ny = grid%globalSize(2)
+    if (size(grid%globalSize)>2) nz = grid%globalSize(3)
+
+    ! Initialize the control mollifier.
+    allocate(mollifier(nx,ny,nz))
+    mollifier = 1.0_wp
+    allocate(mollifier2(nx,ny,nz))
+    mollifier2 = 1.0_wp
+
+    ! Hyperbolic tangent profile in y.
+    do k = 1, nz
+       do j = 1, ny
+          do i = 1, nx
+             gridIndex = i+nx*(j-1+ny*(k-1))
+             x = 2.0_wp * (grid%coordinates(gridIndex,2) - ymin) / (ymax - ymin) - 1.0_wp
+             mollifier(i,j,k) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                 &
+                  tanh(s * (x - 1.0_wp + 0.5_wp*r))
+          end do
+       end do
+    end do
+    mollifier = 0.5_wp * (mollifier - minval(mollifier))
+
+    ! Hyperbolic tangent profile in x.
+    do k = 1, nz
+       do j = 1, ny
+          do i = 1, nx
+             gridIndex = i+nx*(j-1+ny*(k-1))
+             x = 2.0_wp * (grid%coordinates(gridIndex,1) - xmin) / (xmax - xmin) - 1.0_wp
+             mollifier2(i,j,k) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                         &
+                  tanh(s * (x - 1.0_wp + 0.5_wp*r))
+          end do
+       end do
+    end do
+    mollifier2 = 0.5_wp * (mollifier2 - minval(mollifier2))
+    mollifier = mollifier * mollifier2
+
+    ! Transfer to Magudi.
+    do k = 1, nz
+       do j = 1, ny
+          do i = 1, nx
+             gridIndex = i+nx*(j-1+ny*(k-1))
+             grid%controlMollifier(gridIndex,1) = mollifier(i,j,k)
+          end do
+       end do
+    end do
+
+    ! Find initial extents in y.
+    jmin = 1; jmax = 1
+    i = 1; k = 1
+    do j = 1, ny
+       gridIndex = i+nx*(j-1+ny*(k-1))
+       if (grid%coordinates(gridIndex,2) <= ymin) jmin = j
+       if (grid%coordinates(gridIndex,2) < ymax) jmax = j+1
+    end do
+
+    ! Find new extents in x.
+    j = int(0.5_wp*(jmin+jmax)); k = 1
+    do i = 1, nx
+       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+          imin = i
+       else
+          exit
+       end if
+    end do
+    do i = imin+1, nx
+       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+          imax = i
+          exit
+       end if
+    end do
+
+    ! Find new extents in y.
+    i = int(0.5_wp*(imin+imax)); k = 1
+    do j = 1, ny
+       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+          jmin = j
+       else
+          exit
+       end if
+    end do
+    do j = jmin+1, ny
+       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+          jmax = j
+          exit
+       end if
+    end do
+
+    print *
+    print *, 'Target mollifier extents: [',imin,',',imax,'] x [',jmin,',',jmax,']'
+    print *
+
+    ! Clean up.
+    deallocate(mollifier, mollifier2)
+
+    return
+  end subroutine mixingLayerControlMollifier
 
 end program mixing_layer

@@ -1,5 +1,4 @@
 # mixinglayer.inp
-# Written by Ramanathan Vishnampet
 
 # Filenames, etc.
 output_prefix = "MixingLayer"
@@ -7,7 +6,19 @@ grid_file = "MixingLayer.xyz"
 initial_condition_file = "MixingLayer.ic.q"
 boundary_condition_file = "bc.dat"
 target_state_file = "MixingLayer.target.q"
+control_mollifier_file = "MixingLayer.control_mollifier.f"
+target_mollifier_file = "MixingLayer.target_mollifier.f"
 decomposition_map_file = "decomp.map"
+
+# Adjoint mollifiers
+targer_mollifier_xmin = 80.0
+targer_mollifier_xmax = 100.0
+targer_mollifier_ymin = -10.0
+targer_mollifier_ymax = 10.0
+control_mollifier_xmin = 4.0
+control_mollifier_xmax = 12.0
+control_mollifier_ymin = -4.0
+control_mollifier_ymax = 4.0
 
 # Grid information
 nx = 513
@@ -15,7 +26,7 @@ ny = 257
 #nz = 128
 xmin_interior = 0
 xmax_interior = 120
-ymin_interior =-30
+ymin_interior = -30
 ymax_interior = 30
 xmin_outer = -40
 xmax_outer = 160
