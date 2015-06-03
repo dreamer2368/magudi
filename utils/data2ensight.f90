@@ -26,7 +26,7 @@ program data2ensight
   implicit none
 
   ! I/O
-  integer :: ierr, ierror
+  integer :: isAdjoint, ierror
   character(len = STRING_LENGTH) :: grid_name, fname, prefix
   character(LEN=80) :: directory
 
@@ -72,7 +72,15 @@ program data2ensight
   read "(i6)", stopIter
   write (*,"(a13)",advance="no")  " skip iter "
   read "(i6)", skipIter
+  write (*,"(a15)",advance="no")  " read adjoint? "
+  read "(i6)", isAdjoint
   directory='ensight-3D'
+
+  ! Check for errors.
+  if (isAdjoint /= 0 .and. isAdjoint /=1) then
+     print *, 'WARNING: read adjoint /= 0 or 1!'
+     stop
+  end if
 
   ! Set the grid name.
   grid_name = trim(prefix)//'.xyz'
@@ -100,10 +108,13 @@ program data2ensight
   ndim = size(region%grids(1)%coordinates(1,:))
 
   ! Get number of variables.
-  write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
-
-  ! Load the solution file.
-  call region%loadData(QOI_FORWARD_STATE, fname)
+  if (isAdjoint == 1) then
+     write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.adjoint.q'
+     call region%loadData(QOI_ADJOINT_STATE, fname)
+  else
+     write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
+     call region%loadData(QOI_FORWARD_STATE, fname)
+  end if
   nvar = size(region%states(1)%conservedVariables(1,:))
   
   print *, 'Number of variables:',nvar
@@ -267,9 +278,13 @@ program data2ensight
   do iter = startIter, stopIter, skipIter
      print *, 'Writing timestep',iter
     
-     write(fname,'(2A,I8.8,A)') trim(prefix),'-', iter, '.q'
-     write (*,'(A)') fname
-     call region%loadData(QOI_FORWARD_STATE, fname)
+     if (isAdjoint == 1) then
+        write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.adjoint.q'
+        call region%loadData(QOI_ADJOINT_STATE, fname)
+     else
+        write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
+        call region%loadData(QOI_FORWARD_STATE, fname)
+     end if
 
     ! Binary file length
     reclength=80*3+4*(1+nx*ny*nz)
@@ -347,7 +362,7 @@ program data2ensight
   ! Write the case file !
   ! =================== !
   write(fname,'(2A)') trim(directory), '/magudi.case'
-  open(10,file=trim(fname),form="formatted",iostat=ierr,status="REPLACE")
+  open(10,file=trim(fname),form="formatted",iostat=ierror,status="REPLACE")
 
   ! Write the case
   cbuffer='FORMAT'
