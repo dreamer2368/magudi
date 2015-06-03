@@ -71,7 +71,7 @@ program mixing_layer
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
-  ! Create taget mollifier
+  ! Create target mollifier
   filename = getOption("target_mollifier_file", "")
   if (len_trim(filename) /= 0) then
      do i = 1, size(region%grids)
@@ -164,6 +164,7 @@ contains
     integer :: nx, ny, nz, nx_, ny_, nz_
     real(wp) :: xmini, xmaxi, ymini, ymaxi
     real(wp) :: xmino, xmaxo, ymino, ymaxo
+    real(wp) :: zmin, zmax
     real(wp) :: g0, b, c, sig, dy_min, dy_max, y1, y2
     real(wp), allocatable, dimension(:) :: s, g
     logical :: stretch_y
@@ -180,10 +181,17 @@ contains
     xmaxo = getOption("xmax_outer", 160.0_wp)
     ymino = getOption("ymin_outer", -50.0_wp)
     ymaxo = getOption("ymax_outer", 50.0_wp)
+    zmin = getOption("zmin", 0.0_wp)
+    zmax = getOption("zmax", 0.0_wp)
 
     ! Allocate the global grid size and assign values.
     ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
-    allocate(globalGridSizes(2,1))
+    if (nz.eq.1) then
+       allocate(globalGridSizes(2,1))
+    else
+       allocate(globalGridSizes(3,1))
+       globalGridSizes(3,1) = nz
+    end if
     globalGridSizes(1,1) = nx
     globalGridSizes(2,1) = ny
 
@@ -203,18 +211,16 @@ contains
        do j = 1, ny_
           do i = 1, nx_
              ! Create X
-             region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1)                            &
-                  = (xmaxo-xmino)*real(i-1,wp)/real(nx-1) + xmino
+             region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1) =                          &
+                  (xmaxo - xmino)*real(i-1,wp)/real(nx-1) + xmino
 
              ! Create Y
-             if (.not.stretch_y) then
-                region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2)                         &
-                     = (ymaxo-ymino)*real(j-1,wp)/real(ny-1) + ymino
-             end if
+             if (.not.stretch_y) region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2) =      &
+                     (ymaxo - ymino)*real(j-1,wp)/real(ny-1) + ymino
 
              ! Create Z
-             !region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),3)                            &
-             !     = 0.0_wp
+             if (nz.ne.1) region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),3) =             &
+                  (zmax - zmin)*real(k-1,wp)/real(nz-1) + zmin
           end do
        end do
     end do
@@ -339,7 +345,7 @@ contains
        imin_cmol,imax_cmol,jmin_cmol,jmax_cmol)
     implicit none
 
-    integer, intent(in) :: imin_sponge,imax_sponge,jmin_sponge,jmax_sponge,                  &
+    integer, intent(in), optional :: imin_sponge,imax_sponge,jmin_sponge,jmax_sponge,        &
          imin_tmol,imax_tmol,jmin_tmol,jmax_tmol,imin_cmol,imax_cmol,jmin_cmol,jmax_cmol
     integer :: i, bc, nbc, iunit
     integer, allocatable, dimension(:) :: grid,normDir,imin,imax,jmin,jmax,kmin,kmax
@@ -649,8 +655,14 @@ contains
     integer :: nx, ny, nz
     real(wp) :: xmin, xmax, ymin, ymax
     real(wp) :: x
-    real(wp), dimension(:,:,:), allocatable :: mollifier, mollifier2
+    real(wp), dimension(:,:,:,:), allocatable :: mollifier
     real(wp), parameter :: s = 40.0_wp, r = 0.2_wp
+
+    ! Make sure target mollifier is allocated.
+    if (region%simulationFlags%predictionOnly) then
+       print *, 'WARNING: target mollifier requires disable_adjoint_solver = false'
+       stop
+    end if
 
     ! Read the mollifier extents.
     call getRequiredOption("targer_mollifier_xmin", xmin)
@@ -664,10 +676,8 @@ contains
     if (size(grid%globalSize)>2) nz = grid%globalSize(3)
 
     ! Initialize the target mollifier.
-    allocate(mollifier(nx,ny,nz))
+    allocate(mollifier(nx,ny,nz,2))
     mollifier = 1.0_wp
-    allocate(mollifier2(nx,ny,nz))
-    mollifier2 = 1.0_wp
 
     ! Hyperbolic tangent profile in y.
     do k = 1, nz
@@ -675,12 +685,12 @@ contains
           do i = 1, nx
              gridIndex = i+nx*(j-1+ny*(k-1))
              x = 2.0_wp * (grid%coordinates(gridIndex,2) - ymin) / (ymax - ymin) - 1.0_wp
-             mollifier(i,j,k) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                 &
+             mollifier(i,j,k,1) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                 &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
           end do
        end do
     end do
-    mollifier = 0.5_wp * (mollifier - minval(mollifier))
+    mollifier(:,:,:,1) = 0.5_wp * (mollifier(:,:,:,1) - minval(mollifier(:,:,:,1)))
 
     ! Hyperbolic tangent profile in x.
     do k = 1, nz
@@ -688,20 +698,19 @@ contains
           do i = 1, nx
              gridIndex = i+nx*(j-1+ny*(k-1))
              x = 2.0_wp * (grid%coordinates(gridIndex,1) - xmin) / (xmax - xmin) - 1.0_wp
-             mollifier2(i,j,k) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                         &
+             mollifier(i,j,k,2) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                         &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
           end do
        end do
     end do
-    mollifier2 = 0.5_wp * (mollifier2 - minval(mollifier2))
-    mollifier = mollifier * mollifier2
+    mollifier(:,:,:,2) = 0.5_wp * (mollifier(:,:,:,2) - minval(mollifier(:,:,:,2)))
 
     ! Transfer to Magudi.
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
              gridIndex = i+nx*(j-1+ny*(k-1))
-             grid%targetMollifier(gridIndex,1) = mollifier(i,j,k)
+             grid%targetMollifier(gridIndex,1) = mollifier(i,j,k,1) * mollifier(i,j,k,2)
           end do
        end do
     end do
@@ -718,14 +727,14 @@ contains
     ! Find new extents in x.
     j = int(0.5_wp*(jmin+jmax)); k = 1
     do i = 1, nx
-       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
           imin = i
        else
           exit
        end if
     end do
     do i = imin+1, nx
-       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
           imax = i
           exit
        end if
@@ -734,14 +743,14 @@ contains
     ! Find new extents in y.
     i = int(0.5_wp*(imin+imax)); k = 1
     do j = 1, ny
-       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
           jmin = j
        else
           exit
        end if
     end do
     do j = jmin+1, ny
-       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
           jmax = j
           exit
        end if
@@ -752,7 +761,7 @@ contains
     print *
 
     ! Clean up.
-    deallocate(mollifier, mollifier2)
+    deallocate(mollifier)
 
     return
   end subroutine mixingLayerTargetMollifier
@@ -785,8 +794,14 @@ contains
     integer :: nx, ny, nz
     real(wp) :: xmin, xmax, ymin, ymax
     real(wp) :: x
-    real(wp), dimension(:,:,:), allocatable :: mollifier, mollifier2
+    real(wp), dimension(:,:,:,:), allocatable :: mollifier
     real(wp), parameter :: s = 20.0_wp, r = 0.2_wp
+
+    ! Make sure control mollifier is allocated.
+    if (region%simulationFlags%predictionOnly) then
+       print *, 'WARNING: control mollifier requires disable_adjoint_solver = false'
+       stop
+    end if
 
     ! Read the mollifier extents.
     call getRequiredOption("control_mollifier_xmin", xmin)
@@ -800,10 +815,8 @@ contains
     if (size(grid%globalSize)>2) nz = grid%globalSize(3)
 
     ! Initialize the control mollifier.
-    allocate(mollifier(nx,ny,nz))
+    allocate(mollifier(nx,ny,nz,2))
     mollifier = 1.0_wp
-    allocate(mollifier2(nx,ny,nz))
-    mollifier2 = 1.0_wp
 
     ! Hyperbolic tangent profile in y.
     do k = 1, nz
@@ -811,12 +824,12 @@ contains
           do i = 1, nx
              gridIndex = i+nx*(j-1+ny*(k-1))
              x = 2.0_wp * (grid%coordinates(gridIndex,2) - ymin) / (ymax - ymin) - 1.0_wp
-             mollifier(i,j,k) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                 &
+             mollifier(i,j,k,1) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                 &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
           end do
        end do
     end do
-    mollifier = 0.5_wp * (mollifier - minval(mollifier))
+    mollifier(:,:,:,1) = 0.5_wp * (mollifier(:,:,:,1) - minval(mollifier(:,:,:,1)))
 
     ! Hyperbolic tangent profile in x.
     do k = 1, nz
@@ -824,20 +837,19 @@ contains
           do i = 1, nx
              gridIndex = i+nx*(j-1+ny*(k-1))
              x = 2.0_wp * (grid%coordinates(gridIndex,1) - xmin) / (xmax - xmin) - 1.0_wp
-             mollifier2(i,j,k) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                         &
+             mollifier(i,j,k,2) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                         &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
           end do
        end do
     end do
-    mollifier2 = 0.5_wp * (mollifier2 - minval(mollifier2))
-    mollifier = mollifier * mollifier2
+    mollifier(:,:,:,2) = 0.5_wp * (mollifier(:,:,:,2) - minval(mollifier(:,:,:,2)))
 
     ! Transfer to Magudi.
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
              gridIndex = i+nx*(j-1+ny*(k-1))
-             grid%controlMollifier(gridIndex,1) = mollifier(i,j,k)
+             grid%controlMollifier(gridIndex,1) = mollifier(i,j,k,1) * mollifier(i,j,k,2)
           end do
        end do
     end do
@@ -854,14 +866,14 @@ contains
     ! Find new extents in x.
     j = int(0.5_wp*(jmin+jmax)); k = 1
     do i = 1, nx
-       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
           imin = i
        else
           exit
        end if
     end do
     do i = imin+1, nx
-       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
           imax = i
           exit
        end if
@@ -870,14 +882,14 @@ contains
     ! Find new extents in y.
     i = int(0.5_wp*(imin+imax)); k = 1
     do j = 1, ny
-       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
           jmin = j
        else
           exit
        end if
     end do
     do j = jmin+1, ny
-       if (mollifier(i,j,k) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
           jmax = j
           exit
        end if
@@ -888,7 +900,7 @@ contains
     print *
 
     ! Clean up.
-    deallocate(mollifier, mollifier2)
+    deallocate(mollifier)
 
     return
   end subroutine mixingLayerControlMollifier
