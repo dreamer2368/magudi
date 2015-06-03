@@ -81,6 +81,8 @@ program mixing_layer
 
      ! Write the target mollifier.
      call region%saveData(QOI_TARGET_MOLLIFIER, filename)
+  else
+     imin_tmol=1;imax_tmol=1;jmin_tmol=1;jmax_tmol=1
   end if
 
   ! Create control mollifier
@@ -93,6 +95,8 @@ program mixing_layer
 
      ! Write the control mollifier.
      call region%saveData(QOI_CONTROL_MOLLIFIER, filename)
+  else
+     imin_cmol=1;imax_cmol=1;jmin_cmol=1;jmax_cmol=1
   end if
 
   ! Generate the BC
@@ -107,6 +111,7 @@ program mixing_layer
   end do
 
   ! Save initial condition.
+  call getRequiredOption("grid_file", filename)
   i = len_trim(filename)
   if (filename(i-3:i) == ".xyz") then
      filename = filename(:i-4) // ".ic.q"
