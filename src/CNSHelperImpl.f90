@@ -2981,25 +2981,25 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   end do
   H = combustion%heatRelease * flameTemperature / combustion%Yfs
 
-  ! Zero-out Jacobian of source.
+  ! Zero-out source Jacobian.
   jacobianOfSource = 0.0_wp
 
-  jacobianOfSource(1,nDimensions+2) = H * chemicalSource(combustion%H2) * specificVolume_
+  jacobianOfSource(nDimensions+2,1) = H * chemicalSource(combustion%H2) * specificVolume_
   do k = 1, nSpecies
-     jacobianOfSource(1,nDimensions+2+k) = - chemicalSource(k) * specificVolume_
+     jacobianOfSource(nDimensions+2+k,1) = - chemicalSource(k) * specificVolume_
   end do
 
   temp = activationTemperature / temperature_**2
   jacobianOfSource(nDimensions+2,nDimensions+2) = H * chemicalSource(combustion%H2) * temp
   do k = 1, nSpecies
-     jacobianOfSource(nDimensions+2,nDimensions+2+k) = - chemicalSource(k) * temp
+     jacobianOfSource(nDimensions+2+k,nDimensions+2) = - chemicalSource(k) * temp
   end do
 
   do k = 1, nSpecies
-     jacobianOfSource(nDimensions+2+k,nDimensions+2) = H * chemicalSource(combustion%H2) /   &
+     jacobianOfSource(nDimensions+2,nDimensions+2+k) = H * chemicalSource(combustion%H2) /   &
           massFraction_(k)
      do l = 1, nSpecies
-        jacobianOfSource(nDimensions+2+k,nDimensions+2+l) = - chemicalSource(l) /            &
+        jacobianOfSource(nDimensions+2+l,nDimensions+2+k) = - chemicalSource(l) /            &
              massFraction_(k)
      end do
   end do
