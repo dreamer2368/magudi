@@ -2960,7 +2960,7 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
      massFraction_ = massFraction
   else
      do k = 1, nSpecies
-        massFraction_(k) = conservedVariables(nDimensions+2+k) * specificVolume_
+        massFraction_(k) = specificVolume_ * conservedVariables(nDimensions+2+k)
      end do
   end if
 
@@ -2997,10 +2997,10 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
 
   do k = 1, nSpecies
      jacobianOfSource(nDimensions+2,nDimensions+2+k) = H * chemicalSource(combustion%H2) /   &
-          massFraction_(k)
+          (massFraction_(k) + epsilon(1.0_wp))
      do l = 1, nSpecies
         jacobianOfSource(nDimensions+2+l,nDimensions+2+k) = - chemicalSource(l) /            &
-             massFraction_(k)
+             (massFraction_(k) + epsilon(1.0_wp))
      end do
   end do
 
