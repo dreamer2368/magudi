@@ -703,7 +703,7 @@ subroutine addSources(this, mode, grid, solverOptions)
      end do
   end if
 
-  if (this%nSpecies > 0) then
+  if (mode == FORWARD .and. this%nSpecies > 0) then
      call this%combustion%add(this%conservedVariables(:,1), this%temperature(:,1),           &
           this%massFraction, solverOptions%ratioOfSpecificHeats, grid%coordinates,           &
           grid%iblank, this%rightHandSide)
