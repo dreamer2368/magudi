@@ -99,7 +99,7 @@ program vorticity_dilatation
   ! Finalize MPI.
   call MPI_Finalize(ierror)
 
-end program
+end program vorticity_dilatation
 
 subroutine saveVorticityDilatation(region, filename)
 
