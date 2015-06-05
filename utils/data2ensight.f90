@@ -295,13 +295,18 @@ program data2ensight
         do k=1,nz
            do j=1,ny
               do i=1,nx
-                 ! Store solution in buffer
                  ii = i+nx*(j-1+ny*(k-1))
-                 rbuffer(i,j,k) = real(region%states(1)%conservedVariables(ii,var),4)
+                 ! Store solution in buffer
+                 if (isAdjoint ==1) then
+                    rbuffer(i,j,k) = real(region%states(1)%adjointVariables(ii,var),4)
+                 else
+                    rbuffer(i,j,k) = real(region%states(1)%conservedVariables(ii,var),4)
 
-                 ! Divide out rho
-                 if (var > 1) then
-                    rbuffer(i,j,k) = rbuffer(i,j,k)/real(region%states(1)%conservedVariables(i+nx*(j-1+ny*(k-1)),1),4)
+                    ! Divide out rho
+                    if (var > 1) then
+                       rbuffer(i,j,k) = rbuffer(i,j,k) /                                     &
+                            real(region%states(1)%conservedVariables(ii,1),4)
+                    end if
                  end if
               end do
            end do
