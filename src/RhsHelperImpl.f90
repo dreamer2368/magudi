@@ -317,7 +317,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
                 solverOptions%ratioOfSpecificHeats, localFluxJacobian2,                      &
                 specificVolume = state%specificVolume(j,1), velocity = localVelocity,        &
                 temperature = state%temperature(j,1), massFraction = localMassFraction)
-           !localFluxJacobian1 = localFluxJacobian1 - localFluxJacobian2
+           localFluxJacobian1 = localFluxJacobian1 - localFluxJacobian2
         end if
 
         state%rightHandSide(j,:) = state%rightHandSide(j,:) +                                &

@@ -2583,7 +2583,9 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * velocity_(1) ** 2
      contravariantStressTensor(1) = metrics(1) * stressTensor(1) !... not normalized.
      contravariantHeatFlux = metrics(1) * heatFlux(1) !... not normalized.
-     contravariantSpeciesFlux = metrics(1) * speciesFlux(:,1) !... not normalized
+     do k = 1, nSpecies
+        contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) !... not normalized
+     end do
      temp1 = velocity(1) * contravariantStressTensor(1) - contravariantHeatFlux
 
      temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_ *      &
@@ -2627,6 +2629,10 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
           metrics(2) * stressTensor(4) !... not normalized.
      contravariantHeatFlux = metrics(1) * heatFlux(1) +                                      &
           metrics(2) * heatFlux(2) !... not normalized.
+     do k = 1, nSpecies
+        contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                        &
+          metrics(2) * speciesFlux(k,2) !... not normalized
+     end do
      temp1 = velocity(1) * contravariantStressTensor(1) +                                    &
           velocity(2) * contravariantStressTensor(2) - contravariantHeatFlux
 
@@ -2687,6 +2693,11 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
           metrics(2) * stressTensor(8) + metrics(3) * stressTensor(9) !... not normalized.
      contravariantHeatFlux = metrics(1) * heatFlux(1) + metrics(2) * heatFlux(2) +           &
           metrics(3) * heatFlux(3) !... not normalized.
+     do k = 1, nSpecies
+        contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                        &
+             metrics(2) * speciesFlux(k,2) +                                                  &
+             metrics(3) * speciesFlux(k,3) !... not normalized
+     end do
      temp1 = velocity(1) * contravariantStressTensor(1) +                                    &
           velocity(2) * contravariantStressTensor(2) +                                       &
           velocity(3) * contravariantStressTensor(3) - contravariantHeatFlux
