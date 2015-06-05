@@ -26,7 +26,7 @@ program data2ensight
   implicit none
 
   ! I/O
-  integer :: isAdjoint, ierror
+  integer :: useAdjoint, ierror
   character(len = STRING_LENGTH) :: grid_name, fname, prefix
   character(LEN=80) :: directory
 
@@ -73,11 +73,11 @@ program data2ensight
   write (*,"(a13)",advance="no")  " skip iter "
   read "(i6)", skipIter
   write (*,"(a15)",advance="no")  " read adjoint? "
-  read "(i6)", isAdjoint
+  read "(i6)", useAdjoint
   directory='ensight-3D'
 
   ! Check for errors.
-  if (isAdjoint /= 0 .and. isAdjoint /=1) then
+  if (useAdjoint /= 0 .and. useAdjoint /=1) then
      print *, 'WARNING: read adjoint /= 0 or 1!'
      stop
   end if
@@ -108,20 +108,18 @@ program data2ensight
   ndim = size(region%grids(1)%coordinates(1,:))
 
   ! Get number of variables.
-  if (isAdjoint == 1) then
-     write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.adjoint.q'
-     call region%loadData(QOI_ADJOINT_STATE, fname)
-  else
-     write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
-     call region%loadData(QOI_FORWARD_STATE, fname)
-  end if
+  write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
+  call region%loadData(QOI_FORWARD_STATE, fname)
   nvar = size(region%states(1)%conservedVariables(1,:))
+
+  ! Number of species.
+  nspec = nvar - (ndim+2)
+
+  ! Include adjoint variables.
+  if (useAdjoint == 1) nvar = nvar * 2
   
   print *, 'Number of variables:',nvar
   print *
-
-  ! Number of species
-  nspec = nvar - (ndim+2)
 
   ! Get number of files and time sereies.
   numFiles = 0
@@ -159,6 +157,13 @@ program data2ensight
      names(ndim+3) = 'H2'
      names(ndim+4) = 'O2'
   end select
+
+  ! Adjoint variable names.
+  if (useAdjoint == 1) then
+     do i = 1, nvar/2
+        write(names(i+nvar/2),'(2A)') trim(names(i)), '_adjoint'
+     end do
+  end if
 
   ! Include temperature
   names(nvar+1) = 'Temperature'
@@ -278,12 +283,12 @@ program data2ensight
   do iter = startIter, stopIter, skipIter
      print *, 'Writing timestep',iter
     
-     if (isAdjoint == 1) then
+     write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
+     call region%loadData(QOI_FORWARD_STATE, fname)
+
+     if (useAdjoint == 1) then
         write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.adjoint.q'
         call region%loadData(QOI_ADJOINT_STATE, fname)
-     else
-        write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
-        call region%loadData(QOI_FORWARD_STATE, fname)
      end if
 
     ! Binary file length
@@ -297,9 +302,11 @@ program data2ensight
               do i=1,nx
                  ii = i+nx*(j-1+ny*(k-1))
                  ! Store solution in buffer
-                 if (isAdjoint ==1) then
-                    rbuffer(i,j,k) = real(region%states(1)%adjointVariables(ii,var),4)
+                 if (var > nvar/2) then
+                    ! Store adjoint variable.
+                    rbuffer(i,j,k) = real(region%states(1)%adjointVariables(ii,var-nvar/2),4)
                  else
+                    ! Store state variable.
                     rbuffer(i,j,k) = real(region%states(1)%conservedVariables(ii,var),4)
 
                     ! Divide out rho
