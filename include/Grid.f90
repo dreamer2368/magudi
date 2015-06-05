@@ -35,7 +35,7 @@ module Grid_mod
 
      integer, dimension(:), allocatable :: iblank
      SCALAR_TYPE, dimension(:,:), allocatable :: coordinates, jacobian, metrics, norm,       &
-          controlMollifier, targetMollifier
+          controlMollifier, targetMollifier, arcLengths
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
      real(SCALAR_KIND), allocatable :: mpiReduceBuffer(:)
 #endif

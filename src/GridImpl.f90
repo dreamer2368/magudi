@@ -49,6 +49,9 @@ contains
        allocate(this%controlMollifier(this%nGridPoints, 1))
     end if
 
+    if (.not. simulationFlags%compositeDissipation)                                          &
+         allocate(this%arcLengths(this%nGridPoints, this%nDimensions))
+
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
     call MPI_Comm_size(this%comm, numProcs, ierror)
     allocate(this%mpiReduceBuffer(numProcs))
@@ -767,6 +770,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   case (1)
      this%jacobian(:,1) = jacobianMatrixInverse(:,1)
      this%metrics(:,1) = 1.0_wp
+     if (allocated(this%arcLengths)) this%arcLengths(:,1) = abs(this%metrics(:,1))
 
   case (2)
 
@@ -777,12 +781,20 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         this%metrics(:,2) = - jacobianMatrixInverse(:,3)
         this%metrics(:,3) = - jacobianMatrixInverse(:,2)
         this%metrics(:,4) = jacobianMatrixInverse(:,1)
+        if (allocated(this%arcLengths)) then
+           this%arcLengths(:,1) = sqrt(this%metrics(:,1) ** 2 + this%metrics(:,2) ** 2)
+           this%arcLengths(:,2) = sqrt(this%metrics(:,3) ** 2 + this%metrics(:,4) ** 2)
+        end if
      else
         this%jacobian(:,1) = jacobianMatrixInverse(:,1) * jacobianMatrixInverse(:,4)
         this%metrics(:,1) = jacobianMatrixInverse(:,4)
         this%metrics(:,2) = 0.0_wp
         this%metrics(:,3) = 0.0_wp
         this%metrics(:,4) = jacobianMatrixInverse(:,1)
+        if (allocated(this%arcLengths)) then
+           this%arcLengths(:,1) = abs(this%metrics(:,1))
+           this%arcLengths(:,2) = abs(this%metrics(:,4))
+        end if
      end if
 
   case (3)
@@ -943,6 +955,21 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
            where (this%iblank == 0) this%metrics(:,i) = 0.0_wp
         end do
 
+     end if
+
+     if (allocated(this%arcLengths)) then
+        if (this%isCurvilinear) then
+           this%arcLengths(:,1) = sqrt(this%metrics(:,1) ** 2 + this%metrics(:,2) ** 2 +     &
+                this%metrics(:,3) ** 2)
+           this%arcLengths(:,2) = sqrt(this%metrics(:,4) ** 2 + this%metrics(:,5) ** 2 +     &
+                this%metrics(:,6) ** 2)
+           this%arcLengths(:,3) = sqrt(this%metrics(:,7) ** 2 + this%metrics(:,8) ** 2 +     &
+                this%metrics(:,9) ** 2)
+        else
+           this%arcLengths(:,1) = abs(this%metrics(:,1))
+           this%arcLengths(:,2) = abs(this%metrics(:,5))
+           this%arcLengths(:,3) = abs(this%metrics(:,9))
+        end if
      end if
 
   end select
