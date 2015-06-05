@@ -2931,13 +2931,13 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   integer, parameter :: wp = SCALAR_KIND
   integer :: k, l
   real(SCALAR_KIND) :: referenceTemperature, flameTemperature, activationTemperature,        &
-       chemicalSource(nSpecies), H
+       chemicalSource, H
   SCALAR_TYPE :: specificVolume_, velocity_(nDimensions), temperature_,                      &
        massFraction_(nSpecies), temp
 
   assert_key(nDimensions, (1, 2, 3))
   assert(nSpecies >= 0)
-  assert(combustion%nReactions == 1) ! Only implemented for single-step chemistry.
+  assert(combustion%nReactions > 0)
   assert(size(conservedVariables) == nDimensions + 2 + nSpecies)
 
   ! Compute specific volume if it was not specified.
@@ -2985,33 +2985,38 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
   flameTemperature = referenceTemperature / (1.0_wp - combustion%heatRelease)
   activationTemperature = combustion%zelDovich / combustion%heatRelease * flameTemperature
-  do k = 1, nSpecies
-     chemicalSource(k) = combustion%stoichiometricCoefficient(k) * combustion%Damkohler /    &
-          specificVolume * massFraction_(combustion%H2) * massFraction_(combustion%O2) *     &
-          exp(- activationTemperature / temperature_)
-  end do
+  chemicalSource = combustion%Damkohler / specificVolume * massFraction_(combustion%H2) *    &
+       massFraction_(combustion%O2) * exp(- activationTemperature / temperature_)
   H = combustion%heatRelease * flameTemperature / combustion%Yfs
 
   ! Zero-out source Jacobian.
   jacobianOfSource = 0.0_wp
 
-  jacobianOfSource(nDimensions+2,1) = H * chemicalSource(combustion%H2) * specificVolume_
+  jacobianOfSource(nDimensions+2,1) = H * chemicalSource * specificVolume_
   do k = 1, nSpecies
-     jacobianOfSource(nDimensions+2+k,1) = - chemicalSource(k) * specificVolume_
+     jacobianOfSource(nDimensions+2+k,1) = - combustion%stoichiometricCoefficient(k) *       &
+          chemicalSource * specificVolume_
   end do
 
   temp = activationTemperature / temperature_**2
-  jacobianOfSource(nDimensions+2,nDimensions+2) = H * chemicalSource(combustion%H2) * temp
+  jacobianOfSource(nDimensions+2,nDimensions+2) = H * chemicalSource * temp
   do k = 1, nSpecies
-     jacobianOfSource(nDimensions+2+k,nDimensions+2) = - chemicalSource(k) * temp
+     jacobianOfSource(nDimensions+2+k,nDimensions+2) =                                       &
+          - combustion%stoichiometricCoefficient(k) * chemicalSource * temp
   end do
 
   do k = 1, nSpecies
-     jacobianOfSource(nDimensions+2,nDimensions+2+k) = H * chemicalSource(combustion%H2) /   &
-          (massFraction_(k) + epsilon(1.0_wp))
+     if (k == combustion%H2) then
+        temp = combustion%Damkohler / specificVolume * massFraction_(combustion%O2) *        &
+             exp(- activationTemperature / temperature_)
+     else if (k == combustion%O2) then
+        temp = combustion%Damkohler / specificVolume * massFraction_(combustion%H2) *        &
+             exp(- activationTemperature / temperature_)
+     end if
+     jacobianOfSource(nDimensions+2,nDimensions+2+k) = H * temp
      do l = 1, nSpecies
-        jacobianOfSource(nDimensions+2+l,nDimensions+2+k) = - chemicalSource(l) /            &
-             (massFraction_(k) + epsilon(1.0_wp))
+        jacobianOfSource(nDimensions+2+l,nDimensions+2+k) =                                  &
+             - combustion%stoichiometricCoefficient(l) * temp
      end do
   end do
 

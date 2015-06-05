@@ -40,15 +40,22 @@ subroutine setupCombustion(this, nSpecies, comm)
   ! Stoichiometric coefficients.
   allocate(this%stoichiometricCoefficient(nSpecies))
   this%stoichiometricCoefficient = 0.0_wp
+
   if (this%nReactions == 1) then
+
      ! One-step chemistry.
      this%stoichiometricCoefficient(this%H2) = 1.0_wp
      this%stoichiometricCoefficient(this%O2) = this%stoichiometricRatio
+
   else if (this%nReactions == 0) then
-     ! Nothing to do
+
+     ! Nothing to do.
+
   else
+
      print *, 'WARNING, maximum of 1 reaction for now!'
      stop
+
   end if
 
 end subroutine setupCombustion
