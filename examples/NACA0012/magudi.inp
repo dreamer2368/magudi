@@ -17,6 +17,15 @@ steady_state_simulation = true
 disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "PRESSURE_DRAG"
+use_continuous_adjoint = false
+gradient_buffer_size = 1000
+
+# Gradient accuracy options
+check_gradient_accuracy = true
+number_of_control_iterations = 0
+initial_actuation_amount = 1.
+restart_control_iteration = 0
+actuation_amount_geometric_growth = 0.5623413251903491
 
 # Periodicity
 grid001/dir1/periodicity_type = 'OVERLAP'
@@ -34,10 +43,11 @@ save_interval = 50000
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.0015
+composite_dissipation = false
+dissipation_amount = 0.001
 
 # Sponge options
-defaults/sponge_amount = 2.0
+defaults/sponge_amount = 0.5
 
 # Solution limits
 enable_solution_limits = true
@@ -47,7 +57,7 @@ maximum_density = 5.
 maximum_temperature = 4.
 
 # Convergence criteria
-residuals/convergence_limit = 5e-11
+residuals/convergence_limit = 1e-12
 
 # Functional properties
 drag_direction_x = 1.
