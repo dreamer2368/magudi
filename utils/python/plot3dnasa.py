@@ -524,7 +524,7 @@ def tanh_support(x, x_min, x_max, sigma, xi):
     return y - y.min()
 
 def find_extents(x, x_min, x_max):
-    return np.where(x >= x_min)[0][0] + 1, np.where(x <= x_max)[0][-1] + 1
+    return np.where(x >= x_min)[0][0], np.where(x <= x_max)[0][-1] + 2
 
 if __name__ == '__main__':
     pass

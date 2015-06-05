@@ -9,5 +9,5 @@
   farfield.N           SAT_FAR_FIELD            1      -2    1   -1   -1   -1    1   -1
   sponge.N             SPONGE                   1      -2    1   -1  -20   -1    1   -1
   excitationSupport    SOLENOIDAL_EXCITATION    1       0   69  186  248  393    1   -1
-  targetRegion         COST_TARGET              1       0    1   -1   20   44    1   -1
-  controlRegion        ACTUATOR                 1       0  192  226  299  342    1   -1
+  targetRegion         COST_TARGET              1       0    1   -1   19   45    1   -1
+  controlRegion        ACTUATOR                 1       0  191  227  298  343    1   -1

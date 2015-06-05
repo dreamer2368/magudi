@@ -46,12 +46,12 @@ def grid(size):
 def target_mollifier(g):
     y_min = -80.
     y_max = -60.    
-    f = p3d.Function(ncomponents = 1).copy(g)
+    f = p3d.Function().copy(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
     for i in range(n[0]):
-        f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(g.xyz[0][i,:,0,1],
-                                                     y_min, y_max)
+        f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(
+            g.xyz[0][i,:,0,1], y_min, y_max)
     jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], y_min, y_max)
     print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
         'targetRegion', 'COST_TARGET', 1, 0, 1, -1, jmin, jmax, 1, -1)
@@ -66,11 +66,11 @@ def control_mollifier(g):
     f.f[0].fill(1.)
     n = f.get_size(0)
     for j in range(n[1]):
-        f.f[0][:,j,0,0] *= p3d.cubic_bspline_support(g.xyz[0][:,j,0,0],
-                                                     x_min, x_max)
+        f.f[0][:,j,0,0] *= p3d.cubic_bspline_support(
+            g.xyz[0][:,j,0,0], x_min, x_max)
     for i in range(n[0]):
-        f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(g.xyz[0][i,:,0,1],
-                                                     y_min, y_max)
+        f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(
+            g.xyz[0][i,:,0,1], y_min, y_max)
     imin, imax = p3d.find_extents(g.xyz[0][:,0,0,0], x_min, x_max)
     jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], y_min, y_max)
     print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
@@ -85,11 +85,8 @@ def mean_pressure(s):
 if __name__ == '__main__':
     g = grid([960, 640])
     g.save('WeiFreundSDML.xyz')
-    s = initial_condition(g, u1 = 0.9, u2 = 0.2)
-    s.save('WeiFreundSDML.ic.q')
-    s = target_state(g, u1 = 0.9, u2 = 0.2, S = 0.05)
-    s.save('WeiFreundSDML.target.q')
-    f = target_mollifier(g)
-    f.save('WeiFreundSDML.target_mollifier.f')
-    f = control_mollifier(g)
-    f.save('WeiFreundSDML.control_mollifier.f')
+    initial_condition(g, u1 = 0.9, u2 = 0.2).save('WeiFreundSDML.ic.q')
+    target_state(g, u1 = 0.9, u2 = 0.2,
+                 S = 0.05).save('WeiFreundSDML.target.q')
+    target_mollifier(g).save('WeiFreundSDML.target_mollifier.f')
+    control_mollifier(g).save('WeiFreundSDML.control_mollifier.f')

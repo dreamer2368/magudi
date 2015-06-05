@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export MAGUDI_MPIRUN="mpiexec --bind-to-core --npernode 8 --n 256"
+export MAGUDI_MPIRUN="mpiexec --bind-to-core --npernode 8 --n 16"
 
 function setOption() {
     if grep -q "$1" magudi.inp
@@ -11,17 +11,17 @@ function setOption() {
     fi
 }
 
-rm -f WeiFreundSDML* Bootstrap/WeiFreundSDML*
+rm -f AcousticMonopole* Bootstrap/AcousticMonopole*
 python config.py
-cp WeiFreundSDML.xyz WeiFreundSDML.target.q WeiFreundSDML.ic.q Bootstrap
+cp AcousticMonopole.xyz AcousticMonopole.target.q Bootstrap
 cd Bootstrap
 $MAGUDI_MPIRUN ../magudi
-cp WeiFreundSDML-00033600.q ../WeiFreundSDML.ic.q
+cp AcousticMonopole-00000240.q ../AcousticMonopole.ic.q
 cd ..
 setOption "disable_adjoint_solver" true
 setOption "compute_time_average" true
 $MAGUDI_MPIRUN ./magudi
-python -c "from config import *; mean_pressure(p3d.fromfile('WeiFreundSDML.mean.q')).save('WeiFreundSDML.mean_pressure.f')"
+python -c "from config import *; mean_pressure(p3d.fromfile('AcousticMonopole.mean.q')).save('AcousticMonopole.mean_pressure.f')"
 setOption "disable_adjoint_solver" false
 setOption "compute_time_average" false
 $MAGUDI_MPIRUN ./magudi
