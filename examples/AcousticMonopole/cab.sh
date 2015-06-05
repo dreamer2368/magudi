@@ -1,9 +1,10 @@
 #!/bin/bash
-#MSUB -l nodes=2:ppn=8
-#MSUB -l walltime=01:00:00
+#MSUB -l nodes=16
+#MSUB -l walltime=00:30:00
 #MSUB -V
 #MSUB -j oe
 #MSUB -o log.o%j
+#MSUB -q pdebug
 
 export MAGUDI_MPIRUN="srun"
 
