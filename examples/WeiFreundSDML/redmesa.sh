@@ -11,20 +11,8 @@ function setOption() {
     fi
 }
 
-function toggleOption() {
-    if grep -q "$1 = false" magudi.inp
-    then
-	sed -i "s/$1 = false/$1 = true/g" magudi.inp
-    elif grep -q "$1 = true" magudi.inp
-    then
-	sed -i "s/$1 = true/$1 = false/g" magudi.inp
-    fi
-}
-
 rm -f WeiFreundSDML* Bootstrap/WeiFreundSDML*
-python generateMesh.py
-python generateTargetState.py
-python generateInitialCondition.py
+python config.py
 cp WeiFreundSDML.xyz WeiFreundSDML.target.q WeiFreundSDML.ic.q Bootstrap
 cd Bootstrap
 $MAGUDI_MPIRUN ../magudi
@@ -33,8 +21,8 @@ cd ..
 setOption "disable_adjoint_solver" true
 setOption "compute_time_average" true
 $MAGUDI_MPIRUN ./magudi
+python -c "from config import *; mean_pressure(p3d.fromfile('WeiFreundSDML.mean.q')).save('WeiFreundSDML.mean_pressure.f')"
 python generateMeanPressure.py
-python generateMollifiers.py
-toggleOption "disable_adjoint_solver"
-toggleOption "compute_time_average"
+setOption "disable_adjoint_solver" false
+setOption "compute_time_average" false
 $MAGUDI_MPIRUN ./magudi
