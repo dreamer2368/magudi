@@ -208,7 +208,7 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,         
         temp2(nDimensions+2+k) = specificVolume(j,1) * temp1(nDimensions+2+k)
      end do
 
-     rightHandSide(j,:) = rightHandSide(j,:) + temp2
+     rightHandSide(j,:) = rightHandSide(j,:) - temp2
 
   end do !... j = 1, nGridPoints
 
