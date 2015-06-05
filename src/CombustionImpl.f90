@@ -18,7 +18,7 @@ subroutine setupCombustion(this, nSpecies, comm)
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
 
-  if (nSpecies <= 0) return
+  if (nSpecies == 0) return
 
   ! Species indices.
   this%H2 = 1
@@ -53,8 +53,8 @@ subroutine setupCombustion(this, nSpecies, comm)
 
 end subroutine setupCombustion
 
-subroutine addCombustion(this, density, temperature, massFraction, ratioOfSpecificHeats,     &
-     coordinates, iblank, rightHandSide)
+subroutine addCombustionForward(this, nDimensions, density, temperature, massFraction,       &
+     ratioOfSpecificHeats, iblank, rightHandSide)
 
   ! <<< Derived types >>>
   use Combustion_mod, only : t_Combustion
@@ -64,13 +64,13 @@ subroutine addCombustion(this, density, temperature, massFraction, ratioOfSpecif
   ! <<< Arguments >>>
   class(t_Combustion) :: this
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-  SCALAR_TYPE, intent(in) :: density(:), temperature(:), massFraction(:,:), coordinates(:,:)
-  integer, intent(in) :: iblank(:)
+  SCALAR_TYPE, intent(in) :: density(:), temperature(:), massFraction(:,:)
+  integer, intent(in) :: nDimensions, iblank(:)
   SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, k, nDimensions, nSpecies
+  integer :: i, k, nSpecies
   real(SCALAR_KIND) :: referenceTemperature, flameTemperature, activationTemperature,        &
        chemicalSource, Yfsi
   SCALAR_TYPE :: massFraction_(size(massFraction,2))
@@ -80,7 +80,6 @@ subroutine addCombustion(this, density, temperature, massFraction, ratioOfSpecif
 
   if (nSpecies <= 0 .or. this%nReactions == 0) return
 
-  nDimensions = size(coordinates, 2)
   assert_key(nDimensions, (1, 2, 3))
   assert(this%nReactions > 0)
 
@@ -119,4 +118,98 @@ subroutine addCombustion(this, density, temperature, massFraction, ratioOfSpecif
 
   end if
 
-end subroutine addCombustion
+end subroutine addCombustionForward
+
+subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,                      &
+     ratioOfSpecificHeats, conservedVariables, adjointVariables, velocity, massFraction,     &
+     specificVolume, temperature, rightHandSide)
+
+  ! <<< Derived types >>>
+  use Combustion_mod, only : t_Combustion
+
+  ! <<< Internal modules >>>
+  use CNSHelper, only : computeJacobianOfSource
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Combustion) :: this
+  integer, intent(in) :: nDimensions, nSpecies, nUnknowns
+  SCALAR_TYPE, dimension(:,:), intent(in) :: conservedVariables, adjointVariables,           &
+       velocity, massFraction, specificVolume, temperature
+  SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, nGridPoints
+  SCALAR_TYPE, allocatable :: localSourceJacobian(:,:), temp1(:), temp2(:),                  &
+       localConservedVariables(:), localVelocity(:), localMassFraction(:)
+
+  if (nSpecies <= 0 .or. this%nReactions == 0) return
+
+  assert_key(nDimensions, (1, 2, 3))
+  assert(nSpecies >= 0)
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
+  assert(this%nReactions > 0)
+  nGridPoints = size(conservedVariables,1)
+  assert(nGridPoints > 0)
+
+  allocate(localConservedVariables(nUnknowns))
+  allocate(localVelocity(nDimensions))
+  allocate(localMassFraction(nSpecies))
+  allocate(localSourceJacobian(nUnknowns, nUnknowns))
+  allocate(temp1(nUnknowns))
+  allocate(temp2(nUnknowns))
+
+  do j = 1, nGridPoints
+
+     localConservedVariables = conservedVariables(j,:)
+     localVelocity = velocity(j,:)
+     localMassFraction = massFraction(j,:)
+
+     call computeJacobianOfSource(nDimensions, nSpecies,                                     &
+          localConservedVariables, ratioOfSpecificHeats, this,                               &
+          localSourceJacobian, specificVolume = specificVolume(j,1),                         &
+          velocity = localVelocity, temperature = temperature(j,1),                          &
+          massFraction = localMassFraction)
+
+     temp1 = matmul(transpose(localSourceJacobian), adjointVariables(j,:))
+
+     temp2(1) = temp1(1)
+     do i = 1, nDimensions
+        temp2(1) = temp2(1) - localVelocity(i) * specificVolume(j,1) *                       &
+             temp1(i+1)
+     end do
+     temp2(1) = temp2(1) + (0.5_wp * ratioOfSpecificHeats *                                  &
+          sum(localVelocity ** 2) - temperature(j,1)) * specificVolume(j,1) *                &
+          temp1(nDimensions+2)
+     do k = 1, nSpecies
+        temp2(1) = temp2(1) - localMassFraction(k) * specificVolume(j,1) *                   &
+             temp1(nDimensions+2+k)
+     end do
+
+     do i = 1, nDimensions
+        temp2(i+1) = specificVolume(j,1) * temp1(i+1) - ratioOfSpecificHeats *               &
+             localVelocity(i) * specificVolume(j,1) * temp1(nDimensions+2)
+     end do
+
+     temp2(nDimensions+2) = ratioOfSpecificHeats * specificVolume(j,1) *                     &
+          temp1(nDimensions+2)
+
+     do k = 1, nSpecies
+        temp2(nDimensions+2+k) = specificVolume(j,1) * temp1(nDimensions+2+k)
+     end do
+
+     rightHandSide(j,:) = rightHandSide(j,:) + temp2
+
+  end do !... j = 1, nGridPoints
+
+  SAFE_DEALLOCATE(localConservedVariables)
+  SAFE_DEALLOCATE(localVelocity)
+  SAFE_DEALLOCATE(localMassFraction)
+  SAFE_DEALLOCATE(localSourceJacobian)
+  SAFE_DEALLOCATE(temp1)
+  SAFE_DEALLOCATE(temp2)
+
+end subroutine addCombustionAdjoint

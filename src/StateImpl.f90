@@ -678,7 +678,7 @@ subroutine addSources(this, mode, grid, solverOptions)
   use SolverOptions_mod, only : t_SolverOptions
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD
+  use Region_enum, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -704,9 +704,16 @@ subroutine addSources(this, mode, grid, solverOptions)
   end if
 
   if (mode == FORWARD .and. this%nSpecies > 0) then
-     call this%combustion%add(this%conservedVariables(:,1), this%temperature(:,1),           &
-          this%massFraction, solverOptions%ratioOfSpecificHeats, grid%coordinates,           &
+     call this%combustion%addForward(grid%nDimensions, this%conservedVariables(:,1),         &
+          this%temperature(:,1), this%massFraction, solverOptions%ratioOfSpecificHeats,      &
           grid%iblank, this%rightHandSide)
+  end if
+
+  if (mode == ADJOINT .and. this%nSpecies > 0) then
+     call this%combustion%addAdjoint(grid%nDimensions, solverOptions%nSpecies,               &
+          solverOptions%nUnknowns, solverOptions%ratioOfSpecificHeats,                       &
+          this%conservedVariables, this%adjointVariables, this%velocity, this%massFraction,  &
+          this%specificVolume, this%temperature, this%rightHandSide)
   end if
 
   call endTiming("addSources")

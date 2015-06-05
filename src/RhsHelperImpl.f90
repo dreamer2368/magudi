@@ -254,7 +254,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
        localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
        localVelocity(:), localMassFraction(:), localMetricsAlongDirection1(:),               &
        localMetricsAlongDirection2(:), localStressTensor(:), localHeatFlux(:),               &
-       localAdjointDiffusion(:,:), localSpeciesFlux(:,:), localSourceJacobian(:,:)
+       localAdjointDiffusion(:,:), localSpeciesFlux(:,:)
 
 
   call startTiming("computeRhsAdjoint")
@@ -289,11 +289,6 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
      allocate(localSpeciesFlux(nSpecies,nDimensions))
   end if
 
-  if (nSpecies > 0 .and. combustion%nReactions > 0) then
-     allocate(localSourceJacobian(nUnknowns, nUnknowns))
-     allocate(temp2(nUnknowns,2))
-  end if
-
   do j = 1, grid%nGridPoints
 
      localConservedVariables = state%conservedVariables(j,:)
@@ -322,53 +317,13 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
                 solverOptions%ratioOfSpecificHeats, localFluxJacobian2,                      &
                 specificVolume = state%specificVolume(j,1), velocity = localVelocity,        &
                 temperature = state%temperature(j,1), massFraction = localMassFraction)
-           localFluxJacobian1 = localFluxJacobian1 - localFluxJacobian2
+           !localFluxJacobian1 = localFluxJacobian1 - localFluxJacobian2
         end if
 
         state%rightHandSide(j,:) = state%rightHandSide(j,:) +                                &
              matmul(transpose(localFluxJacobian1), temp1(j,:,i))
 
      end do !... i = 1, nDimensions
-
-     if (nSpecies > 0 .and. combustion%nReactions > 0) then
-
-        call computeJacobianOfSource(nDimensions, nSpecies,                                  &
-             localConservedVariables, solverOptions%ratioOfSpecificHeats, combustion,        &
-             localSourceJacobian, specificVolume = state%specificVolume(j,1),                &
-             velocity = localVelocity, temperature = state%temperature(j,1),                 &
-             massFraction = localMassFraction)
-
-        temp2(:,1) = matmul(transpose(localSourceJacobian), state%adjointVariables(j,:))
-
-        temp2(1,2) = temp2(1,1)
-        do i = 1, nDimensions
-           temp2(1,2) = temp2(1,2) - localVelocity(i) * state%specificVolume(j,1) *          &
-                temp2(i+1,1)
-        end do
-        temp2(1,2) = temp2(1,2) + (0.5_wp * solverOptions%ratioOfSpecificHeats *             &
-             sum(localVelocity ** 2) - state%temperature(j,1)) * state%specificVolume(j,1) * &
-             temp2(nDimensions+2,1)
-        do k = 1, nSpecies
-           temp2(1,2) = temp2(1,2) - localMassFraction(k) * state%specificVolume(j,1) *      &
-                temp2(nDimensions+2+k,1)
-        end do
-
-        do i = 1, nDimensions
-           temp2(i+1,2) = state%specificVolume(j,1) * temp2(i+1,1) -                         &
-                solverOptions%ratioOfSpecificHeats * localVelocity(i) *                      &
-                state%specificVolume(j,1) * temp2(nDimensions+2,1)
-        end do
-
-        temp2(nDimensions+2,2) = solverOptions%ratioOfSpecificHeats *                          &
-             state%specificVolume(j,1) * temp2(nDimensions+2,1)
-
-        do k = 1, nSpecies
-           temp2(nDimensions+2+k,2) = state%specificVolume(j,1) * temp2(nDimensions+2+k,1)
-        end do
-
-        state%rightHandSide(j,:) = state%rightHandSide(j,:) + temp2(:,2)
-
-     end if
 
   end do !... j = 1, grid%nGridPoints
 
@@ -377,10 +332,6 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
   SAFE_DEALLOCATE(localHeatFlux)
   SAFE_DEALLOCATE(localStressTensor)
   SAFE_DEALLOCATE(localFluxJacobian2)
-  if (nSpecies > 0 .and. combustion%nReactions > 0) then
-     SAFE_DEALLOCATE(localSourceJacobian)
-     SAFE_DEALLOCATE(temp2)
-  end if
 
   if (simulationFlags%viscosityOn) then
 

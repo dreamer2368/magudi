@@ -15,7 +15,8 @@ module Combustion_mod
    contains
 
      procedure, public, pass :: setup => setupCombustion
-     procedure, public, pass :: add => addCombustion
+     procedure, public, pass :: addForward => addCombustionForward
+     procedure, public, pass :: addAdjoint => addCombustionAdjoint
 
   end type t_Combustion
 
@@ -34,18 +35,37 @@ module Combustion_mod
 
   interface
 
-     subroutine addCombustion(this, density, temperature, massFraction,                      &
-          ratioOfSpecificHeats, coordinates, iblank, rightHandSide)
+     subroutine addCombustionForward(this, nDimensions, density, temperature, massFraction,  &
+          ratioOfSpecificHeats, iblank, rightHandSide)
 
        import :: t_Combustion
 
        class(t_Combustion) :: this
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-       SCALAR_TYPE, intent(in) :: density(:), temperature(:), massFraction(:,:), coordinates(:,:)
-       integer, intent(in) :: iblank(:)
+       SCALAR_TYPE, intent(in) :: density(:), temperature(:), massFraction(:,:)
+       integer, intent(in) :: nDimensions, iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
-     end subroutine addCombustion
+     end subroutine addCombustionForward
+
+  end interface
+
+  interface
+
+     subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,                 &
+          ratioOfSpecificHeats, conservedVariables, adjointVariables, velocity,              &
+          massFraction, specificVolume, temperature, rightHandSide)
+
+       import :: t_Combustion
+
+       class(t_Combustion) :: this
+       integer, intent(in) :: nDimensions, nSpecies, nUnknowns
+       SCALAR_TYPE, dimension(:,:), intent(in) :: conservedVariables, adjointVariables,      &
+            velocity, massFraction, specificVolume, temperature
+       SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats
+       SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
+
+     end subroutine addCombustionAdjoint
 
   end interface
 
