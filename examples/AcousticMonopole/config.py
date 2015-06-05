@@ -2,15 +2,6 @@
 import numpy as np
 import plot3dnasa as p3d
 
-def target_state(g, gamma = 1.4):
-    return p3d.Solution().copy(g).quiescent(gamma).fromprimitive(gamma)
-    s = p3d.Solution().copy(g).quiescent(gamma)
-    x = g.xyz[0][:,:,:,0]
-    s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
-        1. + np.tanh(2. * g.xyz[0][:,:,:,1] / \
-                     (1. + S * np.where(x > 0., x, np.zeros_like(x)))))
-    return s.fromprimitive(gamma)
-
 def grid(size):
     x_min = -14.
     x_max =  14.
@@ -70,6 +61,5 @@ def mean_pressure(s):
 if __name__ == '__main__':
     g = grid([201, 201])
     g.save('AcousticMonopole.xyz')
-    target_state(g).save('AcousticMonopole.target.q')
     target_mollifier(g).save('AcousticMonopole.target_mollifier.f')
     control_mollifier(g).save('AcousticMonopole.control_mollifier.f')

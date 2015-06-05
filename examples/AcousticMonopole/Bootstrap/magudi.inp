@@ -4,7 +4,6 @@
 # Filenames, etc.
 output_prefix = "AcousticMonopole"
 grid_file = "AcousticMonopole.xyz"
-initial_condition_file = "AcousticMonopole.ic.q"
 boundary_condition_file = "bc.dat"
 
 # Simulation flags
@@ -24,7 +23,7 @@ defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_step_size = 0.05
-number_of_timesteps = 480
+number_of_timesteps = 240
 report_interval = 10
 save_interval = 20
 
