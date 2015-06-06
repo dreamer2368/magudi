@@ -38,7 +38,7 @@ program vorticity_dilatation
   call MPI_Init(ierror)
 
   ! Parse options from the input file.
-  filename = "vorticity_dilatation.inp"
+  filename = PROJECT_NAME // ".inp"
   call parseInputFile(filename)
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
@@ -75,9 +75,9 @@ program vorticity_dilatation
 
   else
 
-     call getRequiredOption("save_interval", saveInterval)
-     call getRequiredOption("start_timestep", startTimestep)
-     call getRequiredOption("end_timestep", endTimestep)
+     call getRequiredOption("vorticity_dilatation/save_interval", saveInterval)
+     call getRequiredOption("vorticity_dilatation/start_timestep", startTimestep)
+     call getRequiredOption("vorticity_dilatation/end_timestep", endTimestep)
 
      outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
