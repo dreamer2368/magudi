@@ -6,23 +6,13 @@ grid_file = "MixingLayer.xyz"
 initial_condition_file = "MixingLayer.ic.q"
 boundary_condition_file = "bc.dat"
 target_state_file = "MixingLayer.target.q"
-control_mollifier_file = "MixingLayer.control_mollifier.f"
 target_mollifier_file = "MixingLayer.target_mollifier.f"
+control_mollifier_file = "MixingLayer.control_mollifier.f"
 decomposition_map_file = "decomp.map"
 
-# Adjoint mollifiers
-targer_mollifier_xmin = 80.0
-targer_mollifier_xmax = 100.0
-targer_mollifier_ymin = -10.0
-targer_mollifier_ymax = 10.0
-control_mollifier_xmin = 4.0
-control_mollifier_xmax = 12.0
-control_mollifier_ymin = -4.0
-control_mollifier_ymax = 4.0
-
 # Grid information
-nx = 513
-ny = 257
+nx = 1025
+ny = 513
 #nz = 128
 xmin_interior = 0
 xmax_interior = 120
@@ -36,13 +26,23 @@ ymax_outer = 50
 #zmax = 25.0
 stretch_y = true
 
+# Adjoint mollifiers
+targer_mollifier_xmin = 40.0
+targer_mollifier_xmax = 60.0
+targer_mollifier_ymin = -10.0
+targer_mollifier_ymax = 10.0
+control_mollifier_xmin = 4.0
+control_mollifier_xmax = 12.0
+control_mollifier_ymin = -4.0
+control_mollifier_ymax = 4.0
+
 # Periodicity
 #grid001/dir3/periodicity_type = 'PLANE'
 #grid001/dir3/periodic_length = 50.0
 
 # Simulation flags
 include_viscous_terms = true
-use_constant_CFL_mode = true
+use_constant_CFL_mode = false
 use_target_state = true
 curvilinear_domain = false
 compute_time_average = false
@@ -71,11 +71,11 @@ Damkohler_number = 50000.0
 defaults/discretization_scheme = "SBP 4-8"
 
 # Time stepping options
-time_step_size = 0.01
-cfl = 0.1
-number_of_timesteps = 100000
+time_step_size = 0.004
+cfl = 0.3
+number_of_timesteps = 1000
 report_interval = 1
-save_interval = 10
+save_interval = 100
 
 # Artificial dissipation
 add_dissipation = true
@@ -108,11 +108,11 @@ patches/excitationSupport/radius = 4.7434164902525691
 patches/excitationSupport/random_seed = 685785
 
 # Localized ignition
-patches/localizedIgnition/amplitude = 2.0
-patches/localizedIgnition/radius = 0.5
+patches/localizedIgnition/amplitude = 1.0
+patches/localizedIgnition/radius = 0.25
 patches/localizedIgnition/origin_x = 8.0
 patches/localizedIgnition/time_start = 0.3
-patches/localizedIgnition/time_duration = 0.1
+patches/localizedIgnition/time_duration = 0.2
 
 # Adjoint optimization flags
 disable_adjoint_solver = false
@@ -121,3 +121,4 @@ cost_functional_type = "TEMPERATURE"
 controller_type = "FLAME_IGNITION"
 use_continuous_adjoint = true
 number_of_control_iterations = 0
+gradient_buffer_size = 100
