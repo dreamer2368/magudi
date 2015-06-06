@@ -416,7 +416,7 @@ def grid(**kwargs):
 
 def target_state(g, mach_number=1.3, theta_j=0.02, S=0.03,
                  potential_core_length=11., gamma=1.4):
-    s = p3d.Solution().copy(g).quiescent(gamma)
+    s = p3d.Solution().copy_from(g).quiescent(gamma)
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
     u_j = mach_number * np.sqrt(temperature_ratio)
     for i, xyz in enumerate(g.xyz):
@@ -486,8 +486,8 @@ def extract_inflow(g, k=42):
 def inflow_perturbations(g, mode):
     phi_p = 2. * np.pi * random.rand(len(mode))
     phi_n = 2. * np.pi * random.rand(len(mode))
-    sr = p3d.Solution().copy(g)
-    si = p3d.Solution().copy(g)
+    sr = p3d.Solution().copy_from(g)
+    si = p3d.Solution().copy_from(g)
     sr._format.aux_header[1] = si._format.aux_header[1] = mode[0].omega
     for i in range(g.nblocks):
         r = np.sqrt(g.xyz[i][:,:,0,0] ** 2 + g.xyz[i][:,:,0,1] ** 2)
@@ -519,7 +519,7 @@ if __name__ == '__main__':
     grid(num_axial=481, num_radial=281, num_azimuthal=192,
          p_inner=1.12148531779, interface_ds_ratio=0.999793250757)
     g = p3d.fromfile('OSUMach1.3.xyz')
-    target_state(g).save('OSUMach1.3.target.q')
+    # target_state(g).save('OSUMach1.3.target.q')
     gi = extract_inflow(g)
     gi.save('OSUMach1.3.inflow.xyz')
     modes = eigenmodes()    

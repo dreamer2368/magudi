@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """Python interface to NASA's PLOT3D file format with support for 3D 
 whole unformatted multi-block grid, solution and function files only. 
 Can handle both big-endian and little-endian byte ordering. Extends 
@@ -182,7 +185,8 @@ class MultiBlockCommon(object):
         size = self._format.size[block_index,:]
         if starts is not None and np.any(starts != 0):
             self._subzone_starts = np.array(starts)
-        if ends is not None and np.any(ends != -1 and ends != size - 1):
+        if ends is not None and (np.any(ends != -1) or 
+                                 np.any(ends != size - 1)):
             self._subzone_ends = np.array(ends)
             mask = self._subzone_ends < 0
             self._subzone_ends[mask] += size[mask]
@@ -193,7 +197,8 @@ class MultiBlockCommon(object):
                 raise ValueError('invalid sub-zone')
             self.set_size([self._subzone_ends - self._subzone_starts + 1])            
         else:
-            self.set_size(self._format.size[block_index:block_index+1,:])                
+            self.set_size(self._format.size[block_index:block_index+1,:])
+        return self
 
     def read_scalar(self, f, size, dtype, starts, ends):
         if starts is None or ends is None:
@@ -223,9 +228,9 @@ class MultiBlockCommon(object):
         size_ = ends - starts + 1
         a = np.empty(size_.tolist() + [n], dtype = dtype)
         for i in range(n):
-            f.seek(size[0] * size[1] * starts[0] * dtype.itemsize, 1)
+            f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
             for k in range(starts[2], ends[2] + 1):
-                f.seek(size[0] * starts[0] * dtype.itemsize, 1)
+                f.seek(size[0] * starts[1] * dtype.itemsize, 1)
                 for j in range(starts[1], ends[1] + 1):
                     f.seek(starts[0] * dtype.itemsize, 1)
                     a[:, j - starts[1], k - starts[2], i] = np.fromstring(
@@ -234,6 +239,26 @@ class MultiBlockCommon(object):
                 f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
             f.seek(size[0] * size[1] * (size[2] - (ends[2] + 1)) *
                    dtype.itemsize, 1)
+        return a
+
+    def read_scalar(self, f, size, dtype, starts, ends):
+        if starts is None or ends is None:
+            return np.reshape(np.fromstring(
+                f.read(dtype.itemsize * np.prod(size)), dtype),
+                              size.tolist(), order = 'F')
+        size_ = ends - starts + 1
+        a = np.empty(size_.tolist(), dtype = dtype)
+        f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
+        for k in range(starts[2], ends[2] + 1):
+            f.seek(size[0] * starts[1] * dtype.itemsize, 1)
+            for j in range(starts[1], ends[1] + 1):
+                f.seek(starts[0] * dtype.itemsize, 1)
+                a[:, j - starts[1], k - starts[2]] = np.fromstring(
+                    f.read(size_[0] * dtype.itemsize), dtype = dtype)
+                f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
+            f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
+        f.seek(size[0] * size[1] * (size[2] - (ends[2] + 1)) *
+               dtype.itemsize, 1)
         return a
 
     def write_header(self, f, ncomponents = 0):
@@ -252,13 +277,16 @@ class MultiBlockCommon(object):
             f.write(s.tostring())
             f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
 
-    def copy(self, a):
+    def copy_from(self, a):
         self.filename = ''
         self._format = a._format
+        return self.subzone_from(a)
+
+    def subzone_from(self, a):
         self.set_subzone(a._block_index, a._subzone_starts, a._subzone_ends)
         self.set_size(a.get_size(), True)
         return self
-
+        
 class Grid(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
                  subzone_ends=None, forceread=False):
@@ -274,16 +302,19 @@ class Grid(MultiBlockCommon):
     def set_size(self, size, allocate=False):
         super(Grid, self).set_size(size)
         self.xyz = [None] * self.nblocks
-        if allocate:
-            for i in range(self.nblocks):
-                self.xyz[i] = np.empty(self.size[i].tolist() + [3], dtype =
-                                       self._format.real_dtype)
         if self.has_iblank:
             self.iblank = [None] * self.nblocks
-            if allocate:
-                for i in range(self.nblocks):
-                    self.iblank[i] = np.empty(self.size[i].tolist(), dtype =
-                                              self._format.integer_dtype)
+        if allocate:
+            self.allocate()
+        return self
+
+    def allocate(self):
+        for i in range(self.nblocks):
+            self.xyz[i] = np.empty(self.size[i].tolist() + [3], dtype =
+                                   self._format.real_dtype)
+        if self.has_iblank:
+            self.iblank[i] = np.empty(self.size[i].tolist(), dtype =
+                                      self._format.integer_dtype)
         return self
 
     def load(self, filename=''):
@@ -329,14 +360,43 @@ class Grid(MultiBlockCommon):
                 f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
-        
+    def copy(self):
+        g = Grid()
+        g.filename = ''
+        g._format = self._format
+        g.has_iblank = self.has_iblank
+        g.set_subzone(self._block_index, self._subzone_starts, 
+                      self._subzone_ends)
+        g.set_size(self.get_size(), True)
+        return g
+
+    def minmax(self, block_index = None):
+        if block_index is None:
+            print 'Grid has %i block(s)\n' % self.nblocks
+            for i in range(self.nblocks):
+                print 'Block %i:' % (i + 1)
+                self.minmax(i)
+        else:
+            labels = ['x', 'y', 'z']
+            for i in range(3):
+                print 'min. {0} = {1:+10.4E}, max. {0} = {2:+10.4E}'.format(
+                    labels[i], self.xyz[block_index][:,:,:,i].min(), 
+                    self.xyz[block_index][:,:,:,i].max())
+            print ''
+
+    def __getitem__(self, key):
+        return self.xyz[key]
+
+    def __setitem__(self, key, item):
+        self.xyz[key] = item
+                
 class Solution(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
                  subzone_ends=None, forceread=False):
         self.filename = filename
         self._format = FileFormat(filename)
         if self._format.aux_header is not None:
-            self.time = self._format.aux_header[0]
+            self.time = self._format.aux_header[-1]
         else:
             self.time = 0.
         if self._format.file_type and self._format.file_type != 'solution':
@@ -349,9 +409,13 @@ class Solution(MultiBlockCommon):
         super(Solution, self).set_size(size)
         self.q = [None] * self.nblocks
         if allocate:
-            for i in range(self.nblocks):
-                self.q[i] = np.empty(self.size[i].tolist() + [5],
-                                     dtype = self._format.real_dtype)
+            self.allocate()
+        return self
+
+    def allocate(self):
+        for i in range(self.nblocks):
+            self.q[i] = np.empty(self.size[i].tolist() + [5],
+                                 dtype = self._format.real_dtype)
         return self
 
     def load(self, filename=''):
@@ -362,7 +426,7 @@ class Solution(MultiBlockCommon):
             if self._format.file_type and self._format.file_type != 'solution':
                 raise FileFormatError('%s is not a solution file' % filename)
             if self._format.aux_header is not None:
-                self.time = self._format.aux_header[0]
+                self.time = self._format.aux_header[-1]
             else:
                 self.time = 0.            
             self.set_subzone(None)
@@ -393,7 +457,7 @@ class Solution(MultiBlockCommon):
                 aux_header = self._format.aux_header
             else:
                 aux_header = np.zeros(dtype = self._format.real_dtype)
-            aux_header[0] = self.time
+            aux_header[-1] = self.time
             for i in range(self.nblocks):
                 s = 4 * self._format.real_dtype.itemsize
                 f.write(pack(self._format.reclength_dtype.str, s))
@@ -429,6 +493,36 @@ class Solution(MultiBlockCommon):
             q[:,:,:,4] = 1. / gamma
         return self
 
+    def copy(self):
+        s = Solution()
+        s.filename = ''
+        s._format = self._format
+        s.time = self.time
+        s.set_subzone(self._block_index, self._subzone_starts, 
+                      self._subzone_ends)
+        s.set_size(self.get_size(), True)
+        return s
+
+    def minmax(self, block_index = None):
+        if block_index is None:
+            print 'Solution has %i block(s)\n' % self.nblocks
+            for i in range(self.nblocks):
+                print 'Block %i:' % (i + 1)
+                self.minmax(i)
+        else:
+            labels = [u'ρ', u'ρu', u'ρv', u'ρw', u'e']
+            for i in range(5):
+                print u'min. {0:<2} = {1:+10.4E}, max. {0:<2} = {2:+10.4E}'.format(
+                    labels[i], self.q[block_index][:,:,:,i].min(), 
+                    self.q[block_index][:,:,:,i].max())
+            print ''
+
+    def __getitem__(self, key):
+        return self.q[key]
+
+    def __setitem__(self, key, item):
+        self.q[key] = item
+
 class Function(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
                  subzone_ends=None, forceread=False, ncomponents=1):
@@ -448,10 +542,13 @@ class Function(MultiBlockCommon):
         super(Function, self).set_size(size)
         self.f = [None] * self.nblocks
         if allocate:
-            for i in range(self.nblocks):
-                self.f[i] = np.empty(self.size[i].tolist() +
-                                     [self.ncomponents], dtype =
-                                     self._format.real_dtype)
+            self.allocate()
+        return self
+
+    def allocate(self):
+        for i in range(self.nblocks):
+            self.f[i] = np.empty(self.size[i].tolist() + [self.ncomponents], 
+                                 dtype = self._format.real_dtype)
         return self
 
     def load(self, filename=''):
@@ -489,7 +586,23 @@ class Function(MultiBlockCommon):
                 f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
-                
+    def copy(self):
+        f = Function()
+        f.filename = ''
+        f._format = self._format
+        f.ncomponents = self.ncomponents
+        f.set_subzone(self._block_index, self._subzone_starts, 
+                      self._subzone_ends)
+        f.set_size(self.get_size(), True)
+        return f
+
+    def __getitem__(self, key):
+        return self.f[key]
+
+    def __setitem__(self, key, item):
+        self.f[key] = item
+
+
 def fromfile(filename, block_index=None, subzone_starts=None,
              subzone_ends=None, file_type=''):
     file_type_ = file_type
