@@ -1,2 +1,5 @@
 *.pyc
 build
+build_debug
+!examples/*/*.inp
+examples/*
