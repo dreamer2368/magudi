@@ -15,9 +15,9 @@ def airfoil_slope(x, c, t):
     return 5. * t * (0.14845 / np.sqrt(x / c) - 0.1260 - 0.7032 * (x / c) +
                      0.8529 * (x / c) ** 2 - 0.406 * (x / c) ** 3)
 
-def write_glyph_file(filename, grid_size, t = 0.12, alpha = 2.,
-                     ds_te = 0.0001, ds_le = 0.0016, ds_normal = 0.0002,
-                     stretch_ratio = 1.03, stop_height = 60.):
+def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0001,
+                     ds_le=0.0016, ds_normal=0.0002, stretch_ratio=1.03,
+                     stop_height=60.):
     c = 2000.
     s = np.linspace(0., 1., 200)
     x_airfoil = np.cumsum(np.tanh(3.5 * (1. - s)) + np.tanh(3.5 * s) - 1.)
@@ -27,7 +27,7 @@ def write_glyph_file(filename, grid_size, t = 0.12, alpha = 2.,
     x_te = x_airfoil[-1] - 0.5 * y_airfoil[-1] / \
            airfoil_slope(x_airfoil[-1], c, t)
     x_start = 0.5 * c
-    
+    # Write glyph file.
     with open(filename, 'w') as f:
         print >>f, """
         gg::memClear
@@ -104,12 +104,12 @@ def write_glyph_file(filename, grid_size, t = 0.12, alpha = 2.,
 
 def grid(**kwargs):
     if not os.path.isfile('NACA0012.xyz'):
-        f = tempfile.NamedTemporaryFile(delete = False)
+        f = tempfile.NamedTemporaryFile(delete=False)
         write_glyph_file(f.name, **kwargs)
         subprocess.check_output(["gridgen", "-b", f.name])
         os.unlink(f.name)
 
-def target_state(g, mach_number, gamma = 1.4):
+def target_state(g, mach_number, gamma=1.4):
     s = p3d.Solution().copy(g).quiescent(gamma)
     s.q[0][:,:,:,1] = mach_number
     return s.fromprimitive(gamma)
@@ -117,4 +117,4 @@ def target_state(g, mach_number, gamma = 1.4):
 if __name__ == '__main__':
     grid(grid_size = [1440, 360])
     g = p3d.fromfile('NACA0012.xyz')
-    target_state(g, mach_number = 0.5).save('NACA0012.target.q')
+    target_state(g, mach_number=0.5).save('NACA0012.target.q')

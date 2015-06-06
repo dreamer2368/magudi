@@ -1,5 +1,0 @@
-grid_file = "OSUMach1.3.xyz"
-use_manual_domain_decomposition = true
-decomposition_map_file = "decomp.map"
-Mach_number = 1.3
-nozzle_exit_momentum_thickness = 0.02

@@ -16,13 +16,13 @@ def mapping_function(s, b, c, sigma):
                                 np.sqrt(np.pi) - ((0.5 - c) / sigma) *
                                 erf((0.5 - c) / sigma)))
 
-def initial_condition(g, u1, u2, gamma = 1.4):
+def initial_condition(g, u1, u2, gamma=1.4):
     s = p3d.Solution().copy(g).quiescent(gamma)
     s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
         1. + np.tanh(2. * g.xyz[0][:,:,:,1]))
     return s.fromprimitive(gamma)
 
-def target_state(g, u1, u2, S, gamma = 1.4):
+def target_state(g, u1, u2, S, gamma=1.4):
     s = p3d.Solution().copy(g).quiescent(gamma)
     x = g.xyz[0][:,:,:,0]
     s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
@@ -85,8 +85,7 @@ def mean_pressure(s):
 if __name__ == '__main__':
     g = grid([960, 640])
     g.save('WeiFreundSDML.xyz')
-    initial_condition(g, u1 = 0.9, u2 = 0.2).save('WeiFreundSDML.ic.q')
-    target_state(g, u1 = 0.9, u2 = 0.2,
-                 S = 0.05).save('WeiFreundSDML.target.q')
+    initial_condition(g, u1=0.9, u2=0.2).save('WeiFreundSDML.ic.q')
+    target_state(g, u1=0.9, u2=0.2, S=0.05).save('WeiFreundSDML.target.q')
     target_mollifier(g).save('WeiFreundSDML.target_mollifier.f')
     control_mollifier(g).save('WeiFreundSDML.control_mollifier.f')
