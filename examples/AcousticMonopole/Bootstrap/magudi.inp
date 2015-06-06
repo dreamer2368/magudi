@@ -4,32 +4,13 @@
 # Filenames, etc.
 output_prefix = "AcousticMonopole"
 grid_file = "AcousticMonopole.xyz"
-initial_condition_file = "AcousticMonopole.ic.q"
 boundary_condition_file = "bc.dat"
-control_mollifier_file = "AcousticMonopole.control_mollifier.f"
-target_mollifier_file = "AcousticMonopole.target_mollifier.f"
-mean_pressure_file = "AcousticMonopole.mean_pressure.f"
 
 # Simulation flags
 include_viscous_terms = true
 use_constant_CFL_mode = false
 use_target_state = true
 curvilinear_domain = false
-compute_time_average = false
-
-# Adjoint optimization flags
-disable_adjoint_solver = false
-baseline_prediction_available = false
-cost_functional_type = "SOUND"
-use_continuous_adjoint = false
-gradient_buffer_size = 20
-
-# Gradient accuracy options
-check_gradient_accuracy = true
-number_of_control_iterations = 32
-initial_actuation_amount = 1e4
-restart_control_iteration = 0
-actuation_amount_geometric_growth = 0.5623413251903491
 
 # Physical constants
 Reynolds_number = 200.
@@ -42,7 +23,7 @@ defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_step_size = 0.05
-number_of_timesteps = 480
+number_of_timesteps = 240
 report_interval = 10
 save_interval = 20
 

@@ -48,8 +48,8 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
-  this%amount = getOption("defaults/jet_excitation/amplitude", 0.0_wp)
-  this%amount = getOption(trim(key) // "amplitude", this%amount)
+  this%spongeAmount = getOption("defaults/jet_excitation/amplitude", 0.0_wp)
+  this%spongeAmount = getOption(trim(key) // "amplitude", this%amount)
 
   this%nModes = getOption("defaults/jet_excitation/number_of_modes", 0)
   this%nModes = getOption(trim(key) // "number_of_modes", this%nModes)
@@ -74,6 +74,12 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
            call gracefulExit(this%comm, message)
         end if
 
+        if (any(globalPatchSizes(:,grid%index) /= this%globalSize(1:nDimensions))) then
+           write(message, '(2A)') trim(filename),                                            &
+                ": incorrect patch extents for jet excitation."
+           call gracefulExit(this%comm, message)
+        end if
+
         offset = plot3dGetOffset(this%comm, filename, grid%index, success)
         if (.not. success) call gracefulExit(this%comm, plot3dErrorMessage)
 
@@ -95,6 +101,12 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
         if (size(globalPatchSizes, 1) /= grid%nDimensions .or.                               &
              size(globalPatchSizes, 2) < grid%index) then
            write(message, '(2A)') trim(filename), ": mismatch in grid dimensions."
+           call gracefulExit(this%comm, message)
+        end if
+
+        if (any(globalPatchSizes(:,grid%index) /= this%globalSize(1:nDimensions))) then
+           write(message, '(2A)') trim(filename),                                            &
+                ": incorrect patch extents for jet excitation."
            call gracefulExit(this%comm, message)
         end if
 
@@ -198,13 +210,15 @@ subroutine addJetExcitation(this, mode, simulationFlags, solverOptions, grid, st
                 (k - 1 - this%offset(3)))
            do l = 1, this%nModes
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
-                   this%amount * this%spongeStrength(patchIndex) *                           &
+                   this%spongeStrength(patchIndex) *                                         &
                    (this%perturbationReal(patchIndex,:,l) * temp(l,1) -                      &
                    this%perturbationImag(patchIndex,:,l) * temp(l,2))
            end do
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
   end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+
+  SAFE_DEALLOCATE(temp)
 
   call endTiming("addJetExcitation")
 

@@ -34,7 +34,7 @@ initial_actuation_amount = 1e4
 restart_control_iteration = 0
 actuation_amount_geometric_growth = 0.5623413251903491
 
-# Non-dimensional constants
+# Physical constants
 Reynolds_number = 714.2857142857143
 Prandtl_number = 0.7
 viscosity_power_law_exponent = 0.

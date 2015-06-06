@@ -19,7 +19,6 @@ contains
     use Region_enum, only : FORWARD, ADJOINT
 
     ! <<< Internal modules >>>
-    use CNSHelper, only : computeSpectralRadius
     use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
@@ -31,7 +30,7 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, nDimensions, nUnknowns
-    SCALAR_TYPE, allocatable :: dissipationTerm(:,:), spectralRadius(:,:)
+    SCALAR_TYPE, allocatable :: dissipationTerm(:,:)
     real(SCALAR_KIND) :: dissipationAmount
 
     if (.not. simulationFlags%dissipationOn) return
@@ -54,54 +53,28 @@ contains
        dissipationAmount = - solverOptions%dissipationAmount
     end select
 
-    if (simulationFlags%compositeDissipation) then
+    do i = 1, nDimensions
 
-       do i = 1, nDimensions
+       select case (mode)
+       case (FORWARD)
+          dissipationTerm = state%conservedVariables
+       case (ADJOINT)
+          dissipationTerm = state%adjointVariables
+       end select
 
-          select case (mode)
-          case (FORWARD)
-             dissipationTerm = state%conservedVariables
-          case (ADJOINT)
-             dissipationTerm = state%adjointVariables
-          end select
+       call grid%dissipation(i)%apply(dissipationTerm, grid%localSize)
 
-          call grid%dissipation(i)%apply(dissipationTerm, grid%localSize)
-          state%rightHandSide = state%rightHandSide + dissipationAmount * dissipationTerm
-
-       end do
-
-    else
-
-       allocate(spectralRadius(grid%nGridPoints, nDimensions))
-       call computeSpectralRadius(nDimensions, solverOptions%ratioOfSpecificHeats,           &
-            state%velocity, state%temperature(:,1), grid%metrics,                            &
-            spectralRadius, grid%isCurvilinear)
-
-       do i = 1, nDimensions
-
-          select case (mode)
-          case (FORWARD)
-             dissipationTerm = state%conservedVariables
-          case (ADJOINT)
-             dissipationTerm = state%adjointVariables
-          end select
-
-          call grid%dissipation(i)%apply(dissipationTerm, grid%localSize)
-
+       if (.not. simulationFlags%compositeDissipation) then
           do j = 1, nUnknowns
-             dissipationTerm(:,j) = spectralRadius(:,i) * dissipationTerm(:,j)
+             dissipationTerm(:,j) = - grid%arcLengths(:,i) * dissipationTerm(:,j)
           end do
-
           call grid%dissipationTranspose(i)%apply(dissipationTerm, grid%localSize)
           call grid%firstDerivative(i)%applyNormInverse(dissipationTerm, grid%localSize)
+       end if
 
-          state%rightHandSide = state%rightHandSide - dissipationAmount * dissipationTerm
+       state%rightHandSide = state%rightHandSide + dissipationAmount * dissipationTerm
 
-       end do
-
-       SAFE_DEALLOCATE(spectralRadius)
-
-    end if
+    end do
 
     SAFE_DEALLOCATE(dissipationTerm)
 

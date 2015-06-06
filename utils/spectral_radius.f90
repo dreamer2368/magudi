@@ -99,7 +99,7 @@ program spectral_radius
   ! Finalize MPI.
   call MPI_Finalize(ierror)
 
-end program
+end program spectral_radius
 
 subroutine saveSpectralRadius(region, filename)
 
