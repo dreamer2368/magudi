@@ -283,11 +283,11 @@ program data2ensight
   do iter = startIter, stopIter, skipIter
      print *, 'Writing timestep',iter
     
-     write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
+     write(fname,'(2A,I8.8,A)') trim(prefix),'-', iter, '.q'
      call region%loadData(QOI_FORWARD_STATE, fname)
 
      if (useAdjoint == 1) then
-        write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.adjoint.q'
+        write(fname,'(2A,I8.8,A)') trim(prefix),'-', iter, '.adjoint.q'
         call region%loadData(QOI_ADJOINT_STATE, fname)
      end if
 
