@@ -352,7 +352,8 @@ contains
     character(len = 22), allocatable, dimension(:) :: name,type
 
     ! Number of BC
-    nbc = 12
+    nbc = 10
+    if (imax_tmol > 1) nbc = nbc + 2
 
     ! Allocate BC
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
@@ -482,29 +483,31 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 11
-    bc = 11
-    name   (bc) = 'targetRegion'
-    type   (bc) = 'COST_TARGET'
-    normDir(bc) =  0
-    imin   (bc) =  imin_tmol
-    imax   (bc) =  imax_tmol
-    jmin   (bc) =  jmin_tmol
-    jmax   (bc) =  jmax_tmol
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+    if (imax_tmol > 1) then
+       ! BC 11
+       bc = 11
+       name   (bc) = 'targetRegion'
+       type   (bc) = 'COST_TARGET'
+       normDir(bc) =  0
+       imin   (bc) =  imin_tmol
+       imax   (bc) =  imax_tmol
+       jmin   (bc) =  jmin_tmol
+       jmax   (bc) =  jmax_tmol
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    ! BC 12
-    bc = 12
-    name   (bc) = 'controlRegion'
-    type   (bc) = 'ACTUATOR'
-    normDir(bc) =  0
-    imin   (bc) =  imin_cmol
-    imax   (bc) =  imax_cmol
-    jmin   (bc) =  jmin_cmol
-    jmax   (bc) =  jmax_cmol
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       ! BC 12
+       bc = 12
+       name   (bc) = 'controlRegion'
+       type   (bc) = 'ACTUATOR'
+       normDir(bc) =  0
+       imin   (bc) =  imin_cmol
+       imax   (bc) =  imax_cmol
+       jmin   (bc) =  jmin_cmol
+       jmax   (bc) =  jmax_cmol
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+    end if
 
    ! Open the file
     iunit=11
@@ -656,7 +659,7 @@ contains
     real(wp) :: xmin, xmax, ymin, ymax
     real(wp) :: x
     real(wp), dimension(:,:,:,:), allocatable :: mollifier
-    real(wp), parameter :: s = 40.0_wp, r = 0.2_wp
+    real(wp), parameter :: s = 10.0_wp, r = 0.2_wp, eps = 1.0E-6_wp
 
     ! Make sure target mollifier is allocated.
     if (region%simulationFlags%predictionOnly) then
@@ -727,14 +730,14 @@ contains
     ! Find new extents in x.
     j = int(0.5_wp*(jmin+jmax)); k = 1
     do i = 1, nx
-       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < eps) then
           imin = i
        else
           exit
        end if
     end do
     do i = imin+1, nx
-       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < eps) then
           imax = i
           exit
        end if
@@ -743,14 +746,14 @@ contains
     ! Find new extents in y.
     i = int(0.5_wp*(imin+imax)); k = 1
     do j = 1, ny
-       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < eps) then
           jmin = j
        else
           exit
        end if
     end do
     do j = jmin+1, ny
-       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < eps) then
           jmax = j
           exit
        end if
@@ -795,7 +798,7 @@ contains
     real(wp) :: xmin, xmax, ymin, ymax
     real(wp) :: x
     real(wp), dimension(:,:,:,:), allocatable :: mollifier
-    real(wp), parameter :: s = 20.0_wp, r = 0.2_wp
+    real(wp), parameter :: s = 10.0_wp, r = 0.2_wp, eps = 1.0e-6_wp
 
     ! Make sure control mollifier is allocated.
     if (region%simulationFlags%predictionOnly) then
@@ -866,14 +869,14 @@ contains
     ! Find new extents in x.
     j = int(0.5_wp*(jmin+jmax)); k = 1
     do i = 1, nx
-       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < eps) then
           imin = i
        else
           exit
        end if
     end do
     do i = imin+1, nx
-       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < eps) then
           imax = i
           exit
        end if
@@ -882,21 +885,21 @@ contains
     ! Find new extents in y.
     i = int(0.5_wp*(imin+imax)); k = 1
     do j = 1, ny
-       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < eps) then
           jmin = j
        else
           exit
        end if
     end do
     do j = jmin+1, ny
-       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < epsilon(1.0_wp)) then
+       if (mollifier(i,j,k,1) * mollifier(i,j,k,2) < eps) then
           jmax = j
           exit
        end if
     end do
 
     print *
-    print *, 'Target mollifier extents: [',imin,',',imax,'] x [',jmin,',',jmax,']'
+    print *, 'Control mollifier extents: [',imin,',',imax,'] x [',jmin,',',jmax,']'
     print *
 
     ! Clean up.
