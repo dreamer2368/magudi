@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#ini!/usr/bin/env python
 import numpy as np
 import plot3dnasa as p3d
 
@@ -17,13 +17,13 @@ def mapping_function(s, b, c, sigma):
                                 erf((0.5 - c) / sigma)))
 
 def initial_condition(g, u1, u2, gamma=1.4):
-    s = p3d.Solution().copy(g).quiescent(gamma)
+    s = p3d.Solution().copy_from(g).quiescent(gamma)
     s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
         1. + np.tanh(2. * g.xyz[0][:,:,:,1]))
     return s.fromprimitive(gamma)
 
 def target_state(g, u1, u2, S, gamma=1.4):
-    s = p3d.Solution().copy(g).quiescent(gamma)
+    s = p3d.Solution().copy_from(g).quiescent(gamma)
     x = g.xyz[0][:,:,:,0]
     s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
         1. + np.tanh(2. * g.xyz[0][:,:,:,1] / \
@@ -44,17 +44,23 @@ def grid(size):
     return g
 
 def target_mollifier(g):
+    x_min =   0.
+    x_max = 100.
     y_min = -80.
-    y_max = -60.    
-    f = p3d.Function().copy(g)
+    y_max = -60.
+    f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
+    for j in range(n[1]):
+        f.f[0][:,j,0,0] *= p3d.tanh_support(
+            g.xyz[0][:,j,0,0], x_min, x_max, 40., 0.2)    
     for i in range(n[0]):
         f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(
             g.xyz[0][i,:,0,1], y_min, y_max)
+    imin, imax = p3d.find_extents(g.xyz[0][:,0,0,0], x_min, x_max)        
     jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], y_min, y_max)
     print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-        'targetRegion', 'COST_TARGET', 1, 0, 1, -1, jmin, jmax, 1, -1)
+        'targetRegion', 'COST_TARGET', 1, 0, imin, imax, jmin, jmax, 1, -1)
     return f
 
 def control_mollifier(g):
@@ -62,7 +68,7 @@ def control_mollifier(g):
     x_max =  7.    
     y_min = -3.
     y_max =  3.
-    f = p3d.Function().copy(g)
+    f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
     for j in range(n[1]):
@@ -78,7 +84,7 @@ def control_mollifier(g):
     return f
 
 def mean_pressure(s):
-    f = p3d.Function().copy(s)
+    f = p3d.Function().copy_from(s)
     f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
     return f
 
