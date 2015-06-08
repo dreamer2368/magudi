@@ -49,7 +49,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
   this%spongeAmount = getOption("defaults/jet_excitation/amplitude", 0.0_wp)
-  this%spongeAmount = getOption(trim(key) // "amplitude", this%amount)
+  this%spongeAmount = getOption(trim(key) // "amplitude", this%spongeAmount)
 
   this%nModes = getOption("defaults/jet_excitation/number_of_modes", 0)
   this%nModes = getOption(trim(key) // "number_of_modes", this%nModes)

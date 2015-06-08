@@ -189,6 +189,8 @@ subroutine computeSpongeStrengths(patchFactories, grid)
      ! Check if there are sponge patches along direction `direction`.
      spongesExistAlongDirection = queryPatchTypeExists(patchFactories,                       &
           'SPONGE', grid%index, direction)
+     spongesExistAlongDirection = spongesExistAlongDirection .or.                            &
+          queryPatchTypeExists(patchFactories, 'JET_EXCITATION', grid%index, direction)
      call MPI_Allreduce(MPI_IN_PLACE, spongesExistAlongDirection, 1, MPI_LOGICAL,            &
           MPI_LOR, grid%comm, ierror) !... reduce across grid-level processes.
      if (.not. spongesExistAlongDirection) cycle
