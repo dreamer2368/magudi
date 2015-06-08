@@ -85,15 +85,16 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
   nSpecies = size(massFraction,2)
   assert(nSpecies >= 0)
 
-  if (nSpecies <= 0 .or. this%nReactions == 0) return
+  if (nSpecies == 0 .or. this%nReactions == 0) return
 
   assert_key(nDimensions, (1, 2, 3))
+  assert(nSpecies > 0)
   assert(this%nReactions > 0)
 
   if (this%nReactions == 1) then
 
      ! One-step chemistry.
-     ! H2 + sO2 -> (1+s)P
+     ! H2 + sO2 => (1+s)P
 
      referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
      flameTemperature = referenceTemperature / (1.0_wp - this%heatRelease)
@@ -153,10 +154,10 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,         
   SCALAR_TYPE, allocatable :: localSourceJacobian(:,:), temp1(:), temp2(:),                  &
        localConservedVariables(:), localVelocity(:), localMassFraction(:)
 
-  if (nSpecies <= 0 .or. this%nReactions == 0) return
+  if (nSpecies == 0 .or. this%nReactions == 0) return
 
   assert_key(nDimensions, (1, 2, 3))
-  assert(nSpecies >= 0)
+  assert(nSpecies > 0)
   assert(nUnknowns == nDimensions + 2 + nSpecies)
   assert(this%nReactions > 0)
   nGridPoints = size(conservedVariables,1)

@@ -2985,8 +2985,9 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
   flameTemperature = referenceTemperature / (1.0_wp - combustion%heatRelease)
   activationTemperature = combustion%zelDovich / combustion%heatRelease * flameTemperature
-  chemicalSource = combustion%Damkohler / specificVolume * massFraction_(combustion%H2) *    &
-       massFraction_(combustion%O2) * exp(- activationTemperature / temperature_)
+  chemicalSource = combustion%Damkohler * conservedVariables(1) *                            &
+       massFraction_(combustion%H2) * massFraction_(combustion%O2) *                         &
+       exp(- activationTemperature / temperature_)
   H = combustion%heatRelease * flameTemperature / combustion%Yfs
 
   ! Zero-out source Jacobian.
@@ -3007,10 +3008,10 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
 
   do k = 1, nSpecies
      if (k == combustion%H2) then
-        temp = combustion%Damkohler / specificVolume * massFraction_(combustion%O2) *        &
+        temp = combustion%Damkohler * conservedVariables(1) * massFraction_(combustion%O2) * &
              exp(- activationTemperature / temperature_)
      else if (k == combustion%O2) then
-        temp = combustion%Damkohler / specificVolume * massFraction_(combustion%H2) *        &
+        temp = combustion%Damkohler * conservedVariables(1) * massFraction_(combustion%H2) * &
              exp(- activationTemperature / temperature_)
      end if
      jacobianOfSource(nDimensions+2,nDimensions+2+k) = H * temp
