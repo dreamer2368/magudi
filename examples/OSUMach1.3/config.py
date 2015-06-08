@@ -519,7 +519,7 @@ if __name__ == '__main__':
     grid(num_axial=481, num_radial=281, num_azimuthal=192,
          p_inner=1.12148531779, interface_ds_ratio=0.999793250757)
     g = p3d.fromfile('OSUMach1.3.xyz')
-    # target_state(g).save('OSUMach1.3.target.q')
+    target_state(g).save('OSUMach1.3.target.q')
     gi = extract_inflow(g)
     gi.save('OSUMach1.3.inflow.xyz')
     modes = eigenmodes()    
