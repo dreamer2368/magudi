@@ -302,7 +302,7 @@ program data2ensight
               do i=1,nx
                  ii = i+nx*(j-1+ny*(k-1))
                  ! Store solution in buffer
-                 if (var > nvar/2) then
+                 if (useAdjout==1 .and. var>nvar/2) then
                     ! Store adjoint variable.
                     rbuffer(i,j,k) = real(region%states(1)%adjointVariables(ii,var-nvar/2),4)
                  else
