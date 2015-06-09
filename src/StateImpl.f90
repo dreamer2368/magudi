@@ -713,7 +713,7 @@ subroutine addSources(this, mode, grid, solverOptions)
      call this%combustion%addAdjoint(grid%nDimensions, solverOptions%nSpecies,               &
           solverOptions%nUnknowns, solverOptions%ratioOfSpecificHeats,                       &
           this%conservedVariables, this%adjointVariables, this%velocity, this%massFraction,  &
-          this%specificVolume, this%temperature, this%rightHandSide)
+          this%specificVolume, this%temperature, grid%iblank, this%rightHandSide)
   end if
 
   call endTiming("addSources")

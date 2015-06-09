@@ -105,10 +105,10 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
         if (iblank(i) == 0) cycle
 
         ! Bound mass fractions between 0 and 1.
-        do k = 1, nSpecies
-           massFraction_(k) = max(massFraction(i,k), 0.0_wp)
-           massFraction_(k) = min(massFraction_(k), 1.0_wp)
-        end do
+!!$        do k = 1, nSpecies
+!!$           massFraction_(k) = max(massFraction(i,k), 0.0_wp)
+!!$           massFraction_(k) = min(massFraction_(k), 1.0_wp)
+!!$        end do
 
         chemicalSource = this%Damkohler * density(i) * massFraction_(this%H2) *              &
              massFraction_(this%O2) * exp(- activationTemperature / temperature(i))
@@ -130,7 +130,7 @@ end subroutine addCombustionForward
 
 subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,                      &
      ratioOfSpecificHeats, conservedVariables, adjointVariables, velocity, massFraction,     &
-     specificVolume, temperature, rightHandSide)
+     specificVolume, temperature, iblank, rightHandSide)
 
   ! <<< Derived types >>>
   use Combustion_mod, only : t_Combustion
@@ -142,7 +142,7 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,         
 
   ! <<< Arguments >>>
   class(t_Combustion) :: this
-  integer, intent(in) :: nDimensions, nSpecies, nUnknowns
+  integer, intent(in) :: nDimensions, nSpecies, nUnknowns, iblank(:)
   SCALAR_TYPE, dimension(:,:), intent(in) :: conservedVariables, adjointVariables,           &
        velocity, massFraction, specificVolume, temperature
   SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats
@@ -171,6 +171,8 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,         
   allocate(temp2(nUnknowns))
 
   do j = 1, nGridPoints
+
+     if (iblank(j) == 0) cycle
 
      localConservedVariables = conservedVariables(j,:)
      localVelocity = velocity(j,:)

@@ -2976,10 +2976,10 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   end if
 
   ! Bound the mass fractions.
-  do k = 1, nSpecies
-     massFraction_(k) = max(massFraction_(k), 0.0_wp)
-     massFraction_(k) = min(massFraction_(k), 1.0_wp)
-  end do
+!!$  do k = 1, nSpecies
+!!$     massFraction_(k) = max(massFraction_(k), 0.0_wp)
+!!$     massFraction_(k) = min(massFraction_(k), 1.0_wp)
+!!$  end do
 
   ! Other dependent variables.
   referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)

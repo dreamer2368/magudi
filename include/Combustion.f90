@@ -54,12 +54,12 @@ module Combustion_mod
 
      subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,                 &
           ratioOfSpecificHeats, conservedVariables, adjointVariables, velocity,              &
-          massFraction, specificVolume, temperature, rightHandSide)
+          massFraction, specificVolume, temperature, iblank, rightHandSide)
 
        import :: t_Combustion
 
        class(t_Combustion) :: this
-       integer, intent(in) :: nDimensions, nSpecies, nUnknowns
+       integer, intent(in) :: nDimensions, nSpecies, nUnknowns, iblank(:)
        SCALAR_TYPE, dimension(:,:), intent(in) :: conservedVariables, adjointVariables,      &
             velocity, massFraction, specificVolume, temperature
        SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats
