@@ -61,15 +61,15 @@ def read_engauge_data(filename):
     return curves    
 
 def setup_axis(ax, xlim, ylim, xlabel, ylabel, xticks, yticks,
-               xlabelpad=2., ylabelpad=2., scale='linear'):
+               xlabelpad=2., ylabelpad=2., xscale='linear', yscale='linear'):
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_xlabel(xlabel, labelpad=xlabelpad)
     ax.set_ylabel(ylabel, labelpad=ylabelpad)
-    ticks, ticklabels = nice_labels(xticks, scale)
+    ticks, ticklabels = nice_labels(xticks, xscale)
     ax.set_xticks(ticks)
     ax.set_xticklabels(ticklabels)
-    ticks, ticklabels = nice_labels(yticks, scale)
+    ticks, ticklabels = nice_labels(yticks, yscale)
     ax.set_yticks(ticks)
     ax.set_yticklabels(ticklabels)
     return ax

@@ -512,7 +512,8 @@ class Solution(MultiBlockCommon):
         else:
             labels = [u'ρ', u'ρu', u'ρv', u'ρw', u'e']
             for i in range(5):
-                print u'min. {0:<2} = {1:+10.4E}, max. {0:<2} = {2:+10.4E}'.format(
+                print u'min. {0:<2} = {1:+10.4E}, ' \
+                    u'max. {0:<2} = {2:+10.4E}'.format(
                     labels[i], self.q[block_index][:,:,:,i].min(), 
                     self.q[block_index][:,:,:,i].max())
             print ''
