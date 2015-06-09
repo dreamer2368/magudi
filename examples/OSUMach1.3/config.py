@@ -420,16 +420,16 @@ def target_state(g, mach_number=1.3, theta_j=0.02, S=0.03,
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
     u_j = mach_number * np.sqrt(temperature_ratio)
     for i, xyz in enumerate(g.xyz):
-        r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2)
-        theta = theta_j + S * np.where(xyz[0,0,:,2] > 0., xyz[0,0,:,2],
-                                       np.zeros_like(xyz[0,0,:,2]))
-        for k, theta_ in enumerate(theta):
-            s.q[i][:,:,k,3] = 0.5 * u_j * (1. + np.tanh(0.25 / theta_ *
+        r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2) / 0.5 + EPSILON
+        z = xyz[0,0,:,2]
+        theta = theta_j + S * np.where(z > 0., z, np.zeros_like(z))
+        for k in range(z.size):
+            s.q[i][:,:,k,3] = 0.5 * u_j * (1. + np.tanh(0.25 / theta[k] *
                                                         (1. / r - r)))
-            if xyz[0,0,k,2] > potential_core_length:
+            if z[k] > potential_core_length:
                 s.q[i][:,:,k,3] *= (1. - np.exp(
-                    1.35 / (1. - xyz[0,0,k,2] / potential_core_length)))
-        s.q[i][:,:,:,0] = 1. / (0.5 * (gamma - 1.) * s.q[i][:,:,:,3] / u_j +
+                    1.35 / (1. - z[k] / potential_core_length)))
+        s.q[i][:,:,:,0] = 1. / (0.5 * (gamma - 1.) * s.q[i][:,:,:,3] / u_j *
                                 (1. - s.q[i][:,:,:,3] / u_j) *
                                 mach_number ** 2 + s.q[i][:,:,:,3] / u_j +
                                 (1. - s.q[i][:,:,:,3] / u_j) /
@@ -519,7 +519,7 @@ if __name__ == '__main__':
     grid(num_axial=481, num_radial=281, num_azimuthal=192,
          p_inner=1.12148531779, interface_ds_ratio=0.999793250757)
     g = p3d.fromfile('OSUMach1.3.xyz')
-    target_state(g).save('OSUMach1.3.target.q')
+    target_state(g).save('test.q')
     gi = extract_inflow(g)
     gi.save('OSUMach1.3.inflow.xyz')
     modes = eigenmodes()    
