@@ -207,9 +207,9 @@ class MultiBlockCommon(object):
                               size.tolist(), order = 'F')
         size_ = ends - starts + 1
         a = np.empty(size_.tolist(), dtype = dtype)
-        f.seek(size[0] * size[1] * starts[0] * dtype.itemsize, 1)
+        f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
         for k in range(starts[2], ends[2] + 1):
-            f.seek(size[0] * starts[0] * dtype.itemsize, 1)
+            f.seek(size[0] * starts[1] * dtype.itemsize, 1)
             for j in range(starts[1], ends[1] + 1):
                 f.seek(starts[0] * dtype.itemsize, 1)
                 a[:, j - starts[1], k - starts[2]] = np.fromstring(

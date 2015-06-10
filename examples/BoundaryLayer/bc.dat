@@ -1,0 +1,5 @@
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  flatPlate            SAT_ISOTHERMAL_WALL      1       2    1   -1    1    1    1   -1
+  farField.N           SAT_FAR_FIELD            1      -2    1   -1   -1   -1    1   -1
+  sponge.N             SPONGE                   1      -2    1   -1   -7   -1    1   -1

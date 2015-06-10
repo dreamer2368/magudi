@@ -36,8 +36,8 @@ def style_spine(ax):
 def nice_labels(t, scale='linear'):
     from numpy import log10
     if scale == 'log':
-        t, [r'$10^{%g}$' % t_ if t_ != 0 else r'$1$' for t_ in np.log10(t)]
-    elif scale == 'linear':
+        return t, [r'$10^{%g}$' % t_ if t_ != 0 else r'$1$' for t_ in log10(t)]
+    if scale == 'linear':
         return t, [r'$%g$' % t_ for t_ in t]
     return t, [r'' for t_ in t]
 
@@ -62,6 +62,9 @@ def read_engauge_data(filename):
 
 def setup_axis(ax, xlim, ylim, xlabel, ylabel, xticks, yticks,
                xlabelpad=2., ylabelpad=2., xscale='linear', yscale='linear'):
+
+    ax.set_xscale(xscale)
+    ax.set_yscale(yscale)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_xlabel(xlabel, labelpad=xlabelpad)
