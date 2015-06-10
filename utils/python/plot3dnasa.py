@@ -364,6 +364,30 @@ class Grid(MultiBlockCommon):
                 f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
+    def save_h5(self, filename=''):
+        import h5py
+        if not filename:
+            filename = self.filename
+        f = h5py.File(filename, 'w')
+        d = dict(HEADER=np.zeros(1), numberOfGrids=self.nblocks)
+        for key in d:
+            f.attrs[key] = d[key]
+        for i in range(self.nblocks):
+            grp = f.create_group('Group%03d' % (i + 1))
+            d = dict(HEADER=np.zeros(4), useIB=int(self.has_iblank),
+                     gridSize=self.size[i,:], numberOfAuxVars=0)
+            for key in d:
+                grp.attrs[key] = d[key]
+            for j in range(3):
+                dset = grp.create_dataset('XYZ'[j], self.size[i,:],
+                                          dtype=self._format.real_dtype.str)
+                dset[:,:,:] = self.xyz[i][:,:,:,j]
+            if self.has_iblank:
+                dset = grp.create_dataset('IBLANK', self.size[i,:],
+                                          dtype=self._format.endianness + 'i')
+                dset[:,:,:] = self.iblank[i][:,:,:]
+        f.close()
+
     def copy(self):
         g = Grid()
         g.filename = ''
@@ -473,6 +497,27 @@ class Solution(MultiBlockCommon):
                 f.write(self.q[i].tostring(order = 'F'))
                 f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
+
+    def save_h5(self, filename=''):
+        import h5py
+        if not filename:
+            filename = self.filename
+        f = h5py.File(filename, 'w')
+        d = dict(HEADER=np.zeros(1), numberOfGrids=self.nblocks)
+        for key in d:
+            f.attrs[key] = d[key]
+        for i in range(self.nblocks):
+            grp = f.create_group('Group%03d' % (i + 1))
+            d = dict(HEADER=self._format.aux_header,
+                     useIB=int(self.has_iblank),
+                     gridSize=self.size[i,:], numberOfAuxVars=0)
+            for key in d:
+                grp.attrs[key] = d[key]
+            for j in range(5):
+                dset = grp.create_dataset('cv%02d' % (j + 1), self.size[i,:],
+                                          dtype=self._format.real_dtype.str)
+                dset[:,:,:] = self.q[i][:,:,:,j]
+        f.close()
 
     def toprimitive(self, gamma = 1.4):
         for q in self.q:
@@ -590,6 +635,26 @@ class Function(MultiBlockCommon):
                 f.write(self.f[i].tostring(order = 'F'))
                 f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
+
+    def save_h5(self, filename=''):
+        import h5py
+        if not filename:
+            filename = self.filename
+        f = h5py.File(filename, 'w')
+        d = dict(HEADER=np.zeros(1), numberOfGrids=self.nblocks)
+        for key in d:
+            f.attrs[key] = d[key]
+        for i in range(self.nblocks):
+            grp = f.create_group('Group%03d' % (i + 1))
+            d = dict(HEADER=np.zeros(4), useIB=int(self.has_iblank),
+                     gridSize=self.size[i,:], numberOfAuxVars=0)
+            for key in d:
+                grp.attrs[key] = d[key]
+            for j in range(5):
+                dset = grp.create_dataset('f%02d' % (j + 1), self.size[i,:],
+                                          dtype=self._format.real_dtype.str)
+                dset[:,:,:] = self.f[i][:,:,:,j]
+        f.close()
 
     def copy(self):
         f = Function()
