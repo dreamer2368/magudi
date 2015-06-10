@@ -79,7 +79,7 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, k, nSpecies
   real(SCALAR_KIND) :: referenceTemperature, flameTemperature, activationTemperature,        &
-       chemicalSource, Yfsi
+       chemicalSource, H
   SCALAR_TYPE :: massFraction_(size(massFraction,2))
 
   nSpecies = size(massFraction,2)
@@ -99,7 +99,7 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
      referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
      flameTemperature = referenceTemperature / (1.0_wp - this%heatRelease)
      activationTemperature = this%zelDovich / this%heatRelease * flameTemperature
-     yfsi = 1.0_wp / this%Yfs
+     H = this%heatRelease * flameTemperature / this%Yfs
 
      do i = 1, size(rightHandSide, 1)
         if (iblank(i) == 0) cycle
@@ -116,7 +116,7 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
 
         ! Heat release due to combustion.
         rightHandSide(i,nDimensions+2) = rightHandSide(i,nDimensions+2) +                    &
-             this%heatRelease * flameTemperature * chemicalSource * Yfsi
+             H * chemicalSource
 
         ! Species source terms.
         do k = 1, nSpecies
