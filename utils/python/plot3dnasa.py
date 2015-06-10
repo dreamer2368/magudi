@@ -46,8 +46,8 @@ class FileFormat(object):
                     self.endianness)
                 self.nblocks = self._get_integer(f)
                 # block dimensions
-                a = np.fromstring(self._get_raw_bytes(f),
-                                  dtype = np.dtype(np.int32))
+                a = np.fromstring(self._get_raw_bytes(f), dtype = np.dtype(
+                        np.int32).newbyteorder(self.endianness))
                 if np.any(a <= 0):
                     raise FileFormatError(filename)
                 if a.size == 4 * self.nblocks:
@@ -161,13 +161,15 @@ class MultiBlockCommon(object):
         ndim = np.array(size).ndim
         if ndim == 1:
             self.nblocks = 1
-            self.size = np.empty([1, 3], dtype = np.dtype(np.int32))
+            self.size = np.empty([1, 3], dtype = np.dtype(
+                    np.int32).newbyteorder(self._format.endianness))
             for i, s in enumerate(size):
                 self.size[0,:] = [size[i] if i < len(size) else 1
                                   for i in range(3)]            
         elif ndim == 2:
             self.nblocks = len(size)
-            self.size = np.empty([self.nblocks, 3], dtype = np.dtype(np.int32))
+            self.size = np.empty([self.nblocks, 3], dtype = np.dtype(
+                    np.int32).newbyteorder(self._format.endianness))
             for i, s in enumerate(size):
                 self.size[i,:] = [size[i][j] if j < len(size[i]) else 1
                                   for j in range(3)]
@@ -270,7 +272,8 @@ class MultiBlockCommon(object):
             f.write(self.size.tostring())
             f.write(pack(self._format.reclength_dtype.str, 4 * self.size.size))
         else:
-            s = np.empty([self.nblocks, 4], dtype = np.dtype(np.int32))
+            s = np.empty([self.nblocks, 4], dtype = np.dtype(
+                    np.int32).newbyteorder(self._format.endianness))
             s[:,:-1] = self.size
             s[:,-1] = ncomponents
             f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
@@ -337,7 +340,8 @@ class Grid(MultiBlockCommon):
                     self._subzone_starts, self._subzone_ends)
                 if self.has_iblank:
                     self.iblank[j] = self.read_scalar(
-                        f, self._format.size[i,:], np.dtype(np.int32),
+                        f, self._format.size[i,:], np.dtype(
+                            np.int32).newbyteorder(self._format.endianness),
                         self._subzone_starts, self._subzone_ends)
                 j += 1
         self.filename = filename                
