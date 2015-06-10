@@ -105,10 +105,11 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
         if (iblank(i) == 0) cycle
 
         ! Bound mass fractions between 0 and 1.
-!!$        do k = 1, nSpecies
-!!$           massFraction_(k) = max(massFraction(i,k), 0.0_wp)
-!!$           massFraction_(k) = min(massFraction_(k), 1.0_wp)
-!!$        end do
+        do k = 1, nSpecies
+           massFraction_(k) = massFraction(i,k)
+           !massFraction_(k) = max(massFraction(i,k), 0.0_wp)
+           !massFraction_(k) = min(massFraction_(k), 1.0_wp)
+        end do
 
         chemicalSource = this%Damkohler * density(i) * massFraction_(this%H2) *              &
              massFraction_(this%O2) * exp(- activationTemperature / temperature(i))
