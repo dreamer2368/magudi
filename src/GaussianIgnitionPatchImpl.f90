@@ -148,7 +148,7 @@ subroutine addGaussianIgnition(this, mode, simulationFlags, solverOptions, grid,
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (2, 3))
   
-  timePortion = exp(-0.5_wp * (state%time - this%timeStart) **2 / this%timeDuration **2 )
+  timePortion = exp( -0.5_wp * (state%time - this%timeStart) **2 / this%timeDuration **2 )
 
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
