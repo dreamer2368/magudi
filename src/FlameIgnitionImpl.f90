@@ -49,6 +49,8 @@ subroutine setupFlameIgnition(this, region)
      end do
   end if
 
+  this%sensitivityDependence = getOption("sensitivity_dependence", "")
+
 end subroutine setupFlameIgnition
 
 subroutine cleanupFlameIgnition(this)
@@ -71,8 +73,10 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
   use MPI
 
   ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use FlameIgnition_mod, only : t_FlameIgnition
+  use GaussianIgnitionPatch_mod, only : t_GaussianIgnitionPatch
 
   implicit none
 
@@ -85,8 +89,10 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, ierror
-  SCALAR_TYPE, allocatable :: F(:,:)
+  integer :: i, nDimensions, p, ii, jj, kk, gridIndex, patchIndex, ierror
+  SCALAR_TYPE, allocatable :: F(:,:), dfds(:)
+  real(SCALAR_KIND) :: timePortion
+  class(t_Patch), pointer :: patch => null()
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -108,10 +114,66 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
-     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                           &
-          region%grids(i)%controlMollifier(:,1)
-     instantaneousSensitivity = instantaneousSensitivity +                                   &
-          region%grids(i)%computeInnerProduct(F, F)
+
+     select case (this%sensitivityDependence)
+
+     case ('AMPLITUDE')
+
+        assert(allocated(region%patchFactories))
+
+        allocate(dfds(region%grids(i)%nGridPoints))
+        dfds = 0.0_wp
+
+        do p = 1, size(region%patchFactories)
+           call region%patchFactories(p)%connect(patch)
+           if (.not. associated(patch)) cycle
+           if (patch%gridIndex /= region%grids(i)%index) cycle
+           select type (patch)
+           class is (t_GaussianIgnitionPatch)
+
+              timePortion = exp( -0.5_wp * (region%states(i)%time - patch%timeStart) **2 /   &
+                   patch%timeDuration **2 )
+
+              do kk = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+                 do jj = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+                    do ii = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                       gridIndex = ii - patch%gridOffset(1) + patch%gridLocalSize(1) *       &
+                            (jj - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *         &
+                            (kk - 1 - patch%gridOffset(3)))
+                       if (region%grids(i)%iblank(gridIndex) == 0) cycle
+                       patchIndex = ii - patch%offset(1) + patch%localSize(1) *              &
+                            (jj - 1 - patch%offset(2) + patch%localSize(2) *                 &
+                            (kk - 1 - patch%offset(3)))
+
+                       dfds(gridIndex) = patch%strength(patchIndex) * timePortion
+
+                    end do ! kk = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+                 end do ! jj = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+              end do ! ii = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+
+              dfds = dfds / patch%amplitude
+
+           end select
+        end do
+
+        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                        &
+             dfds * region%grids(i)%controlMollifier(:,1)
+        instantaneousSensitivity = instantaneousSensitivity +                                &
+             region%grids(i)%computeInnerProduct(F, F)
+
+        SAFE_DEALLOCATE(dfds)
+
+     case ('VERTICAL_POSITION')
+
+     case default
+
+        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                        &
+             region%grids(i)%controlMollifier(:,1)
+        instantaneousSensitivity = instantaneousSensitivity +                                &
+             region%grids(i)%computeInnerProduct(F, F)
+
+     end select
+
      SAFE_DEALLOCATE(F)
 
   end do

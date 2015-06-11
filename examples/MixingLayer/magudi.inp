@@ -119,6 +119,7 @@ disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "TEMPERATURE"
 controller_type = "FLAME_IGNITION"
+sensitivity_dependence = "AMPLITUDE"
 use_continuous_adjoint = true
 number_of_control_iterations = 0
 gradient_buffer_size = 100
