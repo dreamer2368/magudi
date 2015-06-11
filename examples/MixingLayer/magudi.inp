@@ -117,9 +117,10 @@ patches/localizedIgnition/time_duration = 0.2
 # Adjoint optimization flags
 disable_adjoint_solver = false
 baseline_prediction_available = false
+use_continuous_adjoint = true
 cost_functional_type = "TEMPERATURE"
 controller_type = "FLAME_IGNITION"
+partial_sensitivity = true
 sensitivity_dependence = "AMPLITUDE"
-use_continuous_adjoint = true
 number_of_control_iterations = 0
 gradient_buffer_size = 100

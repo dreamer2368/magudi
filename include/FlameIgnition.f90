@@ -10,6 +10,7 @@ module FlameIgnition_mod
   type, extends(t_Controller), public :: t_FlameIgnition
 
      character(len = STRING_LENGTH) :: sensitivityDependence
+     logical :: partialSensitivity
 
    contains
 

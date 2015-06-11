@@ -9,7 +9,7 @@ subroutine setupFlameIgnition(this, region)
   use FlameIgnition_mod, only : t_FlameIgnition
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption
+  use InputHelper, only : getOption, getRequiredOption
 
   implicit none
 
@@ -49,7 +49,11 @@ subroutine setupFlameIgnition(this, region)
      end do
   end if
 
-  this%sensitivityDependence = getOption("sensitivity_dependence", "")
+  this%partialSensitivity = getOption("partial_sensitivity",.false.)
+  if (this%partialSensitivity) then
+     call getRequiredOption("sensitivity_dependence", this%sensitivityDependence,            &
+          region%comm)
+  end if
 
 end subroutine setupFlameIgnition
 
@@ -115,9 +119,7 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
      allocate(F(region%grids(i)%nGridPoints, 1))
 
-     select case (this%sensitivityDependence)
-
-     case ('AMPLITUDE')
+     if (this%partialSensitivity) then
 
         assert(allocated(region%patchFactories))
 
@@ -151,7 +153,17 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
                  end do ! jj = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
               end do ! ii = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
 
-              dfds = dfds / patch%amplitude
+              select case (this%sensitivityDependence)
+
+              case ('AMPLITUDE')
+                 dfds = dfds / patch%amplitude
+
+              case ('VERTICAL_POSITION')
+
+                 dfds = dfds * (region%grids(i)%coordinates(:,2) - patch%origin(2)) /        &
+                      patch%radius**2
+
+              end select
 
            end select
         end do
@@ -163,16 +175,14 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
         SAFE_DEALLOCATE(dfds)
 
-     case ('VERTICAL_POSITION')
-
-     case default
+     else
 
         F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                        &
              region%grids(i)%controlMollifier(:,1)
         instantaneousSensitivity = instantaneousSensitivity +                                &
              region%grids(i)%computeInnerProduct(F, F)
 
-     end select
+     end if
 
      SAFE_DEALLOCATE(F)
 
