@@ -21,9 +21,9 @@ def wall_units(y, q, Re=2266., gamma=1.4, van_driest=True):
     mu_wall = ((gamma - 1.) * T[0]) ** 0.666 / Re
     tau_wall = mu_wall * (q[1,1] - q[0,1]) / (y[1] - y[0])
     u_tau = np.sqrt(tau_wall / q[0,0])
-    print np.append([0.], np.cumsum(np.sqrt(T[0] / T[:-1]) * (u[1:] - u[:-1]))).shape
+    print np.append([0.], np.cumsum(np.sqrt(T[0] / T[:-1]) * (q[1:,1] - q[:-1,1]))).shape
     if van_driest:
         return y * q[0,0] * u_tau / mu_wall, \
             np.append([0.], np.cumsum(np.sqrt(T[0] / T[:-1]) *
-                                      (u[1:] - u[:-1]))).shape / u_tau
+                                      (q[1:,1] - q[:-1,1]))) / u_tau
     return y * q[0,0] * u_tau / mu_wall, q[:,1] / u_tau
