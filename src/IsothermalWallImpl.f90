@@ -59,15 +59,19 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
 
   ! Viscous penalty amounts.
   if (simulationFlags%viscosityOn) then
+     this%viscousPenaltyAmounts(1) = getOption("defaults/viscous_penalty_amount", 1.0_wp)
+     this%viscousPenaltyAmounts(2) = 0.0_wp
      do i = 1, 2
         write(key, '(A,I0.0)') "patches/" // trim(patchDescriptor%name) //                   &
              "/viscous_penalty_amount", i
-        this%viscousPenaltyAmounts(i) = getOption(trim(key), 1.0_wp)
+        this%viscousPenaltyAmounts(i) = getOption(trim(key), this%viscousPenaltyAmounts(i))
         this%viscousPenaltyAmounts(i) = sign(this%viscousPenaltyAmounts(i),                  &
              real(this%normalDirection, wp))
         this%viscousPenaltyAmounts(i) = this%viscousPenaltyAmounts(i) /                      &
              grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
      end do
+     this%viscousPenaltyAmounts(1) = this%viscousPenaltyAmounts(1) *                         &
+          solverOptions%reynoldsNumberInverse
   else
      this%viscousPenaltyAmounts = 0.0_wp
   end if
@@ -180,7 +184,6 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
                 (state%temperature(gridIndex, 1) - this%temperature(patchIndex))
            viscousPenalties(:,2) = viscousPenalties(:,2) *                                   &
                 grid%jacobian(gridIndex, 1) * sum(metricsAlongNormalDirection ** 2)
-           viscousPenalties(:,2) = 0.0_wp !... temporarily disabled.
 
            viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 

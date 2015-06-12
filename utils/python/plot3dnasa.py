@@ -381,11 +381,13 @@ class Grid(MultiBlockCommon):
             for j in range(3):
                 dset = grp.require_dataset('XYZ'[j], tuple(self.size[i,:]),
                                           dtype=self._format.real_dtype.str)
-                dset[:,:,:] = self.xyz[i][:,:,:,j]
+                dset[...] = self.xyz[i][:,:,:,j].flatten(order='F').reshape(
+                    self.size[i,:], order='C')
             if self.has_iblank:
-                dset = grp.require_dataset('IBLANK', tuple(self.size[i,:]),
+                dset = grp.require_dataset('IBLANK', tuple(self.size[i,:nd]),
                                           dtype=self._format.endianness + 'i')
-                dset[:,:,:] = self.iblank[i][:,:,:]
+                dset[...] = self.iblank[i].flatten(order='F').reshape(
+                    self.size[i,:], order='C')
         f.close()
 
     def copy(self):
@@ -512,11 +514,14 @@ class Solution(MultiBlockCommon):
                      numberOfAuxVars=0)
             for key in d:
                 grp.attrs[key] = d[key]
-            for j in range(5):
-                dset = grp.require_dataset('%s%02d' % (prefix, j + 1),
+            nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
+                 if self.size[i,2] == 1 else 3
+            for k, j in enumerate([0] + range(1, nd + 1) + [4]):
+                dset = grp.require_dataset('%s%02d' % (prefix, k + 1),
                                            tuple(self.size[i,:]),
                                            dtype=self._format.real_dtype.str)
-                dset[:,:,:] = self.q[i][:,:,:,j]
+                dset[...] = self.q[i][:,:,:,j].ravel(order='F').reshape(
+                    self.size[i,:], order='C')
         f.close()
 
     def toprimitive(self, gamma = 1.4):
@@ -650,11 +655,18 @@ class Function(MultiBlockCommon):
                      numberOfAuxVars=0)
             for key in d:
                 grp.attrs[key] = d[key]
-            for j in range(5):
+            nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
+                 if self.size[i,2] == 1 else 3
+            for j in range(self.ncomponents):
                 dset = grp.require_dataset('%s%02d' % (prefix, j + 1),
-                                           tuple(self.size[i,:]),
+                                           tuple(self.size[i,:nd]),
                                            dtype=self._format.real_dtype.str)
-                dset[:,:,:] = self.f[i][:,:,:,j]
+                if nd == 3:
+                    dset[...] = self.f[i][:,0,0,j]
+                elif nd == 2:
+                    dset[...] = self.f[i][:,:,0,j]
+                else:
+                    dset[...] = self.f[i][:,:,:,j]
         f.close()
 
     def copy(self):
@@ -689,6 +701,18 @@ def fromfile(filename, block_index=None, subzone_starts=None,
         return Function(filename, block_index, subzone_starts, subzone_ends,
                         forceread = True)
     return None
+
+def cartesian_grid(filename, block_index=0):
+    f = FileFormat(filename)
+    assert f.file_type == 'grid'
+    g = Grid(filename, block_index)
+    x = g.set_subzone(block_index, [0, 0, 0],
+                      [-1, 0, 0]).load().xyz[0][:,0,0,0]
+    y = g.set_subzone(block_index, [0, 0, 0],
+                      [0, -1, 0]).load().xyz[0][0,:,0,1]
+    z = g.set_subzone(block_index, [0, 0, 0],
+                      [0, 0, -1]).load().xyz[0][0,0,:,2]
+    return x, y, z
 
 def cubic_bspline_support(x, x_min, x_max):
     from scipy.signal import cubic
