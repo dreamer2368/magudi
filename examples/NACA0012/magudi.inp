@@ -36,7 +36,7 @@ defaults/discretization_scheme = "SBP 2-4"
 # Time stepping options
 time_integration_scheme = 'RK4'
 cfl = 0.7
-number_of_timesteps = 20000000
+number_of_timesteps = 10000000
 report_interval = 10000
 check_residuals_interval = 1000
 save_interval = 50000
