@@ -16,20 +16,6 @@ def mapping_function(s, b, c, sigma):
                                 np.sqrt(np.pi) - ((0.5 - c) / sigma) *
                                 erf((0.5 - c) / sigma)))
 
-def initial_condition(g, u1, u2, gamma=1.4):
-    s = p3d.Solution().copy_from(g).quiescent(gamma)
-    s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
-        1. + np.tanh(2. * g.xyz[0][:,:,:,1]))
-    return s.fromprimitive(gamma)
-
-def target_state(g, u1, u2, S, gamma=1.4):
-    s = p3d.Solution().copy_from(g).quiescent(gamma)
-    x = g.xyz[0][:,:,:,0]
-    s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
-        1. + np.tanh(2. * g.xyz[0][:,:,:,1] / \
-                     (1. + S * np.where(x > 0., x, np.zeros_like(x)))))
-    return s.fromprimitive(gamma)
-
 def grid(size):
     x_min =  -60.
     x_max =  160.
@@ -42,6 +28,20 @@ def grid(size):
         np.linspace(0., 1., g.size[0,1]), 20., 0.62, 0.2))
     g.xyz[0][:,:,0,:2] = np.transpose(np.meshgrid(x, y))
     return g
+
+def target_state(g, u1, u2, S, gamma=1.4):
+    s = p3d.Solution().copy_from(g).quiescent(gamma)
+    x = g.xyz[0][:,:,:,0]
+    s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
+        1. + np.tanh(2. * g.xyz[0][:,:,:,1] / \
+                     (1. + S * np.where(x > 0., x, np.zeros_like(x)))))
+    return s.fromprimitive(gamma)
+
+def initial_condition(g, u1, u2, gamma=1.4):
+    s = p3d.Solution().copy_from(g).quiescent(gamma)
+    s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
+        1. + np.tanh(2. * g.xyz[0][:,:,:,1]))
+    return s.fromprimitive(gamma)
 
 def target_mollifier(g):
     x_min =   0.

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Python interface to NASA's PLOT3D file format with support for 3D 
-whole unformatted multi-block grid, solution and function files only. 
-Can handle both big-endian and little-endian byte ordering. Extends 
-NASA's original file format specification to include 64-bit record 
+"""Python interface to NASA's PLOT3D file format with support for 3D
+whole unformatted multi-block grid, solution and function files only.
+Can handle both big-endian and little-endian byte ordering. Extends
+NASA's original file format specification to include 64-bit record
 lengths and quad-precision floating-point (as supported natively)."""
 
 import sys
@@ -17,13 +17,13 @@ class FileFormatError(Exception):
     pass
 
 
-class FileFormat(object):    
+class FileFormat(object):
     def __init__(self, filename=''):
         self.reclength_dtype = np.dtype(np.int32)
         self.integer_dtype = np.dtype(np.int32)
         self.real_dtype = np.dtype(np.float64)
         self.endianness = '='
-        self.ncomponents = 0        
+        self.ncomponents = 0
         self.nblocks = 0
         self.size = np.empty([0, 3], dtype = np.dtype(np.int32))
         self.file_type = ''
@@ -46,8 +46,8 @@ class FileFormat(object):
                     self.endianness)
                 self.nblocks = self._get_integer(f)
                 # block dimensions
-                a = np.fromstring(self._get_raw_bytes(f),
-                                  dtype = np.dtype(np.int32))
+                a = np.fromstring(self._get_raw_bytes(f), dtype = np.dtype(
+                        np.int32).newbyteorder(self.endianness))
                 if np.any(a <= 0):
                     raise FileFormatError(filename)
                 if a.size == 4 * self.nblocks:
@@ -136,7 +136,7 @@ class FileFormat(object):
                          f.read(self.reclength_dtype.itemsize))
         s = f.read(n)
         f.seek(self.reclength_dtype.itemsize, 1)
-        return s    
+        return s
 
     def _get_integer(self, f):
         return unpack_from(self.endianness + 'i',
@@ -161,13 +161,15 @@ class MultiBlockCommon(object):
         ndim = np.array(size).ndim
         if ndim == 1:
             self.nblocks = 1
-            self.size = np.empty([1, 3], dtype = np.dtype(np.int32))
+            self.size = np.empty([1, 3], dtype = np.dtype(
+                    np.int32).newbyteorder(self._format.endianness))
             for i, s in enumerate(size):
                 self.size[0,:] = [size[i] if i < len(size) else 1
-                                  for i in range(3)]            
+                                  for i in range(3)]
         elif ndim == 2:
             self.nblocks = len(size)
-            self.size = np.empty([self.nblocks, 3], dtype = np.dtype(np.int32))
+            self.size = np.empty([self.nblocks, 3], dtype = np.dtype(
+                    np.int32).newbyteorder(self._format.endianness))
             for i, s in enumerate(size):
                 self.size[i,:] = [size[i][j] if j < len(size[i]) else 1
                                   for j in range(3)]
@@ -185,7 +187,7 @@ class MultiBlockCommon(object):
         size = self._format.size[block_index,:]
         if starts is not None and np.any(starts != 0):
             self._subzone_starts = np.array(starts)
-        if ends is not None and (np.any(ends != -1) or 
+        if ends is not None and (np.any(ends != -1) or
                                  np.any(ends != size - 1)):
             self._subzone_ends = np.array(ends)
             mask = self._subzone_ends < 0
@@ -195,7 +197,7 @@ class MultiBlockCommon(object):
                np.any(self._subzone_ends >= size) or \
                np.any(self._subzone_starts > self._subzone_ends):
                 raise ValueError('invalid sub-zone')
-            self.set_size([self._subzone_ends - self._subzone_starts + 1])            
+            self.set_size([self._subzone_ends - self._subzone_starts + 1])
         else:
             self.set_size(self._format.size[block_index:block_index+1,:])
         return self
@@ -207,9 +209,9 @@ class MultiBlockCommon(object):
                               size.tolist(), order = 'F')
         size_ = ends - starts + 1
         a = np.empty(size_.tolist(), dtype = dtype)
-        f.seek(size[0] * size[1] * starts[0] * dtype.itemsize, 1)
+        f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
         for k in range(starts[2], ends[2] + 1):
-            f.seek(size[0] * starts[0] * dtype.itemsize, 1)
+            f.seek(size[0] * starts[1] * dtype.itemsize, 1)
             for j in range(starts[1], ends[1] + 1):
                 f.seek(starts[0] * dtype.itemsize, 1)
                 a[:, j - starts[1], k - starts[2]] = np.fromstring(
@@ -270,7 +272,8 @@ class MultiBlockCommon(object):
             f.write(self.size.tostring())
             f.write(pack(self._format.reclength_dtype.str, 4 * self.size.size))
         else:
-            s = np.empty([self.nblocks, 4], dtype = np.dtype(np.int32))
+            s = np.empty([self.nblocks, 4], dtype = np.dtype(
+                    np.int32).newbyteorder(self._format.endianness))
             s[:,:-1] = self.size
             s[:,-1] = ncomponents
             f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
@@ -286,7 +289,7 @@ class MultiBlockCommon(object):
         self.set_subzone(a._block_index, a._subzone_starts, a._subzone_ends)
         self.set_size(a.get_size(), True)
         return self
-        
+
 class Grid(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
                  subzone_ends=None, forceread=False):
@@ -337,10 +340,11 @@ class Grid(MultiBlockCommon):
                     self._subzone_starts, self._subzone_ends)
                 if self.has_iblank:
                     self.iblank[j] = self.read_scalar(
-                        f, self._format.size[i,:], np.dtype(np.int32),
+                        f, self._format.size[i,:], np.dtype(
+                            np.int32).newbyteorder(self._format.endianness),
                         self._subzone_starts, self._subzone_ends)
                 j += 1
-        self.filename = filename                
+        self.filename = filename
         return self
 
     def save(self, filename=''):
@@ -360,12 +364,38 @@ class Grid(MultiBlockCommon):
                 f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
+    def save_h5(self, filename=''):
+        import h5py
+        if not filename:
+            filename = self.filename
+        f = h5py.File(filename)
+        d = dict(HEADER=np.zeros(1), numberOfGrids=self.nblocks)
+        for key in d:
+            f.attrs[key] = d[key]
+        for i in range(self.nblocks):
+            grp = f.require_group('Group%03d' % (i + 1))
+            d = dict(HEADER=np.zeros(4), useIB=int(self.has_iblank),
+                     gridSize=self.size[i,:], numberOfAuxVars=0)
+            for key in d:
+                grp.attrs[key] = d[key]
+            for j in range(3):
+                dset = grp.require_dataset('XYZ'[j], tuple(self.size[i,:]),
+                                          dtype=self._format.real_dtype.str)
+                dset[...] = self.xyz[i][:,:,:,j].flatten(order='F').reshape(
+                    self.size[i,:], order='C')
+            if self.has_iblank:
+                dset = grp.require_dataset('IBLANK', tuple(self.size[i,:nd]),
+                                          dtype=self._format.endianness + 'i')
+                dset[...] = self.iblank[i].flatten(order='F').reshape(
+                    self.size[i,:], order='C')
+        f.close()
+
     def copy(self):
         g = Grid()
         g.filename = ''
         g._format = self._format
         g.has_iblank = self.has_iblank
-        g.set_subzone(self._block_index, self._subzone_starts, 
+        g.set_subzone(self._block_index, self._subzone_starts,
                       self._subzone_ends)
         g.set_size(self.get_size(), True)
         return g
@@ -380,7 +410,7 @@ class Grid(MultiBlockCommon):
             labels = ['x', 'y', 'z']
             for i in range(3):
                 print 'min. {0} = {1:+10.4E}, max. {0} = {2:+10.4E}'.format(
-                    labels[i], self.xyz[block_index][:,:,:,i].min(), 
+                    labels[i], self.xyz[block_index][:,:,:,i].min(),
                     self.xyz[block_index][:,:,:,i].max())
             print ''
 
@@ -389,7 +419,7 @@ class Grid(MultiBlockCommon):
 
     def __setitem__(self, key, item):
         self.xyz[key] = item
-                
+
 class Solution(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
                  subzone_ends=None, forceread=False):
@@ -428,7 +458,7 @@ class Solution(MultiBlockCommon):
             if self._format.aux_header is not None:
                 self.time = self._format.aux_header[-1]
             else:
-                self.time = 0.            
+                self.time = 0.
             self.set_subzone(None)
         with open(filename, 'rb') as f:
             f.seek(self._format.offsets[0] -
@@ -445,12 +475,12 @@ class Solution(MultiBlockCommon):
                     f, self._format.size[i,:], self._format.real_dtype, 5,
                     self._subzone_starts, self._subzone_ends)
                 j += 1
-        self.filename = filename                
+        self.filename = filename
         return self
 
     def save(self, filename=''):
         if not filename:
-            filename = self.filename        
+            filename = self.filename
         with open(filename, 'wb') as f:
             self.write_header(f)
             if self._format.aux_header is not None:
@@ -469,6 +499,30 @@ class Solution(MultiBlockCommon):
                 f.write(self.q[i].tostring(order = 'F'))
                 f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
+
+    def save_h5(self, filename='', prefix='cv'):
+        import h5py
+        if not filename:
+            filename = self.filename
+        f = h5py.File(filename)
+        d = dict(HEADER=np.zeros(1), numberOfGrids=self.nblocks)
+        for key in d:
+            f.attrs[key] = d[key]
+        for i in range(self.nblocks):
+            grp = f.require_group('Group%03d' % (i + 1))
+            d = dict(HEADER=self._format.aux_header, gridSize=self.size[i,:],
+                     numberOfAuxVars=0)
+            for key in d:
+                grp.attrs[key] = d[key]
+            nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
+                 if self.size[i,2] == 1 else 3
+            for k, j in enumerate([0] + range(1, nd + 1) + [4]):
+                dset = grp.require_dataset('%s%02d' % (prefix, k + 1),
+                                           tuple(self.size[i,:]),
+                                           dtype=self._format.real_dtype.str)
+                dset[...] = self.q[i][:,:,:,j].ravel(order='F').reshape(
+                    self.size[i,:], order='C')
+        f.close()
 
     def toprimitive(self, gamma = 1.4):
         for q in self.q:
@@ -498,7 +552,7 @@ class Solution(MultiBlockCommon):
         s.filename = ''
         s._format = self._format
         s.time = self.time
-        s.set_subzone(self._block_index, self._subzone_starts, 
+        s.set_subzone(self._block_index, self._subzone_starts,
                       self._subzone_ends)
         s.set_size(self.get_size(), True)
         return s
@@ -512,8 +566,9 @@ class Solution(MultiBlockCommon):
         else:
             labels = [u'ρ', u'ρu', u'ρv', u'ρw', u'e']
             for i in range(5):
-                print u'min. {0:<2} = {1:+10.4E}, max. {0:<2} = {2:+10.4E}'.format(
-                    labels[i], self.q[block_index][:,:,:,i].min(), 
+                print u'min. {0:<2} = {1:+10.4E}, ' \
+                    u'max. {0:<2} = {2:+10.4E}'.format(
+                    labels[i], self.q[block_index][:,:,:,i].min(),
                     self.q[block_index][:,:,:,i].max())
             print ''
 
@@ -547,7 +602,7 @@ class Function(MultiBlockCommon):
 
     def allocate(self):
         for i in range(self.nblocks):
-            self.f[i] = np.empty(self.size[i].tolist() + [self.ncomponents], 
+            self.f[i] = np.empty(self.size[i].tolist() + [self.ncomponents],
                                  dtype = self._format.real_dtype)
         return self
 
@@ -575,7 +630,7 @@ class Function(MultiBlockCommon):
 
     def save(self, filename=''):
         if not filename:
-            filename = self.filename        
+            filename = self.filename
         with open(filename, 'wb') as f:
             self.write_header(f, self.ncomponents)
             for i in range(self.nblocks):
@@ -586,12 +641,40 @@ class Function(MultiBlockCommon):
                 f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
+    def save_h5(self, filename='', prefix='f'):
+        import h5py
+        if not filename:
+            filename = self.filename
+        f = h5py.File(filename)
+        d = dict(HEADER=np.zeros(1), numberOfGrids=self.nblocks)
+        for key in d:
+            f.attrs[key] = d[key]
+        for i in range(self.nblocks):
+            grp = f.require_group('Group%03d' % (i + 1))
+            d = dict(HEADER=np.zeros(4), gridSize=self.size[i,:],
+                     numberOfAuxVars=0)
+            for key in d:
+                grp.attrs[key] = d[key]
+            nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
+                 if self.size[i,2] == 1 else 3
+            for j in range(self.ncomponents):
+                dset = grp.require_dataset('%s%02d' % (prefix, j + 1),
+                                           tuple(self.size[i,:nd]),
+                                           dtype=self._format.real_dtype.str)
+                if nd == 3:
+                    dset[...] = self.f[i][:,0,0,j]
+                elif nd == 2:
+                    dset[...] = self.f[i][:,:,0,j]
+                else:
+                    dset[...] = self.f[i][:,:,:,j]
+        f.close()
+
     def copy(self):
         f = Function()
         f.filename = ''
         f._format = self._format
         f.ncomponents = self.ncomponents
-        f.set_subzone(self._block_index, self._subzone_starts, 
+        f.set_subzone(self._block_index, self._subzone_starts,
                       self._subzone_ends)
         f.set_size(self.get_size(), True)
         return f
@@ -618,6 +701,18 @@ def fromfile(filename, block_index=None, subzone_starts=None,
         return Function(filename, block_index, subzone_starts, subzone_ends,
                         forceread = True)
     return None
+
+def cartesian_grid(filename, block_index=0):
+    f = FileFormat(filename)
+    assert f.file_type == 'grid'
+    g = Grid(filename, block_index)
+    x = g.set_subzone(block_index, [0, 0, 0],
+                      [-1, 0, 0]).load().xyz[0][:,0,0,0]
+    y = g.set_subzone(block_index, [0, 0, 0],
+                      [0, -1, 0]).load().xyz[0][0,:,0,1]
+    z = g.set_subzone(block_index, [0, 0, 0],
+                      [0, 0, -1]).load().xyz[0][0,0,:,2]
+    return x, y, z
 
 def cubic_bspline_support(x, x_min, x_max):
     from scipy.signal import cubic

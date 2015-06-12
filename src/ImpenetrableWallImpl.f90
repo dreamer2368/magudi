@@ -33,8 +33,9 @@ subroutine setupImpenetrableWall(this, index, comm, patchDescriptor,            
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
   ! Inviscid penalty amount.
-  this%inviscidPenaltyAmount = getOption(trim(key) //                                        &
-       "inviscid_penalty_amount", 1.0_wp) !... default value => dual-consistent.
+  this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount", 1.0_wp)
+  this%inviscidPenaltyAmount = getOption(trim(key) // "inviscid_penalty_amount",             &
+       this%inviscidPenaltyAmount)
   this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                              &
        real(this%normalDirection, wp))
   this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                                  &
