@@ -106,8 +106,8 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
 
         ! Bound mass fractions between 0 and 1.
         do k = 1, nSpecies
-           !massFraction_(k) = massFraction(i,k)
-           massFraction_(k) = max(massFraction(i,k), 0.0_wp)
+           massFraction_(k) = massFraction(i,k)
+           !massFraction_(k) = max(massFraction(i,k), 0.0_wp)
            !massFraction_(k) = min(massFraction_(k), 1.0_wp)
         end do
 
