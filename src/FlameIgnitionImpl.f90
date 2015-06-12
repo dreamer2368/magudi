@@ -94,7 +94,7 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, p, ii, jj, kk, gridIndex, patchIndex, ierror
-  SCALAR_TYPE, allocatable :: F(:,:), dfds(:)
+  SCALAR_TYPE, allocatable :: F(:,:), partialControl(:)
   real(SCALAR_KIND) :: timePortion
   class(t_Patch), pointer :: patch => null()
 
@@ -123,8 +123,8 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
         assert(allocated(region%patchFactories))
 
-        allocate(dfds(region%grids(i)%nGridPoints))
-        dfds = 0.0_wp
+        allocate(partialControl(region%grids(i)%nGridPoints))
+        partialControl = 0.0_wp
 
         do p = 1, size(region%patchFactories)
            call region%patchFactories(p)%connect(patch)
@@ -147,7 +147,7 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
                             (jj - 1 - patch%offset(2) + patch%localSize(2) *                 &
                             (kk - 1 - patch%offset(3)))
 
-                       dfds(gridIndex) = patch%strength(patchIndex) * timePortion
+                       partialControl(gridIndex) = patch%strength(patchIndex) * timePortion
 
                     end do ! kk = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
                  end do ! jj = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -156,12 +156,12 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
               select case (this%sensitivityDependence)
 
               case ('AMPLITUDE')
-                 dfds = dfds / patch%amplitude
+                 partialControl = partialControl / patch%amplitude
 
               case ('VERTICAL_POSITION')
 
-                 dfds = dfds * (region%grids(i)%coordinates(:,2) - patch%origin(2)) /        &
-                      patch%radius**2
+                 partialControl = partialControl *                                           &
+                      (region%grids(i)%coordinates(:,2) - patch%origin(2)) / patch%radius**2
 
               end select
 
@@ -169,11 +169,11 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
         end do
 
         F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                        &
-             dfds * region%grids(i)%controlMollifier(:,1)
+             partialControl * region%grids(i)%controlMollifier(:,1)
         instantaneousSensitivity = instantaneousSensitivity +                                &
              region%grids(i)%computeInnerProduct(F, F)
 
-        SAFE_DEALLOCATE(dfds)
+        SAFE_DEALLOCATE(partialControl)
 
      else
 
