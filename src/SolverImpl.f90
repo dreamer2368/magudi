@@ -555,7 +555,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   class(t_Functional), pointer :: functional => null()
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
-  SCALAR_TYPE :: instantaneousCostFunctional
+  SCALAR_TYPE :: instantaneousCostFunctional, duration
 
   call startTiming("runForward")
 
@@ -642,6 +642,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
            instantaneousCostFunctional = functional%compute(region)
            costFunctional = costFunctional +                                                 &
                 timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
+           duration = duration + timeIntegrator%norm(i) * timeStepSize
         end if
 
         ! Update the time average.
@@ -663,6 +664,8 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      if (this%residualManager%hasSimulationConverged) exit
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
+
+  costFunctional = costFunctional / duration
 
   ! Call controller hooks after time marching ends.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
@@ -724,7 +727,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
-  SCALAR_TYPE :: instantaneousCostSensitivity
+  SCALAR_TYPE :: instantaneousCostSensitivity, duration
 
   assert(.not. region%simulationFlags%predictionOnly)
 
@@ -818,6 +821,7 @@ function runAdjoint(this, region) result(costSensitivity)
         instantaneousCostSensitivity = controller%computeSensitivity(region)
         costSensitivity = costSensitivity +                                                  &
              timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
+        duration = duration + timeIntegrator%norm(i) * timeStepSize
 
         ! Update adjoint forcing on cost target patches.
         call functional%updateAdjointForcing(region)
@@ -839,6 +843,8 @@ function runAdjoint(this, region) result(costSensitivity)
      if (this%residualManager%hasSimulationConverged) exit
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
+
+  costSensitivity = costSensitivity / duration
 
   ! Call controller hooks after time marching ends.
   call controller%hookAfterTimemarch(region, ADJOINT)
