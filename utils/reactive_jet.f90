@@ -316,7 +316,7 @@ contains
     character(len = 22), allocatable, dimension(:) :: name,type
 
     ! Number of BC
-    nbc = 8
+    nbc = 9
 
     ! Allocate BC
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
@@ -422,6 +422,18 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
+    ! BC 9
+    bc = 9
+    name   (bc) = 'localizedIgnition'
+    type   (bc) = 'GAUSSIAN_IGNITION'
+    normDir(bc) =  0
+    imin   (bc) =  imin_sponge
+    imax   (bc) =  imax_sponge
+    jmin   (bc) =  jmin_sponge
+    jmax   (bc) =  jmax_sponge
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
    ! Open the file
     iunit=11
     open(iunit,file="bc.dat")
@@ -471,7 +483,7 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
-    real(wp) :: ratioOfSpecificHeats, ujet, djet, Tjet, T0, Yf0, Yo0,                        &
+    real(wp) :: ratioOfSpecificHeats, ujet, djet, Tjet, T0, Yf0, Yo0, Z0,                    &
          density, velocity, temperature, energy, Z, fuel, oxidizer
 
     generateTargetState_ = .false.
@@ -498,6 +510,7 @@ contains
     O2 = H2 + 1
     call getRequiredOption("initial_fuel_mass_fraction", Yf0)
     call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
+    Z0 = getOption("initial_mixture_fraction", 1.0_wp)
 
     ! Gamma
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
@@ -505,7 +518,7 @@ contains
     do i = 1, grid%nGridPoints
 
        ! Mixture fraction
-       Z = 0.5_wp*( tanh(5.0_wp*(grid%coordinates(i,2)+0.5_wp*djet)) -                       &
+       Z = 0.5_wp*Z0*( tanh(5.0_wp*(grid%coordinates(i,2)+0.5_wp*djet)) -                       &
             tanh(5.0_wp*(grid%coordinates(i,2)-0.5_wp*djet)) )
 
        ! Components
