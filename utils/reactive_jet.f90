@@ -483,8 +483,11 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
-    real(wp) :: ratioOfSpecificHeats, ujet, djet, Tjet, T0, Yf0, Yo0, Z0,                    &
-         density, velocity, temperature, energy, Z, fuel, oxidizer
+    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, velocity, temperature, energy,                &
+         ujet, djet, Tjet, x0, halfWidth, eta, a, u, v,                                               &
+         T0, Yf0, Yo0, Z0, Z, fuel, oxidizer
+    real(SCALAR_KIND), parameter :: empiricalConstant = 5.8_wp
+    real(SCALAR_KIND), parameter :: spreadingRate = 0.094_wp
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -503,7 +506,8 @@ contains
     ! Planar jet properties
     call getRequiredOption("jet_diameter", djet)
     call getRequiredOption("jet_velocity", ujet)
-    call getRequiredOption("jet_temperature", tjet)
+    call getRequiredOption("jet_temperature", Tjet)
+    call getRequiredOption("virtual_origin", x0)
 
     ! Species parameters.
     H2 = nDimensions+2+1
@@ -517,16 +521,22 @@ contains
 
     do i = 1, grid%nGridPoints
 
+       ! Compute the self-similar velocity profile.
+       eta = grid%coordinates(i,2) / (grid%coordinates(i,1) - x0)
+       a = (sqrt(2.0_wp)-1.0_wp) / spreadingRate**2
+       u = ujet * (1.0_wp + a * eta**2) ** (-2.0_wp)
+       v = 0.5_wp * ujet * (eta - a * eta**3) / (1.0_wp + a * eta**2)**2
+       
+       ! Compute jet half-width.
+       halfWidth = spreadingRate * (grid%coordinates(i,1) - x0)
+
        ! Mixture fraction
-       Z = 0.5_wp*Z0*( tanh(5.0_wp*(grid%coordinates(i,2)+0.5_wp*djet)) -                       &
-            tanh(5.0_wp*(grid%coordinates(i,2)-0.5_wp*djet)) )
+       Z = 0.5_wp*Z0*( tanh(5.0_wp*(grid%coordinates(i,2)+halfWidth)) -                      &
+            tanh(5.0_wp*(grid%coordinates(i,2)-halfWidth)) )
 
        ! Components
        fuel = YF0*Z
        oxidizer = YO0*(1.0_wp-Z)
-
-       ! Velocity
-       velocity = Z * ujet
 
        ! Temperature
        T0 = 293.15_wp
@@ -541,8 +551,9 @@ contains
 
        ! State variables
        state%conservedVariables(i,1) = density
-       state%conservedVariables(i,2) = state%conservedVariables(i,1) * velocity
-       state%conservedVariables(i,3:nDimensions+1) = 0.0_wp
+       state%conservedVariables(i,2:nDimensions+1) = 0.0_wp
+       state%conservedVariables(i,2) = state%conservedVariables(i,1) * u
+       state%conservedVariables(i,3) = state%conservedVariables(i,1) * v
        state%conservedVariables(i,nDimensions+2) =                                           &
             state%conservedVariables(i,1) * temperature / ratioOfSpecificHeats +             &
             0.5_wp * state%conservedVariables(i,1) * velocity ** 2
