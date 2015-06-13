@@ -51,7 +51,8 @@ save_interval = 100
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.02
+dissipation_amount = 0.004
+composite_dissipation = false
 
 # Sponge options
 defaults/sponge_amount = 0.2
