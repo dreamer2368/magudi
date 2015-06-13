@@ -1,6 +1,12 @@
 #!/bin/bash
+#SBATCH --nodes=32
+#SBATCH --time=10:00:00
+#SBATCH --account=fy140381
+#SBATCH --partition=univ
+#SBATCH --job-name=magudi
+#SBATCH --output=log.o%j
 
-export MAGUDI_MPIRUN="mpiexec --bind-to-core --npernode 8 --n 256"
+export MAGUDI_MPIRUN="mpirun"
 
 function setOption() {
     if grep -q "$1" magudi.inp

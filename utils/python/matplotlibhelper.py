@@ -2,7 +2,10 @@ def rc_journal(width=None, height=None):
     from numpy import sqrt
     import matplotlib
     golden_ratio = 0.5 * (1. + sqrt(5.))
-    matplotlib.rcParams['backend'] = 'pgf'
+    try:
+        matplotlib.rcParams['backend'] = 'pgf'
+    except ValueError:
+        matplotlib.rcParams['backend'] = 'agg'
     matplotlib.rcParams['font.size'] = 8.
     matplotlib.rcParams['text.usetex'] = True
     matplotlib.rcParams['font.family'] = 'serif'

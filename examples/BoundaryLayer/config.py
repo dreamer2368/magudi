@@ -5,26 +5,36 @@ import plot3dnasa as p3d
 def mapping_function(x, sigma):
     return np.sinh(sigma * x) / np.sinh(sigma)
 
-def grid(size):
+def grid(size, mapping_type='sinh'):
     from scipy.optimize import fsolve
     x_min = -150.
     x_max =  150.
-    y_min =   0.
-    y_max =  60.
-    z_min = -40.
-    z_max =  40.
-    dy_min = 0.032
+    y_min =    0.
+    y_max =   50.
+    z_min =  -40.
+    z_max =   40.
+    dy_min = 0.016
     num_uniform = 7
     g = p3d.Grid().set_size(size, True)
-    sigma = fsolve(lambda x: ((y_max - y_min - num_uniform * dy_min) *
-                              mapping_function(1. / (g.size[0,1] - 1.), x) -
-                              dy_min) ** 2, 2.)
     x = np.linspace(x_min, x_max, g.size[0,0] + 1)[:-1]
-    y = np.append(np.linspace(y_min, y_min + dy_min * num_uniform,
-                              num_uniform + 1), y_min + dy_min *
-                  num_uniform + (y_max - y_min - num_uniform * dy_min) *
-                  mapping_function(np.linspace(0., 1., g.size[0,1] -
-                                               num_uniform), sigma)[1:])
+    if mapping_type == 'sinh':
+        sigma = fsolve(lambda x: (
+                (y_max - y_min - num_uniform * dy_min) * mapping_function(
+                    1. / (g.size[0,1] - 1.), x) - dy_min) ** 2, 2.)
+        y = np.append(np.linspace(y_min, y_min + dy_min * num_uniform,
+                                  num_uniform + 1), y_min + dy_min *
+                      num_uniform + (y_max - y_min - num_uniform * dy_min) *
+                      mapping_function(np.linspace(0., 1., g.size[0,1] -
+                                                   num_uniform), sigma)[1:])
+    else:
+        sigma = fsolve(lambda x: (y_max - y_min) / dy_min - num_uniform + 1 -
+                       (x ** (g.size[0,1] - num_uniform) - 1.) /
+                       (x - 1.), 1.02)
+        print 100. * (sigma - 1.)
+        y = np.append([0.], np.cumsum(
+                [dy_min if r < num_uniform - 1
+                 else dy_min * sigma ** (r - num_uniform + 1)
+                 for r in range(g.size[0,1] - 1)]))
     z = np.linspace(z_min, z_max, g.size[0,2] + 1)[:-1]
     for i in range(x.size):
         g.xyz[0][i,:,:,0] = x[i]
@@ -74,11 +84,12 @@ def initial_condition(g, external_grid='External/RocFlo-CM.00000000.xyz',
             for i in range(x.size):
                 f = interp1d(ye, st.q[0][i,:,k,j], kind='linear',
                              bounds_error=False, fill_value=st.q[0][i,-1,k,j])
-                s.q[0][i,:,k,j] = f(y)
+                s.q[0][i,0,k,j] = st.q[0][i,0,k,j]
+                s.q[0][i,1:,k,j] = f(y[1:])
     return s
 
 if __name__ == '__main__':
-    g = grid([250, 90, 200])
+    g = grid([500, 216, 400], mapping_type='geom')
     g.save('BoundaryLayer.xyz')
     target_state(g).save('BoundaryLayer.target.q')
     initial_condition(g).save('BoundaryLayer.ic.q')

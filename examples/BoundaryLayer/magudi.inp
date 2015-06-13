@@ -16,23 +16,24 @@ use_target_state = true
 curvilinear_domain = false
 
 # Physical constants
-Reynolds_number = 1133.
+Reynolds_number = 2266.
 
 # Discretization scheme
 defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
-time_step_size = 0.018
-number_of_timesteps = 5000
-report_interval = 20
+time_step_size = 0.009
+number_of_timesteps = 100000
+report_interval = 1
 save_interval = 100
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.004
+dissipation_amount = 0.002
+composite_dissipation = false
 
 # Sponge options
-defaults/sponge_amount = 1.
+defaults/sponge_amount = 2.
 
 # Solution limits
 enable_solution_limits = true
@@ -49,4 +50,4 @@ grid001/dir3/periodic_length = 80.
 
 # Penalty parameters
 defaults/viscous_penalty_amount = 0.
-patches/flatPlate/viscous_penalty_amount1 = 0.1
+patches/flatPlate/viscous_penalty_amount1 = 10.

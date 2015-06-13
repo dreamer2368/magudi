@@ -31,9 +31,8 @@ def wall_units(y, q, Re=2266., gamma=1.4, van_driest=True):
     return y / y_tau, np.append([0.], np.cumsum(
         np.sqrt(T[0] / T[:-1]) * (u[1:] - u[:-1]))).shape / u_tau
 
-def reynolds_stress(s, y, qm, Re=2266., gamma=1.4, chunk_size=50):
+def reynolds_stresses(s, qm, chunk_size=50):
     n = s.get_size(0)
-    a = np.zeros([n[1], 6])
     f = p3d.Function(ncomponents=6).set_size([n[1], 1, 1], True)
     f.f[0].fill(0.)
     ends = [int(d) for d in np.linspace(chunk_size - 1, n[2] - 1,
@@ -42,17 +41,14 @@ def reynolds_stress(s, y, qm, Re=2266., gamma=1.4, chunk_size=50):
                 if i > 0 else ([0, 0, 0], [-1, -1, ends[0]])
                 for i in range(len(ends))]
     for subzone in subzones:
-        print subzone
         s.set_subzone(0, *subzone).load().toprimitive()
         l = 0
         for j in range(3):
             for k in range(j+1):
                 for i in range(n[1]):
-                    f.f[0][i,0,0,l] += np.sum(np.sum(
-                        (s.q[0][:,i,:,j+1] - qm[i,j+1]) *
-                        (s.q[0][:,i,:,k+1] - qm[i,k+1]), axis=2), axis=0)
+                    f.f[0][i,0,0,l] += np.sum((s.q[0][:,i,:,j+1] - qm[i,j+1]) *
+                                              (s.q[0][:,i,:,k+1] - qm[i,k+1]))
                 l += 1
-    y_tau, u_tau = wall_scales(y, qm, Re, gamma)
-    for i in range(n[1]):
-        f.f[0][i,0,0,:] *= qm[i,0] / (n[0] * n[2] * qm[0,0] * u_tau ** 2)
+    for i in range(f.ncomponents):
+        f.f[0][:,0,0,i] *= qm[:,0] / (n[0] * n[2])
     return f
