@@ -1,0 +1,11 @@
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  inflow               SAT_FAR_FIELD            1    1    1    1    1   -1    1   -1
+  inflowSponge         SPONGE                   1    1    1   37    1   -1    1   -1
+  outflow              SAT_FAR_FIELD            1   -1   -1   -1    1   -1    1   -1
+  outflowSponge        SPONGE                   1   -1  221   -1    1   -1    1   -1
+  bottom               SAT_FAR_FIELD            1    2    1   -1    1    1    1   -1
+  bottomSponge         SPONGE                   1    2    1   -1    1    6    1   -1
+  top                  SAT_FAR_FIELD            1   -2    1   -1   -1   -1    1   -1
+  topSponge            SPONGE                   1   -2    1   -1  124   -1    1   -1
+#  localizedIgnition    GAUSSIAN_IGNITION        1    0   37  221    6  124    1   -1
