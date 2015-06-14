@@ -79,9 +79,9 @@ subroutine setupGaussianIgnitionPatch(this, index, comm, patchDescriptor,       
               patchIndex = i - this%offset(1) + this%localSize(1) *                          &
                    (j - 1 - this%offset(2) + this%localSize(2) *                             &
                    (k - 1 - this%offset(3)))
-              this%strength(patchIndex) = power * exp(- 0.5_wp *                             &
-                   (((grid%coordinates(gridIndex,1) - this%origin(1))/this%radius) ** 2 +     &
-                   ((grid%coordinates(gridIndex,2) - this%origin(2))/this%radius) ** 2))
+              this%strength(patchIndex) = power * exp( - 0.5_wp *                            &
+                   (((grid%coordinates(gridIndex,1) - this%origin(1))/this%radius) ** 2 +    &
+                   ((grid%coordinates(gridIndex,2) - this%origin(2))/this%radius) ** 2) )
            end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
         end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
      end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
