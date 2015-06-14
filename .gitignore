@@ -1,5 +1,11 @@
 *.pyc
 build
 build_debug
-!examples/*/*.inp
-examples/*
+#!examples/*/*.inp
+examples/*/ensight-3D
+examples/*/*.f
+examples/*/*.q
+examples/*/*.xyz
+examples/*/*.m
+examples/*/*.txt
+examples/*/*.map
