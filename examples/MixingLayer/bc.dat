@@ -1,0 +1,14 @@
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  inflow               SAT_FAR_FIELD            1    1    1    1    1   -1    1   -1
+  inflowSponge         SPONGE                   1    1    1  205    1   -1    1   -1
+  outflow              SAT_FAR_FIELD            1   -1   -1   -1    1   -1    1   -1
+  outflowSponge        SPONGE                   1   -1  821   -1    1   -1    1   -1
+  bottom               SAT_FAR_FIELD            1    2    1   -1    1    1    1   -1
+  bottomSponge         SPONGE                   1    2    1   -1    1   29    1   -1
+  top                  SAT_FAR_FIELD            1   -2    1   -1   -1   -1    1   -1
+  topSponge            SPONGE                   1   -2    1   -1  485   -1    1   -1
+  excitationSupport    SOLENOIDAL_EXCITATION    1    0    1  205    1   -1    1   -1
+  localizedIgnition    GAUSSIAN_IGNITION        1    0  205  821   29  485    1   -1
+  targetRegion         COST_TARGET              1    0  380  544   70  444    1   -1
+  controlRegion        ACTUATOR                 1    0  214  280  155  359    1   -1
