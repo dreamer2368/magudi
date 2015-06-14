@@ -620,8 +620,10 @@ contains
        state%conservedVariables(i,nDimensions+2) =                                           &
             state%conservedVariables(i,1) * temperature / ratioOfSpecificHeats +             &
             0.5_wp * state%conservedVariables(i,1) * velocity ** 2
-       if (nSpecies.gt.0) state%conservedVariables(i,H2) = fuel*state%conservedVariables(i,1)
-       if (nSpecies.gt.1) state%conservedVariables(i,O2) = oxidizer*state%conservedVariables(i,1)
+       if (nSpecies.gt.0) state%conservedVariables(i,H2) = fuel *                            &
+            state%conservedVariables(i,1)
+       if (nSpecies.gt.1) state%conservedVariables(i,O2) = oxidizer *                        &
+            state%conservedVariables(i,1)
 
        ! Target solution
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)
