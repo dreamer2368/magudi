@@ -1046,16 +1046,16 @@ subroutine setupOperator(this, stencilScheme)
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 5
-     this%boundaryWidth = 2
+     this%boundaryWidth = 3
      this%boundaryDepth = 2
      call allocateData(this)
 
      this%rhsInterior(0:2) = (/ 5.0_wp / 8.0_wp, 1.0_wp / 4.0_wp, -1.0_wp / 16.0_wp /)
-     this%rhsInterior(-1:-2:-1) = - this%rhsInterior(1:2)
+     this%rhsInterior(-1:-2:-1) = this%rhsInterior(1:2)
 
      this%normBoundary = 1.0_wp
 
-     this%rhsBoundary1(1:2,1) = (/ 0.5_wp, 0.5_wp /)
+     this%rhsBoundary1(1:1,1) = (/ 1.0_wp /)
      this%rhsBoundary1(1:3,2) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
 
   else if (trim(stencilScheme) == "SBP 3-6 first derivative") then
@@ -1666,7 +1666,7 @@ subroutine setupOperator(this, stencilScheme)
 
      this%rhsInterior(0:4) = (/ 0.75647250688_wp, 0.204788880640_wp, -0.120007591680_wp,     &
           0.045211119360_wp, -0.008228661760_wp /)
-     this%rhsInterior(-1:-4:-1) = - this%rhsInterior(1:4)
+     this%rhsInterior(-1:-4:-1) = this%rhsInterior(1:4)
 
      this%normBoundary = 1.0_wp
 
