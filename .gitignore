@@ -12,3 +12,4 @@ examples/*/*.m
 examples/*/*.txt
 examples/*/*.map
 examples/*/Bootstrap/*
+examples/*/*.pdf
