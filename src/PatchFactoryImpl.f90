@@ -554,7 +554,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
 
            select type (patch)
            class is (t_FarFieldPatch)
-              call patch%collect(targetViscousFluxes, patch%viscousFluxes)
+              call patch%collect(targetViscousFluxes, patch%targetViscousFluxes)
            end select
 
         end do

@@ -921,7 +921,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
   assert_key(nDimensions, (1, 2, 3))
   assert(nSpecies >= 0)
   assert(size(conservedVariables) == nDimensions + 2 + nSpecies)
-  assert(size(metrics) == size(velocity))
+  assert(size(metrics) == nDimensions)
 
   ! Compute specific volume if it was not specified.
   if (present(specificVolume)) then
@@ -944,7 +944,7 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
   if (present(temperature)) then
      temperature_ = temperature
   else
-     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(nDimensions + 2) &
+     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(nDimensions+2) &
           - 0.5_wp * (sum(velocity_ ** 2)))
   end if
 
