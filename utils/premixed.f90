@@ -225,7 +225,7 @@ contains
     character(len = 22), allocatable, dimension(:) :: name,type
 
     ! Number of BC
-    nbc = 8
+    nbc = 10
 
     ! Allocate BC
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
@@ -332,6 +332,30 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
+    ! BC 9
+    bc = 9
+    name   (bc) = 'targetRegion'
+    type   (bc) = 'COST_TARGET'
+    normDir(bc) =  0
+    imin   (bc) =  93
+    imax   (bc) =  109
+    jmin   (bc) =  29
+    jmax   (bc) =  173
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
+    ! BC 10
+    bc = 10
+    name   (bc) = 'controlRegion'
+    type   (bc) = 'ACTUATOR'
+    normDir(bc) =  0
+    imin   (bc) =  108
+    imax   (bc) =  137
+    jmin   (bc) =  86
+    jmax   (bc) =  116
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
    ! Open the file
     iunit=11
     open(iunit,file="bc.dat")
@@ -381,8 +405,7 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
-    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, velocity,               &
-         Yf0, Yo0, Z0, fuel, oxidizer
+    real(SCALAR_KIND) :: ratioOfSpecificHeats, temperature, Yf0, Yo0, Z0, fuel, oxidizer
     real(SCALAR_KIND), parameter :: empiricalConstant = 5.8_wp
     real(SCALAR_KIND), parameter :: spreadingRate = 0.094_wp
 
@@ -416,18 +439,14 @@ contains
        fuel = YF0*Z0
        oxidizer = YO0*(1.0_wp-Z0)
 
-       ! Gas properties
-       velocity = 0.0_wp
-       density = 1.0_wp
+       ! Temperature
        temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
 
        ! State variables
-       state%conservedVariables(i,1) = density
-       state%conservedVariables(i,2) = state%conservedVariables(i,1) * velocity
-       state%conservedVariables(i,3:nDimensions+1) = 0.0_wp
-       state%conservedVariables(i,nDimensions+2) =                                           &
-            state%conservedVariables(i,1) * temperature / ratioOfSpecificHeats +             &
-            0.5_wp * state%conservedVariables(i,1) * velocity ** 2
+       state%conservedVariables(i,1) = 1.0_wp
+       state%conservedVariables(i,2:nDimensions+1) = 0.0_wp
+       state%conservedVariables(i,nDimensions+2) = temperature / ratioOfSpecificHeats
+
        if (nSpecies.gt.0) state%conservedVariables(i,H2) = fuel *                            &
             state%conservedVariables(i,1)
        if (nSpecies.gt.1) state%conservedVariables(i,O2) = oxidizer *                        &

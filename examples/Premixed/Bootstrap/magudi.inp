@@ -28,20 +28,6 @@ use_constant_CFL_mode = false
 use_target_state = true
 curvilinear_domain = false
 
-# Adjoint optimization flags
-disable_adjoint_solver = true
-baseline_prediction_available = false
-cost_functional_type = "SOUND"
-use_continuous_adjoint = false
-gradient_buffer_size = 20
-
-# Gradient accuracy options
-check_gradient_accuracy = true
-number_of_control_iterations = 32
-initial_actuation_amount = 1e4
-restart_control_iteration = 0
-actuation_amount_geometric_growth = 0.5623413251903491
-
 # Physical constants
 Reynolds_number = 200.0
 Prandtl_number = 0.7
@@ -67,7 +53,7 @@ defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_step_size = 0.05
-number_of_timesteps = 480
+number_of_timesteps = 240
 report_interval = 10
 save_interval = 20
 
@@ -94,5 +80,3 @@ acoustic_source01/radius = 2.1213203435596424
 
 # Penalty parameters
 defaults/viscous_penalty_amount = 0.
-disable_adjoint_solver = true
-compute_time_average = true
