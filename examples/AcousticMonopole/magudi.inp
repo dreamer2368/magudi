@@ -11,7 +11,7 @@ target_mollifier_file = "AcousticMonopole.target_mollifier.f"
 mean_pressure_file = "AcousticMonopole.mean_pressure.f"
 
 # Simulation flags
-include_viscous_terms = true
+include_viscous_terms = false
 use_constant_CFL_mode = false
 use_target_state = true
 curvilinear_domain = false
@@ -54,7 +54,7 @@ dissipation_amount = 0.005
 defaults/sponge_amount = 0.2
 
 # Solution limits
-enable_solution_limits = true
+enable_solution_limits = false
 minimum_density = 0.1
 minimum_temperature = 0.05
 maximum_density = 5.

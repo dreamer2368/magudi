@@ -526,11 +526,11 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
   assert(size(stressTensor, 2) == nDimensions ** 2)
   assert(size(heatFlux, 1) == size(velocity, 1))
   assert(size(heatFlux, 2) == nDimensions)
-  assert(size(speciesFlux, 3) == nDimensions)
   assert(size(viscousFluxes, 1) == size(velocity, 1))
   assert(size(viscousFluxes, 2) >= nDimensions + 2)
   assert(size(viscousFluxes, 3) == nDimensions)
   if (nSpecies > 0) then
+     assert(size(speciesFlux, 3) == nDimensions)
      assert(size(massFraction, 1) == size(velocity, 1))
      assert(size(massFraction, 2) == nSpecies)
      assert(size(speciesFlux, 1) == size(velocity, 1))
