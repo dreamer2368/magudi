@@ -638,15 +638,15 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call showProgress(this, region, FORWARD, startTimestep, timestep,                       &
           time, instantaneousCostFunctional)
 
+     ! Stop if this is a steady-state simulation and solution has converged.
+     if (this%residualManager%hasSimulationConverged) exit
+
      ! Filter solution if required.
      if (region%simulationFlags%filterOn) then
         do j = 1, size(region%grids)
            call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
         end do
-     end if
-
-     ! Stop if this is a steady-state simulation and solution has converged.
-     if (this%residualManager%hasSimulationConverged) exit
+     end if     
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
@@ -823,6 +823,13 @@ function runAdjoint(this, region) result(costSensitivity)
 
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
+
+     ! Filter solution if required.
+     if (region%simulationFlags%filterOn) then
+        do j = 1, size(region%grids)
+           call region%grids(j)%applyFilter(region%states(j)%adjointVariables, timestep)
+        end do
+     end if     
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
