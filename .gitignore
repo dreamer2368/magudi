@@ -2,6 +2,8 @@
 build
 build_debug
 #!examples/*/*.inp
+!examples/*/bc.dat
+examples/*/*.dat
 examples/*/ensight-3D
 examples/*/*.f
 examples/*/*.q
@@ -9,3 +11,4 @@ examples/*/*.xyz
 examples/*/*.m
 examples/*/*.txt
 examples/*/*.map
+examples/*/Bootstrap/*
