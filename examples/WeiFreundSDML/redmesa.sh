@@ -1,12 +1,6 @@
 #!/bin/bash
-#SBATCH --nodes=32
-#SBATCH --time=10:00:00
-#SBATCH --account=fy140381
-#SBATCH --partition=univ
-#SBATCH --job-name=magudi
-#SBATCH --output=log.o%j
 
-export MAGUDI_MPIRUN="mpirun"
+export MAGUDI_MPIRUN="mpiexec"
 
 function setOption() {
     if grep -q "$1" magudi.inp
@@ -17,6 +11,7 @@ function setOption() {
     fi
 }
 
+module load openmpi-gnu/1.8
 rm -f WeiFreundSDML* Bootstrap/WeiFreundSDML*
 python config.py
 cp WeiFreundSDML.xyz WeiFreundSDML.target.q WeiFreundSDML.ic.q Bootstrap

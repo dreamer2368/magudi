@@ -51,7 +51,8 @@ save_interval = 100
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.02
+dissipation_amount = 0.004
+composite_dissipation = false
 
 # Sponge options
 defaults/sponge_amount = 0.2
@@ -74,3 +75,8 @@ patches/excitationSupport/random_seed = 685785
 
 # Penalty parameters
 defaults/viscous_penalty_amount = 0.
+
+# Vorticity dilatation options
+vorticity_dilatation/start_timestep = 33600
+vorticity_dilatation/end_timestep = 58600
+vorticity_dilatation/save_interval = 100
