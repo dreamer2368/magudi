@@ -29,7 +29,7 @@ def wall_units(y, q, Re=2266., gamma=1.4, van_driest=True):
         return y / y_tau, q[:,1] / u_tau
     T = gamma * q[:,4] / ((gamma - 1.) * q[:,0])
     return y / y_tau, np.append([0.], np.cumsum(
-        np.sqrt(T[0] / T[:-1]) * (u[1:] - u[:-1]))).shape / u_tau
+        np.sqrt(T[0] / T[:-1]) * (q[1:,1] - q[:-1,1]))) / u_tau
 
 def reynolds_stresses(s, qm, chunk_size=50):
     n = s.get_size(0)
