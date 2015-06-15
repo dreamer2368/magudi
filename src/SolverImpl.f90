@@ -646,7 +646,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
         do j = 1, size(region%grids)
            call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
         end do
-     end if     
+     end if
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
@@ -708,7 +708,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_Functional), pointer :: functional => null()
   type(t_ReverseMigratorFactory) :: reverseMigratorFactory
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
-  integer :: i, timestep, startTimestep, timemarchDirection
+  integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostSensitivity
 
@@ -829,7 +829,7 @@ function runAdjoint(this, region) result(costSensitivity)
         do j = 1, size(region%grids)
            call region%grids(j)%applyFilter(region%states(j)%adjointVariables, timestep)
         end do
-     end if     
+     end if
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
