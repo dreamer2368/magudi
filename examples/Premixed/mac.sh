@@ -16,7 +16,8 @@ rm -f Premixed* Bootstrap/Premixed*
 cp Premixed.* Bootstrap
 cd Bootstrap
 $MAGUDI_MPIRUN ../../../build/magudi
-cp Premixed-00000240.q ../Premixed.ic.q
+cp Premixed-00001000.q ../Premixed.ic.q
+cp Premixed-00001000.f ../Premixed.ic.f
 cd ..
 setOption "disable_adjoint_solver" true
 setOption "compute_time_average" true
