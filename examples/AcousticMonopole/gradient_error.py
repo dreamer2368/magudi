@@ -11,7 +11,7 @@ if __name__ == '__main__':
     a = np.loadtxt('AcousticMonopole.gradient_error.txt', usecols=[1, 4],
                    skiprows=1)
     ax.loglog(np.abs(a[:,0]), np.abs(a[:,1]), 'rs-', mec='r', mfc='w', ms=3.5)
-    mh.setup_axis(ax, [1e-4, 2e4], [1e-14, 1e-5],
+    mh.setup_axis(ax, [1e-4, 2e4], [1e-16, 1e-5],
                   r'$\alpha$', r'$\epsilon$',
                   10 ** np.linspace(-4., 4., 9),
                   10 ** np.linspace(-14., -5., 10),
