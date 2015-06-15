@@ -638,6 +638,13 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call showProgress(this, region, FORWARD, startTimestep, timestep,                       &
           time, instantaneousCostFunctional)
 
+     ! Filter solution if required.
+     if (region%simulationFlags%filterOn) then
+        do j = 1, size(region%grids)
+           call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
+        end do
+     end if
+
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
 

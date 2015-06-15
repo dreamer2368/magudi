@@ -36,6 +36,7 @@ contains
     end if
     if (.not. simulationFlags%predictionOnly)                                                &
          allocate(this%adjointFirstDerivative(this%nDimensions))
+    if (simulationFlags%filterOn) allocate(this%filter(this%nDimensions))
 
     allocate(this%iblank(this%nGridPoints), source = 1)
     allocate(this%coordinates(this%nGridPoints, this%nDimensions))
@@ -340,6 +341,13 @@ subroutine cleanupGrid(this)
   end if
   SAFE_DEALLOCATE(this%adjointFirstDerivative)
 
+  if (allocated(this%filter)) then
+     do i = 1, size(this%filter)
+        call this%filter(i)%cleanup()
+     end do
+  end if
+  SAFE_DEALLOCATE(this%filter)
+
   SAFE_DEALLOCATE(this%iblank)
   SAFE_DEALLOCATE(this%coordinates)
   SAFE_DEALLOCATE(this%jacobian)
@@ -577,6 +585,18 @@ subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
         call this%dissipationTranspose(i)%update(this%comm, i,                               &
              this%periodicityType(i) == OVERLAP)
      end if
+
+     ! Filter operators.
+     if (this%globalSize(i) > 1) then
+        val = getOption("defaults/filtering_scheme",                                  &
+             trim(solverOptions_%discretizationType))
+        val = getOption(trim(key) // "filtering_scheme", trim(val))
+        val = trim(val) // " filter"
+     else
+        val = "null matrix"
+     end if
+     call this%filter(i)%setup(trim(val))
+     call this%filter(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
 
   end do !... i = 1, this%nDimensions
 
@@ -1569,3 +1589,43 @@ function isVariableWithinRange(this, f, fOutsideRange,                          
   end if
 
 end function isVariableWithinRange
+
+subroutine applyFilter(this, f, timestep)
+
+  ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Grid) :: this
+  SCALAR_TYPE, intent(inout) :: f(:,:)
+  integer, intent(in) :: timestep
+
+  ! <<< Local variables >>>
+  integer :: i, j, nDimensions
+  integer, allocatable :: directions(:)
+
+  nDimensions = this%nDimensions
+  assert_key(nDimensions, (1, 2, 3))
+
+  select case (nDimensions)
+  case (1)
+     allocate(directions(1))
+     directions(:) = (/ 1 /)
+  case (2)
+     allocate(directions(2))
+     directions(:) = (/ 12, 21 /)
+  case (3)
+     allocate(directions(6))
+     directions(:) = (/ 123, 231, 312, 132, 321, 213 /)
+  end select
+
+  do i = 1, nDimensions
+     j = mod(directions(mod(timestep, size(directions)) + 1) / 10 ** (i - 1), 10)
+     call this%filter(j)%apply(f, this%localSize)
+  end do
+
+  SAFE_DEALLOCATE(directions)
+
+end subroutine applyFilter
