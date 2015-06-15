@@ -164,12 +164,13 @@ module State_mod
 
   interface
 
-     subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
+     subroutine makeQuiescent(this, nDimensions, nSpecies, ratioOfSpecificHeats,             &
+          conservedVariables)
 
        import :: t_State
 
        class(t_State) :: this
-       integer, intent(in) :: nDimensions
+       integer, intent(in) :: nDimensions, nSpecies
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
 
        SCALAR_TYPE, intent(out), optional :: conservedVariables(:,:)

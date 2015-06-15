@@ -111,6 +111,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   end if
 
   this%nSpecies = solverOptions_%nSpecies
+  assert(this%nSpecies >= 0)
 
   assert(grid%nGridPoints > 0)
   call allocateData(this, simulationFlags_, solverOptions_,                                  &
@@ -121,7 +122,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      assert(solverOptions%ratioOfSpecificHeats > 1.0_wp)
      ratioOfSpecificHeats = solverOptions%ratioOfSpecificHeats
   end if
-  call this%makeQuiescent(grid%nDimensions, ratioOfSpecificHeats)
+  call this%makeQuiescent(grid%nDimensions, this%nSpecies, ratioOfSpecificHeats)
 
   n = min(getOption("number_of_acoustic_sources", 0), 99)
   if (n > 0) then
@@ -424,7 +425,8 @@ subroutine saveStateData(this, grid, quantityOfInterest, filename,              
 
 end subroutine saveStateData
 
-subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVariables)
+subroutine makeQuiescent(this, nDimensions, nSpecies, ratioOfSpecificHeats,                  &
+     conservedVariables)
 
   ! <<< Derived types >>>
   use State_mod, only : t_State
@@ -433,12 +435,13 @@ subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVaria
 
   ! <<< Arguments >>>
   class(t_State) :: this
-  integer, intent(in) :: nDimensions
+  integer, intent(in) :: nDimensions, nSpecies
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out), optional :: conservedVariables(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  integer :: k
 
   assert(ratioOfSpecificHeats > 1.0_wp)
 
@@ -447,11 +450,17 @@ subroutine makeQuiescent(this, nDimensions, ratioOfSpecificHeats, conservedVaria
      conservedVariables(:,2:nDimensions+1) = 0.0_wp
      conservedVariables(:,nDimensions+2) = 1.0_wp / ratioOfSpecificHeats /                   &
           (ratioOfSpecificHeats - 1.0_wp)
+     do k = 1, nSpecies
+        conservedVariables(:,nDimensions+2+k) = 0.0_wp
+     end do
   else
      this%conservedVariables(:,1) = 1.0_wp
      this%conservedVariables(:,2:nDimensions+1) = 0.0_wp
      this%conservedVariables(:,nDimensions+2) = 1.0_wp / ratioOfSpecificHeats /              &
           (ratioOfSpecificHeats - 1.0_wp)
+     do k = 1, nSpecies
+        this%conservedVariables(:,nDimensions+2+k) = 0.0_wp
+     end do
   end if
 
 end subroutine makeQuiescent

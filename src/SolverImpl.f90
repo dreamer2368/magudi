@@ -433,7 +433,8 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      if (len_trim(filename) == 0) then
         do i = 1, size(region%states)
            call region%states(i)%makeQuiescent(size(region%globalGridSizes, 1),              &
-                region%solverOptions%ratioOfSpecificHeats, region%states(i)%targetState)
+                region%solverOptions%nSpecies, region%solverOptions%ratioOfSpecificHeats,    &
+                region%states(i)%targetState)
         end do
      else
         call region%loadData(QOI_TARGET_STATE, filename)
