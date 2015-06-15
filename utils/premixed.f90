@@ -225,7 +225,7 @@ contains
     character(len = 22), allocatable, dimension(:) :: name,type
 
     ! Number of BC
-    nbc = 9
+    nbc = 8
 
     ! Allocate BC
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
@@ -235,9 +235,10 @@ contains
     ! GRID 1
     grid(:)    = 1
 
+
     ! BC 1
     bc = 1
-    name   (bc) = 'inflow'
+    name   (bc) = 'farField.E'
     type   (bc) = 'SAT_FAR_FIELD'
     normDir(bc) =  1
     imin   (bc) =  1
@@ -249,19 +250,7 @@ contains
 
     ! BC 2
     bc = 2
-    name   (bc) = 'inflowSponge'
-    type   (bc) = 'SPONGE'
-    normDir(bc) =  1
-    imin   (bc) =  1
-    imax   (bc) =  imin_sponge
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
-
-    ! BC 3
-    bc = 3
-    name   (bc) = 'outflow'
+    name   (bc) = 'farField.W'
     type   (bc) = 'SAT_FAR_FIELD'
     normDir(bc) = -1
     imin   (bc) = -1
@@ -271,21 +260,9 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 4
-    bc = 4
-    name   (bc) = 'outflowSponge'
-    type   (bc) = 'SPONGE'
-    normDir(bc) = -1
-    imin   (bc) =  imax_sponge
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
-
-    ! BC 5
-    bc = 5
-    name   (bc) = 'bottom'
+    ! BC 3
+    bc = 3
+    name   (bc) = 'farField.S'
     type   (bc) = 'SAT_FAR_FIELD'
     normDir(bc) =  2
     imin   (bc) =  1
@@ -295,23 +272,11 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 6
-    bc = 6
-    name   (bc) = 'bottomSponge'
-    type   (bc) = 'SPONGE'
-    normDir(bc) =  2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) =  jmin_sponge
-    kmin   (bc) =  1
-    kmax   (bc) = -1
-
-    ! BC 7
-    bc = 7
-    name   (bc) = 'top'
+    ! BC 4
+    bc = 4
+    name   (bc) = 'farField.N'
     type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) = -2
+    normDir(bc) =  -2
     imin   (bc) =  1
     imax   (bc) = -1
     jmin   (bc) = -1
@@ -319,27 +284,51 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
+    ! BC 5
+    bc = 5
+    name   (bc) = 'sponge.E'
+    type   (bc) = 'SPONGE'
+    normDir(bc) =  1
+    imin   (bc) =  1
+    imax   (bc) =  imin_sponge
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
+    ! BC 6
+    bc = 6
+    name   (bc) = 'sponge.W'
+    type   (bc) = 'SPONGE'
+    normDir(bc) =  -1
+    imin   (bc) =  imax_sponge
+    imax   (bc) = -1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
+    ! BC 7
+    bc = 7
+    name   (bc) = 'sponge.S'
+    type   (bc) = 'SPONGE'
+    normDir(bc) =  2
+    imin   (bc) =  1
+    imax   (bc) = -1
+    jmin   (bc) =  1
+    jmax   (bc) = jmin_sponge
+    kmin   (bc) =  1
+    kmax   (bc) = -1
+
     ! BC 8
     bc = 8
-    name   (bc) = 'topSponge'
+    name   (bc) = 'sponge.N'
     type   (bc) = 'SPONGE'
     normDir(bc) = -2
     imin   (bc) =  1
     imax   (bc) = -1
     jmin   (bc) =  jmax_sponge
     jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
-
-    ! BC 9
-    bc = 9
-    name   (bc) = 'localizedIgnition'
-    type   (bc) = 'GAUSSIAN_IGNITION'
-    normDir(bc) =  0
-    imin   (bc) =  imin_sponge
-    imax   (bc) =  imax_sponge
-    jmin   (bc) =  jmin_sponge
-    jmax   (bc) =  jmax_sponge
     kmin   (bc) =  1
     kmax   (bc) = -1
 
