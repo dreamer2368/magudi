@@ -844,6 +844,7 @@ subroutine setupOperator(this, stencilScheme)
   'SBP 2-4 dissipation',           \
   'SBP 2-4 dissipation transpose', \
   'SBP 2-4 composite dissipation', \
+  'Standard 5-point filter',       \
   'SBP 3-6 first derivative',      \
   'SBP 3-6 second derivative',     \
   'SBP 3-6 dissipation',           \
@@ -1040,6 +1041,22 @@ subroutine setupOperator(this, stencilScheme)
      this%rhsBoundary1(2,1:3) = this%rhsInterior(-1:1)
      this%rhsBoundary1(3,2:3) = this%rhsInterior(-1:0)
      this%rhsBoundary1(4,3:3) = this%rhsInterior(-1:-1)
+
+  else if (trim(stencilScheme) == "Standard 5-point filter") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 5
+     this%boundaryWidth = 2
+     this%boundaryDepth = 2
+     call allocateData(this)
+
+     this%rhsInterior(0:2) = (/ 5.0_wp / 8.0_wp, 1.0_wp / 4.0_wp, -1.0_wp / 16.0_wp /)
+     this%rhsInterior(-1:-2:-1) = - this%rhsInterior(1:2)
+
+     this%normBoundary = 1.0_wp
+
+     this%rhsBoundary1(1:2,1) = (/ 0.5_wp, 0.5_wp /)
+     this%rhsBoundary1(1:3,2) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
 
   else if (trim(stencilScheme) == "SBP 3-6 first derivative") then
 
