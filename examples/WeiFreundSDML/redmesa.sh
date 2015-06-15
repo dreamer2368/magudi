@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export MAGUDI_MPIRUN="mpiexec --bind-to-core --npernode 8 --n 256"
+export MAGUDI_MPIRUN="mpiexec"
 
 function setOption() {
     if grep -q "$1" magudi.inp
@@ -11,6 +11,7 @@ function setOption() {
     fi
 }
 
+module load openmpi-gnu/1.8
 rm -f WeiFreundSDML* Bootstrap/WeiFreundSDML*
 python config.py
 cp WeiFreundSDML.xyz WeiFreundSDML.target.q WeiFreundSDML.ic.q Bootstrap

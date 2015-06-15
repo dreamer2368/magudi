@@ -46,7 +46,7 @@ def initial_condition(g, u1, u2, gamma=1.4):
 def target_mollifier(g):
     x_min =   0.
     x_max = 100.
-    y_min = -80.
+    y_min = -76.
     y_max = -60.
     f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)

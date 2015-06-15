@@ -786,9 +786,12 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
      localSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))
      localWaveSpeed = 0.0_wp
      do j = 1, nDimensions
-        localWaveSpeed = localWaveSpeed + localSpeedOfSound *                                &
-             sqrt(real(sum(metrics(i,1+nDimensions*(j-1):nDimensions*j) ** 2), wp)) +        &
-             abs(real(dot_product(velocity(i,:),                                             &
+        localWaveSpeed = localWaveSpeed +                                                    &
+             real(sum(metrics(i,1+nDimensions*(j-1):nDimensions*j) ** 2), wp)
+     end do
+     localWaveSpeed = localSpeedOfSound * sqrt(localWaveSpeed)     
+     do j = 1, nDimensions
+        localWaveSpeed = localWaveSpeed + abs(real(dot_product(velocity(i,:),                &
              metrics(i,1+nDimensions*(j-1):nDimensions*j)), wp))
      end do
      localWaveSpeed = real(jacobian(i), wp) * localWaveSpeed
@@ -856,9 +859,12 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
      localSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))
      localWaveSpeed = 0.0_wp
      do j = 1, nDimensions
-        localWaveSpeed = localWaveSpeed + localSpeedOfSound *                                &
-             sqrt(real(sum(metrics(i,1+nDimensions*(j-1):nDimensions*j) ** 2), wp)) +        &
-             abs(real(dot_product(velocity(i,:),                                             &
+        localWaveSpeed = localWaveSpeed +                                                    &
+             real(sum(metrics(i,1+nDimensions*(j-1):nDimensions*j) ** 2), wp)
+     end do
+     localWaveSpeed = localSpeedOfSound * sqrt(localWaveSpeed)     
+     do j = 1, nDimensions
+        localWaveSpeed = localWaveSpeed + abs(real(dot_product(velocity(i,:),                &
              metrics(i,1+nDimensions*(j-1):nDimensions*j)), wp))
      end do
      localWaveSpeed = real(jacobian(i), wp) * localWaveSpeed

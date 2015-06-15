@@ -18,7 +18,7 @@ def target_mollifier(g):
     x_max =   1.
     y_min = -10.
     y_max =  10.
-    f = p3d.Function().copy(g)
+    f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
     for i in range(n[0]):
@@ -38,7 +38,7 @@ def control_mollifier(g):
     x_max =  5.    
     y_min = -2.
     y_max =  2.
-    f = p3d.Function().copy(g)
+    f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
     for j in range(n[1]):
@@ -54,7 +54,7 @@ def control_mollifier(g):
     return f
 
 def mean_pressure(s):
-    f = p3d.Function().copy(s)
+    f = p3d.Function().copy_from(s)
     f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
     return f
 
