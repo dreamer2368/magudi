@@ -1638,23 +1638,27 @@ subroutine setupOperator(this, stencilScheme)
      this%rhsBoundary1(6,4:5) = this%rhsInterior(-2:-1)
      this%rhsBoundary1(7,5:5) = this%rhsInterior(-2:-2)
 
-  else if (trim(stencilScheme == "DRP 9-point filter") then
+  else if (trim(stencilScheme) == "DRP 9-point filter") then
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 9
-     this%boundaryWidth = 11
+     this%boundaryWidth = 7
      this%boundaryDepth = 4
      call allocateData(this)
 
-     this%rhsInterior(0:4) = (/  /)
+     this%rhsInterior(0:4) = (/ 0.75647250688_wp, 0.204788880640_wp, -0.120007591680_wp,     &
+          0.045211119360_wp, -0.008228661760_wp /)
      this%rhsInterior(-1:-4:-1) = - this%rhsInterior(1:4)
 
      this%normBoundary = 1.0_wp
 
-     this%rhsBoundary1(1:1,1)  = (/ 1.0_wp /)
-     this%rhsBoundary1(1:3,2)  = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
-     this%rhsBoundary1(3:5,3)  = (/ 5.0_wp / 8.0_wp, 1.0_wp / 4.0_wp, -1.0_wp / 16.0_wp /)
+     this%rhsBoundary1(1:1,1) = (/ 1.0_wp /)
+     this%rhsBoundary1(1:3,2) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
+     this%rhsBoundary1(3:5,3) = (/ 5.0_wp / 8.0_wp, 1.0_wp / 4.0_wp, -1.0_wp / 16.0_wp /)
      this%rhsBoundary1(2:1:-1,3) = this%rhsBoundary1(4:5,3)
+          this%rhsBoundary1(4:7,4) = (/ 0.749200019453_wp, 0.208081098497_wp, &
+          -0.114261743928_wp, 0.027662875246_wp /)
+     this%rhsBoundary1(3:1:-1,4) = this%rhsBoundary1(5:7,4)
 
   else if (trim(stencilScheme) == "null matrix") then
 
