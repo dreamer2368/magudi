@@ -587,16 +587,18 @@ subroutine setupSpatialDiscretization(this, simulationFlags, solverOptions)
      end if
 
      ! Filter operators.
-     if (this%globalSize(i) > 1) then
-        val = getOption("defaults/filtering_scheme",                                  &
-             trim(solverOptions_%discretizationType))
-        val = getOption(trim(key) // "filtering_scheme", trim(val))
-        val = trim(val) // " filter"
-     else
-        val = "null matrix"
+     if (allocated(this%filter)) then
+        if (this%globalSize(i) > 1) then
+           val = getOption("defaults/filtering_scheme",                                      &
+                trim(solverOptions_%discretizationType))
+           val = getOption(trim(key) // "filtering_scheme", trim(val))
+           val = trim(val) // " filter"
+        else
+           val = "null matrix"
+        end if
+        call this%filter(i)%setup(trim(val))
+        call this%filter(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
      end if
-     call this%filter(i)%setup(trim(val))
-     call this%filter(i)%update(this%comm, i, this%periodicityType(i) == OVERLAP)
 
   end do !... i = 1, this%nDimensions
 

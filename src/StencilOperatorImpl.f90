@@ -854,6 +854,7 @@ subroutine setupOperator(this, stencilScheme)
   'SBP 4-8 dissipation',           \
   'SBP 4-8 dissipation transpose', \
   'SBP 4-8 composite dissipation', \
+  'DRP 9-point filter',            \
   'null matrix'))
 
   call this%cleanup()
@@ -1656,8 +1657,8 @@ subroutine setupOperator(this, stencilScheme)
      this%rhsBoundary1(1:3,2) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
      this%rhsBoundary1(3:5,3) = (/ 5.0_wp / 8.0_wp, 1.0_wp / 4.0_wp, -1.0_wp / 16.0_wp /)
      this%rhsBoundary1(2:1:-1,3) = this%rhsBoundary1(4:5,3)
-          this%rhsBoundary1(4:7,4) = (/ 0.749200019453_wp, 0.208081098497_wp, &
-          -0.114261743928_wp, 0.027662875246_wp /)
+     this%rhsBoundary1(4:7,4) = (/ 11.0_wp / 16.0_wp, 15.0_wp / 64.0_wp,                     &
+          -3.0_wp / 32.0_wp, 1.0_wp / 64.0_wp /)
      this%rhsBoundary1(3:1:-1,4) = this%rhsBoundary1(5:7,4)
 
   else if (trim(stencilScheme) == "null matrix") then
