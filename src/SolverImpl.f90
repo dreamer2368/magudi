@@ -560,6 +560,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   call startTiming("runForward")
 
   costFunctional = 0.0_wp
+  duration = 0.0_wp
 
   region%states(:)%actuationAmount = 0.0_wp
   if (present(actuationAmount) .and. .not. region%simulationFlags%predictionOnly)            &
@@ -734,6 +735,7 @@ function runAdjoint(this, region) result(costSensitivity)
   call startTiming("runAdjoint")
 
   costSensitivity = 0.0_wp
+  duration = 0.0_wp
 
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)
