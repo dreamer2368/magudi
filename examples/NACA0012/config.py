@@ -24,7 +24,8 @@ def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0004,
     x_airfoil = c * (x_airfoil - x_airfoil.min()) / \
                 (x_airfoil.max() - x_airfoil.min())
     y_airfoil = airfoil_profile(x_airfoil, c, t)
-    x_te = x_airfoil[-1] + y_airfoil[-1] * airfoil_slope(x_airfoil[-1], c, t)
+    x_te = x_airfoil[-1] - 0.5 * y_airfoil[-1] / \
+           airfoil_slope(x_airfoil[-1], c, t)
     x_start = 0.5 * c
     # Write glyph file.
     with open(filename, 'w') as f:
@@ -50,12 +51,12 @@ def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0004,
         print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' \
             % (x_airfoil[0],  y_airfoil[0], 0.)
         print >>f, 'set db_NACA3 [gg::dbCurveEnd]'
-        print >>f, 'gg::dbCurveBegin -type CIRCULAR_ARC'
+        print >>f, 'gg::dbCurveBegin -type CONIC -rho 0.5'
         print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' % \
             (x_airfoil[-1],  y_airfoil[-1], 0.)
         print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' % \
             (x_airfoil[-1], -y_airfoil[-1], 0.)
-        print >>f, 'gg::dbCurveAddPt -alternate CENTER {%.6f %.6f %.6f}' % \
+        print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' % \
             (x_te,  0., 0.)
         print >>f, 'set db_NACA4 [gg::dbCurveEnd]'
         print >>f, """
