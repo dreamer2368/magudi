@@ -152,12 +152,11 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
         temp(1) = getOption(trim(key) // "x", 0.0_wp)
         temp(2) = getOption(trim(key) // "y", 0.0_wp)
         temp(3) = getOption(trim(key) // "z", 0.0_wp)
-        call this%ignitionSources(i)%setup(grid, temp,                                       &
+        call this%ignitionSources(i)%setup(temp,                                             &
              getOption(trim(key) // "amplitude", 1.0_wp),                                    &
              getOption(trim(key) // "radius", 1.0_wp),                                       &
              getOption(trim(key) // "time_start", 0.0_wp),                                   &
-             getOption(trim(key) // "time_duration", 0.0_wp),                                &
-             ratioOfSpecificHeats, this%combustion%heatRelease)
+             getOption(trim(key) // "time_duration", 0.0_wp))
      end do
   end if
 
@@ -733,9 +732,11 @@ subroutine addSources(this, mode, grid, solverOptions)
   if (mode == FORWARD .and. allocated(this%ignitionSources)) then
      do i = 1, size(this%ignitionSources)
         call this%ignitionSources(i)%add(this%time, grid%coordinates,                        &
-             grid%iblank, this%rightHandSide)
+             grid%iblank, solverOptions%ratioOfSpecificHeats, this%combustion%heatRelease,   &
+             this%rightHandSide)
      end do
   end if
+
 
   if (mode == FORWARD .and. this%nSpecies > 0) then
      call this%combustion%addForward(grid%nDimensions, this%conservedVariables(:,1),         &

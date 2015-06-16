@@ -123,7 +123,9 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
         ignitionForce = 0.0_wp
 
         call region%states(i)%ignitionSources(1)%add(region%states(i)%time,                  &
-             region%grids(i)%coordinates, region%grids(i)%iblank, ignitionForce)
+             region%grids(i)%coordinates, region%grids(i)%iblank,                            &
+             region%solverOptions%ratioOfSpecificHeats,                                      &
+             region%states(i)%combustion%heatRelease, ignitionForce)
 
         select case (this%sensitivityDependence)
 

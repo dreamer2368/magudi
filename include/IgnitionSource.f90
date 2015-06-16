@@ -20,17 +20,16 @@ module IgnitionSource_mod
 
   interface
 
-     subroutine setupIgnitionSource(this, grid, location, amplitude, radius, timeStart,      &
-          timeDuration, ratioOfSpecificHeats, heatRelease)
+     subroutine setupIgnitionSource(this, location, amplitude, radius, timeStart,            &
+          timeDuration)
 
        use Grid_mod, only : t_Grid
 
        import :: t_IgnitionSource
 
        class(t_IgnitionSource) :: this
-       class(t_Grid), intent(in) :: grid
        real(SCALAR_KIND), intent(in) :: location(:), amplitude, radius, timeStart,           &
-            timeDuration, ratioOfSpecificHeats, heatRelease
+            timeDuration
 
      end subroutine setupIgnitionSource
 
@@ -38,12 +37,13 @@ module IgnitionSource_mod
 
   interface
 
-     subroutine addIgnitionSource(this, time, coordinates, iblank, rightHandSide)
+     subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHeats,     &
+          heatRelease, rightHandSide)
 
        import :: t_IgnitionSource
 
        class(t_IgnitionSource) :: this
-       real(SCALAR_KIND), intent(in) :: time
+       real(SCALAR_KIND), intent(in) :: time, ratioOfSpecificHeats, heatRelease
        SCALAR_TYPE, intent(in) :: coordinates(:,:)
        integer, intent(in) :: iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
