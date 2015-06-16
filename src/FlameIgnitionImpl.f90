@@ -77,10 +77,9 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
   use MPI
 
   ! <<< Derived types >>>
-  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use FlameIgnition_mod, only : t_FlameIgnition
-  use GaussianIgnitionPatch_mod, only : t_GaussianIgnitionPatch
+  use IgnitionSource_mod, only : t_IgnitionSource
 
   implicit none
 
@@ -93,10 +92,9 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, p, ii, jj, kk, gridIndex, patchIndex, ierror
-  SCALAR_TYPE, allocatable :: F(:,:), ignitionForce(:)
+  integer :: i, j, nDimensions, ierror
+  SCALAR_TYPE, allocatable :: F(:,:), ignitionForce(:,:)
   real(SCALAR_KIND) :: timePortion
-  class(t_Patch), pointer :: patch => null()
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -121,52 +119,26 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
      if (this%partialSensitivity) then
 
-        assert(allocated(region%patchFactories))
-
-        allocate(ignitionForce(region%grids(i)%nGridPoints))
+        allocate(ignitionForce(region%grids(i)%nGridPoints, nDimensions+2))
         ignitionForce = 0.0_wp
 
-        do p = 1, size(region%patchFactories)
-           call region%patchFactories(p)%connect(patch)
-           if (.not. associated(patch)) cycle
-           if (patch%gridIndex /= region%grids(i)%index) cycle
-           select type (patch)
-           class is (t_GaussianIgnitionPatch)
+        call region%states(i)%ignitionSources(1)%add(region%states(i)%time,                  &
+             region%grids(i)%coordinates, region%grids(i)%iblank, ignitionForce)
 
-              timePortion = exp( -0.5_wp * (region%states(i)%time - patch%timeStart) **2 /   &
-                   patch%timeDuration **2 )
+        select case (this%sensitivityDependence)
 
-              do kk = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
-                 do jj = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
-                    do ii = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
-                       gridIndex = ii - patch%gridOffset(1) + patch%gridLocalSize(1) *       &
-                            (jj - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *         &
-                            (kk - 1 - patch%gridOffset(3)))
-                       if (region%grids(i)%iblank(gridIndex) == 0) cycle
-                       patchIndex = ii - patch%offset(1) + patch%localSize(1) *              &
-                            (jj - 1 - patch%offset(2) + patch%localSize(2) *                 &
-                            (kk - 1 - patch%offset(3)))
+        case ('AMPLITUDE')
+           F(:,2) = ignitionForce(:,nDimensions+2) /                                         &
+                region%states(i)%ignitionSources(1)%amplitude
 
-                       ignitionForce(gridIndex) = patch%strength(patchIndex) * timePortion
+        case ('VERTICAL_POSITION')
 
-                    end do ! kk = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
-                 end do ! jj = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
-              end do ! ii = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+           F(:,2) = ignitionForce(:,nDimensions+2) *                                         &
+                (region%grids(i)%coordinates(:,2) -                                          &
+                region%states(i)%ignitionSources(1)%location(2)) /                           &
+                region%states(i)%ignitionSources(1)%radius**2
 
-              select case (this%sensitivityDependence)
-
-              case ('AMPLITUDE')
-                 F(:,2) = ignitionForce / patch%amplitude
-
-              case ('VERTICAL_POSITION')
-
-                 F(:,2) = ignitionForce *                                                    &
-                      (region%grids(i)%coordinates(:,2) - patch%origin(2)) / patch%radius**2
-
-              end select
-
-           end select
-        end do
+        end select
 
         F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
         instantaneousSensitivity = instantaneousSensitivity +                                &

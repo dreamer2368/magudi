@@ -143,6 +143,24 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   if (this%nSpecies > 0)                                                                     &
        call this%combustion%setup(this%nSpecies, grid%comm)
 
+  n = min(getOption("number_of_ignition_sources", 0), 99)
+  if (n > 0) then
+     assert(this%combustion%heatRelease > 0.0_wp)
+     allocate(this%ignitionSources(n))
+     do i = 1, n
+        write(key, '(A,I2.2,A)') "ignition_source", i, "/"
+        temp(1) = getOption(trim(key) // "x", 0.0_wp)
+        temp(2) = getOption(trim(key) // "y", 0.0_wp)
+        temp(3) = getOption(trim(key) // "z", 0.0_wp)
+        call this%ignitionSources(i)%setup(grid, temp,                                       &
+             getOption(trim(key) // "amplitude", 1.0_wp),                                    &
+             getOption(trim(key) // "radius", 1.0_wp),                                       &
+             getOption(trim(key) // "time_start", 0.0_wp),                                   &
+             getOption(trim(key) // "time_duration", 0.0_wp),                                &
+             ratioOfSpecificHeats, this%combustion%heatRelease)
+     end do
+  end if
+
 end subroutine setupState
 
 subroutine cleanupState(this)
@@ -708,6 +726,13 @@ subroutine addSources(this, mode, grid, solverOptions)
   if (mode == FORWARD .and. allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
         call this%acousticSources(i)%add(this%time, grid%coordinates,                        &
+             grid%iblank, this%rightHandSide)
+     end do
+  end if
+
+  if (mode == FORWARD .and. allocated(this%ignitionSources)) then
+     do i = 1, size(this%ignitionSources)
+        call this%ignitionSources(i)%add(this%time, grid%coordinates,                        &
              grid%iblank, this%rightHandSide)
      end do
   end if

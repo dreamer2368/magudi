@@ -19,6 +19,7 @@ end module State_enum
 module State_mod
 
   use AcousticSource_mod, only : t_AcousticSource
+  use IgnitionSource_mod, only : t_IgnitionSource
   use Combustion_mod, only : t_Combustion
 
   implicit none
@@ -53,6 +54,7 @@ module State_mod
   type, public :: t_State
 
      type(t_AcousticSource), allocatable :: acousticSources(:)
+     type(t_IgnitionSource), allocatable :: ignitionSources(:)
      type(t_Combustion) :: combustion
 
      integer :: nSpecies
