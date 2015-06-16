@@ -1055,7 +1055,7 @@ subroutine setupOperator(this, stencilScheme)
 
      this%normBoundary = 1.0_wp
 
-     this%rhsBoundary1(1:1,1) = (/ 1.0_wp /)
+     this%rhsBoundary1(1:3,1) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
      this%rhsBoundary1(1:3,2) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
 
   else if (trim(stencilScheme) == "SBP 3-6 first derivative") then

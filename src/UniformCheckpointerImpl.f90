@@ -168,6 +168,14 @@ subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep,
 
            end do
 
+           ! Filter solution if required.
+           if (region%simulationFlags%filterOn) then
+              do j = 1, size(region%grids)
+                 call region%grids(j)%applyFilter(region%states(j)%conservedVariables,       &
+                      timestep_)
+              end do
+           end if
+
         end do
 
      end if !... this%loadedTimestep /= this%endTimestep
