@@ -8,7 +8,7 @@ import matplotlibhelper as mh
 if __name__ == '__main__':
     mh.rc_journal(width=4.5, height=2.5)
     ax = plt.subplot(111)
-    a = np.loadtxt('Premixed.gradient_error.txt', usecols=[1, 4],
+    a = np.loadtxt('ReactiveMonopole.gradient_error.txt', usecols=[1, 4],
                    skiprows=1)
     ax.loglog(np.abs(a[:,0]), np.abs(a[:,1]), 'rs-', mec='r', mfc='w', ms=3.5)
     mh.setup_axis(ax, [1e-4, 2e4], [1e-16, 1e-5],

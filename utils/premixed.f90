@@ -405,7 +405,8 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
-    real(SCALAR_KIND) :: ratioOfSpecificHeats, temperature, Yf0, Yo0, Z0, fuel, oxidizer
+    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, Yf0, Yo0, Z0,           &
+         fuel, oxidizer
     real(SCALAR_KIND), parameter :: empiricalConstant = 5.8_wp
     real(SCALAR_KIND), parameter :: spreadingRate = 0.094_wp
 
@@ -442,15 +443,16 @@ contains
        ! Temperature
        temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
 
-       ! State variables
-       state%conservedVariables(i,1) = 1.0_wp
-       state%conservedVariables(i,2:nDimensions+1) = 0.0_wp
-       state%conservedVariables(i,nDimensions+2) = temperature / ratioOfSpecificHeats
+       ! Density
+       density = 1.0_wp
 
-       if (nSpecies.gt.0) state%conservedVariables(i,H2) = fuel *                            &
-            state%conservedVariables(i,1)
-       if (nSpecies.gt.1) state%conservedVariables(i,O2) = oxidizer *                        &
-            state%conservedVariables(i,1)
+       ! State variables
+       state%conservedVariables(i,1) = density
+       state%conservedVariables(i,2:nDimensions+1) = 0.0_wp
+       state%conservedVariables(i,nDimensions+2) = density * temperature /                   &
+            ratioOfSpecificHeats
+       if (nSpecies.gt.0) state%conservedVariables(i,H2) = density * fuel
+       if (nSpecies.gt.1) state%conservedVariables(i,O2) = density * oxidizer
 
        ! Target solution
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)

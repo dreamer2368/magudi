@@ -52,7 +52,7 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHea
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  real(wp) :: r, power, timePortion, referenceTemperature, flameTemperature
+  real(wp) :: r, power, timePortion, referenceTemperature, flameTemperature, gaussianFactor
 
   nDimensions = size(coordinates, 2)
   assert_key(nDimensions, (1, 2, 3))
@@ -66,6 +66,8 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHea
   power = 0.5_wp * this%amplitude * heatRelease * flameTemperature /                         &
        this%timeDuration / sqrt(2.0_wp * pi)
 
+  gaussianFactor = 0.5_wp / this%radius**2
+
   do i = 1, size(rightHandSide, 1)
 
      if (iblank(i) == 0) cycle
@@ -73,7 +75,7 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHea
      r = real(sum((coordinates(i,:) - this%location(1:nDimensions)) ** 2), wp)
 
      rightHandSide(i,nDimensions+2) = rightHandSide(i,nDimensions+2) +                       &
-          power * timePortion * exp(- 0.5_wp * r / this%radius**2)
+          power * timePortion * exp(- gaussianFactor * r)
 
   end do
 

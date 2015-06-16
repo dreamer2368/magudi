@@ -1,20 +1,20 @@
 #include "config.h"
 
-subroutine setupFlameIgnition(this, region)
+subroutine setupFuelActuator(this, region)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use ActuatorPatch_mod, only : t_ActuatorPatch
-  use FlameIgnition_mod, only : t_FlameIgnition
+  use FuelActuator_mod, only : t_FuelActuator
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption, getRequiredOption
+  use InputHelper, only : getOption
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FlameIgnition) :: this
+  class(t_FuelActuator) :: this
   class(t_Region) :: region
 
   ! <<< Local variables >>>
@@ -25,6 +25,8 @@ subroutine setupFlameIgnition(this, region)
   call this%cleanup()
 
   if (region%simulationFlags%predictionOnly) return
+
+  assert(region%solverOptions%nSpecies > 0)
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
@@ -42,49 +44,39 @@ subroutine setupFlameIgnition(this, region)
            allocate(patch%gradientBuffer(patch%nPatchPoints, 1, gradientBufferSize))
            patch%gradientBuffer = 0.0_wp
 
-           ! Control forcing not yet implemented.
-           patch%controlForcing = 0.0_wp
-
         end select
      end do
   end if
 
-  this%partialSensitivity = getOption("partial_sensitivity",.false.)
-  if (this%partialSensitivity) then
-     call getRequiredOption("sensitivity_dependence", this%sensitivityDependence,            &
-          region%comm)
-  end if
+end subroutine setupFuelActuator
 
-end subroutine setupFlameIgnition
-
-subroutine cleanupFlameIgnition(this)
+subroutine cleanupFuelActuator(this)
 
   ! <<< Derived types >>>
-  use FlameIgnition_mod, only : t_FlameIgnition
+  use FuelActuator_mod, only : t_FuelActuator
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FlameIgnition) :: this
+  class(t_FuelActuator) :: this
 
   call this%cleanupBase()
 
-end subroutine cleanupFlameIgnition
+end subroutine cleanupFuelActuator
 
-function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensitivity)
+function computeFuelActuatorSensitivity(this, region) result(instantaneousSensitivity)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
-  use FlameIgnition_mod, only : t_FlameIgnition
-  use IgnitionSource_mod, only : t_IgnitionSource
+  use FuelActuator_mod, only : t_FuelActuator
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FlameIgnition) :: this
+  class(t_FuelActuator) :: this
   class(t_Region), intent(in) :: region
 
   ! <<< Result >>>
@@ -92,13 +84,13 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions, ierror
-  SCALAR_TYPE, allocatable :: F(:,:), ignitionForce(:,:)
-  real(SCALAR_KIND) :: timePortion
+  integer :: i, nDimensions, H2, ierror
+  SCALAR_TYPE, allocatable :: F(:,:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
+  assert(region%solverOptions%nSpecies > 0)
 
   instantaneousSensitivity = 0.0_wp
 
@@ -106,6 +98,10 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
      nDimensions = region%grids(i)%nDimensions
      assert_key(nDimensions, (1, 2, 3))
+
+     H2 = region%combustion%H2
+     assert(H2 > 0)
+     assert(H2 <= region%solverOptions%nSpecies)
 
      assert(region%grids(i)%nGridPoints > 0)
      assert(allocated(region%grids(i)%controlMollifier))
@@ -115,49 +111,11 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
      assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
 
-     allocate(F(region%grids(i)%nGridPoints, 2))
-
-     if (this%partialSensitivity) then
-
-        allocate(ignitionForce(region%grids(i)%nGridPoints, nDimensions+2))
-        ignitionForce = 0.0_wp
-
-        call region%states(i)%ignitionSources(1)%add(region%states(i)%time,                  &
-             region%grids(i)%coordinates, region%grids(i)%iblank,                            &
-             region%solverOptions%ratioOfSpecificHeats,                                      &
-             region%states(i)%combustion%heatRelease, ignitionForce)
-
-        select case (this%sensitivityDependence)
-
-        case ('AMPLITUDE')
-           F(:,2) = ignitionForce(:,nDimensions+2) /                                         &
-                region%states(i)%ignitionSources(1)%amplitude
-
-        case ('VERTICAL_POSITION')
-
-           F(:,2) = ignitionForce(:,nDimensions+2) *                                         &
-                (region%grids(i)%coordinates(:,2) -                                          &
-                region%states(i)%ignitionSources(1)%location(2)) /                           &
-                region%states(i)%ignitionSources(1)%radius**2
-
-        end select
-
-        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
-        instantaneousSensitivity = instantaneousSensitivity +                                &
-             region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                             &
-             region%grids(i)%controlMollifier(:,1))
-
-        SAFE_DEALLOCATE(ignitionForce)
-
-     else
-
-        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                        &
-             region%grids(i)%controlMollifier(:,1)
-        instantaneousSensitivity = instantaneousSensitivity +                                &
-             region%grids(i)%computeInnerProduct(F(:,1), F(:,1))
-
-     end if
-
+     allocate(F(region%grids(i)%nGridPoints, 1))
+     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+H2) *                        &
+          region%grids(i)%controlMollifier(:,1)
+     instantaneousSensitivity = instantaneousSensitivity +                                   &
+          region%grids(i)%computeInnerProduct(F, F)
      SAFE_DEALLOCATE(F)
 
   end do
@@ -173,31 +131,35 @@ function computeFlameIgnitionSensitivity(this, region) result(instantaneousSensi
 
   this%cachedValue = instantaneousSensitivity
 
-end function computeFlameIgnitionSensitivity
+end function computeFuelActuatorSensitivity
 
-subroutine updateFlameIgnitionForcing(this, region)
+subroutine updateFuelActuatorForcing(this, region)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use ActuatorPatch_mod, only : t_ActuatorPatch
-  use FlameIgnition_mod, only : t_FlameIgnition
+  use FuelActuator_mod, only : t_FuelActuator
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FlameIgnition) :: this
+  class(t_FuelActuator) :: this
   class(t_Region), intent(in) :: region
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions
+  integer :: i, j, nDimensions, H2
   class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
+
+  H2 = region%combustion%H2
+  assert(H2 > 0)
+  assert(H2 <= region%solverOptions%nSpecies)
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
@@ -215,8 +177,9 @@ subroutine updateFlameIgnitionForcing(this, region)
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
                 call patch%loadGradient()
 
-           ! No forcing for now.
-           patch%controlForcing = 0.0_wp
+           patch%controlForcing(:,:) = 0.0_wp
+           patch%controlForcing(:,nDimensions+2+H2) = - region%states(j)%actuationAmount *   &
+                patch%gradientBuffer(:,1,patch%iGradientBuffer)
 
            if (patch%iGradientBuffer == 1)                                                   &
                 patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
@@ -225,25 +188,25 @@ subroutine updateFlameIgnitionForcing(this, region)
      end do
   end do
 
-end subroutine updateFlameIgnitionForcing
+end subroutine updateFuelActuatorForcing
 
-subroutine updateFlameIgnitionGradient(this, region)
+subroutine updateFuelActuatorGradient(this, region)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use ActuatorPatch_mod, only : t_ActuatorPatch
-  use FlameIgnition_mod, only : t_FlameIgnition
+  use FuelActuator_mod, only : t_FuelActuator
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FlameIgnition) :: this
+  class(t_FuelActuator) :: this
   class(t_Region), intent(in) :: region
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions
+  integer :: i, j, nDimensions, H2
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: F(:,:)
 
@@ -251,6 +214,10 @@ subroutine updateFlameIgnitionGradient(this, region)
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
+
+  H2 = region%combustion%H2
+  assert(H2 > 0)
+  assert(H2 <= region%solverOptions%nSpecies)
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
@@ -265,7 +232,7 @@ subroutine updateFlameIgnitionGradient(this, region)
            assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
 
            allocate(F(patch%nPatchPoints, 2))
-           call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2), F(:,1))
+           call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2+H2), F(:,1))
            call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,2))
            patch%gradientBuffer(:,1,patch%iGradientBuffer) = product(F, dim = 2)
            SAFE_DEALLOCATE(F)
@@ -279,20 +246,20 @@ subroutine updateFlameIgnitionGradient(this, region)
      end do
   end do
 
-end subroutine updateFlameIgnitionGradient
+end subroutine updateFuelActuatorGradient
 
-function isFlameIgnitionPatchValid(this, patchDescriptor, gridSize,                        &
+function isFuelActuatorPatchValid(this, patchDescriptor, gridSize,                        &
      normalDirection, extent, simulationFlags, message) result(isPatchValid)
 
   ! <<< Derived types >>>
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
-  use FlameIgnition_mod, only : t_FlameIgnition
+  use FuelActuator_mod, only : t_FuelActuator
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_FlameIgnition) :: this
+  class(t_FuelActuator) :: this
   type(t_PatchDescriptor), intent(in) :: patchDescriptor
   integer, intent(in) :: gridSize(:), normalDirection, extent(6)
   type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -320,9 +287,9 @@ function isFlameIgnitionPatchValid(this, patchDescriptor, gridSize,             
 
   isPatchValid = .true.
 
-end function isFlameIgnitionPatchValid
+end function isFuelActuatorPatchValid
 
-subroutine hookFlameIgnitionBeforeTimemarch(this, region, mode)
+subroutine hookFuelActuatorBeforeTimemarch(this, region, mode)
 
   ! <<< External modules >>>
   use MPI
@@ -395,9 +362,9 @@ subroutine hookFlameIgnitionBeforeTimemarch(this, region, mode)
      end select
   end do
 
-end subroutine hookFlameIgnitionBeforeTimemarch
+end subroutine hookFuelActuatorBeforeTimemarch
 
-subroutine hookFlameIgnitionAfterTimemarch(this, region, mode)
+subroutine hookFuelActuatorAfterTimemarch(this, region, mode)
 
   ! <<< External modules >>>
   use MPI
@@ -447,4 +414,4 @@ subroutine hookFlameIgnitionAfterTimemarch(this, region, mode)
      end select
   end do
 
-end subroutine hookFlameIgnitionAfterTimemarch
+end subroutine hookFuelActuatorAfterTimemarch

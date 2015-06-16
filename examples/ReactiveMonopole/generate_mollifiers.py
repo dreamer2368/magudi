@@ -42,13 +42,8 @@ def control_mollifier(g):
         'controlRegion', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)
     return f
 
-def mean_pressure(s):
-    f = p3d.Function().copy_from(s)
-    f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
-    return f
-
 if __name__ == '__main__':
     g = p3d.Grid()
-    g.load('Premixed.xyz')
-    target_mollifier(g).save('Premixed.target_mollifier.f')
-    control_mollifier(g).save('Premixed.control_mollifier.f')
+    g.load('ReactiveMonopole.xyz')
+    target_mollifier(g).save('ReactiveMonopole.target_mollifier.f')
+    control_mollifier(g).save('ReactiveMonopole.control_mollifier.f')
