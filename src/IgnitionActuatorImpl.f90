@@ -118,6 +118,8 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      if (this%partialSensitivity) then
 
+        assert(size(region%states(i)%ignitionSources) > 0)
+
         allocate(ignitionForce(region%grids(i)%nGridPoints, nDimensions+2))
         ignitionForce = 0.0_wp
 
