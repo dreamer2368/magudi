@@ -39,7 +39,8 @@ gradient_buffer_size = 20
 controller_type = "FUEL_ACTUATOR"
 check_gradient_accuracy = true
 number_of_control_iterations = 32
-initial_actuation_amount = 1e2
+initial_control_forcing = 0.01
+initial_actuation_amount = 1e3
 restart_control_iteration = 0
 actuation_amount_geometric_growth = 0.5623413251903491
 
@@ -61,14 +62,14 @@ initial_mixture_fraction = 0.01
 stoichiometric_ratio = 8.0
 heat_release = 0.86
 Zel_Dovich = 6.0
-Damkohler_number = 5000.0
+Damkohler_number = 50000.0
 
 # Discretization scheme
 defaults/discretization_scheme = "SBP 4-8"
 
 # Time stepping options
 time_step_size = 0.02
-number_of_timesteps = 1000
+number_of_timesteps = 4000
 report_interval = 10
 save_interval = 20
 
