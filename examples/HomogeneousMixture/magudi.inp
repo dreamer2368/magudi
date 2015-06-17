@@ -34,17 +34,17 @@ grid001/dir2/periodicity_type = 'PLANE'
 grid001/dir2/periodic_length = 20.0
 
 # Mixture properties
-initial_temperature = 4.0
+initial_temperature = 6.0
 initial_fuel_mass_fraction = 1.0
 initial_oxidizer_mass_fraction = 0.233
-initial_mixture_fraction = 0.028300740920685
+initial_mixture_fraction = 0.055043704228679
 
 #############################################################################################
 # Forward parameters                                                                        #
 #############################################################################################
 
 # Simulation flags
-include_viscous_terms = true
+include_viscous_terms = false
 use_constant_CFL_mode = false
 use_target_state = true
 curvilinear_domain = false
@@ -62,8 +62,8 @@ ratio_of_specific_heats = 1.4
 # Chemistry
 number_of_species = 2
 number_of_reactions = 1
-stoichiometric_ratio = 8.0
-heat_release = 0.86
+stoichiometric_ratio = 4.0
+heat_release = 0.75
 Zel_Dovich = 6.0
 Damkohler_number = 50000.0
 
@@ -81,7 +81,7 @@ add_dissipation = true
 dissipation_amount = 0.005
 
 # Sponge options
-defaults/sponge_amount = 0.2
+#defaults/sponge_amount = 0.2
 
 # Solution limits
 enable_solution_limits = false
@@ -116,6 +116,6 @@ gradient_buffer_size = 20
 controller_type = "THERMAL_ACTUATOR"
 check_gradient_accuracy = true
 number_of_control_iterations = 32
-initial_actuation_amount = 1000
+initial_actuation_amount = 10000
 restart_control_iteration = 0
 actuation_amount_geometric_growth = 0.5623413251903491
