@@ -108,8 +108,7 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   assert(all(grid%localSize == this%gridLocalSize))
 
   if (mode == ADJOINT .or. (mode == FORWARD .and.                                            &
-       abs(state%actuationAmount) <= 0.0_wp .and.                                            &
-       abs(state%initialControlForcing) <= 0.0_wp)) return
+       abs(state%actuationAmount) <= 0.0_wp)) return
 
   call startTiming("updateActuatorPatch")
 
