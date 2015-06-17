@@ -160,6 +160,8 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      end do
   end if
 
+  this%initialControlForcing = getOption('initial_control_forcing',0.0_wp)
+
 end subroutine setupState
 
 subroutine cleanupState(this)

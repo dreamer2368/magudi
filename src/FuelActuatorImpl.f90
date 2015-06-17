@@ -169,17 +169,20 @@ subroutine updateFuelActuatorForcing(this, region)
         select type (patch)
         class is (t_ActuatorPatch)
 
-           patch%iGradientBuffer = patch%iGradientBuffer - 1
+           if (abs(region%states(j)%actuationAmount) > 0.0_wp) then
+              patch%iGradientBuffer = patch%iGradientBuffer - 1
 
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+              assert(patch%iGradientBuffer >= 1)
+              assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
 
-           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
-                call patch%loadGradient()
+              if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                    &
+                   call patch%loadGradient()
+           end if
 
            patch%controlForcing(:,:) = 0.0_wp
            patch%controlForcing(:,nDimensions+2+H2) = - region%states(j)%actuationAmount *   &
-                patch%gradientBuffer(:,1,patch%iGradientBuffer)
+                patch%gradientBuffer(:,1,patch%iGradientBuffer) +                            &
+                region%states(j)%initialControlForcing
 
            if (patch%iGradientBuffer == 1)                                                   &
                 patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1

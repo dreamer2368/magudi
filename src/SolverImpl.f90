@@ -628,7 +628,8 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
         ! Update control forcing.
         if (.not. region%simulationFlags%predictionOnly .and.                                &
-             abs(region%states(1)%actuationAmount) > 0.0_wp)                                 &
+             abs(region%states(1)%actuationAmount) > 0.0_wp .or.                             &
+             abs(region%states(j)%initialControlForcing) > 0.0_wp)                           &
              call controller%updateForcing(region)
 
         ! Take a single sub-step using the time integrator.
