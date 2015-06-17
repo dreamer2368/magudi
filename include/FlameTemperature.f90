@@ -8,7 +8,7 @@ module FlameTemperature_mod
   private
 
   type, private :: t_FlameTemperatureInternal
-     SCALAR_TYPE, pointer :: meanTemperature(:,:) => null()
+     SCALAR_TYPE, pointer :: flameTemperature(:,:) => null()
   end type t_FlameTemperatureInternal
 
   type, extends(t_Functional), public :: t_FlameTemperature

@@ -134,8 +134,8 @@ subroutine setupFlameTemperature(this, region)
   do i = 1, size(this%data_)
      do j = 1, size(region%grids)
         if (region%grids(j)%index == i) then
-           allocate(this%data_(i)%meanTemperature(1, 1))
-           region%states(j)%dummyFunction => this%data_(i)%meanTemperature
+           allocate(this%data_(i)%flameTemperature(1, 1))
+           region%states(j)%dummyFunction => this%data_(i)%flameTemperature
            exit
         end if
      end do
@@ -143,7 +143,7 @@ subroutine setupFlameTemperature(this, region)
   end do
 
   do i = 1, size(this%data_)
-     this%data_(i)%meanTemperature = 1.0_wp / ( (region%solverOptions%ratioOfSpecificHeats  -&
+     this%data_(i)%flameTemperature = 1.0_wp / ( (region%solverOptions%ratioOfSpecificHeats  -&
           1.0_wp) * (1.0_wp - region%states(1)%combustion%heatRelease) )
   end do
 
@@ -166,8 +166,8 @@ subroutine cleanupFlameTemperature(this)
 
   if (allocated(this%data_)) then
      do i = 1, size(this%data_)
-        if (associated(this%data_(i)%meanTemperature)) deallocate(this%data_(i)%meanTemperature)
-        nullify(this%data_(i)%meanTemperature)
+        if (associated(this%data_(i)%flameTemperature)) deallocate(this%data_(i)%flameTemperature)
+        nullify(this%data_(i)%flameTemperature)
      end do
   end if
   SAFE_DEALLOCATE(this%data_)
@@ -223,12 +223,12 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
 
      j = region%grids(i)%index
 
-     assert(associated(this%data_(j)%meanTemperature))
-     assert(size(this%data_(j)%meanTemperature, 1) == 1)
-     assert(size(this%data_(j)%meanTemperature, 2) == 1)
+     assert(associated(this%data_(j)%flameTemperature))
+     assert(size(this%data_(j)%flameTemperature, 1) == 1)
+     assert(size(this%data_(j)%flameTemperature, 2) == 1)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
-     F = region%states(i)%temperature - this%data_(j)%meanTemperature(1,1)
+     F = region%states(i)%temperature - this%data_(j)%flameTemperature(1,1)
      instantaneousFunctional = instantaneousFunctional +                                     &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
      SAFE_DEALLOCATE(F)
@@ -275,13 +275,13 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
-  SCALAR_TYPE :: F, meanTemperature
+  SCALAR_TYPE :: F, flameTemperature
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   i = grid%index
-  meanTemperature = this%data_(i)%meanTemperature(1,1)
+  flameTemperature = this%data_(i)%flameTemperature(1,1)
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -296,7 +296,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
            F = - 2.0_wp *  grid%targetMollifier(gridIndex, 1) *                              &
                 solverOptions%ratioOfSpecificHeats * state%specificVolume(gridIndex, 1) *    &
-                (state%temperature(gridIndex, 1) - meanTemperature)
+                (state%temperature(gridIndex, 1) - flameTemperature)
 
            patch%adjointForcing(patchIndex,:) = 0.0_wp
            patch%adjointForcing(patchIndex,nDimensions+2) = F
