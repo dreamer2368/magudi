@@ -127,7 +127,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, n
+    integer :: i, j, k
     integer :: nx, ny, nz, nx_, ny_, nz_
     real(wp) :: xmini, xmaxi, ymini, ymaxi
     real(wp) :: xmino, xmaxo, ymino, ymaxo
@@ -405,7 +405,7 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
-    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, Yf0, Yo0, Z0,           &
+    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, T0, Yf0, Yo0, Z0,       &
          fuel, oxidizer
     real(SCALAR_KIND), parameter :: empiricalConstant = 5.8_wp
     real(SCALAR_KIND), parameter :: spreadingRate = 0.094_wp
@@ -434,17 +434,18 @@ contains
     ! Gamma
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
 
+    ! Temperature
+    T0 =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
+    temperature = getOption("initial_temperature", T0)
+
+    ! Density
+    density = T0 / temperature
+
+    ! Components
+    fuel = YF0*Z0
+    oxidizer = YO0*(1.0_wp-Z0)
+
     do i = 1, grid%nGridPoints
-
-       ! Components
-       fuel = YF0*Z0
-       oxidizer = YO0*(1.0_wp-Z0)
-
-       ! Temperature
-       temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
-
-       ! Density
-       density = 1.0_wp
 
        ! State variables
        state%conservedVariables(i,1) = density
