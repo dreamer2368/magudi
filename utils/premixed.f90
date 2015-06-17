@@ -24,6 +24,7 @@ program premixed
   character(len = STRING_LENGTH) :: inputname, filename
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
+  logical :: xPeriodic, yPeriodic
 
   print *
   print *, '! ======================================= !'
@@ -53,7 +54,8 @@ program premixed
   call parseInputFile(inputname)
 
   ! Generate the grid
-  call premixedGrid(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
+  call premixedGrid(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge,                      &
+       xPeriodic, yPeriodic)
 
   ! Save the grid
   call getRequiredOption("grid_file", filename)
@@ -69,11 +71,12 @@ program premixed
   call region%reportGridDiagnostics()
 
   ! Generate the BC
-  call premixedBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
+  call premixedBC(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge,                        &
+       xPeriodic, yPeriodic)
 
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
-     call premixedInitialCondition(region%states(i), region%grids(i),                     &
+     call premixedInitialCondition(region%states(i), region%grids(i),                        &
           region%simulationFlags%useTargetState)
   end do
 
@@ -109,7 +112,7 @@ contains
   ! =============== !
   ! Grid generation !
   ! =============== !
-  subroutine premixedGrid(i1,i2,j1,j2)
+  subroutine premixedGrid(i1, i2, j1, j2, xPeriodic, yPeriodic)
 
     ! <<< External modules >>>
     use MPI
@@ -122,16 +125,20 @@ contains
     use InputHelper, only : getOption
     use ErrorHandler, only : gracefulExit
 
+    implicit none
+
     ! <<< Arguments >>>
     integer, intent(out) :: i1, i2, j1, j2
+    logical, intent(out) :: xPeriodic, yPeriodic
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k
+    integer :: i, j, k, gridIndex
     integer :: nx, ny, nz, nx_, ny_, nz_
     real(wp) :: xmini, xmaxi, ymini, ymaxi
     real(wp) :: xmino, xmaxo, ymino, ymaxo
     real(wp) :: zmin, zmax
+    real(wp) :: dx, dy, dz
 
     ! Read in grid size and dimensions.
     call getRequiredOption("nx", nx)
@@ -147,6 +154,10 @@ contains
     call getRequiredOption("ymax_outer", ymaxo)
     zmin = getOption("zmin", 0.0_wp)
     zmax = getOption("zmax", 0.0_wp)
+
+    ! Periodicity
+    xPeriodic = getOption("periodic_in_x", .false.)
+    yPeriodic = getOption("periodic_in_y", .false.)
 
     ! Allocate the global grid size and assign values.
     ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
@@ -167,21 +178,38 @@ contains
     ny_ = region%grids(1)%localSize(2)
     nz_ = region%grids(1)%localSize(3)
 
+    ! Grid spacing
+    dx = (xmaxo - xmino) / real(nx-1,wp)
+    dy = (ymaxo - ymino) / real(ny-1,wp)
+    dz = (zmax  - zmin ) / real(nz-1,wp)
+
     ! Generate the grid.
     do k = 1, nz_
        do j = 1, ny_
           do i = 1, nx_
+             gridIndex = i+nx_*(j-1+ny_*(k-1))
              ! Create X
-             region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1) =                          &
-                  (xmaxo - xmino)*real(i-1,wp)/real(nx-1) + xmino
+             if (xPeriodic) then
+                region%grids(1)%coordinates(gridIndex,1) =                                   &
+                     (xmaxo - xmino - dx) * real(i-1,wp) / real(nx-1) + xmino
+             else
+                region%grids(1)%coordinates(gridIndex,1) =                                   &
+                     (xmaxo - xmino) * real(i-1,wp) / real(nx-1) + xmino
+             end if
 
              ! Create Y
-             region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2) =                          &
-                  (ymaxo - ymino)*real(j-1,wp)/real(ny-1) + ymino
+             if (yPeriodic) then
+                region%grids(1)%coordinates(gridIndex,2) =                                   &
+                     (ymaxo - ymino - dy) * real(j-1,wp) / real(ny-1) + ymino
+             else
+                region%grids(1)%coordinates(gridIndex,2) =                                   &
+                     (ymaxo - ymino) * real(j-1,wp) / real(ny-1) + ymino
+             end if
 
              ! Create Z
-             if (nz.ne.1) region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),3) =             &
-                  (zmax - zmin)*real(k-1,wp)/real(nz-1) + zmin
+             if (nz.ne.1) region%grids(1)%coordinates(gridIndex,3) =                         &
+                  (zmax - zmin - dz) * real(k-1,wp) / real(nz-1) + zmin
+
           end do
        end do
     end do
@@ -216,145 +244,155 @@ contains
   ! =================== !
   ! Boundary conditions !
   ! =================== !
-  subroutine premixedBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
+  subroutine premixedBC(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge,                  &
+       xPeriodic, yPeriodic)
+
+    ! <<< Internal modules >>>
+    use InputHelper, only : getOption
+
     implicit none
 
-    integer, intent(in), optional :: imin_sponge,imax_sponge,jmin_sponge,jmax_sponge
+    ! <<< Arguments >>>
+    integer, intent(in) :: imin_sponge, imax_sponge, jmin_sponge, jmax_sponge
+    logical, intent(in) :: xPeriodic, yPeriodic
+
+    ! <<< Local variables >>>
     integer :: i, bc, nbc, iunit
-    integer, allocatable, dimension(:) :: grid,normDir,imin,imax,jmin,jmax,kmin,kmax
-    character(len = 22), allocatable, dimension(:) :: name,type
+    integer, allocatable, dimension(:) :: grid, normDir, imin, imax, jmin, jmax, kmin, kmax
+    character(len = 22), allocatable, dimension(:) :: name, type
+    character(len = STRING_LENGTH) :: entry
 
-    ! Number of BC
-    nbc = 10
-
-    ! Allocate BC
-    allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
-         imin(nbc),imax(nbc),jmin(nbc),jmax(nbc),kmin(nbc),kmax(nbc))
+    ! Initialize BC
+    nbc = 99
+    allocate( name(nbc), type(nbc), grid(nbc), normDir(nbc),                                 &
+         imin(nbc), imax(nbc), jmin(nbc), jmax(nbc), kmin(nbc), kmax(nbc) )
 
     ! Set the BC
     ! GRID 1
-    grid(:)    = 1
+    grid(:) = 1
+    bc = 0
 
+    if (.not. xPeriodic) then
+       bc = bc + 1
+       name   (bc) = 'farField.E'
+       type   (bc) = 'SAT_FAR_FIELD'
+       normDir(bc) =  1
+       imin   (bc) =  1
+       imax   (bc) =  1
+       jmin   (bc) =  1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    ! BC 1
-    bc = 1
-    name   (bc) = 'farField.E'
-    type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) =  1
-    imin   (bc) =  1
-    imax   (bc) =  1
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'farField.W'
+       type   (bc) = 'SAT_FAR_FIELD'
+       normDir(bc) = -1
+       imin   (bc) = -1
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    ! BC 2
-    bc = 2
-    name   (bc) = 'farField.W'
-    type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) = -1
-    imin   (bc) = -1
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'sponge.E'
+       type   (bc) = 'SPONGE'
+       normDir(bc) =  1
+       imin   (bc) =  1
+       imax   (bc) =  imin_sponge
+       jmin   (bc) =  1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    ! BC 3
-    bc = 3
-    name   (bc) = 'farField.S'
-    type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) =  2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) =  1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'sponge.W'
+       type   (bc) = 'SPONGE'
+       normDir(bc) =  -1
+       imin   (bc) =  imax_sponge
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+    end if
 
-    ! BC 4
-    bc = 4
-    name   (bc) = 'farField.N'
-    type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) =  -2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) = -1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+    if (.not. yPeriodic) then
+       bc = bc + 1
+       name   (bc) = 'farField.S'
+       type   (bc) = 'SAT_FAR_FIELD'
+       normDir(bc) =  2
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) =  1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    ! BC 5
-    bc = 5
-    name   (bc) = 'sponge.E'
-    type   (bc) = 'SPONGE'
-    normDir(bc) =  1
-    imin   (bc) =  1
-    imax   (bc) =  imin_sponge
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'farField.N'
+       type   (bc) = 'SAT_FAR_FIELD'
+       normDir(bc) =  -2
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) = -1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    ! BC 6
-    bc = 6
-    name   (bc) = 'sponge.W'
-    type   (bc) = 'SPONGE'
-    normDir(bc) =  -1
-    imin   (bc) =  imax_sponge
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'sponge.S'
+       type   (bc) = 'SPONGE'
+       normDir(bc) =  2
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) = jmin_sponge
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    ! BC 7
-    bc = 7
-    name   (bc) = 'sponge.S'
-    type   (bc) = 'SPONGE'
-    normDir(bc) =  2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) = jmin_sponge
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'sponge.N'
+       type   (bc) = 'SPONGE'
+       normDir(bc) = -2
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) =  jmax_sponge
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+    end if
 
-    ! BC 8
-    bc = 8
-    name   (bc) = 'sponge.N'
-    type   (bc) = 'SPONGE'
-    normDir(bc) = -2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) =  jmax_sponge
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+    entry = getOption("target_mollifier_file", "")
+    if (len_trim(entry) > 0) then
+       bc = bc + 1
+       name   (bc) = 'targetRegion'
+       type   (bc) = 'COST_TARGET'
+       normDir(bc) =  0
+       imin   (bc) =  93
+       imax   (bc) =  109
+       jmin   (bc) =  29
+       jmax   (bc) =  173
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+    end if
 
-    ! BC 9
-    bc = 9
-    name   (bc) = 'targetRegion'
-    type   (bc) = 'COST_TARGET'
-    normDir(bc) =  0
-    imin   (bc) =  93
-    imax   (bc) =  109
-    jmin   (bc) =  29
-    jmax   (bc) =  173
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+    entry = getOption("control_mollifier_file", "")
+    if (len_trim(entry) > 0) then
+       bc = bc + 1
+       name   (bc) = 'controlRegion'
+       type   (bc) = 'ACTUATOR'
+       normDir(bc) =  0
+       imin   (bc) =  108
+       imax   (bc) =  137
+       jmin   (bc) =  86
+       jmax   (bc) =  116
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+    end if
 
-    ! BC 10
-    bc = 10
-    name   (bc) = 'controlRegion'
-    type   (bc) = 'ACTUATOR'
-    normDir(bc) =  0
-    imin   (bc) =  108
-    imax   (bc) =  137
-    jmin   (bc) =  86
-    jmax   (bc) =  116
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+    nbc = bc
 
    ! Open the file
     iunit=11
@@ -395,6 +433,8 @@ contains
     ! <<< Internal modules >>>
     use InputHelper, only : getOption
     use ErrorHandler, only : gracefulExit
+
+    implicit none
 
     ! <<< Arguments >>>
     type(t_State) :: state
@@ -439,7 +479,10 @@ contains
     temperature = getOption("initial_temperature", T0)
 
     ! Density
-    density = T0 / temperature
+    density = 1.0_wp!T0 / temperature
+    print *
+    print *, 'Mixture density = ',density
+    print *
 
     ! Components
     fuel = YF0*Z0
