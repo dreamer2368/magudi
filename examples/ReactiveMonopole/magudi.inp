@@ -63,6 +63,7 @@ stoichiometric_ratio = 8.0
 heat_release = 0.86
 Zel_Dovich = 6.0
 Damkohler_number = 50000.0
+initial_temperature = 6.0
 
 # Discretization scheme
 defaults/discretization_scheme = "SBP 4-8"
