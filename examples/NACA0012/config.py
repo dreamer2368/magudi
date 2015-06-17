@@ -15,16 +15,17 @@ def airfoil_slope(x, c, t):
     return 5. * t * (0.14845 / np.sqrt(x / c) - 0.1260 - 0.7032 * (x / c) +
                      0.8529 * (x / c) ** 2 - 0.406 * (x / c) ** 3)
 
-def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0005,
-                     ds_le=0.001, ds_normal=0.0005, stretch_ratio=1.028,
-                     stop_height=60.):
+def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0004,
+                     ds_le=0.0016, ds_normal=0.00048, stretch_ratio=1.04,
+                     stop_height=75.):
     c = 2000.
     s = np.linspace(0., 1., 200)
     x_airfoil = np.cumsum(np.tanh(3.5 * (1. - s)) + np.tanh(3.5 * s) - 1.)
     x_airfoil = c * (x_airfoil - x_airfoil.min()) / \
                 (x_airfoil.max() - x_airfoil.min())
     y_airfoil = airfoil_profile(x_airfoil, c, t)
-    x_te = x_airfoil[-1] + y_airfoil[-1] * airfoil_slope(x_airfoil[-1], c, t)
+    x_te = x_airfoil[-1] - 0.5 * y_airfoil[-1] / \
+           airfoil_slope(x_airfoil[-1], c, t)
     x_start = 0.5 * c
     # Write glyph file.
     with open(filename, 'w') as f:
@@ -50,12 +51,12 @@ def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0005,
         print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' \
             % (x_airfoil[0],  y_airfoil[0], 0.)
         print >>f, 'set db_NACA3 [gg::dbCurveEnd]'
-        print >>f, 'gg::dbCurveBegin -type CIRCULAR_ARC'
+        print >>f, 'gg::dbCurveBegin -type CONIC -rho 0.5'
         print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' % \
             (x_airfoil[-1],  y_airfoil[-1], 0.)
         print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' % \
             (x_airfoil[-1], -y_airfoil[-1], 0.)
-        print >>f, 'gg::dbCurveAddPt -alternate CENTER {%.6f %.6f %.6f}' % \
+        print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' % \
             (x_te,  0., 0.)
         print >>f, 'set db_NACA4 [gg::dbCurveEnd]'
         print >>f, """
@@ -114,6 +115,6 @@ def target_state(g, mach_number, gamma=1.4):
     return s.fromprimitive(gamma)
 
 if __name__ == '__main__':
-    grid(grid_size = [360, 300])
+    grid(grid_size = [180, 180])
     g = p3d.fromfile('NACA0012.xyz')
     target_state(g, mach_number=0.5).save('NACA0012.target.q')

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export MAGUDI_MPIRUN="mpiexec --bind-to-core --npernode 8 --n 16"
+export MAGUDI_MPIRUN="mpiexec --bind-to core --npernode 8 --n 16"
 
 function setOption() {
     if grep -q "$1" magudi.inp
@@ -13,7 +13,7 @@ function setOption() {
 
 rm -f AcousticMonopole* Bootstrap/AcousticMonopole*
 python config.py
-cp AcousticMonopole.xyz AcousticMonopole.target.q Bootstrap
+cp AcousticMonopole.xyz Bootstrap
 cd Bootstrap
 $MAGUDI_MPIRUN ../magudi
 cp AcousticMonopole-00000240.q ../AcousticMonopole.ic.q

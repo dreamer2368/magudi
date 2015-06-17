@@ -31,7 +31,7 @@ module Grid_mod
   type, public :: t_Grid
 
      type(t_StencilOperator), allocatable :: firstDerivative(:), secondDerivative(:),        &
-          dissipation(:), dissipationTranspose(:), adjointFirstDerivative(:)
+          dissipation(:), dissipationTranspose(:), adjointFirstDerivative(:), filter(:)
 
      integer, dimension(:), allocatable :: iblank
      SCALAR_TYPE, dimension(:,:), allocatable :: coordinates, jacobian, metrics, norm,       &
@@ -61,6 +61,7 @@ module Grid_mod
      procedure, pass :: findMinimum
      procedure, pass :: findMaximum
      procedure, pass :: isVariableWithinRange
+     procedure, pass :: applyFilter
 
      procedure, private, pass :: computeScalarInnerProduct
      procedure, private, pass :: computeVectorInnerProduct
@@ -289,6 +290,20 @@ module Grid_mod
        logical :: isVariableWithinRange
 
      end function isVariableWithinRange
+
+  end interface
+
+  interface
+
+     subroutine applyFilter(this, f, timestep)
+
+       import :: t_Grid
+
+       class(t_Grid) :: this
+       SCALAR_TYPE, intent(inout) :: f(:,:)
+       integer, intent(in) :: timestep
+
+     end subroutine applyFilter
 
   end interface
 

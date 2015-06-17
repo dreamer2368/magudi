@@ -789,7 +789,7 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
         localWaveSpeed = localWaveSpeed +                                                    &
              real(sum(metrics(i,1+nDimensions*(j-1):nDimensions*j) ** 2), wp)
      end do
-     localWaveSpeed = localSpeedOfSound * sqrt(localWaveSpeed)     
+     localWaveSpeed = localSpeedOfSound * sqrt(localWaveSpeed)
      do j = 1, nDimensions
         localWaveSpeed = localWaveSpeed + abs(real(dot_product(velocity(i,:),                &
              metrics(i,1+nDimensions*(j-1):nDimensions*j)), wp))
@@ -862,7 +862,7 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
         localWaveSpeed = localWaveSpeed +                                                    &
              real(sum(metrics(i,1+nDimensions*(j-1):nDimensions*j) ** 2), wp)
      end do
-     localWaveSpeed = localSpeedOfSound * sqrt(localWaveSpeed)     
+     localWaveSpeed = localSpeedOfSound * sqrt(localWaveSpeed)
      do j = 1, nDimensions
         localWaveSpeed = localWaveSpeed + abs(real(dot_product(velocity(i,:),                &
              metrics(i,1+nDimensions*(j-1):nDimensions*j)), wp))

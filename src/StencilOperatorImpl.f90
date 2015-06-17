@@ -844,6 +844,7 @@ subroutine setupOperator(this, stencilScheme)
   'SBP 2-4 dissipation',           \
   'SBP 2-4 dissipation transpose', \
   'SBP 2-4 composite dissipation', \
+  'Standard 5-point filter',       \
   'SBP 3-6 first derivative',      \
   'SBP 3-6 second derivative',     \
   'SBP 3-6 dissipation',           \
@@ -854,6 +855,7 @@ subroutine setupOperator(this, stencilScheme)
   'SBP 4-8 dissipation',           \
   'SBP 4-8 dissipation transpose', \
   'SBP 4-8 composite dissipation', \
+  'DRP 9-point filter',            \
   'null matrix'))
 
   call this%cleanup()
@@ -1039,6 +1041,22 @@ subroutine setupOperator(this, stencilScheme)
      this%rhsBoundary1(2,1:3) = this%rhsInterior(-1:1)
      this%rhsBoundary1(3,2:3) = this%rhsInterior(-1:0)
      this%rhsBoundary1(4,3:3) = this%rhsInterior(-1:-1)
+
+  else if (trim(stencilScheme) == "Standard 5-point filter") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 5
+     this%boundaryWidth = 3
+     this%boundaryDepth = 2
+     call allocateData(this)
+
+     this%rhsInterior(0:2) = (/ 5.0_wp / 8.0_wp, 1.0_wp / 4.0_wp, -1.0_wp / 16.0_wp /)
+     this%rhsInterior(-1:-2:-1) = this%rhsInterior(1:2)
+
+     this%normBoundary = 1.0_wp
+
+     this%rhsBoundary1(1:3,1) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
+     this%rhsBoundary1(1:3,2) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
 
   else if (trim(stencilScheme) == "SBP 3-6 first derivative") then
 
@@ -1637,6 +1655,28 @@ subroutine setupOperator(this, stencilScheme)
      this%rhsBoundary1(5,3:5) = this%rhsInterior(-2:0)
      this%rhsBoundary1(6,4:5) = this%rhsInterior(-2:-1)
      this%rhsBoundary1(7,5:5) = this%rhsInterior(-2:-2)
+
+  else if (trim(stencilScheme) == "DRP 9-point filter") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 9
+     this%boundaryWidth = 7
+     this%boundaryDepth = 4
+     call allocateData(this)
+
+     this%rhsInterior(0:4) = (/ 0.75647250688_wp, 0.204788880640_wp, -0.120007591680_wp,     &
+          0.045211119360_wp, -0.008228661760_wp /)
+     this%rhsInterior(-1:-4:-1) = this%rhsInterior(1:4)
+
+     this%normBoundary = 1.0_wp
+
+     this%rhsBoundary1(1:1,1) = (/ 1.0_wp /)
+     this%rhsBoundary1(1:3,2) = (/ 1.0_wp / 4.0_wp, 1.0_wp / 2.0_wp, 1.0_wp / 4.0_wp /)
+     this%rhsBoundary1(3:5,3) = (/ 5.0_wp / 8.0_wp, 1.0_wp / 4.0_wp, -1.0_wp / 16.0_wp /)
+     this%rhsBoundary1(2:1:-1,3) = this%rhsBoundary1(4:5,3)
+     this%rhsBoundary1(4:7,4) = (/ 11.0_wp / 16.0_wp, 15.0_wp / 64.0_wp,                     &
+          -3.0_wp / 32.0_wp, 1.0_wp / 64.0_wp /)
+     this%rhsBoundary1(3:1:-1,4) = this%rhsBoundary1(5:7,4)
 
   else if (trim(stencilScheme) == "null matrix") then
 

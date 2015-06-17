@@ -666,6 +666,13 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
 
+     ! Filter solution if required.
+     if (region%simulationFlags%filterOn) then
+        do j = 1, size(region%grids)
+           call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
+        end do
+     end if
+
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
   costFunctional = costFunctional / duration
@@ -728,7 +735,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_Functional), pointer :: functional => null()
   type(t_ReverseMigratorFactory) :: reverseMigratorFactory
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
-  integer :: i, timestep, startTimestep, timemarchDirection
+  integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostSensitivity, duration
 
@@ -845,6 +852,13 @@ function runAdjoint(this, region) result(costSensitivity)
 
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
+
+     ! Filter solution if required.
+     if (region%simulationFlags%filterOn) then
+        do j = 1, size(region%grids)
+           call region%grids(j)%applyFilter(region%states(j)%adjointVariables, timestep)
+        end do
+     end if
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
