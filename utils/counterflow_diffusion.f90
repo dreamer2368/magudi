@@ -129,12 +129,15 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, gridIndex
+    integer :: i, j, k, n, gridIndex
     integer :: nx, ny, nz, nx_, ny_, nz_
     real(wp) :: xmini, xmaxi, ymini, ymaxi
     real(wp) :: xmino, xmaxo, ymino, ymaxo
     real(wp) :: zmin, zmax
     real(wp) :: dx, dy, dz
+    real(wp) :: g0, b, c, sig, dy_min, dy_max, y1, y2
+    real(wp), allocatable, dimension(:) :: s, g
+    logical :: stretch_y
 
     ! Read in grid size and dimensions.
     call getRequiredOption("nx", nx)
@@ -150,6 +153,9 @@ contains
     call getRequiredOption("ymax_outer", ymaxo)
     zmin = getOption("zmin", 0.0_wp)
     zmax = getOption("zmax", 0.0_wp)
+
+    ! Should we stretch the mesh?
+    stretch_y = getOption('stretch_y',.false.)
 
     ! Allocate the global grid size and assign values.
     ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
@@ -179,14 +185,16 @@ contains
     do k = 1, nz_
        do j = 1, ny_
           do i = 1, nx_
+
              gridIndex = i+nx_*(j-1+ny_*(k-1))
+
              ! Create X
              region%grids(1)%coordinates(gridIndex,1) =                                      &
                   (xmaxo - xmino) * real(i-1,wp) / real(nx-1) + xmino
 
 
              ! Create Y
-             region%grids(1)%coordinates(gridIndex,2) =                                      &
+             if (.not.stretch_y) region%grids(1)%coordinates(gridIndex,2) =                  &
                   (ymaxo - ymino) * real(j-1,wp) / real(ny-1) + ymino
 
              ! Create Z
@@ -196,6 +204,56 @@ contains
           end do
        end do
     end do
+
+    ! Stretch the grid.
+    if (stretch_y) then
+       ! Parameters
+       sig=0.18_wp
+       b=20.0_wp
+       c=0.6_wp
+       n=100
+
+       ! Create uniform spacing.
+       allocate(s(ny_))
+       do j = 1, ny_
+          s(j) = real(j-1,wp)/real(ny-1,wp)
+       end do
+
+       ! Compute g(s).
+       allocate(g(ny_))
+       call g_of_s(1.0_wp,b,c,sig,n,g0)
+       do j=1,ny_
+          call g_of_s(s(j),b,c,sig,n,g(j))
+       end do
+
+       ! Find min/max spacing.
+       dy_min=huge(1.0_wp)
+       dy_max=-huge(1.0_wp)
+
+       ! Compute y.
+       do k = 1, nz_
+          do j = 1, ny_
+             do i = 1, nx_
+
+                gridIndex = i+nx_*(j-1+ny_*(k-1))
+
+                ! Create y.
+                region%grids(1)%coordinates(gridIndex,2) = 0.5_wp*(ymaxo-ymino)*g(j)/g0
+
+                ! Find min/max spacing.
+                if (j.gt.1) then
+                   y1 = region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2)
+                   y2 = region%grids(1)%coordinates(i+nx_*(j-2+ny_*(k-1)),2)
+                   dy_min=min(dy_min,abs(y2-y1))
+                   dy_max=max(dy_max,abs(y2-y1))
+                end if
+             end do
+          end do
+       end do
+       print *
+       print *, 'min/max y-spacing:',dy_min,dy_max
+       print *
+    end if
 
     ! Find extents of outer region.
     j=1; k=1;
@@ -223,6 +281,41 @@ contains
 
     return
   end subroutine counterflowDiffusionGrid
+
+  ! ======================== !
+  ! Grid stretching function !
+  ! ======================== !
+  Subroutine g_of_s(s,b,c,sig,n,g)
+    implicit none
+
+    integer, parameter :: wp = SCALAR_KIND
+    integer, intent(in) :: n
+    real(wp), intent(in) :: s,b,c,sig
+    real(wp), intent(out) :: g
+
+    integer :: i
+    real(wp) :: dx1,dx2,int1,int2
+    real(wp), dimension(n) :: x1,x2
+
+    ! Compute stretched grid for mixing layer.
+    do i=1,n
+       x1(i) = ((s-0.5_wp)/sig)*real(i-1,wp)/real(n-1,wp) - c/sig
+       x2(i) = ((s-0.5_wp)/sig)*real(i-1,wp)/real(n-1,wp) + c/sig
+    end do
+    dx1=x1(2)-x1(1)
+    dx2=x2(2)-x2(1)
+
+    int1=0.0_wp
+    int2=0.0_wp
+    do i=1,n
+       int1 = int1 + erf(x1(i))*dx1
+       int2 = int2 + erf(x2(i))*dx2
+    end do
+
+    g = (s-0.5_wp)*(1.0_wp+2.0_wp*b)+b*sig*(int1-int2)
+
+    return
+  end subroutine g_of_s
 
   ! =================== !
   ! Boundary conditions !
@@ -347,10 +440,10 @@ contains
        name   (bc) = 'targetRegion'
        type   (bc) = 'COST_TARGET'
        normDir(bc) =  0
-       imin   (bc) =  29
-       imax   (bc) =  173
-       jmin   (bc) =  86
-       jmax   (bc) =  116
+       imin   (bc) =  37
+       imax   (bc) =  221
+       jmin   (bc) =  71
+       jmax   (bc) =  187
        kmin   (bc) =  1
        kmax   (bc) = -1
     end if
@@ -361,10 +454,10 @@ contains
        name   (bc) = 'controlRegion'
        type   (bc) = 'ACTUATOR'
        normDir(bc) =  0
-       imin   (bc) =  29
-       imax   (bc) =  173
-       jmin   (bc) =  143
-       jmax   (bc) =  173
+       imin   (bc) =  37
+       imax   (bc) =  221
+       jmin   (bc) =  234
+       jmax   (bc) =  249
        kmin   (bc) =  1
        kmax   (bc) = -1
     end if

@@ -16,8 +16,8 @@ control_mollifier_file = "CounterflowDiffusion.control_mollifier.f"
 #############################################################################################
 
 # Grid information
-nx = 201
-ny = 201
+nx = 257
+ny = 257
 xmin_interior = -10
 xmax_interior = 10
 ymin_interior = -10
@@ -26,11 +26,11 @@ xmin_outer = -14
 xmax_outer = 14
 ymin_outer = -14
 ymax_outer = 14
-
+stretch_y = true
 
 # Mixture properties
-initial_temperature = 6.0
-initial_fuel_mass_fraction = 0.01
+initial_temperature = 7.0
+initial_fuel_mass_fraction = 0.055
 initial_oxidizer_mass_fraction = 0.233
 initial_jet_velocity = 0.1
 
@@ -66,7 +66,7 @@ Damkohler_number = 10000.0
 defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
-time_step_size = 0.05
+time_step_size = 0.01
 number_of_timesteps = 1000
 report_interval = 10
 save_interval = 20
@@ -112,6 +112,6 @@ gradient_buffer_size = 20
 controller_type = "FUEL_ACTUATOR"
 check_gradient_accuracy = true
 number_of_control_iterations = 32
-initial_actuation_amount = 1000
+initial_actuation_amount = 10000
 restart_control_iteration = 0
 actuation_amount_geometric_growth = 0.5623413251903491
