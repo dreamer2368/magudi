@@ -579,12 +579,14 @@ contains
     upperVelocity = getOption("upper_velocity", 0.0_wp)
     lowerVelocity = getOption("lower_velocity", 0.0_wp)
 
-    ! Species parameters.
+    ! Species indeces.
     H2 = nDimensions+2+1
     O2 = H2 + 1
+
+    ! Mixture properties.
+    Z0 = getOption("initial_mixture_fraction", 1.0_wp)
     call getRequiredOption("initial_fuel_mass_fraction", Yf0)
     call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
-    Z0 = getOption("initial_mixture_fraction", 1.0_wp)
 
     ! Gamma
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
@@ -592,11 +594,11 @@ contains
     do i = 1, grid%nGridPoints
 
        ! Mixture fraction
-       Z = 0.5_wp * Z0 * ( 1.0_wp - erf(grid%coordinates(i,2)) )
+       Z = 0.5_wp * ( 1.0_wp - erf(grid%coordinates(i,2)) )
 
        ! Components
-       fuel = YF0*Z
-       oxidizer = YO0*(1.0_wp-Z)
+       fuel = YF0 * Z * Z0
+       oxidizer = YO0 * (1.0_wp-Z) * (1.0_wp - Z0)
 
        ! Density
        if (nspecies.gt.0) then
