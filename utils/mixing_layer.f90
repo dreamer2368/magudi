@@ -594,11 +594,11 @@ contains
     do i = 1, grid%nGridPoints
 
        ! Mixture fraction
-       Z = 0.5_wp * ( 1.0_wp - erf(grid%coordinates(i,2)) )
+       Z = 0.5_wp * Z0 * ( 1.0_wp - erf(grid%coordinates(i,2)) )
 
        ! Components
-       fuel = YF0 * Z * Z0
-       oxidizer = YO0 * (1.0_wp-Z) * (1.0_wp - Z0)
+       fuel = YF0 * Z
+       oxidizer = YO0 * (1.0_wp-Z)
 
        ! Density
        if (nspecies.gt.0) then

@@ -423,7 +423,7 @@ contains
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
     real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, fuel, oxidizer,         &
-         u, v, Z, Z0, T0, Yf0, Yo0, jetVelocity, a, eta, x, y, Re
+         u, v, Z, T0, Yf0, Yo0, jetVelocity, a, eta, x, y, Re
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -444,7 +444,6 @@ contains
     O2 = H2 + 1
 
     ! Mixture properties
-    Z0 = getOption("initial_mixture_fraction", 1.0_wp)
     call getRequiredOption("initial_fuel_mass_fraction", Yf0)
     call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
     call getRequiredOption("initial_jet_velocity", jetVelocity)
@@ -481,8 +480,8 @@ contains
        Z = 0.5_wp * ( 1.0_wp + erf(eta / sqrt(2.0_wp)) )
 
        ! Components
-       fuel = YF0 * Z * Z0
-       oxidizer = YO0 * (1.0_wp-Z) * (1.0_wp - Z0)
+       fuel = YF0 * Z
+       oxidizer = YO0 * (1.0_wp-Z)
 
        ! State variables
        state%conservedVariables(i,1) = density

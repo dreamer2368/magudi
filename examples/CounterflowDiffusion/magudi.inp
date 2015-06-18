@@ -30,8 +30,7 @@ ymax_outer = 14
 
 # Mixture properties
 initial_temperature = 6.0
-initial_mixture_fraction = 0.001
-initial_fuel_mass_fraction = 1.0
+initial_fuel_mass_fraction = 0.01
 initial_oxidizer_mass_fraction = 0.233
 initial_jet_velocity = 0.1
 
