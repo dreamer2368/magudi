@@ -447,8 +447,6 @@ contains
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
     real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, T0, Yf0, Yo0, Z0,       &
          fuel, oxidizer
-    real(SCALAR_KIND), parameter :: empiricalConstant = 5.8_wp
-    real(SCALAR_KIND), parameter :: spreadingRate = 0.094_wp
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
