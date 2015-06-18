@@ -420,6 +420,13 @@ class Grid(MultiBlockCommon):
     def __setitem__(self, key, item):
         self.xyz[key] = item
 
+    def squeeze(self):
+        for i, xyz in enumerate(self.xyz):
+            nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
+                 if self.size[i,2] == 1 else 3
+            self.xyz[i] = xyz[:,:,:,:nd]
+        return self
+
 class Solution(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
                  subzone_ends=None, forceread=False):
@@ -577,6 +584,17 @@ class Solution(MultiBlockCommon):
 
     def __setitem__(self, key, item):
         self.q[key] = item
+
+    def squeeze(self):
+        for i, q in enumerate(self.q):
+            nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
+                 if self.size[i,2] == 1 else 3
+            p = np.copy(q)
+            self.q[i] = np.empty(self.size[i].tolist() + [nd + 2])
+            for j in range(nd+1):
+                self.q[i][:,:,:,j] = p[:,:,:,j]
+            self.q[i][:,:,:,nd+1] = p[:,:,:,4]
+        return self
 
 class Function(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,

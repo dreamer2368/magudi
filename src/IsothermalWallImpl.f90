@@ -131,6 +131,8 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
 
+  if (mode == ADJOINT .and. simulationFlags%useContinuousAdjoint) return
+
   call startTiming("addIsothermalWallPenalty")
 
   call this%t_ImpenetrableWall%updateRhs(mode, simulationFlags, solverOptions, grid, state)
@@ -151,7 +153,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
   allocate(unitNormal(nDimensions))
   allocate(metricsAlongNormalDirection(nDimensions))
-  allocate(viscousPenalties(nUnknowns - 1, 2))
+  allocate(viscousPenalties(nUnknowns, 2))
 
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -173,9 +175,10 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
            case (FORWARD)
 
-              viscousPenalties(1:nDimensions+1,1) =                                          &
+              viscousPenalties(1,1) = 0.0_wp
+              viscousPenalties(2:nDimensions+2,1) =                                          &
                    state%conservedVariables(gridIndex,2:nDimensions+2)
-              viscousPenalties(nDimensions+1,1) = viscousPenalties(nDimensions+1,1) -        &
+              viscousPenalties(nDimensions+2,1) = viscousPenalties(nDimensions+2,1) -        &
                    state%conservedVariables(gridIndex,1) *                                   &
                    this%temperature(patchIndex) / solverOptions%ratioOfSpecificHeats
 
@@ -191,28 +194,22 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
               viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
-              state%rightHandSide(gridIndex,2:nUnknowns) =                                   &
-                   state%rightHandSide(gridIndex,2:nUnknowns) -                              &
+              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
                    this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) +                   &
                    this%viscousPenaltyAmounts(2) * viscousPenalties(:,2)
 
            case (ADJOINT)
 
-              if (simulationFlags%useContinuousAdjoint) then
+              viscousPenalties(1,1) = - state%adjointVariables(gridIndex,nDimensions+2) *    &
+                   this%temperature(patchIndex) / solverOptions%ratioOfSpecificHeats
+              viscousPenalties(2:nDimensions+2,1) =                                          &
+                   state%adjointVariables(gridIndex,2:nDimensions+2)
 
-                 viscousPenalties(1:nDimensions+1,1) =                                       &
-                      state%adjointVariables(gridIndex,2:nDimensions+2)
+              viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
-                 viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
-
-                 state%rightHandSide(gridIndex,2:nUnknowns) =                                &
-                      state%rightHandSide(gridIndex,2:nUnknowns) -                           &
-                      this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) +                &
-                      this%viscousPenaltyAmounts(2) * viscousPenalties(:,2)
-
-              end if
-
-              ! TODO: add viscous wall penalties for adjoint variables.
+              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &
+                   this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) -                   &
+                   this%viscousPenaltyAmounts(2) * viscousPenalties(:,2)
 
            end select !... mode
 

@@ -230,7 +230,7 @@ subroutine computePressureDragAdjointForcing(this, simulationFlags, solverOption
 
            else
 
-              F = grid%jacobian(gridIndex, 1) * normBoundaryFactor *                         &
+              F = - grid%jacobian(gridIndex, 1) * normBoundaryFactor *                       &
                    (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                           &
                    dot_product(metricsAlongNormalDirection, this%direction(1:nDimensions))
 
