@@ -35,11 +35,7 @@ def mapping_function(s, b, c, sigma):
                                 np.sqrt(np.pi) - ((0.5 - c) / sigma) *
                                 erf((0.5 - c) / sigma)))
 
-def grid(size):
-		xMin =  -60.
-		xMax =  160.
-		yMin = -20.
-		yMax =  100. 
+def grid(size,xMin,xMax,yMin,yMax):
 		g = p3d.Grid().set_size(size, True)
 		x = xMin + 0.5 * (xMax - xMin) * (1. + mapping_function(
 		np.linspace(0., 1., g.size[0,0]), 80., 0.58, 0.07))
@@ -54,22 +50,12 @@ def grid(size):
 		y = yMin + 0.5 * (yMax - yMin) * (1. + mapping_function(
 		np.linspace(0., 1., g.size[0,1]), 20., 0.62, 0.2))
 		g.xyz[0][:,:,0,:2] = np.transpose(np.meshgrid(x, y))	
-		print "size x= ",x.shape
-		print "size y= ",y.shape
-#		print "shape size",size.shape
-		#for j in range(size[1]):
-	#	for k in range(size[0]):
-#			y[k] =s * yMax + (1. - s) * (yMin + wallHeight[k])
-#		g.xyz[0][:,:,0,:2] = np.transpose(np.meshgrid(x, y))
 
 		for i in range(size[0]):
 			g.xyz[0][i,:,0,0] = x[i]
 		for j in range(size[1]):
 			for k in range(size[0]):
 				g.xyz[0][k,j,0,1] = s[j] * yMax + (1. - s[j]) * (yMin + wallHeight[k])
-
-#    grid.Export(outputPrefix + '.xyz')
-
 
 		return g
 
@@ -99,8 +85,8 @@ def target_mollifier(g,x_min,x_max,y_min,y_max):
             g.xyz[0][i,:,0,1], y_min, y_max)
     imin, imax = p3d.find_extents(g.xyz[0][:,0,0,0], x_min, x_max)        
     jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], y_min, y_max)
-    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-        'targetRegion', 'COST_TARGET', 1, 0, imin, imax, jmin, jmax, 1, -1)
+#    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+#        'targetRegion', 'COST_TARGET', 1, 0, imin, imax, jmin, jmax, 1, -1)
     return f
 
 def control_mollifier(g,x_min,x_max,y_min,y_max):
@@ -115,8 +101,8 @@ def control_mollifier(g,x_min,x_max,y_min,y_max):
             g.xyz[0][i,:,0,1], y_min, y_max)
     imin, imax = p3d.find_extents(g.xyz[0][:,0,0,0], x_min, x_max)
     jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], y_min, y_max)
-    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-        'controlRegion', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)
+#    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+#        'controlRegion', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)
     return f
 
 def mean_pressure(s):
@@ -125,9 +111,15 @@ def mean_pressure(s):
     return f
 
 if __name__ == '__main__':
-    
+
 		outputPrefix = 'BuchtaRamShapeML'
-		g = grid([400,400])
+
+		xMin =  -60.
+		xMax =  160.
+		yMin = -20.
+		yMax =  100.
+
+		g = grid([400,400],xMin,xMax,yMin,yMax)
 		g.save(outputPrefix+'.xyz')
 		initial_condition(g, u1=0.7, u2=0.0).save(outputPrefix+'.ic.q')
 		target_state(g, u1=0.7, u2=0.0, S=0.05).save(outputPrefix+'.target.q')
@@ -143,3 +135,42 @@ if __name__ == '__main__':
 		yMinControl = -3.
 		yMaxControl =  3.
 		control_mollifier(g,xMinControl,xMaxControl,yMinControl,yMaxControl).save(outputPrefix+'.control_mollifier.f')
+
+		#IMPLEMENTING THE BOUNDARY CONDITION FILE
+
+		#SPONGE INDICES
+		left_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] + (xMin+60))) + 1
+		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-60)) ) + 1
+		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-20))) + 1
+
+		#TARGET INDICES
+		right_target=right_sponge
+		left_target=left_sponge
+		bottom_target=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMinTarget))) + 1
+		top_target=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMaxTarget))) + 1
+
+		#CONTROL INDICES
+		left_c=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMinControl))) + 1
+		right_c=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMaxControl))) + 1
+		bottom_c=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMinControl))) + 1
+		top_c=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMaxControl))) + 1
+
+		#EXCITATION INDICES
+		left_ex=np.argmin(abs(g.xyz[0][:,0,0,0] - (-15))) + 1
+		right_ex=np.argmin(abs(g.xyz[0][:,0,0,0] - (-5))) + 1
+		bottom_ex=np.argmin(abs(g.xyz[0][0,:,0,1] - (-2))) + 1
+		top_ex=np.argmin(abs(g.xyz[0][0,:,0,1] - (2))) + 1
+
+		with open(outputPrefix+'_bc.dat', "wt") as fp:
+				fp.write("# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax\n")
+				fp.write("# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====\n")
+				fp.write("inflow               SAT_FAR_FIELD            1       1    1    1    1   -1    1   -1\n")
+				fp.write("inflowSponge         SPONGE                   1       1    1  %i    1   -1    1   -1\n"% (left_sponge))
+				fp.write("outflow              SAT_FAR_FIELD            1      -1   -1   -1    1   -1    1   -1\n")
+				fp.write("outflowSponge        SPONGE                   1      -1   %i   -1    1   -1    1   -1\n"% (right_sponge))
+				fp.write("wall.S               SAT_SLIP_WALL            1       2    1   -1    1    1    1   -1\n")
+				fp.write("farfield.N           SAT_FAR_FIELD            1      -2    1   -1   -1   -1    1   -1\n")
+				fp.write("sponge.N             SPONGE                   1      -2    1   -1  %i   -1    1   -1\n"% (top_sponge))
+				fp.write("excitationSupport    SOLENOIDAL_EXCITATION    1       0   %i  %i  %i   %i    1   -1\n"%(left_ex,right_ex,bottom_ex,top_ex))
+				fp.write("targetRegion         COST_TARGET              1       0  %i %i  %i  %i    1   -1\n"%(left_target,right_target,bottom_target,top_target))
+				fp.write("controlRegion        ACTUATOR                 1       0  %i  %i %i %i 1   -1\n"%(left_c,right_c,bottom_c,top_c))
