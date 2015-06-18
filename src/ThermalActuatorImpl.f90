@@ -300,7 +300,7 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
   integer, intent(in) :: mode
 
   ! <<< Local variables >>>
-  integer :: i, fileUnit, mpiFileHandle, procRank, ierror
+  integer :: i, stat, fileUnit, mpiFileHandle, procRank, ierror
   class(t_Patch), pointer :: patch => null()
   logical :: fileExists
   character(len = STRING_LENGTH) :: message
@@ -334,6 +334,9 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
 
         case (ADJOINT)
            if (procRank == 0) then
+              open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
+                   iostat = stat, status = 'old')
+              if (stat == 0) close(fileUnit, status = 'delete')
               open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
                    action = 'write', status = 'unknown')
               close(fileUnit)

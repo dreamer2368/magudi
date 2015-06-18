@@ -1451,3 +1451,122 @@ subroutine saveSpongeStrength(this, filename)
   SAFE_DEALLOCATE(data)
 
 end subroutine saveSpongeStrength
+
+subroutine resetProbes(this)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ProbePatch_mod, only : t_ProbePatch
+
+  ! <<< Internal modules >>>
+  use InputHelper, only : getFreeUnit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Region) :: this
+
+  ! <<< Local variables >>>
+  integer :: i, stat, fileUnit, procRank, ierror
+  class(t_Patch), pointer :: patch => null()
+
+  if (allocated(this%patchFactories)) then
+     do i = 1, size(this%patchFactories)
+        call this%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%comm == MPI_COMM_NULL) cycle
+        select type (patch)
+        class is (t_ProbePatch)
+
+           call MPI_Comm_rank(patch%comm, procRank, ierror)
+           if (procRank == 0) then
+              open(unit = getFreeUnit(fileUnit), file = trim(patch%probeFilename),           &
+                   iostat = stat, status = 'old')
+              if (stat == 0) close(fileUnit, status = 'delete')
+              open(unit = getFreeUnit(fileUnit), file = trim(patch%probeFilename),           &
+                   action = 'write', status = 'unknown')
+              close(fileUnit)
+           end if
+           call MPI_Barrier(patch%comm, ierror)
+           patch%iProbeBuffer = 0
+           patch%probeFileOffset = int(0, MPI_OFFSET_KIND)
+
+        end select
+     end do
+  end if
+
+end subroutine resetProbes
+
+subroutine saveProbeData(this, mode, finish)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ProbePatch_mod, only : t_ProbePatch
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Region) :: this
+  integer, intent(in) :: mode
+  logical, intent(in), optional :: finish
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  logical :: finish_
+  integer :: i, j
+  class(t_Patch), pointer :: patch => null()
+
+  finish_ = .false.
+  if (present(finish)) finish_ = finish
+
+  do i = 1, size(this%patchFactories)
+     call this%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(this%states)
+        if (patch%gridIndex /= this%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
+        select type (patch)
+        class is (t_ProbePatch)
+
+           if (finish_) then
+              call patch%saveData()
+              patch%iProbeBuffer = 0
+              cycle
+           end if
+
+           patch%iProbeBuffer = patch%iProbeBuffer + 1
+           assert(patch%iProbeBuffer >= 1)
+           assert(patch%iProbeBuffer <= size(patch%probeBuffer, 3))
+
+           select case (mode)
+           case (FORWARD)
+              call patch%collect(this%states(j)%conservedVariables,                          &
+                   patch%probeBuffer(:,:,patch%iProbeBuffer))
+           case (ADJOINT)
+              call patch%collect(this%states(j)%adjointVariables,                            &
+                   patch%probeBuffer(:,:,patch%iProbeBuffer))
+           end select
+
+           if (patch%iProbeBuffer == size(patch%probeBuffer, 3)) then
+              call patch%saveData()
+              patch%iProbeBuffer = 0
+           end if
+
+        end select
+     end do
+  end do
+
+end subroutine saveProbeData

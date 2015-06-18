@@ -10,8 +10,46 @@ lengths and quad-precision floating-point (as supported natively)."""
 import sys
 import numpy as np
 from struct import pack, unpack_from
+from itertools import izip
 
-__all__ = ['Grid', 'Solution', 'Function', 'FileFormatError', 'fromfile']
+__all__ = ['Grid', 'Solution', 'Function', 'FileFormatError', 'fromfile',
+           'cartesian_grid', 'cubic_bspline_support', 'tanh_support',
+           'find_extents']
+
+def fdcoeff(stencil, order=1):
+    from scipy.linalg import solve
+    from scipy.special import gamma
+    p = np.arange(len(stencil))
+    A = np.empty([p.size, p.size])
+    for i, s in enumerate(stencil):
+        A[i,:] = s ** p / gamma(p + 1)
+    b = np.zeros(A.shape[1])
+    b[order] = 1.
+    return solve(A.T, b)
+
+def fdmakeop(n, interior_accuracy=4, order=1,
+             periodic=False, dtype=np.float64):
+    from scipy.sparse import dok_matrix
+    a = dok_matrix((n, n), dtype=dtype)
+    m = (interior_accuracy + order - 1) / 2
+    s = np.arange(-m, m + 1)
+    if periodic:
+        for k in xrange(n):
+            c = fdcoeff(s, order)
+            for ck, sk in izip(c, s):
+                a[k,(k+sk)%n] = ck
+        return a.tocsr()
+    for k in xrange(m, n - m):
+        c = fdcoeff(s, order)
+        for ck, sk in izip(c, s):
+            a[k,(k+sk)%n] = ck
+    for k in range(m):
+        s = np.arange(0, m + 1) - k
+        c = fdcoeff(s, order)
+        for ck, sk in izip(c, s):
+            a[k,k+sk] = ck
+            a[-(k+1),-(k+1+sk)] = (-1) ** order * ck
+    return a.tocsr()
 
 class FileFormatError(Exception):
     pass
@@ -595,6 +633,7 @@ class Solution(MultiBlockCommon):
                 self.q[i][:,:,:,j] = p[:,:,:,j]
             self.q[i][:,:,:,nd+1] = p[:,:,:,4]
         return self
+
 
 class Function(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
