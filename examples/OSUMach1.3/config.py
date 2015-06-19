@@ -515,11 +515,65 @@ def inflow_perturbations(g, mode):
                         q[l] * np.exp(1.j * m.alpha * z[k]))
     return sr, si
 
+def target_mollifier(g):
+    z_min =  0.
+    z_max = 24.
+    r_min =  7.
+    r_max =  9.
+    f = p3d.Function().copy_from(g)
+    z = g.xyz[0][0,0,:,2]
+    n = f.get_size()
+    block_code = ['IB', 'E', 'N', 'W', 'S']
+    for i, fi in enumerate(f.f):
+        r = np.sqrt(g.xyz[i][:,:,0,0] ** 2 + g.xyz[i][:,:,0,1] ** 2)
+        if r.max() < r_min or r.min() > r_max:
+            fi.fill(0.)
+            continue
+        fi.fill(1.)
+        for k in range(n[i][1]):
+            for j in range(n[i][0]):
+                fi[j,k,:,0] *= p3d.tanh_support(z, z_min, z_max, 40., 0.2)
+            for j in range(n[i][2]):
+                fi[:,k,j,0] *= p3d.cubic_bspline_support(r[:,k], r_min, r_max)
+        kmin, kmax = p3d.find_extents(z, z_min, z_max)
+        imin, imax = p3d.find_extents(np.mean(r, axis=1), r_min, r_max)
+        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+            'targetRegion.' + block_code[i], 'COST_TARGET', 
+            i + 1, 0, imin, imax, 1, -1, kmin, kmax)
+    return f
+
+def control_mollifier(g):
+    z_min =   1.
+    z_max =   3.
+    r_min = 0.3
+    r_max = 0.7
+    f = p3d.Function().copy_from(g)
+    z = g.xyz[0][0,0,:,2]
+    n = f.get_size()
+    block_code = ['IB', 'E', 'N', 'W', 'S']
+    for i, fi in enumerate(f.f):
+        r = np.sqrt(g.xyz[i][:,:,0,0] ** 2 + g.xyz[i][:,:,0,1] ** 2)
+        if r.max() < r_min or r.min() > r_max:
+            fi.fill(0.)
+            continue
+        fi.fill(1.)
+        for k in range(n[i][1]):
+            for j in range(n[i][0]):
+                fi[j,k,:,0] *= p3d.cubic_bspline_support(z, z_min, z_max)
+            for j in range(n[i][2]):
+                fi[:,k,j,0] *= p3d.tanh_support(r[:,k], r_min, r_max, 10., 0.2)
+        kmin, kmax = p3d.find_extents(z, z_min, z_max)
+        imin, imax = p3d.find_extents(np.mean(r, axis=1), r_min, r_max)
+        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+            'controlRegion.' + block_code[i], 'ACTUATOR', 
+            i + 1, 0, imin, imax, 1, -1, kmin, kmax)
+    return f
+
 if __name__ == '__main__':
     grid(num_axial=481, num_radial=281, num_azimuthal=192,
          p_inner=1.12148531779, interface_ds_ratio=0.999793250757)
     g = p3d.fromfile('OSUMach1.3.xyz')
-    target_state(g).save('test.q')
+    target_state(g).save('OSUMach1.3.target.q')
     gi = extract_inflow(g)
     gi.save('OSUMach1.3.inflow.xyz')
     modes = eigenmodes()    
@@ -527,3 +581,5 @@ if __name__ == '__main__':
         sr, si = inflow_perturbations(gi, mode)
         sr.save('OSUMach1.3-%02d.eigenmode_real.q' % (i + 1))
         si.save('OSUMach1.3-%02d.eigenmode_imag.q' % (i + 1))
+    target_mollifier(g).save('OSUMach1.3.target_mollifier.f')
+    control_mollifier(g).save('OSUMach1.3.control_mollifier.f')
