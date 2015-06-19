@@ -42,7 +42,7 @@ def grid(size,xMin,xMax,yMin,yMax):
 		background_y=np.linspace(yMin,yMax,size[1])
 		xWallStart = -5.
 		xWallEnd   = 5.
-		wallHeight = wallProfile((x - xWallStart) / (xWallEnd - xWallStart), 0.1, 2e-4, 8)
+		wallHeight = wallProfile((x - xWallStart) / (xWallEnd - xWallStart), 0.1 , 2e-4, 8)
 	
 		for i in range(size[0]):
 			g.xyz[0][i,:,0,0] = x[i]
@@ -52,7 +52,7 @@ def grid(size,xMin,xMax,yMin,yMax):
 				width=1./4.
 			
 				if s[j] <= width:
-					xi=((width-(width-s[j]))/width)**0.5
+					xi=1.*((width-(width-s[j]))/width)**0.5
 				else:
 					xi=1.
 
