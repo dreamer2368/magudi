@@ -42,7 +42,7 @@ def grid(size,xMin,xMax,yMin,yMax):
 		background_y=np.linspace(yMin,yMax,size[1])
 		xWallStart = -5.
 		xWallEnd   = 5.
-		wallHeight = wallProfile((x - xWallStart) / (xWallEnd - xWallStart), 0.1 , 2e-4, 8)
+		wallHeight = wallProfile((x - xWallStart) / (xWallEnd - xWallStart), 0.05 , 2e-4, 10)
 	
 		for i in range(size[0]):
 			g.xyz[0][i,:,0,0] = x[i]
@@ -56,7 +56,7 @@ def grid(size,xMin,xMax,yMin,yMax):
 				else:
 					xi=1.
 
-				print "j={j},y={y},xi={xi}".format(j=j,y=yo,xi=xi)	
+				#print "j={j},y={y},xi={xi}".format(j=j,y=yo,xi=xi)	
 				for k in range(size[0]):
 					allege_y=s[j] * yMax + (1. - s[j]) * (yMin + wallHeight[k])
 					g.xyz[0][k,j,0,1] = allege_y - xi*(allege_y-yo)
@@ -120,16 +120,16 @@ if __name__ == '__main__':
 		initial_condition(g, u1=0.0, u2=0.0).save(outputPrefix+'.ic.q')
 		target_state(g, u1=0.0, u2=0.0, S=0.05).save(outputPrefix+'.target.q')
 
-		xMinTarget = -8.
-		xMaxTarget = 8.
-		yMinTarget = 6.
+		xMinTarget = 5.
+		xMaxTarget = 7.
+		yMinTarget = -9.
 		yMaxTarget = 8.
 		target_mollifier(g,xMinTarget,xMaxTarget,yMinTarget,yMaxTarget).save(outputPrefix+'.target_mollifier.f')
 
-		xMinControl =  5.
-		xMaxControl =  7.
-		yMinControl = -6.
-		yMaxControl =  -4.
+		xMinControl =  -6.
+		xMaxControl =  -4.
+		yMinControl = -8.5
+		yMaxControl =  -6.5
 		control_mollifier(g,xMinControl,xMaxControl,yMinControl,yMaxControl).save(outputPrefix+'.control_mollifier.f')
 
 		#IMPLEMENTING THE BOUNDARY CONDITION FILE
@@ -140,8 +140,8 @@ if __name__ == '__main__':
 		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-2))) + 1
 
 		#TARGET INDICES
-		right_target=right_sponge
-		left_target=left_sponge
+		left_target=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMinTarget)) ) + 1
+		right_target=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMaxTarget))) + 1
 		bottom_target=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMinTarget))) + 1
 		top_target=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMaxTarget))) + 1
 
