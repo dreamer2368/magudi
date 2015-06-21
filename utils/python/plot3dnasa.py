@@ -268,7 +268,6 @@ class MultiBlockCommon(object):
                               size.tolist() + [n], order = 'F')
         size_ = ends - starts + 1
         a = np.empty(size_.tolist() + [n], dtype = dtype)
-        print self._format.offsets
         for i in range(n):
             f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
             for k in range(starts[2], ends[2] + 1):
