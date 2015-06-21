@@ -114,11 +114,12 @@ class FileFormat(object):
             r = self._get_reclength(f)
             self.offsets[i] = self.offsets[i-1] + \
                               r + 2 * self.reclength_dtype.itemsize
-            if i < self.offsets.size - 1:
+            if i < self.offsets.size - 1 or self.file_type == 'solution':
                 f.seek(r + 2 * self.reclength_dtype.itemsize, 1)
-                if self.file_type == 'solution':
-                    r = self._get_reclength(f)
-                    self.offsets[i] += r + 2 * self.reclength_dtype.itemsize
+            if self.file_type == 'solution':
+                r = self._get_reclength(f)
+                self.offsets[i] += r + 2 * self.reclength_dtype.itemsize
+                if i < self.offsets.size - 1:
                     f.seek(r + 2 * self.reclength_dtype.itemsize, 1)
 
     def _detect_endianness(self, f):
@@ -267,6 +268,7 @@ class MultiBlockCommon(object):
                               size.tolist() + [n], order = 'F')
         size_ = ends - starts + 1
         a = np.empty(size_.tolist() + [n], dtype = dtype)
+        print self._format.offsets
         for i in range(n):
             f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
             for k in range(starts[2], ends[2] + 1):

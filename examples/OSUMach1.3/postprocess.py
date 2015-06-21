@@ -19,10 +19,10 @@ def extract_yz(g, f):
     ends = {4: [-1, n[4][1]/2, -1], 0: [n[0][0]/2, -1, -1],
             2: [-1, n[2][1]/2, -1]}
     for i in [4, 0, 2]:
-        g.set_subzone(i, starts[i], ends[i])
-        f.subzone_from(g)
+        g.set_subzone(i, starts[i], ends[i]).load()
+        f.subzone_from(g).load()
         for j in range(2):
-            ge.xyz[0][so[i] + [j]] = g.load().xyz[0][si[i] + [2-j]].T
+            ge.xyz[0][so[i] + [j]] = g.xyz[0][si[i] + [2-j]].T
         for j in range(fe[0].shape[-1]):
-            fe[0][so[i] + [j]] = f.load()[0][si[i] + [j]].T
+            fe[0][so[i] + [j]] = f[0][si[i] + [j]].T
     return ge, fe

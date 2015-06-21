@@ -589,7 +589,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
        call controller%hookBeforeTimemarch(region, FORWARD)
 
   ! Reset probes.
-  call region%resetProbes()
+  if (this%probeInterval > 0) call region%resetProbes()
 
   time = startTime
   region%states(:)%time = time
@@ -791,7 +791,7 @@ function runAdjoint(this, region) result(costSensitivity)
   call controller%hookBeforeTimemarch(region, ADJOINT)
 
   ! Reset probes.
-  call region%resetProbes()
+  if (this%probeInterval > 0) call region%resetProbes()
 
   time = startTime
 
