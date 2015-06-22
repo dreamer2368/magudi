@@ -128,7 +128,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
   integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: unitNormal(:), metricsAlongNormalDirection(:), velocity(:,:),  &
        temperature(:), metrics(:,:), viscousPenalties(:,:), extraPenaltyPatch(:,:),          &
-       extraPenaltyGrid(:,:)
+       extraPenaltyGrid(:,:), localVelocity(:), localFluxJacobian(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -157,45 +157,64 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
   if (this%nPatchPoints > 0) then
 
+     allocate(extraPenaltyGrid(grid%nGridPoints, nUnknowns - 1))
      allocate(extraPenaltyPatch(this%nPatchPoints, nUnknowns - 1))
 
-     allocate(velocity(this%nPatchPoints, nDimensions))
-     allocate(temperature(this%nPatchPoints))
-     allocate(metrics(this%nPatchPoints, nDimensions))
-     allocate(extraPenaltyGrid(grid%nGridPoints, nUnknowns - 1))
+     select case (mode)
 
-     call this%collect(state%velocity, velocity)
-     call this%collect(state%temperature(:,1), temperature)
-     call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
-          metrics)
+     case (FORWARD)
 
-     do i = 1, nDimensions
-        extraPenaltyPatch(:,i) = this%dynamicViscosity * velocity(:,i) *                     &
-             sum(metrics * metrics) + (this%dynamicViscosity +                               &
-             this%secondCoefficientOfViscosity) * sum(velocity * metrics, 2) * metrics(:,i)
-     end do
-     extraPenaltyPatch(:,nDimensions+1) = this%thermalDiffusivity *                          &
-          (temperature - this%temperature)
+        allocate(velocity(this%nPatchPoints, nDimensions))
+        allocate(temperature(this%nPatchPoints))
+        allocate(metrics(this%nPatchPoints, nDimensions))
 
-     call this%disperse(extraPenaltyPatch, extraPenaltyGrid)
-     do i = 1, size(extraPenaltyGrid, 2)
-        extraPenaltyGrid(:,i) = grid%jacobian(:,1) * extraPenaltyGrid(:,i)
-     end do
-     call grid%adjointFirstDerivative(direction)%projectOnBoundaryAndApply(extraPenaltyGrid, &
-          grid%localSize, this%normalDirection)
-     call grid%firstDerivative(direction)%applyNorm(extraPenaltyGrid, grid%localSize)
+        call this%collect(state%velocity, velocity)
+        call this%collect(state%temperature(:,1), temperature)
+        call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction), &
+             metrics)
+
+        do i = 1, nDimensions
+           extraPenaltyPatch(:,i) = this%dynamicViscosity * velocity(:,i) *                  &
+                sum(metrics * metrics) + (this%dynamicViscosity +                            &
+                this%secondCoefficientOfViscosity) * sum(velocity * metrics, 2) *            &
+                metrics(:,i)
+        end do
+        extraPenaltyPatch(:,nDimensions+1) = this%thermalDiffusivity *                       &
+             (temperature - this%temperature)
+
+        call this%disperse(extraPenaltyPatch, extraPenaltyGrid)
+
+        do i = 1, size(extraPenaltyGrid, 2)
+           extraPenaltyGrid(:,i) = grid%jacobian(:,1) * extraPenaltyGrid(:,i)
+        end do
+        call grid%adjointFirstDerivative(direction)%projectOnBoundaryAndApply(               &
+             extraPenaltyGrid, grid%localSize, this%normalDirection)
+        call grid%firstDerivative(direction)%applyNorm(extraPenaltyGrid, grid%localSize)
+
+        SAFE_DEALLOCATE(metrics)
+        SAFE_DEALLOCATE(temperature)
+        SAFE_DEALLOCATE(velocity)
+
+     case (ADJOINT)
+
+        extraPenaltyGrid = state%adjointVariables(:,2:nUnknowns)
+        call grid%firstDerivative(direction)%applyAndProjectOnBoundary(extraPenaltyGrid,     &
+             grid%localSize, this%normalDirection)
+
+     end select
+
      call this%collect(extraPenaltyGrid, extraPenaltyPatch)
-
      SAFE_DEALLOCATE(extraPenaltyGrid)
-     SAFE_DEALLOCATE(metrics)
-     SAFE_DEALLOCATE(temperature)
-     SAFE_DEALLOCATE(velocity)
 
   end if
 
   allocate(unitNormal(nDimensions))
   allocate(metricsAlongNormalDirection(nDimensions))
   allocate(viscousPenalties(nUnknowns, 2))
+  if (mode == ADJOINT) then
+     allocate(localVelocity(nDimensions))
+     allocate(localFluxJacobian(nUnknowns - 1, nUnknowns - 1))
+  end if
 
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -233,15 +252,53 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
            case (ADJOINT)
 
+              localVelocity = state%velocity(gridIndex,:)
+
               viscousPenalties(1,1) = - state%adjointVariables(gridIndex,nDimensions+2) *    &
                    this%temperature(patchIndex) / solverOptions%ratioOfSpecificHeats
               viscousPenalties(2:nDimensions+2,1) =                                          &
                    state%adjointVariables(gridIndex,2:nDimensions+2)
 
+              select case (nDimensions)
+              case (1)
+                 call computeSecondPartialViscousJacobian1D(localVelocity,                   &
+                      this%dynamicViscosity(patchIndex),                                     &
+                      this%secondCoefficientOfViscosity(patchIndex),                         &
+                      this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
+                      metricsAlongNormalDirection(1), localFluxJacobian)
+              case (2)
+                 call computeSecondPartialViscousJacobian2D(localVelocity,                   &
+                      this%dynamicViscosity(patchIndex),                                     &
+                      this%secondCoefficientOfViscosity(patchIndex),                         &
+                      this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
+                      metricsAlongNormalDirection, metricsAlongNormalDirection,              &
+                      localFluxJacobian)
+              case (3)
+                 call computeSecondPartialViscousJacobian3D(localVelocity,                   &
+                      this%dynamicViscosity(patchIndex),                                     &
+                      this%secondCoefficientOfViscosity(patchIndex),                         &
+                      this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
+                      metricsAlongNormalDirection, metricsAlongNormalDirection,              &
+                      localFluxJacobian)
+              end select !... nDimensions
+
+              viscousPenalties(2:nUnknowns,2) = matmul(transpose(localFluxJacobian),         &
+                   extraPenaltyPatch(patchIndex,:))
+
+              viscousPenalties(nDimensions+2,2) = solverOptions%ratioOfSpecificHeats *       &
+                   state%specificVolume(gridIndex,1) * viscousPenalties(nDimensions+2,2)
+              viscousPenalties(2:nDimensions+1,2) = state%specificVolume(gridIndex,1) *      &
+                   viscousPenalties(2:nDimensions+1,2) - localVelocity *                     &
+                   viscousPenalties(nDimensions+2,2)
+              viscousPenalties(1,2) = - state%specificVolume(gridIndex,1) *                  &
+                   state%conservedVariables(gridIndex,nDimensions+2) *                       &
+                   viscousPenalties(nDimensions+2,2) - sum(localVelocity *                   &
+                   viscousPenalties(2:nDimensions+1,2))
+
               viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &
-                   this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) +                   &
+                   this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) -                   &
                    this%viscousPenaltyAmounts(2) * viscousPenalties(:,2)
 
            end select !... mode
@@ -250,6 +307,8 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
   end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
 
+  SAFE_DEALLOCATE(localFluxJacobian)
+  SAFE_DEALLOCATE(localVelocity)
   SAFE_DEALLOCATE(viscousPenalties)
   SAFE_DEALLOCATE(metricsAlongNormalDirection)
   SAFE_DEALLOCATE(unitNormal)

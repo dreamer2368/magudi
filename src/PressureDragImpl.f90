@@ -105,7 +105,7 @@ function computePressureDrag(this, region) result(instantaneousFunctional)
            normBoundaryFactor = 1.0_wp / region%grids(i)%firstDerivative(k)%normBoundary(1)
 
            allocate(F(region%grids(i)%nGridPoints, 2))
-           F(:,1) = (region%states(i)%pressure(:,1) -                                        &
+           F(:,1) = - (region%states(i)%pressure(:,1) -                                      &
                 1.0_wp / region%solverOptions%ratioOfSpecificHeats)
            F(:,2) = matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),     &
                 this%direction(1:nDimensions)) * normBoundaryFactor
@@ -231,7 +231,7 @@ subroutine computePressureDragAdjointForcing(this, simulationFlags, solverOption
 
            else
 
-              F = - grid%jacobian(gridIndex, 1) * normBoundaryFactor *                       &
+              F = grid%jacobian(gridIndex, 1) * normBoundaryFactor *                         &
                    (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                           &
                    dot_product(metricsAlongNormalDirection, this%direction(1:nDimensions))
 
