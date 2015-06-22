@@ -17,7 +17,7 @@ steady_state_simulation = true
 disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "PRESSURE_DRAG"
-use_continuous_adjoint = true
+use_continuous_adjoint = false
 gradient_buffer_size = 1000
 
 # Gradient accuracy options
@@ -39,7 +39,7 @@ save_interval = 50000
 # Artificial dissipation
 add_dissipation = true
 composite_dissipation = false
-dissipation_amount = 0.06
+dissipation_amount = 0.012
 
 # Sponge options
 defaults/sponge_amount = 2.
