@@ -661,7 +661,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
   ! Finish writing remaining data gathered on probes.
-  call region%saveProbeData(FORWARD, finish = .true.)
+  if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   ! Call controller hooks after time marching ends.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
@@ -854,7 +854,7 @@ function runAdjoint(this, region) result(costSensitivity)
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
   ! Finish writing remaining data gathered on probes.
-  call region%saveProbeData(ADJOINT, finish = .true.)
+  if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
 
   ! Call controller hooks after time marching ends.
   call controller%hookAfterTimemarch(region, ADJOINT)

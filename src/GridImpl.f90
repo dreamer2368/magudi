@@ -34,8 +34,7 @@ contains
        if (.not. simulationFlags%compositeDissipation)                                       &
             allocate(this%dissipationTranspose(this%nDimensions))
     end if
-    if (.not. simulationFlags%predictionOnly)                                                &
-         allocate(this%adjointFirstDerivative(this%nDimensions))
+    allocate(this%adjointFirstDerivative(this%nDimensions))
     if (simulationFlags%filterOn) allocate(this%filter(this%nDimensions))
 
     allocate(this%iblank(this%nGridPoints), source = 1)

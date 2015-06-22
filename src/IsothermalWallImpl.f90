@@ -217,13 +217,13 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
            case (FORWARD)
 
-              viscousPenalties(1,1) = 0.0_wp
+              viscousPenalties(1,:) = 0.0_wp
               viscousPenalties(2:nDimensions+2,1) =                                          &
                    state%conservedVariables(gridIndex,2:nDimensions+2)
               viscousPenalties(nDimensions+2,1) = viscousPenalties(nDimensions+2,1) -        &
                    state%conservedVariables(gridIndex,1) *                                   &
                    this%temperature(patchIndex) / solverOptions%ratioOfSpecificHeats
-              viscousPenalties(2:nUnknowns-1,2) = extraPenaltyPatch(patchIndex,:)
+              viscousPenalties(2:nUnknowns,2) = extraPenaltyPatch(patchIndex,:)
 
               viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
