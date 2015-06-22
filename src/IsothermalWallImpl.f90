@@ -65,13 +65,13 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
         write(key, '(A,I0.0)') "patches/" // trim(patchDescriptor%name) //                   &
              "/viscous_penalty_amount", i
         this%viscousPenaltyAmounts(i) = getOption(trim(key), this%viscousPenaltyAmounts(i))
-        this%viscousPenaltyAmounts(i) = sign(this%viscousPenaltyAmounts(i),                  &
-             real(this%normalDirection, wp))
         this%viscousPenaltyAmounts(i) = this%viscousPenaltyAmounts(i) /                      &
              grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
      end do
      this%viscousPenaltyAmounts(1) = this%viscousPenaltyAmounts(1) *                         &
           solverOptions%reynoldsNumberInverse
+     this%viscousPenaltyAmounts(2) = sign(this%viscousPenaltyAmounts(2),                     &
+          real(this%normalDirection, wp))
   else
      this%viscousPenaltyAmounts = 0.0_wp
   end if
@@ -228,7 +228,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
               viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
-                   this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) +                   &
+                   this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) -                   &
                    this%viscousPenaltyAmounts(2) * viscousPenalties(:,2)
 
            case (ADJOINT)
@@ -241,7 +241,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
               viscousPenalties = grid%jacobian(gridIndex, 1) * viscousPenalties
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &
-                   this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) -                   &
+                   this%viscousPenaltyAmounts(1) * viscousPenalties(:,1) +                   &
                    this%viscousPenaltyAmounts(2) * viscousPenalties(:,2)
 
            end select !... mode
