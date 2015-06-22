@@ -122,5 +122,4 @@ def target_state(g, mach_number, gamma=1.4):
 if __name__ == '__main__':
     grid(grid_size = [512, 448])
     g = p3d.fromfile('NACA0012.xyz')
-    print g.xyz[0][377,0,0,:]
     target_state(g, mach_number=0.5).save('NACA0012.target.q')

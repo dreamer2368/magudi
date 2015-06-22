@@ -378,7 +378,7 @@ contains
 
   end subroutine applyOperatorAtInteriorPoints_3
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_1(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAndProjectOnBoundary_1(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -430,9 +430,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_1
+  end subroutine applyOperatorAndProjectOnBoundary_1
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_2(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAndProjectOnBoundary_2(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -486,9 +486,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_2
+  end subroutine applyOperatorAndProjectOnBoundary_2
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_3(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAndProjectOnBoundary_3(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -542,7 +542,202 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_3
+  end subroutine applyOperatorAndProjectOnBoundary_3
+
+  PURE_SUBROUTINE projectOnBoundaryAndApplyOperator_1(this, x, gridSize, faceOrientation)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), faceOrientation
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, m, n
+    SCALAR_TYPE, allocatable :: x_(:,:,:,:)
+
+    allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
+
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    end do
+
+    n = this%boundaryWidth
+
+    x = 0.0_wp
+
+    if (faceOrientation > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          i = 1
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do j = 1, gridSize(2)
+                   do m = 1, this%boundaryDepth
+                      x(i + m - 1 + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l) =      &
+                           this%rhsBoundary1(1,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    else
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          i = gridSize(1)
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do j = 1, gridSize(2)
+                   do m = this%boundaryDepth, 1, -1
+                      x(i - m + 1 + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l) =      &
+                           this%rhsBoundary2(n,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    end if
+
+    SAFE_DEALLOCATE(x_)
+
+  end subroutine projectOnBoundaryAndApplyOperator_1
+
+  PURE_SUBROUTINE projectOnBoundaryAndApplyOperator_2(this, x, gridSize, faceOrientation)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), faceOrientation
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, m, n
+    SCALAR_TYPE, allocatable :: x_(:,:,:,:)
+
+    allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
+
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    end do
+
+    n = this%boundaryWidth
+
+    x = 0.0_wp
+
+    if (faceOrientation > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          j = 1
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do i = 1, gridSize(1)
+                   do m = 1, this%boundaryDepth
+                      x(i + gridSize(1) * (j + m - 2 + gridSize(2) * (k - 1)), l) =          &
+                           this%rhsBoundary1(1,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    else
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          j = gridSize(2)
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do i = 1, gridSize(1)
+                   do m = this%boundaryDepth, 1, -1
+                      x(i + gridSize(1) * (j - m + gridSize(2) * (k - 1)), l) =              &
+                           this%rhsBoundary2(n,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    end if
+
+    SAFE_DEALLOCATE(x_)
+
+  end subroutine projectOnBoundaryAndApplyOperator_2
+
+  PURE_SUBROUTINE projectOnBoundaryAndApplyOperator_3(this, x, gridSize, faceOrientation)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), faceOrientation
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, m, n
+    SCALAR_TYPE, allocatable :: x_(:,:,:,:)
+
+    allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
+
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    end do
+
+    n = this%boundaryWidth
+
+    x = 0.0_wp
+
+    if (faceOrientation > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          k = 1
+          do l = 1, size(x, 2)
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   do m = 1, this%boundaryDepth
+                      x(i + gridSize(1) * (j - 1 + gridSize(2) * (k + m - 2)), l) =          &
+                           this%rhsBoundary1(1,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    else
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          k = gridSize(3)
+          do l = 1, size(x, 2)
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   do m = this%boundaryDepth, 1, -1
+                      x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - m)), l) =              &
+                           this%rhsBoundary2(n,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    end if
+
+    SAFE_DEALLOCATE(x_)
+
+  end subroutine projectOnBoundaryAndApplyOperator_3
 
   PURE_SUBROUTINE applyOperatorNorm_1(this, x, gridSize)
 
@@ -1966,15 +2161,15 @@ PURE_SUBROUTINE applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSiz
 
 end subroutine applyOperatorAtInteriorPoints
 
-PURE_SUBROUTINE applyOperatorAtDomainBoundary(this, x, gridSize, faceOrientation)
+PURE_SUBROUTINE applyOperatorAndProjectOnBoundary(this, x, gridSize, faceOrientation)
 
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
-  use StencilOperatorImpl, only : applyOperatorAtDomainBoundary_1,                           &
-                                  applyOperatorAtDomainBoundary_2,                           &
-                                  applyOperatorAtDomainBoundary_3
+  use StencilOperatorImpl, only : applyOperatorAndProjectOnBoundary_1,                           &
+                                  applyOperatorAndProjectOnBoundary_2,                           &
+                                  applyOperatorAndProjectOnBoundary_3
 
   implicit none
 
@@ -1990,14 +2185,47 @@ PURE_SUBROUTINE applyOperatorAtDomainBoundary(this, x, gridSize, faceOrientation
 
   select case (this%direction)
   case (1)
-     call applyOperatorAtDomainBoundary_1(this, x, gridSize, faceOrientation)
+     call applyOperatorAndProjectOnBoundary_1(this, x, gridSize, faceOrientation)
   case (2)
-     call applyOperatorAtDomainBoundary_2(this, x, gridSize, faceOrientation)
+     call applyOperatorAndProjectOnBoundary_2(this, x, gridSize, faceOrientation)
   case (3)
-     call applyOperatorAtDomainBoundary_3(this, x, gridSize, faceOrientation)
+     call applyOperatorAndProjectOnBoundary_3(this, x, gridSize, faceOrientation)
   end select
 
-end subroutine applyOperatorAtDomainBoundary
+end subroutine applyOperatorAndProjectOnBoundary
+
+PURE_SUBROUTINE projectOnBoundaryAndApplyOperator(this, x, gridSize, faceOrientation)
+
+  ! <<< Derived types >>>
+  use StencilOperator_mod, only : t_StencilOperator
+
+  ! <<< Private members >>>
+  use StencilOperatorImpl, only : projectOnBoundaryAndApplyOperator_1,                       &
+                                  projectOnBoundaryAndApplyOperator_2,                       &
+                                  projectOnBoundaryAndApplyOperator_3
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_StencilOperator), intent(in) :: this
+  SCALAR_TYPE, intent(out) :: x(:,:)
+  integer, intent(in) :: gridSize(3), faceOrientation
+
+  assert(size(x, 2) > 0)
+  assert(all(gridSize > 0))
+  assert(size(x, 1) == product(gridSize))
+  assert(this%direction >= 1 .and. this%direction <= 3)
+
+  select case (this%direction)
+  case (1)
+     call projectOnBoundaryAndApplyOperator_1(this, x, gridSize, faceOrientation)
+  case (2)
+     call projectOnBoundaryAndApplyOperator_2(this, x, gridSize, faceOrientation)
+  case (3)
+     call projectOnBoundaryAndApplyOperator_3(this, x, gridSize, faceOrientation)
+  end select
+
+end subroutine projectOnBoundaryAndApplyOperator
 
 PURE_SUBROUTINE applyOperatorNorm(this, x, gridSize)
 
