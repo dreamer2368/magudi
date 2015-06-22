@@ -134,10 +134,7 @@ function computeDragForce(this, region) result(instantaneousFunctional)
 
            allocate(F(region%grids(i)%nGridPoints, 1))
 
-           F(:,1) = (region%states(i)%pressure(:,1) -                                        &
-                1.0_wp / region%solverOptions%ratioOfSpecificHeats) *                        &
-                matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),         &
-                this%direction(1:nDimensions))
+           F(:,1) = 0.0_wp
            do l = 1, nDimensions
               if (region%simulationFlags%viscosityOn) then
                  F(:,1) = F(:,1) - this%direction(l) *                                       &
@@ -149,7 +146,7 @@ function computeDragForce(this, region) result(instantaneousFunctional)
            F(:,1) = normBoundaryFactor * F(:,1)
 
            instantaneousFunctional = instantaneousFunctional +                               &
-                patch%computeInnerProduct(region%grids(i), F(:,1), F(:,1),                   &
+                patch%computeInnerProduct(region%grids(i), F(:,1),                           &
                 region%grids(i)%targetMollifier(:,1))
 
            SAFE_DEALLOCATE(F)
@@ -246,7 +243,8 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
 
               F = grid%jacobian(gridIndex, 1) *                                              &
                    dot_product(state%adjointVariables(gridIndex,2:nDimensions+1) -           &
-                   this%direction(1:nDimensions), unitNormal)
+                   sign(this%direction(1:nDimensions), real(patch%normalDirection, wp)),     &
+                   unitNormal)
 
               select case (nDimensions)
               case (1)

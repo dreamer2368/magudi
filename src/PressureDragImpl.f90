@@ -201,7 +201,8 @@ subroutine computePressureDragAdjointForcing(this, simulationFlags, solverOption
 
               F = grid%jacobian(gridIndex, 1) *                                              &
                    dot_product(state%adjointVariables(gridIndex,2:nDimensions+1) -           &
-                   this%direction(1:nDimensions), unitNormal)
+                   sign(this%direction(1:nDimensions), real(patch%normalDirection, wp)),     &
+                   unitNormal)
 
               select case (nDimensions)
               case (1)
