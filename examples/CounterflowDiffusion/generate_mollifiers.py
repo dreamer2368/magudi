@@ -3,16 +3,16 @@ import numpy as np
 import plot3dnasa as p3d
 
 def target_mollifier(g):
-    x_min = -10.
-    x_max =  10.
-    y_min = -2.
-    y_max =  2.
+    x_min = -20.
+    x_max =  20.
+    y_min = -4.
+    y_max =  4.
     f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
     for i in range(n[0]):
-        f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(
-            g.xyz[0][i,:,0,1], y_min, y_max)
+        f.f[0][i,:,0,0] *= p3d.tanh_support(
+            g.xyz[0][i,:,0,1], y_min, y_max,20., 0.5)
     for j in range(n[1]):
         f.f[0][:,j,0,0] *= p3d.tanh_support(
             g.xyz[0][:,j,0,0], x_min, x_max, 40., 0.2)
@@ -23,8 +23,8 @@ def target_mollifier(g):
     return f
 
 def control_mollifier(g):
-    x_min = -10.
-    x_max =  10.    
+    x_min = -20.
+    x_max =  20.    
     y_min =  6.
     y_max =  10.
     f = p3d.Function().copy_from(g)

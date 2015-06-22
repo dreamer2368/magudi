@@ -440,10 +440,10 @@ contains
        name   (bc) = 'targetRegion'
        type   (bc) = 'COST_TARGET'
        normDir(bc) =  0
-       imin   (bc) =  37
-       imax   (bc) =  221
-       jmin   (bc) =  71
-       jmax   (bc) =  187
+       imin   (bc) =  43
+       imax   (bc) =  471
+       jmin   (bc) =  37
+       jmax   (bc) =  221
        kmin   (bc) =  1
        kmax   (bc) = -1
     end if
@@ -454,8 +454,8 @@ contains
        name   (bc) = 'controlRegion'
        type   (bc) = 'ACTUATOR'
        normDir(bc) =  0
-       imin   (bc) =  37
-       imax   (bc) =  221
+       imin   (bc) =  43
+       imax   (bc) =  471
        jmin   (bc) =  234
        jmax   (bc) =  249
        kmin   (bc) =  1
@@ -516,7 +516,7 @@ contains
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
     real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, fuel, oxidizer,         &
-         u, v, Z, T0, Yf0, Yo0, jetVelocity, a, eta, x, y, Re
+         u, v, Z, T0, flameTemperature, heatRelease, Yf0, Yo0, jetVelocity, a, eta, x, y, Re
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -536,21 +536,17 @@ contains
     H2 = nDimensions+2+1
     O2 = H2 + 1
 
-    ! Mixture properties
+    ! Rad in mixture properties.
     call getRequiredOption("initial_fuel_mass_fraction", Yf0)
     call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
     call getRequiredOption("initial_jet_velocity", jetVelocity)
     call getRequiredOption("Reynolds_number", Re)
-
-    ! Gamma
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
+    call getRequiredOption("heat_release", heatRelease)
 
-    ! Temperature
+    ! Temperatures.
     T0 =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
-    temperature = getOption("initial_temperature", T0)
-
-    ! Density
-    density = 1.0_wp
+    flameTemperature = T0 / (1.0_wp - heatRelease)
 
     ! Stretching parameter
     a = 2.0_wp * jetVelocity /                                                               &
@@ -558,21 +554,28 @@ contains
 
     do i = 1, grid%nGridPoints
 
-       ! Get the local coordinates
+       ! Get the local coordinates.
        x = grid%coordinates(i,1)
        y = grid%coordinates(i,2)
 
-       ! Velocities
+       ! Similarity transformation.
+       eta = y * sqrt(Re * a)
+
+       ! Velocities.
        u = 0.5_wp * a * x
        v = - a * y
 
-       ! Similarity transformation
-       eta = y * sqrt(Re * a)
+       ! Temperature.
+       temperature = T0 + 0.5_wp * ( (1.0_wp + erf(eta / sqrt(2.0_wp) + 1.0_wp)) -           &
+            (1.0_wp + erf(eta / sqrt(2.0_wp) - 1.0_wp)) ) * (flameTemperature - T0)
+
+       ! Density.
+       density = T0 / temperature
 
        ! Mixture fraction
        Z = 0.5_wp * ( 1.0_wp + erf(eta / sqrt(2.0_wp)) )
 
-       ! Components
+       ! Components.
        fuel = YF0 * Z
        oxidizer = YO0 * (1.0_wp-Z)
 
@@ -582,11 +585,11 @@ contains
        state%conservedVariables(i,2) = density * u
        state%conservedVariables(i,3) = density * v
        state%conservedVariables(i,nDimensions+2) = density * temperature /                   &
-            ratioOfSpecificHeats
-       state%conservedVariables(i,nDimensions+2) = density * temperature /                   &
             ratioOfSpecificHeats + 0.5_wp * density * (u**2 + v**2)
        if (nSpecies.gt.0) state%conservedVariables(i,H2) = density * fuel
        if (nSpecies.gt.1) state%conservedVariables(i,O2) = density * oxidizer
+
+       print *, 'Pressure:',0.4_wp*(state%conservedVariables(i,nDimensions+2)-0.5_wp*density*(u**2+v**2))
 
        ! Target solution
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)
