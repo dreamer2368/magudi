@@ -65,9 +65,10 @@ def read_engauge_data(filename):
 
 def setup_axis(ax, xlim, ylim, xlabel, ylabel, xticks, yticks,
                xlabelpad=2., ylabelpad=2., xscale='linear', yscale='linear'):
-
-    ax.set_xscale(xscale)
-    ax.set_yscale(yscale)
+    if xscale:
+        ax.set_xscale(xscale)
+    if yscale:
+        ax.set_yscale(yscale)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_xlabel(xlabel, labelpad=xlabelpad)
