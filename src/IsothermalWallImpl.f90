@@ -187,6 +187,9 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
         call grid%adjointFirstDerivative(direction)%projectOnBoundaryAndApply(               &
              penaltyNearBoundary, grid%localSize, this%normalDirection)
         call grid%firstDerivative(direction)%applyNorm(penaltyNearBoundary, grid%localSize)
+        do i = 1, size(penaltyNearBoundary, 2)
+           penaltyNearBoundary(:,i) = grid%jacobian(:,1) * penaltyNearBoundary(:,i)
+        end do
 
         state%rightHandSide(:,2:nUnknowns) = state%rightHandSide(:,2:nUnknowns) -            &
              this%viscousPenaltyAmounts(2) * penaltyNearBoundary
