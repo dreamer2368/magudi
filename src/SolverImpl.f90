@@ -60,7 +60,7 @@ contains
        maxTemperature = maxTemperature *                                                     &
             (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) * 293.15_wp
 
-       if (timestep == 1) then
+       if (timestep <= this%reportInterval) then
           write(str,'(a12,a2,a12,a2,3a12)') 'Step','  ','Time','   ','dt','CFL','Tmax [K]'
           call writeAndFlush(region%comm, output_unit, str)
        end if
