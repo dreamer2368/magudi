@@ -15,6 +15,16 @@ use_constant_CFL_mode = false
 use_target_state = true
 curvilinear_domain = false
 
+# Adjoint optimization flags                                                                                                                                                                   
+disable_adjoint_solver = false
+baseline_prediction_available = false
+cost_functional_type = "DRAG"
+use_continuous_adjoint = false
+gradient_buffer_size = 100
+
+# Gradient accuracy options
+check_gradient_accuracy = false
+
 # Physical constants
 Reynolds_number = 2266.
 
@@ -23,13 +33,13 @@ defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_step_size = 0.009
-number_of_timesteps = 100000
-report_interval = 1
+number_of_timesteps = 80000
+report_interval = 10
 save_interval = 100
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.002
+dissipation_amount = 0.008
 composite_dissipation = false
 
 # Sponge options
@@ -50,4 +60,4 @@ grid001/dir3/periodic_length = 80.
 
 # Penalty parameters
 defaults/viscous_penalty_amount = 0.
-patches/flatPlate/viscous_penalty_amount1 = 10.
+patches/flatPlate/viscous_penalty_amount1 = 1.
