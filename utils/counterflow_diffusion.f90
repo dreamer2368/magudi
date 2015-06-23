@@ -589,8 +589,6 @@ contains
        if (nSpecies.gt.0) state%conservedVariables(i,H2) = density * fuel
        if (nSpecies.gt.1) state%conservedVariables(i,O2) = density * oxidizer
 
-       print *, 'Pressure:',0.4_wp*(state%conservedVariables(i,nDimensions+2)-0.5_wp*density*(u**2+v**2))
-
        ! Target solution
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)
 
