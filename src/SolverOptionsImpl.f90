@@ -85,8 +85,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call getRequiredOption("minimum_temperature", this%temperatureRange(1), comm)
      call getRequiredOption("maximum_temperature", this%temperatureRange(2), comm)
      if (this%nSpecies > 0) then
-        call getRequiredOption("minimum_massFraction", this%massFractionRange(1), comm)
-        call getRequiredOption("maximum_massFraction", this%massFractionRange(2), comm)
+        call getRequiredOption("minimum_mass_fraction", this%massFractionRange(1), comm)
+        call getRequiredOption("maximum_mass_fraction", this%massFractionRange(2), comm)
      end if
   end if
 
