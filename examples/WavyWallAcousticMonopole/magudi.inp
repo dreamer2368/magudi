@@ -5,27 +5,34 @@
 output_prefix = "WavyWallAcousticMonopole"
 grid_file = "WavyWallAcousticMonopole.xyz"
 boundary_condition_file = "WavyWallAcousticMonopole_bc.dat"
+initial_condition_file = "WavyWallAcousticMonopole.ic.q"
+control_mollifier_file = "WavyWallAcousticMonopole.control_mollifier.f"
+target_mollifier_file = "WavyWallAcousticMonopole.target_mollifier.f"
+mean_pressure_file = "WavyWallAcousticMonopole.mean_pressure.f"
+
 curvilinear_domain = true
 
 # Simulation flags
 use_constant_CFL_mode = false
 use_target_state = true
-include_viscous_terms = true
+include_viscous_terms = false
 
 # Physical constants
-Reynolds_number = 2000.
+Reynolds_number = 200.
 
 # Adjoint optimization flags
 disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "SOUND"
+controller_type="WALL_ACTUATOR"
 use_continuous_adjoint = false
 gradient_buffer_size = 20
 
 # Gradient accuracy options
 check_gradient_accuracy = true
+precision_for_gradient_accuracy = 1e-6
 number_of_control_iterations = 16
-initial_actuation_amount = 1e4
+initial_actuation_amount = 10.
 restart_control_iteration = 0
 actuation_amount_geometric_growth = 0.5623413251903491
 
@@ -34,8 +41,8 @@ defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_integration_scheme = 'RK4'
-time_step_size = 0.025
-number_of_timesteps = 960
+time_step_size = 0.0125
+number_of_timesteps = 1200
 report_interval = 1
 save_interval = 20
 
@@ -52,10 +59,10 @@ maximum_temperature = 4.
 
 # Acoustic source
 number_of_acoustic_sources = 1
-acoustic_source01/amplitude = 1.
+acoustic_source01/amplitude = 0.1
 acoustic_source01/frequency = 0.477464829275686
 acoustic_source01/y = -3.
-acoustic_source01/x = -3.
+acoustic_source01/x = -5.
 acoustic_source01/radius = 2.1213203435596424
 
 # Damping
@@ -64,3 +71,4 @@ defaults/sponge_amount = 0.5
 # Penalty parameters
 defaults/viscous_penalty_amount = 0.
 patches/wall.S/viscous_penalty_amount1 = 10.
+compute_time_average = false
