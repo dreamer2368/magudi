@@ -62,6 +62,7 @@ module Grid_mod
      procedure, pass :: findMaximum
      procedure, pass :: isVariableWithinRange
      procedure, pass :: applyFilter
+     procedure, pass :: applyRandFluctuation
 
      procedure, private, pass :: computeScalarInnerProduct
      procedure, private, pass :: computeVectorInnerProduct
@@ -306,5 +307,21 @@ module Grid_mod
      end subroutine applyFilter
 
   end interface
+
+
+interface
+
+     subroutine applyRandFluctuation(this,f,precisionScale)
+
+          import :: t_Grid
+
+          class(t_Grid) :: this
+          SCALAR_TYPE, intent(inout) :: f(:,:)
+          SCALAR_TYPE, intent(in)::precisionScale
+
+     end subroutine
+
+end interface
+
 
 end module Grid_mod

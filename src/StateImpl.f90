@@ -665,7 +665,7 @@ subroutine addSources(this, mode, grid)
   class(t_State) :: this
   integer, intent(in) :: mode
   class(t_Grid) :: grid
-
+   
   ! <<< Local variables >>>
   integer :: i
 

@@ -494,7 +494,7 @@ subroutine cleanupSolver(this)
 
 end subroutine cleanupSolver
 
-function runForward(this, region, actuationAmount, restartFilename) result(costFunctional)
+function runForward(this, region, actuationAmount, restartFilename,desiredPrecision) result(costFunctional)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -521,6 +521,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   class(t_Solver) :: this
   class(t_Region) :: region
   real(SCALAR_KIND), intent(in), optional :: actuationAmount
+  real(SCALAR_KIND), intent(in), optional :: desiredPrecision
   character(len = *), intent(in), optional :: restartFilename
 
   ! <<< Result >>>
@@ -647,6 +648,14 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
            call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
         end do
      end if
+
+     ! Add random precision nuber if set
+     if (present(desiredPrecision)) then
+        do j = 1, size(region%grids)
+           call region%grids(j)%applyRandFluctuation(region%states(j)%conservedVariables,&
+               desiredPrecision)
+        end do
+     end if 
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
@@ -870,7 +879,8 @@ subroutine checkGradientAccuracy(this, region)
   integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
-       initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
+       initialActuationAmount, geometricGrowthFactor, gradientError,dummyValue,&
+       gradientAccuracyPrecision
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -907,6 +917,7 @@ subroutine checkGradientAccuracy(this, region)
 
   if (nIterations > 0) then
      call getRequiredOption("initial_actuation_amount", initialActuationAmount)
+     call getRequiredOption("precision_for_gradient_accuracy",gradientAccuracyPrecision)
      if (nIterations > 1) then
         call getRequiredOption("actuation_amount_geometric_growth", geometricGrowthFactor)
      else
@@ -962,13 +973,14 @@ subroutine checkGradientAccuracy(this, region)
 
   do i = restartIteration, restartIteration + nIterations - 1
      actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
-     costFunctional = this%runForward(region, actuationAmount = actuationAmount)
+     costFunctional = this%runForward(region, actuationAmount =&
+          actuationAmount,desiredPrecision=gradientAccuracyPrecision)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
           costSensitivity
      if (procRank == 0)                                                                      &
           write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
           costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &
-          gradientError
+          abs(gradientError)
   end do
 
   if (procRank == 0) close(fileUnit)

@@ -100,6 +100,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   if (.not. simulationFlags%predictionOnly) then
 
      this%controllerType = getOption("controller_type", "THERMAL_ACTUATOR")
+     this%controllerType = getOption("controller_type", "WALL_ACTUATOR") 
      call controllerFactory%connect(dummyController, trim(this%controllerType))
      if (.not. associated(dummyController)) then
         write(message, '(3A)') "Invalid controller type '",                             &

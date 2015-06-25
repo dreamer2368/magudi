@@ -11,6 +11,10 @@ module WallActuator_mod
 
    contains
 
+     !depending how specific you want to be, include you `wall actuation' params
+     !here
+
+
      procedure, pass :: setup => setupWallActuator
      procedure, pass :: cleanup => cleanupWallActuator
      procedure, pass :: computeSensitivity => computeWallActuatorSensitivity

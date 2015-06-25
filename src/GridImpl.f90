@@ -1592,6 +1592,33 @@ function isVariableWithinRange(this, f, fOutsideRange,                          
 
 end function isVariableWithinRange
 
+subroutine applyRandFluctuation(this,f,precisionScale)
+  ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Grid) :: this
+  SCALAR_TYPE, intent(inout) :: f(:,:)
+  SCALAR_TYPE, intent(in)::precisionScale
+
+  ! <<< Local variables >>>
+  integer :: i, j, nDimensions
+  SCALAR_TYPE::randomFluctuation
+
+  !should we assert f is allocated
+
+  do i=1,size(f(:,1))
+       do j=1,size(f(1,:))
+          CALL RANDOM_NUMBER(randomFluctuation) 
+          randomFluctuation=randomFluctuation*precisionScale
+          f(i,j)=f(i,j)+randomFluctuation
+       end do
+  end do
+
+end subroutine
+
 subroutine applyFilter(this, f, timestep)
 
   ! <<< Derived types >>>

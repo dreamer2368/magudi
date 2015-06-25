@@ -6,6 +6,7 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
   use Controller_mod, only : t_Controller
   use Controller_factory, only : t_ControllerFactory
   use ThermalActuator_mod, only : t_ThermalActuator
+  use WallActuator_mod, only : t_WallActuator
 
   implicit none
 
@@ -33,6 +34,9 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
 
      case ('THERMAL_ACTUATOR')
         allocate(t_ThermalActuator :: this%controller)
+
+     case ('WALL_ACTUATOR')
+        allocate(t_WallActuator :: this%controller) 
 
      case default
         this%controllerType = ""

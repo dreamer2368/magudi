@@ -75,7 +75,8 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
 
   ! <<< Arguments >>>
   class(t_WallActuator) :: this
-  class(t_Region), intent(in) :: region
+  class(t_Region), intent(in) :: region 
+
 
   ! <<< Result >>>
   SCALAR_TYPE :: instantaneousSensitivity
@@ -106,8 +107,9 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      
      !this instantaneous sensitivity needs to be computed here for my
      !formulation
-     !I may make this very specific to a wavy wall and function     
- 
+     !I may make this very specific to a wavy wall and shape function     
+     !region%states(i)%rightHandSide(:,nUnKnowns) 
+     !region%states(i)%adjointVariables(:,nUnKnowns)
      allocate(F(region%grids(i)%nGridPoints, 1))
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                           &
           region%grids(i)%controlMollifier(:,1)
@@ -169,8 +171,6 @@ subroutine updateWallActuatorForcing(this, region)
 
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
                 call patch%loadGradient()
-
-            
 
            patch%controlForcing(:,1:nDimensions+1) = 0.0_wp
            patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
