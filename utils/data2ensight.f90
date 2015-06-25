@@ -51,15 +51,26 @@ program data2ensight
 
   ! Local variables
   integer :: i, j, k
+  real(KIND=8) :: gamma, heatRelease, zelDovich, referenceTemperature, flameTemperature,     &
+       activationTemperature, temperature, density, Yf, Yo, Da
 
-  ! Initialize MPI.
+  ! Initialize MPI
   call MPI_Init(ierror)
 
-  ! Parse the input file.
+  ! Parse the input file
   call parseInputFile("magudi.inp")
 
   ! Get file prefix
   call getRequiredOption("output_prefix", prefix)
+
+  ! Get combustion parameters
+  call getRequiredOption("ratio_of_specific_heats", gamma)
+  call getRequiredOption("heat_release", heatRelease)
+  call getRequiredOption("Zel_Dovich", zelDovich)
+  call getRequiredOption("Damkohler_number", Da)
+  referenceTemperature = 1.0_8 / (gamma - 1.0_8)
+  flameTemperature = referenceTemperature / (1.0_8 - heatRelease)
+  activationTemperature = zelDovich / heatRelease * flameTemperature
 
   ! Read information from standard input
   print*,'==========================================='
@@ -87,7 +98,7 @@ program data2ensight
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
-  call plot3dDetectFormat(MPI_COMM_WORLD, grid_name,                                          &
+  call plot3dDetectFormat(MPI_COMM_WORLD, grid_name,                                         &
        success, globalGridSizes = globalGridSizes)
   if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
 
@@ -135,7 +146,7 @@ program data2ensight
   end do
 
   ! Assign variable names.
-  allocate(names(nvar+1))
+  allocate(names(nvar+2))
   select case (ndim)
   case (2)
      names(1) = 'RHO'
@@ -165,8 +176,9 @@ program data2ensight
      end do
   end if
 
-  ! Include temperature
+  ! Output additional data
   names(nvar+1) = 'Temperature'
+  names(nvar+2) = 'Reaction'
 
   ! Check if iblank is used
   use_iblank = .false.
@@ -337,14 +349,14 @@ program data2ensight
               ! Store temperature in buffer
               select case (ndim)
               case (2)
-                 rbuffer(i,j,k) = real(1.4_8 * (region%states(1)%conservedVariables(ii,ndim+2) - &
+                 rbuffer(i,j,k) = real(gamma * (region%states(1)%conservedVariables(ii,ndim+2) - &
                       0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                    &
                       region%states(1)%conservedVariables(ii,3)**2) /                            &
                       region%states(1)%conservedVariables(ii,1)) /                               &
                       region%states(1)%conservedVariables(ii,1),4)
 
               case (3)
-                 rbuffer(i,j,k) = real(1.4_8 * (region%states(1)%conservedVariables(ii,ndim+2) - &
+                 rbuffer(i,j,k) = real(gamma * (region%states(1)%conservedVariables(ii,ndim+2) - &
                       0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                    &
                       region%states(1)%conservedVariables(ii,3)**2 +                             &
                       region%states(1)%conservedVariables(ii,4)**2) /                            &
@@ -362,6 +374,48 @@ program data2ensight
      ! Write temperature to Ensight file
      cbuffer=trim(names(nvar+1))
      write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(nvar+1)),'.',num
+     open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+     write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
+     close(10)
+
+     ! Reaction rate
+     rbuffer = 0.0_4
+     do k=1,nz
+        do j=1,ny
+           do i=1,nx
+              ii = i+nx*(j-1+ny*(k-1))
+              ! Get local variables
+              density = region%states(1)%conservedVariables(ii, 1)
+              Yf = region%states(1)%conservedVariables(ii, ndim+3) / density
+              Yo = region%states(1)%conservedVariables(ii, ndim+4) / density
+
+              ! Compute local temperature
+              select case (ndim)
+              case (2)
+                 temperature = real(gamma * (region%states(1)%conservedVariables(ii,ndim+2) -&
+                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                &
+                      region%states(1)%conservedVariables(ii,3)**2) /                        &
+                      region%states(1)%conservedVariables(ii,1)) /                           &
+                      region%states(1)%conservedVariables(ii,1),4)
+
+              case (3)
+                 temperature = real(gamma * (region%states(1)%conservedVariables(ii,ndim+2) -&
+                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                &
+                      region%states(1)%conservedVariables(ii,3)**2 +                         &
+                      region%states(1)%conservedVariables(ii,4)**2) /                        &
+                      region%states(1)%conservedVariables(ii,1)) /                           &
+                      region%states(1)%conservedVariables(ii,1),4)
+              end select
+              ! Reaction rate
+              rbuffer(i,j,k) = Da * density * Yf * Yo *                                      &
+                   exp(- activationTemperature / temperature)
+           end do
+        end do
+     end do
+
+     ! Write temperature to Ensight file
+     cbuffer=trim(names(nvar+2))
+     write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(nvar+2)),'.',num
      open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
      write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
      close(10)
@@ -388,7 +442,7 @@ program data2ensight
 
   cbuffer='VARIABLE'
   write(10,'(a)') cbuffer
-  do var=1,nvar+1
+  do var = 1, nvar + 2
      write(cbuffer,'(5A)') 'scalar per node: 1 ',  trim(names(var)), ' ', trim(names(var)), '.******'
      write(10,'(a80)') cbuffer
   end do
