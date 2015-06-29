@@ -513,10 +513,12 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    logical :: generateTargetState_
+    logical :: generateTargetState_, uniformTemperature
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
     real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, fuel, oxidizer,         &
-         u, v, Z, T0, flameTemperature, heatRelease, Yf0, Yo0, jetVelocity, a, eta, x, y, Re
+         flameTemperature, wallTemperature, heatRelease, jetVelocity, strainRate,            &
+         lengthScale, eta, equivalenceRatio, diffusionLength,                                &
+         u, v, Z, Zst, Xst, T0, Yf0, Yo0, x, y, Re, Sc, s, temp
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -541,36 +543,62 @@ contains
     call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
     call getRequiredOption("initial_jet_velocity", jetVelocity)
     call getRequiredOption("Reynolds_number", Re)
+    call getRequiredOption("Schmidt_number_1", Sc)
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
     call getRequiredOption("heat_release", heatRelease)
+    call getRequiredOption("stoichiometric_ratio", s)
+    uniformTemperature = getOption("initial_uniform_temperature", .false.)
 
     ! Temperatures.
     T0 =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
     flameTemperature = T0 / (1.0_wp - heatRelease)
+    wallTemperature = 0.5_wp * flameTemperature
+    if (uniformTemperature) temperature = T0
 
-    ! Stretching parameter
-    a = 2.0_wp * jetVelocity /                                                               &
-         ( maxval(grid%coordinates(:,2)) - minval(grid%coordinates(:,2)) )
+    ! Compute the strain rate.
+    lengthScale = 0.5_wp * ( maxval(grid%coordinates(:,2)) - minval(grid%coordinates(:,2)) )
+    strainRate = jetVelocity / lengthScale
 
+    ! Diffusion length scale.
+    diffusionLength = 1.0_wp / (Re * Sc * strainRate)
+
+    ! Compute stoichiometric mixture fraction.
+    equivalenceRatio = s * Yf0 / Yo0
+    Zst = 1.0_wp / (1.0_wp + equivalenceRatio)
+
+    ! Find location of stoichiometric surface
+    temp=huge(1.0_wp)
+    do i = 1, grid%nGridPoints
+
+       ! Get the local coordinates.
+       y = grid%coordinates(i,2)
+
+       ! Similarity transformation.
+       eta = sqrt(strainRate * Re * Sc) * y! / lengthScale
+
+       ! Mixture fraction
+       Z = 0.5_wp * ( 1.0_wp + erf(eta / sqrt(2.0_wp)) )
+
+       if (abs(Z - Zst) < temp) then
+          temp = abs(Z - Zst)
+          Xst = y
+       end if
+
+    end do
+
+    ! Save the state variables.
     do i = 1, grid%nGridPoints
 
        ! Get the local coordinates.
        x = grid%coordinates(i,1)
        y = grid%coordinates(i,2)
 
-       ! Similarity transformation.
-       eta = y * sqrt(Re * a)
-
        ! Velocities.
-       u = 0.5_wp * a * x
-       v = - a * y
+       u =  strainRate * x
+       v = -strainRate * y
 
-       ! Temperature.
-       temperature = T0 + 0.5_wp * ( (1.0_wp + erf(eta / sqrt(2.0_wp) + 1.0_wp)) -           &
-            (1.0_wp + erf(eta / sqrt(2.0_wp) - 1.0_wp)) ) * (flameTemperature - T0)
-
-       ! Density.
-       density = T0 / temperature
+       ! Similarity transformation.
+       eta = sqrt(strainRate * Re * Sc) * y! / lengthScale
 
        ! Mixture fraction
        Z = 0.5_wp * ( 1.0_wp + erf(eta / sqrt(2.0_wp)) )
@@ -578,6 +606,14 @@ contains
        ! Components.
        fuel = YF0 * Z
        oxidizer = YO0 * (1.0_wp-Z)
+
+       ! Temperature.
+!!$       if (.not.uniformTemperature) temperature = T0 +                                       &
+!!$            exp(-0.5_wp*(y - Xst)**2 / diffusionLength**2) * (flameTemperature - T0)
+       if (.not.uniformTemperature) temperature = wallTemperature - Z * (wallTemperature - T0)
+
+       ! Density.
+       density = T0 / temperature
 
        ! State variables
        state%conservedVariables(i,1) = density

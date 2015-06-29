@@ -5,8 +5,8 @@ import plot3dnasa as p3d
 def target_mollifier(g):
     x_min = -20.
     x_max =  20.
-    y_min = -4.
-    y_max =  4.
+    y_min = -8.
+    y_max =  0.
     f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
@@ -25,8 +25,8 @@ def target_mollifier(g):
 def control_mollifier(g):
     x_min = -20.
     x_max =  20.    
-    y_min =  6.
-    y_max =  10.
+    y_min =  0.
+    y_max =  8.
     f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
