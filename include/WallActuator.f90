@@ -8,12 +8,13 @@ module WallActuator_mod
   private
 
   type, extends(t_Controller), public :: t_WallActuator
+ 
+     integer:: numP
+     real(SCALAR_KIND),allocatable,dimension(:)::J
+     real(SCALAR_KIND),allocatable,dimension(:,:)::dJdp
+     real(SCALAR_KIND),allocatable,dimension(:,:,:)::dMijdp
 
    contains
-
-     !depending how specific you want to be, include you `wall actuation' params
-     !here
-
 
      procedure, pass :: setup => setupWallActuator
      procedure, pass :: cleanup => cleanupWallActuator
@@ -23,7 +24,6 @@ module WallActuator_mod
      procedure, pass :: isPatchValid => isWallActuatorPatchValid
      procedure, pass :: hookBeforeTimemarch => hookWallActuatorBeforeTimemarch
      procedure, pass :: hookAfterTimemarch => hookWallActuatorAfterTimemarch
-
 
   end type t_WallActuator
 
