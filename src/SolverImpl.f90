@@ -649,7 +649,9 @@ function runForward(this, region, actuationAmount, restartFilename,desiredPrecis
         end do
      end if
 
-     ! Add random precision nuber if set
+     ! Add random fluctuation at a desired precision 
+     ! Consider doing this like "acoustic monopole source" if this is too much
+     ! interaction with magudi
      if (present(desiredPrecision)) then
         do j = 1, size(region%grids)
            call region%grids(j)%applyRandFluctuation(region%states(j)%conservedVariables,&
@@ -917,7 +919,7 @@ subroutine checkGradientAccuracy(this, region)
 
   if (nIterations > 0) then
      call getRequiredOption("initial_actuation_amount", initialActuationAmount)
-     call getRequiredOption("precision_for_gradient_accuracy",gradientAccuracyPrecision)
+     call getRequiredOption("precision_for_gradient_accuracy", gradientAccuracyPrecision)
      if (nIterations > 1) then
         call getRequiredOption("actuation_amount_geometric_growth", geometricGrowthFactor)
      else

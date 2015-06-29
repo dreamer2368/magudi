@@ -5,6 +5,7 @@ subroutine setupWallActuator(this, region)
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
+  Use Grid_mod, only :t_Grid
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use WallActuator_mod, only : t_WallActuator
 
@@ -18,6 +19,7 @@ subroutine setupWallActuator(this, region)
   class(t_Region) :: region
 
   ! <<< Local variables >>>
+  class(t_WallActuator),pointer::grid=>null()
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, gradientBufferSize
   class(t_Patch), pointer :: patch => null()
@@ -46,6 +48,30 @@ subroutine setupWallActuator(this, region)
      end do
   end if
 
+ 
+
+!     assert_key(region%grids(i)%nDimensions, (2, 3))
+!     assert(region%grids(i)%nGridPoints > 0)
+!     assert(allocated(region%grids(i)%firstDerivative))
+!     assert(size(region%grids(i)%firstDerivative) == nDimensions)
+!     assert(allocated(region%grids(i)%metrics))
+!     assert(size(region%grids(i)%metrics, 1) == region%grids(i)%nGridPoints)
+!     assert(size(region%grids(i)%metrics, 2) == nDimensions ** 2)
+!
+!     this%numP=2
+!     SAFE_DEALLOCATE(this%J)
+!     allocate(this%J(region%grids(i)%nGridPoints))
+!     SAFE_DEALLOCATE(this%dJdp)
+!     allocate(this%dJdp(region%grids(i)%nGridPoints,this%numP))
+!     SAFE_DEALLOCATE(this%dMijdp)
+!     if (region%grids(i)%nDimensions .eq. 2) then
+!     allocate(this%dMijdp(region%grids(i)%nGridPoints,4,this%numP))
+!     else if (region%grids(i)%nDimensions .eq. 3) then
+!     allocate(this%dMijdp(region%grids(i)%nGridPoints,9,this%numP))
+!     end if 
+!
+!  end do 
+
 end subroutine setupWallActuator
 
 subroutine cleanupWallActuator(this)
@@ -58,6 +84,9 @@ subroutine cleanupWallActuator(this)
   ! <<< Arguments >>>
   class(t_WallActuator) :: this
 
+  SAFE_DEALLOCATE(this%J)
+  SAFE_DEALLOCATE(this%dJdp)
+  SAFE_DEALLOCATE(this%dMijdp) 
   call this%cleanupBase()
 
 end subroutine cleanupWallActuator
@@ -110,6 +139,15 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      !I may make this very specific to a wavy wall and shape function     
      !region%states(i)%rightHandSide(:,nUnKnowns) 
      !region%states(i)%adjointVariables(:,nUnKnowns)
+
+     !This depends on the wall normal direction which may need to be set from
+     !outside
+
+     !This depends on all Flow quantities and all adjoint vars
+
+     !This will calculate the effect of all of the control parameters
+     !This does not separete out `each' patches effect
+
      allocate(F(region%grids(i)%nGridPoints, 1))
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                           &
           region%grids(i)%controlMollifier(:,1)
@@ -172,9 +210,16 @@ subroutine updateWallActuatorForcing(this, region)
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
                 call patch%loadGradient()
 
-           patch%controlForcing(:,1:nDimensions+1) = 0.0_wp
-           patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
-                patch%gradientBuffer(:,1,patch%iGradientBuffer)
+           !You would remake your mesh here and do it only once
+           !collect gradient from each patch to update its amplitude and phase
+
+           !Update the control parameters specific to the wall
+           !You must update the mesh once and then restart the simulation
+
+           patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
+           
+           !patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
+           !     patch%gradientBuffer(:,1,patch%iGradientBuffer)
 
            if (patch%iGradientBuffer == 1)                                                   &
                 patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
@@ -182,6 +227,27 @@ subroutine updateWallActuatorForcing(this, region)
         end select
      end do
   end do
+
+  !outputPrefix = getOption("output_prefix", PROJECT_NAME)
+
+  ! Read the grid file.
+  !call getRequiredOption("grid_file", filename)
+  !call region%loadData(QOI_GRID, filename)
+
+  ! Update the grids by computing the Jacobian, metrics, and norm.
+  !do i = 1, size(region%grids)
+  !   call region%grids(i)%update()
+  !end do
+  !call MPI_Barrier(region%comm, ierror)
+
+  ! Write out some useful information.
+  !call region%reportGridDiagnostics()
+
+  ! Save the Jacobian and normalized metrics.
+  !write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
+  !call region%saveData(QOI_JACOBIAN, filename)
+  !write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
+  !call region%saveData(QOI_METRICS, filename)
 
 end subroutine updateWallActuatorForcing
 
@@ -193,6 +259,8 @@ subroutine updateWallActuatorGradient(this, region)
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use WallActuator_mod, only : t_WallActuator
 
+  use CNSHelper
+  
   implicit none
 
   ! <<< Arguments >>>
@@ -221,6 +289,41 @@ subroutine updateWallActuatorGradient(this, region)
            patch%iGradientBuffer = patch%iGradientBuffer + 1
            assert(patch%iGradientBuffer >= 1)
            assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+
+!computeCartesianViscousFluxes
+!computeCartesianInvsicidFluxes
+!region%states(j)%adjointVariables(:,nDimensions+2)
+!region%grids(j)%controlMollifier
+
+!! <<< Local variables >>>
+!integer, parameter :: wp = SCALAR_KIND
+!integer :: i, nDimensions
+!SCALAR_TYPE, allocatable :: inviscidfluxes(:,:,:), viscousfluxes(:,:,:)
+!class(t_Patch), pointer :: patch => null()
+!
+!call startTiming("computeRhsForward")
+!
+!nDimensions = grid%nDimensions
+!assert_key(nDimensions, (1, 2, 3))
+!
+!allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+!allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+!
+!state%rightHandSide = 0.0_wp
+!
+!! Compute Cartesian form of inviscid fluxes.
+!call computeCartesianInvsicidFluxes(nDimensions, state%conservedVariables,&
+!  state%velocity, state%pressure(:,1), fluxes1)
+!
+! Compute Cartesian form of viscous fluxes if viscous terms are included and
+! computed using
+! repeated first derivatives.
+!if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative)
+!then
+!call computeCartesianViscousFluxes(nDimensions, state%velocity,&
+!     state%stressTensor, state%heatFlux, fluxes2)
+!fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
+!end if
 
            allocate(F(patch%nPatchPoints, 2))
            call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2), F(:,1))
@@ -406,3 +509,4 @@ subroutine hookWallActuatorAfterTimemarch(this, region, mode)
   end do
 
 end subroutine hookWallActuatorAfterTimemarch
+
