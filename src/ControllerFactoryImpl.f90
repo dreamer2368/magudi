@@ -35,7 +35,7 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
      case ('THERMAL_ACTUATOR')
         allocate(t_ThermalActuator :: this%controller)
 
-     case ('WALL_ACTUATOR')
+     case ('PASSIVE_WALL_ACTUATOR')
         allocate(t_WallActuator :: this%controller) 
 
      case default

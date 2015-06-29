@@ -24,7 +24,7 @@ Reynolds_number = 200.
 disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "SOUND"
-controller_type="WALL_ACTUATOR"
+controller_type="PASSIVE_WALL_ACTUATOR"
 use_continuous_adjoint = true
 gradient_buffer_size = 20
 
