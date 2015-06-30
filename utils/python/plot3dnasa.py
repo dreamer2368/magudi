@@ -63,11 +63,11 @@ class FileFormat(object):
         self.endianness = '='
         self.ncomponents = 0
         self.nblocks = 0
-        self.size = np.empty([0, 3], dtype = np.dtype(np.int32))
+        self.size = np.empty([0, 3], dtype=np.dtype(np.int32))
         self.file_type = ''
         self.has_iblank = False
-        self.aux_header = np.zeros([4], dtype = self.real_dtype)
-        self.offsets = np.empty([0], dtype = np.dtype(np.int64))
+        self.aux_header = np.zeros([4], dtype=self.real_dtype)
+        self.offsets = np.empty([0], dtype=np.dtype(np.int64))
         if filename:
             self.detect(filename)
 
@@ -84,8 +84,8 @@ class FileFormat(object):
                     self.endianness)
                 self.nblocks = self._get_integer(f)
                 # block dimensions
-                a = np.fromstring(self._get_raw_bytes(f), dtype = np.dtype(
-                        np.int32).newbyteorder(self.endianness))
+                a = np.fromstring(self._get_raw_bytes(f), dtype=np.dtype(
+                    np.int32).newbyteorder(self.endianness))
                 if np.any(a <= 0):
                     raise FileFormatError(filename)
                 if a.size == 4 * self.nblocks:
@@ -108,7 +108,7 @@ class FileFormat(object):
             raise FileFormatError(filename)
 
     def _compute_offsets(self, f):
-        self.offsets = np.empty(self.nblocks, dtype = np.dtype(np.int64))
+        self.offsets = np.empty(self.nblocks, dtype=np.dtype(np.int64))
         self.offsets[0] = f.tell() + self.reclength_dtype.itemsize
         for i in range(1, self.offsets.size):
             r = self._get_reclength(f)
@@ -200,14 +200,14 @@ class MultiBlockCommon(object):
         ndim = np.array(size).ndim
         if ndim == 1:
             self.nblocks = 1
-            self.size = np.empty([1, 3], dtype = np.dtype(
+            self.size = np.empty([1, 3], dtype=np.dtype(
                     np.int32).newbyteorder(self._format.endianness))
             for i, s in enumerate(size):
                 self.size[0,:] = [size[i] if i < len(size) else 1
                                   for i in range(3)]
         elif ndim == 2:
             self.nblocks = len(size)
-            self.size = np.empty([self.nblocks, 3], dtype = np.dtype(
+            self.size = np.empty([self.nblocks, 3], dtype=np.dtype(
                     np.int32).newbyteorder(self._format.endianness))
             for i, s in enumerate(size):
                 self.size[i,:] = [size[i][j] if j < len(size[i]) else 1
@@ -245,16 +245,16 @@ class MultiBlockCommon(object):
         if starts is None or ends is None:
             return np.reshape(np.fromstring(
                 f.read(dtype.itemsize * np.prod(size)), dtype),
-                              size.tolist(), order = 'F')
+                              size.tolist(), order='F')
         size_ = ends - starts + 1
-        a = np.empty(size_.tolist(), dtype = dtype)
+        a = np.empty(size_.tolist(), dtype=dtype, order='F')
         f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
         for k in range(starts[2], ends[2] + 1):
             f.seek(size[0] * starts[1] * dtype.itemsize, 1)
             for j in range(starts[1], ends[1] + 1):
                 f.seek(starts[0] * dtype.itemsize, 1)
                 a[:, j - starts[1], k - starts[2]] = np.fromstring(
-                    f.read(size_[0] * dtype.itemsize), dtype = dtype)
+                    f.read(size_[0] * dtype.itemsize), dtype=dtype)
                 f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
             f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
         f.seek(size[0] * size[1] * (size[2] - (ends[2] + 1)) *
@@ -265,9 +265,9 @@ class MultiBlockCommon(object):
         if starts is None or ends is None:
             return np.reshape(np.fromstring(
                 f.read(dtype.itemsize * n * np.prod(size)), dtype),
-                              size.tolist() + [n], order = 'F')
+                              size.tolist() + [n], order='F')
         size_ = ends - starts + 1
-        a = np.empty(size_.tolist() + [n], dtype = dtype)
+        a = np.empty(size_.tolist() + [n], dtype=dtype, order='F')
         for i in range(n):
             f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
             for k in range(starts[2], ends[2] + 1):
@@ -275,31 +275,11 @@ class MultiBlockCommon(object):
                 for j in range(starts[1], ends[1] + 1):
                     f.seek(starts[0] * dtype.itemsize, 1)
                     a[:, j - starts[1], k - starts[2], i] = np.fromstring(
-                          f.read(size_[0] * dtype.itemsize), dtype = dtype)
+                          f.read(size_[0] * dtype.itemsize), dtype=dtype)
                     f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
                 f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
             f.seek(size[0] * size[1] * (size[2] - (ends[2] + 1)) *
                    dtype.itemsize, 1)
-        return a
-
-    def read_scalar(self, f, size, dtype, starts, ends):
-        if starts is None or ends is None:
-            return np.reshape(np.fromstring(
-                f.read(dtype.itemsize * np.prod(size)), dtype),
-                              size.tolist(), order = 'F')
-        size_ = ends - starts + 1
-        a = np.empty(size_.tolist(), dtype = dtype)
-        f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
-        for k in range(starts[2], ends[2] + 1):
-            f.seek(size[0] * starts[1] * dtype.itemsize, 1)
-            for j in range(starts[1], ends[1] + 1):
-                f.seek(starts[0] * dtype.itemsize, 1)
-                a[:, j - starts[1], k - starts[2]] = np.fromstring(
-                    f.read(size_[0] * dtype.itemsize), dtype = dtype)
-                f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
-            f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
-        f.seek(size[0] * size[1] * (size[2] - (ends[2] + 1)) *
-               dtype.itemsize, 1)
         return a
 
     def write_header(self, f, ncomponents = 0):
@@ -311,7 +291,7 @@ class MultiBlockCommon(object):
             f.write(self.size.tostring())
             f.write(pack(self._format.reclength_dtype.str, 4 * self.size.size))
         else:
-            s = np.empty([self.nblocks, 4], dtype = np.dtype(
+            s = np.empty([self.nblocks, 4], dtype=np.dtype(
                     np.int32).newbyteorder(self._format.endianness))
             s[:,:-1] = self.size
             s[:,-1] = ncomponents
@@ -352,11 +332,12 @@ class Grid(MultiBlockCommon):
 
     def allocate(self):
         for i in range(self.nblocks):
-            self.xyz[i] = np.empty(self.size[i].tolist() + [3], dtype =
-                                   self._format.real_dtype)
+            self.xyz[i] = np.empty(self.size[i].tolist() + [3],
+                                   dtype=self._format.real_dtype, order='F')
         if self.has_iblank:
-            self.iblank[i] = np.empty(self.size[i].tolist(), dtype =
-                                      self._format.integer_dtype)
+            self.iblank[i] = np.empty(self.size[i].tolist(),
+                                      dtype=self._format.integer_dtype,
+                                      order='F')
         return self
 
     def load(self, filename=''):
@@ -491,7 +472,7 @@ class Solution(MultiBlockCommon):
     def allocate(self):
         for i in range(self.nblocks):
             self.q[i] = np.empty(self.size[i].tolist() + [5],
-                                 dtype = self._format.real_dtype)
+                                 dtype=self._format.real_dtype, order='F')
         return self
 
     def load(self, filename=''):
@@ -511,7 +492,7 @@ class Solution(MultiBlockCommon):
                    2 * self._format.reclength_dtype.itemsize -
                    4 * self._format.real_dtype.itemsize)
             self.time = np.fromstring(f.read(self._format.real_dtype.itemsize),
-                                      dtype = self._format.real_dtype)[0]
+                                      dtype=self._format.real_dtype)[0]
             j = 0
             for i in range(self._format.nblocks):
                 if self._block_index is not None and i != self._block_index:
@@ -532,7 +513,7 @@ class Solution(MultiBlockCommon):
             if self._format.aux_header is not None:
                 aux_header = self._format.aux_header
             else:
-                aux_header = np.zeros(dtype = self._format.real_dtype)
+                aux_header = np.zeros(dtype=self._format.real_dtype)
             aux_header[-1] = self.time
             for i in range(self.nblocks):
                 s = 4 * self._format.real_dtype.itemsize
@@ -629,7 +610,7 @@ class Solution(MultiBlockCommon):
             nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
                  if self.size[i,2] == 1 else 3
             p = np.copy(q)
-            self.q[i] = np.empty(self.size[i].tolist() + [nd + 2])
+            self.q[i] = np.empty(self.size[i].tolist() + [nd + 2], order='F')
             for j in range(nd+1):
                 self.q[i][:,:,:,j] = p[:,:,:,j]
             self.q[i][:,:,:,nd+1] = p[:,:,:,4]
@@ -661,7 +642,7 @@ class Function(MultiBlockCommon):
     def allocate(self):
         for i in range(self.nblocks):
             self.f[i] = np.empty(self.size[i].tolist() + [self.ncomponents],
-                                 dtype = self._format.real_dtype)
+                                 dtype=self._format.real_dtype, order='F')
         return self
 
     def load(self, filename=''):
