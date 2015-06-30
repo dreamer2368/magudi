@@ -414,7 +414,7 @@ def grid(**kwargs):
         subprocess.check_output(["gridgen", "-b", f.name])
         os.unlink(f.name)
 
-def target_state(g, mach_number=1.3, theta_j=0.02, S=0.03,
+def target_state(g, mach_number=1.3, theta_j=0.02, S=0.06,
                  potential_core_length=11., gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
@@ -574,6 +574,8 @@ if __name__ == '__main__':
          p_inner=1.12148531779, interface_ds_ratio=0.999793250757)
     g = p3d.fromfile('OSUMach1.3.xyz')
     target_state(g).save('OSUMach1.3.target.q')
+    target_mollifier(g).save('OSUMach1.3.target_mollifier.f')
+    control_mollifier(g).save('OSUMach1.3.control_mollifier.f')
     gi = extract_inflow(g)
     gi.save('OSUMach1.3.inflow.xyz')
     modes = eigenmodes()    
@@ -581,5 +583,3 @@ if __name__ == '__main__':
         sr, si = inflow_perturbations(gi, mode)
         sr.save('OSUMach1.3-%02d.eigenmode_real.q' % (i + 1))
         si.save('OSUMach1.3-%02d.eigenmode_imag.q' % (i + 1))
-    target_mollifier(g).save('OSUMach1.3.target_mollifier.f')
-    control_mollifier(g).save('OSUMach1.3.control_mollifier.f')
