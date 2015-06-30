@@ -88,6 +88,8 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use WallActuator_mod, only : t_WallActuator
+  use CNSHelper
+  use InputHelper, only : getOption
 
   implicit none
 
@@ -101,12 +103,17 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, ierror
+  integer :: i,v,p,ii,jj,nDimensions,ierror
+  SCALAR_TYPE, allocatable :: Jac(:)
   SCALAR_TYPE, allocatable :: F(:,:)
+  SCALAR_TYPE, allocatable :: dQdxi(:,:,:),viscousFluxes(:,:,:),inviscidFluxes(:,:,:)
+  SCALAR_TYPE, allocatable :: dJdp(:,:)
+  SCALAR_TYPE, allocatable :: dMijdp(:,:,:,:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
+
 
   instantaneousSensitivity = 0.0_wp
 
@@ -122,12 +129,66 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      assert(allocated(region%states(i)%adjointVariables))
      assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
-     
-     allocate(F(region%grids(i)%nGridPoints, 1))
-     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                           &
-          region%grids(i)%controlMollifier(:,1)
-     instantaneousSensitivity = instantaneousSensitivity +                                   &
+
+     allocate(dMijdp(region%grids(i)%nGridPoints,nDimensions,nDimensions,this%numP))
+     allocate(F(region%grids(i)%nGridPoints,this%numP))
+     allocate(dJdp(region%grids(i)%nGridPoints,this%numP))
+     allocate(Jac(region%grids(i)%nGridPoints))
+     allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+     allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+     allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+
+     do ii = 1, nDimensions
+          call region%grids(i)%firstDerivative(ii)%apply(dQdxi(:,:,ii),&
+               region%grids(i)%localSize)
+     end do
+
+     call computeCartesianInvsicidFluxes(nDimensions,&
+     region%states(i)%conservedVariables,&
+     region%states(i)%velocity, region%states(i)%pressure(:,1),&
+     inviscidFluxes)
+
+     if (getOption("include_viscous_terms",.false.).and.&
+          getOption("repeat_first_derivative", .true.)) then
+          call computeCartesianViscousFluxes(nDimensions,&
+          region%states(i)%velocity,&
+          region%states(i)%stressTensor, region%states(i)%heatFlux,&
+          viscousFluxes)
+     end if
+
+     F(:,:)=0._wp
+     do p=1,this%numP
+     do v=1,nDimensions+1
+          F(:,p)=F(:,p)+region%states(i)%rightHandSide(:,v)*dJdp(:,p)*&
+               region%states(i)%adjointVariables(:,v)
+
+     do ii=1,nDimensions
+     do jj=1,nDimensions
+          F(:,p)=F(:,p)-Jac(:)*(inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
+               dMijdp(:,ii,jj,p)*dQdxi(:,v,ii)
+     end do !ii
+     end do !jj
+
+     !this is a the surface contribution which is set by the controll mollifier
+     do jj=1,nDimensions
+          F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*Jac(:)*&
+               (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*dMijdp(:,2,jj,p)*&
+               region%grids(i)%controlMollifier(:,1)
+     end do
+
+     end do !v
+     end do !p
+
+    F(:,:)=0._wp
+    instantaneousSensitivity = instantaneousSensitivity +&
           region%grids(i)%computeInnerProduct(F, F)
+
+     SAFE_DEALLOCATE(viscousFluxes)
+     SAFE_DEALLOCATE(inviscidFluxes)
+     SAFE_DEALLOCATE(dMijdp)
+     SAFE_DEALLOCATE(dQdxi)
+     SAFE_DEALLOCATE(Jac)
+     SAFE_DEALLOCATE(dJdp)
      SAFE_DEALLOCATE(F)
 
   end do
@@ -247,49 +308,48 @@ subroutine updateWallActuatorGradient(this, region)
            assert(patch%iGradientBuffer >= 1)
            assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
            
-           allocate(dJdp(patch%nPatchPoints))
-           allocate(Jac(patch%nPatchPoints))
-           allocate(Qdagger(patch%nPatchPoints, nDimensions+2))
-           allocate(RHS(patch%nPatchPoints, nDimensions+2))
-           allocate(dFdx(patch%nPatchPoints))
-           call patch%collect(region%states(j)%adjointVariables(:,:), Qdagger(:,:))
-           call patch%collect(region%states(j)%rightHandSide(:,:),RHS(:,:))
-           do v=1,nDimensions+2
-           patch%gradientBuffer(:,1,patch%iGradientBuffer)=dFdx(:)
-           patch%gradientBuffer(:,1,patch%iGradientBuffer)=patch%gradientBuffer(:,1,patch%iGradientBuffer)+dFdx(:)
-           patch%gradientBuffer(:,1,patch%iGradientBuffer)=patch%gradientBuffer(:,1,patch%iGradientBuffer)+dFdx(:)      
-           patch%gradientBuffer(:,1,patch%iGradientBuffer)=&
-                +patch%gradientBuffer(:,1,patch%iGradientBuffer)*dJdp(:)*Qdagger(:,v)
-           patch%gradientBuffer(:,1,patch%iGradientBuffer)=RHS(:,v)*dJdp(:)*Qdagger(:,v)
-           end do
+!           allocate(dJdp(patch%nPatchPoints))
+!           allocate(Jac(patch%nPatchPoints))
+!           allocate(Qdagger(patch%nPatchPoints, nDimensions+2))
+!           allocate(RHS(patch%nPatchPoints, nDimensions+2))
+!           allocate(dFdx(patch%nPatchPoints))
+!           call patch%collect(region%states(j)%adjointVariables(:,:), Qdagger(:,:))
+!           call patch%collect(region%states(j)%rightHandSide(:,:),RHS(:,:))
+!           do v=1,nDimensions+2
+!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=dFdx(:)
+!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=patch%gradientBuffer(:,1,patch%iGradientBuffer)+dFdx(:)
+!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=patch%gradientBuffer(:,1,patch%iGradientBuffer)+dFdx(:)      
+!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=&
+!                +patch%gradientBuffer(:,1,patch%iGradientBuffer)*dJdp(:)*Qdagger(:,v)
+!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=RHS(:,v)*dJdp(:)*Qdagger(:,v)
+!           end do
+!
+!          allocate(dQdxi(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
+!          allocate(inviscidFluxes(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
+!          allocate(viscousFluxes(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
+!           do v=1,nDimensions+2
+!                do d = 1, nDimensions
+!                call region%grids(j)%firstDerivative(d)%apply(dQdxi(:,:,d), region%grids(j)%localSize)
+!                end do
+!           end do
 
-          allocate(dQdxi(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
-          allocate(inviscidFluxes(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
-          allocate(viscousFluxes(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
-           do v=1,nDimensions+2
-                do d = 1, nDimensions
-                call region%grids(j)%firstDerivative(d)%apply(dQdxi(:,:,d), region%grids(j)%localSize)
-                end do
-           end do
+!          call computeCartesianInvsicidFluxes(nDimensions, region%states(j)%conservedVariables,&
+!                region%states(j)%velocity, region%states(j)%pressure(:,1), inviscidFluxes)
 
-          call computeCartesianInvsicidFluxes(nDimensions, region%states(j)%conservedVariables,&
-                region%states(j)%velocity, region%states(j)%pressure(:,1), inviscidFluxes)
-
-           if (getOption("include_viscous_terms",.false.) .and.getOption("repeat_first_derivative", .true.)) then
-          call computeCartesianViscousFluxes(nDimensions, region%states(j)%velocity,&
-                region%states(j)%stressTensor, region%states(j)%heatFlux, viscousFluxes)
-          end if
+!           if (getOption("include_viscous_terms",.false.) .and.getOption("repeat_first_derivative", .true.)) then
+!          call computeCartesianViscousFluxes(nDimensions, region%states(j)%velocity,&
+!                region%states(j)%stressTensor, region%states(j)%heatFlux, viscousFluxes)
+!          end if
           !collect from grid to patch and calculate
 
-           SAFE_DEALLOCATE(viscousFluxes)
-           SAFE_DEALLOCATE(inviscidFluxes)
-           SAFE_DEALLOCATE(dQdxi)
-           SAFE_DEALLOCATE(Jac) 
-           SAFE_DEALLOCATE(RHS)
-           SAFE_DEALLOCATE(Qdagger)
-           SAFE_DEALLOCATE(dJdp)
-           SAFE_DEALLOCATE(dFdx)
-
+!           SAFE_DEALLOCATE(viscousFluxes)
+!           SAFE_DEALLOCATE(inviscidFluxes)
+!           SAFE_DEALLOCATE(dQdxi)
+!           SAFE_DEALLOCATE(Jac) 
+!           SAFE_DEALLOCATE(RHS)
+!           SAFE_DEALLOCATE(Qdagger)
+!           SAFE_DEALLOCATE(dJdp)
+!           SAFE_DEALLOCATE(dFdx)
 
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3)) then
               call patch%saveGradient()
@@ -372,6 +432,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   integer :: i, fileUnit, mpiFileHandle, procRank, ierror
   class(t_Patch), pointer :: patch => null()
   logical :: fileExists
+  logical:: hasNegativeJacobian
   character(len = STRING_LENGTH) :: message
 
   if (.not. allocated(region%patchFactories)) return
@@ -401,12 +462,8 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
            call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
            call MPI_File_close(mpiFileHandle, ierror)
 
-          !here you will want to read in the gradient information and remake
-           !the mesh
-        !  ! Read the grid file.
-        !  call getRequiredOption("grid_file", filename)
-        !  call region%loadData(QOI_GRID, filename)
-        !
+
+           !write new region%grid(i)%coordinates
         !  ! Update the grids by computing the Jacobian, metrics, and norm.
         !  do i = 1, size(region%grids)
         !     call region%grids(i)%update()
