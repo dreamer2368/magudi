@@ -35,11 +35,11 @@ class FWHSolver:
         return self._buffer[:,:,:,sample_index-self._curpos]
 
     def integrate(self, probe_files=None, chunk_size=20):
-        pbar = None
+        p = None
         try:
             from progressbar import ProgressBar, Percentage, Bar, ETA
             print 'Processing FWH data...'
-            pbar = ProgressBar(widgets = [Percentage(), ' ', Bar(
+            p = ProgressBar(widgets = [Percentage(), ' ', Bar(
                 '=', left = '[', right = ']'), ' ', ETA()],
                                maxval = self.nsamples).start()
         except ImportError:
@@ -59,10 +59,10 @@ class FWHSolver:
                 q[:,:,i+1] for i in range(3))) - 1. / self.gamma
             for mike in mikes:
                 mike.add_contribution(i, q)
-            if pbar:
-                pbar.update(i)
-        if pbar:
-            pbar.finish()
+            if p:
+                p.update(i)
+        if p:
+            p.finish()
 
     def _compute_normals(self, xyz):
         """Computes the areas of quadrilateral elements and the unit
@@ -226,6 +226,64 @@ def extract_fwh(g, i=161):
                 g.xyz[0][0,:,:,j].T
     g_fwh.xyz[0][:,-1,:,:] = g_fwh.xyz[0][:,0,:,:]
     return g_fwh
+
+def extract_const_r(g, f, r=0.5, stencil_size=5, show_progress=True):
+    from scipy.interpolate import BarycentricInterpolator
+    z = g.set_subzone(0, [0, 0, 0], [0, 0, -1]).load().xyz[0][0,0,:,2]
+    # Find nearest neighbors and setup Barycentric interpolators.
+    g.set_subzone(1, [0, 0, 0], [-1, -2, 0]).load()
+    i_nearest = np.array([np.argmin(np.abs(g.xyz[0][:,i,0,0] ** 2 +
+                                           g.xyz[0][:,i,0,1] ** 2 - r ** 2))
+                          for i in range(g.get_size(0)[1])], dtype=int)
+    i_offset = i_nearest.min() - stencil_size / 2
+    interpolators = [BarycentricInterpolator(np.sqrt(
+        g.xyz[0][i_nearest[i]-stencil_size/2:
+                 i_nearest[i]+stencil_size/2+1,i,0,0] ** 2 +
+        g.xyz[0][i_nearest[i]-stencil_size/2:
+                 i_nearest[i]+stencil_size/2+1,i,0,1] ** 2))
+                     for i in range(i_nearest.size)]
+    i_nearest -= i_offset
+    ge = p3d.Grid().set_size([4 * len(interpolators), z.size, 1], True)
+    for k in range(z.size):
+        ge.xyz[0][:,k,0,2] = z[k]
+    if type(f) == p3d.Solution:
+        fe = p3d.Solution().copy_from(ge)
+    else:
+        fe = p3d.Function(ncomponents=f.ncomponents).copy_from(ge)
+    m = f.set_subzone(0, [0, 0, 0], [1, 0, 0]).load()[0].shape[-1] + 2
+    if show_progress:
+        from progressbar import ProgressBar, Percentage, Bar, ETA
+        print 'Interpolating on constant-radius surface:'
+        p = ProgressBar(widgets = [Percentage(), ' ',
+                                   Bar('=', left = '[', right = ']'), ' ',
+                                   ETA()], maxval=4 * m).start()
+    for i in range(1, 5):
+        g.set_subzone(
+            i, [i_offset + i_nearest.min() - stencil_size / 2, 0, 0],
+            [i_offset + i_nearest.max() + stencil_size / 2, -2, 0]).load()
+        for l in range(2): # grid coordinates
+            for j, interpolator in enumerate(interpolators):
+                interpolator.set_yi(
+                    g.xyz[0][i_nearest[j]-stencil_size/2:
+                             i_nearest[j]+stencil_size/2+1,j,0,l])
+                ge.xyz[0][(i-1)*len(interpolators)+j,:,0,l] = interpolator(r)
+            if show_progress:
+                p.update((i - 1) * m + l + 1)
+        f.set_subzone(
+            i, [i_offset + i_nearest.min() - stencil_size / 2, 0, 0],
+            [i_offset + i_nearest.max() + stencil_size / 2, -2, -1]).load()
+        for l in range(m - 2): # solution/function components
+            for k in range(z.size):
+                for j, interpolator in enumerate(interpolators):
+                    interpolator.set_yi(
+                        f[0][i_nearest[j]-stencil_size/2:
+                             i_nearest[j]+stencil_size/2+1,j,k,l])
+                    fe[0][(i-1)*len(interpolators)+j,k,0,l] = interpolator(r)
+            if show_progress:
+                p.update((i - 1) * m + l + 3)
+    if show_progress:
+        p.finish()
+    return ge, fe
 
 def farfield_sound(g, probe_files=['OSUMach1.3.probe_fwh.%s.dat' % s
                                    for s in ['E', 'N', 'W', 'S']],
