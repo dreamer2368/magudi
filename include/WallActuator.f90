@@ -10,10 +10,8 @@ module WallActuator_mod
   type, extends(t_Controller), public :: t_WallActuator
  
      integer:: numP
-     real(SCALAR_KIND),allocatable,dimension(:)::J
-     real(SCALAR_KIND),allocatable,dimension(:,:)::dJdp
-     real(SCALAR_KIND),allocatable,dimension(:,:,:)::dMijdp
-
+     real(SCALAR_KIND),allocatable,dimension(:)::p !list of parameter values
+     
    contains
 
      procedure, pass :: setup => setupWallActuator
@@ -24,6 +22,11 @@ module WallActuator_mod
      procedure, pass :: isPatchValid => isWallActuatorPatchValid
      procedure, pass :: hookBeforeTimemarch => hookWallActuatorBeforeTimemarch
      procedure, pass :: hookAfterTimemarch => hookWallActuatorAfterTimemarch
+   
+     !type-specific 
+     !procedure,private,nopass :: compute_dMijdp
+     !procedure,private,nopass :: compute_Jacobian
+     !procedure,private,nopass :: compute_dJdp
 
   end type t_WallActuator
 

@@ -48,23 +48,13 @@ subroutine setupWallActuator(this, region)
      end do
   end if
 
-
-        this%numP=1
-        SAFE_DEALLOCATE(this%p)
-        allocate(this%p(this%numP))
-        this%p(1)=3._wp*pi/8._wp
+     !region%states(j)%actuationAmount
+     this%numP=1
+     SAFE_DEALLOCATE(this%p)
+     allocate(this%p(this%numP))
+     this%p(1)=3._wp*pi/8._wp
 
 end subroutine setupWallActuator
-
-!not sure how I am going to make these
-!either compute once at the beginning and move onto mesh
-!and move on patches
-!or compute them on the fly
-
-!real(SCALAR_KIND) function get_dMijdp(this)
-!real(SCALAR_KIND) function get_J(this)
-!real(SCALAR_KIND) function get_dJdp(this)
-!real(SCALAR_KIND) function get_Mij(this)
 
 subroutine cleanupWallActuator(this)
 
@@ -90,7 +80,7 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
   use WallActuator_mod, only : t_WallActuator
   use CNSHelper
   use InputHelper, only : getOption
-
+  use WavywallHelperImpl !computes specific quantities for Wall
   implicit none
 
   ! <<< Arguments >>>
@@ -114,7 +104,6 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
 
-
   instantaneousSensitivity = 0.0_wp
 
   do i = 1, size(region%grids)
@@ -131,9 +120,16 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
 
      allocate(dMijdp(region%grids(i)%nGridPoints,nDimensions,nDimensions,this%numP))
+     call compute_dMijdp(this,region%grids(i),dMijdp)
+  
      allocate(F(region%grids(i)%nGridPoints,this%numP))
+     
      allocate(dJdp(region%grids(i)%nGridPoints,this%numP))
+     call compute_dJdp(this,region%grids(i),dJdp)
+     
      allocate(Jac(region%grids(i)%nGridPoints))
+     call compute_Jacobian(this,region%grids(i),Jac)    
+ 
      allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
      allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
      allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
@@ -169,7 +165,8 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      end do !ii
      end do !jj
 
-     !this is a the surface contribution which is set by the controll mollifier
+     !this is the surface contribution whose weight will be set the the
+     !controller mollifier 
      do jj=1,nDimensions
           F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*Jac(:)*&
                (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*dMijdp(:,2,jj,p)*&
@@ -179,9 +176,8 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      end do !v
      end do !p
 
-    F(:,:)=0._wp
     instantaneousSensitivity = instantaneousSensitivity +&
-          region%grids(i)%computeInnerProduct(F, F)
+          region%grids(i)%computeInnerProduct(F,F)
 
      SAFE_DEALLOCATE(viscousFluxes)
      SAFE_DEALLOCATE(inviscidFluxes)
@@ -278,23 +274,9 @@ subroutine updateWallActuatorGradient(this, region)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, d, v, nDimensions
   class(t_Patch), pointer :: patch => null()
- 
-  SCALAR_TYPE, allocatable :: dQdxi(:,:,:),viscousFluxes(:,:,:),inviscidFluxes(:,:,:)
-  SCALAR_TYPE, allocatable :: Qdagger(:,:)
-  SCALAR_TYPE, allocatable :: dFdx(:)
-  SCALAR_TYPE, allocatable :: dJdp(:),Jac(:)
-  SCALAR_TYPE, allocatable :: n(:)
-  SCALAR_TYPE, allocatable :: RHS(:,:)
-
-
-  if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (2))
-
-  allocate(n(2))
-  n(1)=0.
-  n(2)=-1.
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
@@ -308,49 +290,6 @@ subroutine updateWallActuatorGradient(this, region)
            assert(patch%iGradientBuffer >= 1)
            assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
            
-!           allocate(dJdp(patch%nPatchPoints))
-!           allocate(Jac(patch%nPatchPoints))
-!           allocate(Qdagger(patch%nPatchPoints, nDimensions+2))
-!           allocate(RHS(patch%nPatchPoints, nDimensions+2))
-!           allocate(dFdx(patch%nPatchPoints))
-!           call patch%collect(region%states(j)%adjointVariables(:,:), Qdagger(:,:))
-!           call patch%collect(region%states(j)%rightHandSide(:,:),RHS(:,:))
-!           do v=1,nDimensions+2
-!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=dFdx(:)
-!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=patch%gradientBuffer(:,1,patch%iGradientBuffer)+dFdx(:)
-!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=patch%gradientBuffer(:,1,patch%iGradientBuffer)+dFdx(:)      
-!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=&
-!                +patch%gradientBuffer(:,1,patch%iGradientBuffer)*dJdp(:)*Qdagger(:,v)
-!           patch%gradientBuffer(:,1,patch%iGradientBuffer)=RHS(:,v)*dJdp(:)*Qdagger(:,v)
-!           end do
-!
-!          allocate(dQdxi(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
-!          allocate(inviscidFluxes(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
-!          allocate(viscousFluxes(region%grids(j)%nGridPoints,nDimensions+2,nDimensions))
-!           do v=1,nDimensions+2
-!                do d = 1, nDimensions
-!                call region%grids(j)%firstDerivative(d)%apply(dQdxi(:,:,d), region%grids(j)%localSize)
-!                end do
-!           end do
-
-!          call computeCartesianInvsicidFluxes(nDimensions, region%states(j)%conservedVariables,&
-!                region%states(j)%velocity, region%states(j)%pressure(:,1), inviscidFluxes)
-
-!           if (getOption("include_viscous_terms",.false.) .and.getOption("repeat_first_derivative", .true.)) then
-!          call computeCartesianViscousFluxes(nDimensions, region%states(j)%velocity,&
-!                region%states(j)%stressTensor, region%states(j)%heatFlux, viscousFluxes)
-!          end if
-          !collect from grid to patch and calculate
-
-!           SAFE_DEALLOCATE(viscousFluxes)
-!           SAFE_DEALLOCATE(inviscidFluxes)
-!           SAFE_DEALLOCATE(dQdxi)
-!           SAFE_DEALLOCATE(Jac) 
-!           SAFE_DEALLOCATE(RHS)
-!           SAFE_DEALLOCATE(Qdagger)
-!           SAFE_DEALLOCATE(dJdp)
-!           SAFE_DEALLOCATE(dFdx)
-
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3)) then
               call patch%saveGradient()
               patch%iGradientBuffer = 0
@@ -411,7 +350,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
-  use Controller_mod, only : t_Controller
+  use WallActuator_mod, only : t_WallActuator
   use ActuatorPatch_mod, only : t_ActuatorPatch
 
   ! <<< Enumerations >>>
@@ -420,23 +359,47 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   ! <<< Internal modules >>>
   use InputHelper, only : getFreeUnit
   use ErrorHandler, only : gracefulExit
+  use WavywallHelperImpl
+  use Grid_enum
+  use InputHelper, only : getOption, getRequiredOption  
 
   implicit none
 
   ! <<< Arguments >>>
-  class(t_Controller) :: this
+  class(t_WallActuator) :: this
   class(t_Region) :: region
   integer, intent(in) :: mode
 
   ! <<< Local variables >>>
-  integer :: i, fileUnit, mpiFileHandle, procRank, ierror
+  integer :: i, g, fileUnit, mpiFileHandle, procRank, ierror
   class(t_Patch), pointer :: patch => null()
   logical :: fileExists
   logical:: hasNegativeJacobian
   character(len = STRING_LENGTH) :: message
+  character(len = STRING_LENGTH) :: filename,outputPrefix
+
+  select case (mode)
+     case (FORWARD)
+     do g = 1, size(region%grids)
+        call updateWallCoordinates(this,region%grids(g))
+        call region%grids(g)%update()
+     end do
+     call MPI_Barrier(region%comm, ierror)
+     call getRequiredOption("grid_file", filename)
+     filename=trim(filename)//'.p1'
+     region%outputOn = .true.
+     call region%saveData(QOI_GRID, filename)
+     call MPI_Barrier(region%comm, ierror)
+     outputPrefix = getOption("output_prefix", PROJECT_NAME)
+     ! Save the Jacobian and normalized metrics.
+     write(filename, '(2A)') trim(outputPrefix), ".Jacobian.p1.f"
+     call region%saveData(QOI_JACOBIAN, filename)
+     write(filename, '(2A)') trim(outputPrefix), ".metrics.p1.f"
+     call region%saveData(QOI_METRICS, filename)
+     region%outputOn = .false.
+  end select
 
   if (.not. allocated(region%patchFactories)) return
-
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
      if (.not. associated(patch)) cycle
@@ -461,25 +424,6 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
                 MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
            call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
            call MPI_File_close(mpiFileHandle, ierror)
-
-
-           !write new region%grid(i)%coordinates
-        !  ! Update the grids by computing the Jacobian, metrics, and norm.
-        !  do i = 1, size(region%grids)
-        !     call region%grids(i)%update()
-        !  end do
-        !  call MPI_Barrier(region%comm, ierror)
-        !
-        !  ! Write out some useful information.
-        !  call region%reportGridDiagnostics()
-        !
-        !  ! Save the Jacobian and normalized metrics.
-        !  write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
-        !  call region%saveData(QOI_JACOBIAN, filename)
-        !  write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
-        !  call region%saveData(QOI_METRICS, filename)
-        !  call getRequiredOption("grid_file", filename)
-        !  call region%saveData(QOI_GRID, filename)
 
         case (ADJOINT)
            if (procRank == 0) then
@@ -506,7 +450,7 @@ subroutine hookWallActuatorAfterTimemarch(this, region, mode)
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
-  use Controller_mod, only : t_Controller
+  use WallActuator_mod, only : t_WallActuator
   use ActuatorPatch_mod, only : t_ActuatorPatch
 
   ! <<< Enumerations >>>
@@ -519,7 +463,7 @@ subroutine hookWallActuatorAfterTimemarch(this, region, mode)
   implicit none
 
   ! <<< Arguments >>>
-  class(t_Controller) :: this
+  class(t_WallActuator) :: this
   class(t_Region) :: region
   integer, intent(in) :: mode
 
@@ -549,4 +493,5 @@ subroutine hookWallActuatorAfterTimemarch(this, region, mode)
   end do
 
 end subroutine hookWallActuatorAfterTimemarch
+
 
