@@ -773,5 +773,46 @@ def tanh_support(x, x_min, x_max, sigma, xi):
 def find_extents(x, x_min, x_max):
     return np.where(x >= x_min)[0][0], np.where(x <= x_max)[0][-1] + 2
 
+def sbp(n, interior_accuracy=4, order=1, periodic=False, dtype=np.float64):
+    if periodic:
+        return fdmakeop(n, interior_accuracy, order, True, dtype)
+    from scipy.sparse import dok_matrix
+    assert interior_accuracy in [2, 4, 6, 8]
+    assert order in [1, 2]
+    a = dok_matrix((n, n), dtype=dtype)
+    d = interior_accuracy if interior_accuracy != 2 else 1
+    m = (interior_accuracy + order - 1) / 2
+    s = np.arange(-m, m + 1)
+    for k in xrange(d, n - d):
+        c = fdcoeff(s, order)
+        for ck, sk in izip(c, s):
+            a[k,(k+sk)%n] = ck
+    if order == 1:
+        if interior_accuracy == 4:
+            a[0,0:4] = a[-1,-1:-5:-1] = [-24./17., 59./34., -4./17., -3./34.]
+            a[1,0:3] = a[-2,-1:-4:-1] = [-0.5, 0., 0.5]
+            a[2,0:5] = a[-3,-1:-6:-1] = [4./43., -59./86., 0., 59./86.,
+                                         -4./43.]
+            a[3,0:6] = a[-4,-1:-7:-1] = [3./98., 0., -59./98., 0., 32./49,
+                                         -4./49.]
+    if order % 2 == 1:
+        a[-d:,:] = -a[-d:,:]
+    return a.tocsr()
+
+def compute_jacobian(g, op_func=sbp, *op_func_args):
+    f = Function(ncomponents=9).copy_from(g)
+    for i, xyz in enumerate(g.xyz):
+        n = g.get_size(i)
+        f.f[i].fill(0.)
+        for j in range(3):
+            if n[j] > 1:
+                op = op_func(n[j], *op_func_args)
+                for k in range(3):
+                    f.f[i][:,:,:,k+3*j] = np.apply_along_axis(
+                        op.dot, j, xyz[:,:,:,k])
+            else:
+                f.f[i][:,:,:,j+3*j] = 1.
+    return f
+
 if __name__ == '__main__':
     pass

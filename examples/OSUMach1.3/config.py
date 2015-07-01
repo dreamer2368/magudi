@@ -5,7 +5,7 @@ import tempfile
 import subprocess
 import os
 import os.path
-import random
+import numpy.random as random
 
 EPSILON = np.finfo(float).eps
 
@@ -269,11 +269,11 @@ def domain(f, edge1, edge2, edge3, edge4, label):
     print >>f, 'set %s [gg::domEnd]' % (label)
     return None
 
-def write_glyph_file(filename, num_axial=1, num_radial=281, num_azimuthal=192,
-                     a_inner=0.5, p_inner=1., r_nozzle=0.5, r_outer=12.5,
-                     z_min=-10., z_max=34., potential_core_length=11.,
-                     fraction_inside_nozzle=0.1, num_const_dr=12,
-                     dr_min_fraction=0.8, dz_min_fraction=2.25,
+def write_glyph_file(filename, num_axial=1, num_radial=241, num_azimuthal=128,
+                     a_inner=0.24, p_inner=1.14, r_nozzle=0.5, r_outer=12.5,
+                     z_min=-10., z_max=34., potential_core_length=8.,
+                     fraction_inside_nozzle=0.2, num_const_dr=4,
+                     dr_min_fraction=1., dz_min_fraction=2.25,
                      interface_ds_ratio=1.):
     assert num_azimuthal % 4 == 0
     num_radial_inside_nozzle = int(np.floor(fraction_inside_nozzle *
@@ -413,8 +413,7 @@ def grid(**kwargs):
         subprocess.check_output(["gridgen", "-b", f.name])
         os.unlink(f.name)
 
-def target_state(g, mach_number=1.3, theta_j=0.02, S=0.06,
-                 potential_core_length=11., gamma=1.4):
+def target_state(g, mach_number=1.3, theta_j=0.04, S=0.03, gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
     u_j = mach_number * np.sqrt(temperature_ratio)
@@ -425,9 +424,6 @@ def target_state(g, mach_number=1.3, theta_j=0.02, S=0.06,
         for k in range(z.size):
             s.q[i][:,:,k,3] = 0.5 * u_j * (1. + np.tanh(0.25 / theta[k] *
                                                         (1. / r - r)))
-            if z[k] > potential_core_length:
-                s.q[i][:,:,k,3] *= (1. - np.exp(
-                    1.35 / (1. - z[k] / potential_core_length)))
         s.q[i][:,:,:,0] = 1. / (0.5 * (gamma - 1.) * s.q[i][:,:,:,3] / u_j *
                                 (1. - s.q[i][:,:,:,3] / u_j) *
                                 mach_number ** 2 + s.q[i][:,:,:,3] / u_j +
@@ -435,7 +431,7 @@ def target_state(g, mach_number=1.3, theta_j=0.02, S=0.06,
                                 temperature_ratio) / temperature_ratio
     return s.fromprimitive(gamma)
 
-def eigenmodes(mach_number=1.3, theta_j=0.02, show_progress=True):
+def eigenmodes(mach_number=1.3, theta_j=0.04, show_progress=True):
     u_j = InstabilityMode(mach_number=mach_number,
                           theta=theta_j).update().mean_flow(EPSILON)[0]
     n = np.arange(1, 6)
@@ -487,7 +483,7 @@ def inflow_perturbations(g, modes):
     phi_n = 2. * np.pi * random.rand(len(modes))
     sr = p3d.Solution().copy_from(g)
     si = p3d.Solution().copy_from(g)
-    sr._format.aux_header[1] = si._format.aux_header[1] = mode[0].omega
+    sr._format.aux_header[1] = si._format.aux_header[1] = modes[0].omega
     for i in range(g.nblocks):
         r = np.sqrt(g.xyz[i][:,:,0,0] ** 2 + g.xyz[i][:,:,0,1] ** 2)
         theta = np.arctan2(g.xyz[i][:,:,0,1], g.xyz[i][:,:,0,0])
@@ -572,8 +568,10 @@ def control_mollifier(g):
     return f
 
 if __name__ == '__main__':
-    grid(num_axial=481, num_radial=281, num_azimuthal=192,
-         p_inner=1.12148531779, interface_ds_ratio=0.999793250757)
+    from numpy.linalg import det
+    # grid(num_axial=481, num_radial=281, num_azimuthal=192,
+    #      p_inner=1.12148531779, interface_ds_ratio=0.999793250757)
+    grid(num_axial=481)
     g = p3d.fromfile('OSUMach1.3.xyz')
     target_state(g).save('OSUMach1.3.target.q')
     target_mollifier(g).save('OSUMach1.3.target_mollifier.f')
