@@ -49,10 +49,11 @@ subroutine setupWallActuator(this, region)
   end if
 
      !region%states(j)%actuationAmount
+     this%index=0
      this%numP=1
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
-     this%p(1)=3._wp*pi/8._wp
+     !this%p(1)=3._wp*pi/8._wp
 
 end subroutine setupWallActuator
 
@@ -165,8 +166,8 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      end do !ii
      end do !jj
 
-     !this is the surface contribution whose weight will be set the the
-     !controller mollifier 
+     !this is the surface contribution whose weight only comes along the wall
+     !specified by controlMollifier
      do jj=1,nDimensions
           F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*Jac(:)*&
                (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*dMijdp(:,2,jj,p)*&
@@ -376,27 +377,28 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   logical :: fileExists
   logical:: hasNegativeJacobian
   character(len = STRING_LENGTH) :: message
+  character(len = STRING_LENGTH) :: griditeration
   character(len = STRING_LENGTH) :: filename,outputPrefix
 
   select case (mode)
      case (FORWARD)
+     
      do g = 1, size(region%grids)
+        this%p(1)=this%po(1)*region%states(g)%actuationAmount
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
      end do
+
+     write (griditeration, "(I4)") this%index
      call MPI_Barrier(region%comm, ierror)
      call getRequiredOption("grid_file", filename)
-     filename=trim(filename)//'.p1'
+     filename=trim(filename)//'.'//adjustl(trim(griditeration))
      region%outputOn = .true.
      call region%saveData(QOI_GRID, filename)
      call MPI_Barrier(region%comm, ierror)
      outputPrefix = getOption("output_prefix", PROJECT_NAME)
-     ! Save the Jacobian and normalized metrics.
-     write(filename, '(2A)') trim(outputPrefix), ".Jacobian.p1.f"
-     call region%saveData(QOI_JACOBIAN, filename)
-     write(filename, '(2A)') trim(outputPrefix), ".metrics.p1.f"
-     call region%saveData(QOI_METRICS, filename)
      region%outputOn = .false.
+     this%index=this%index+1
   end select
 
   if (.not. allocated(region%patchFactories)) return

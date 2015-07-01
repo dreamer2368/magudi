@@ -15,11 +15,54 @@ subroutine updateWallCoordinates(this,grid)
   implicit none
 
   ! <<< Arguments >>>
-  class(t_Grid),intent(in) :: grid
+  class(t_Grid),intent(inout) :: grid !anticpate grid changes
   class(t_WallActuator) :: this
 
-  !do nothing for now
+  ! <<< Locals >>>
+  SCALAR_TYPE,allocatable::unitCoordinates(:,:)
+  integer:: k,j,i,index
+  
+  !obviously functionality only hardcoded for the two-dimensional case
+  assert_key(grid%nDimensions, (2))
+
+  allocate(unitCoordinates(size(grid%coordinates(:,1)),size(grid%coordinates(1,:))))
+  call computeUnitCubeCoordinates(grid,unitCoordinates)
+ 
+  !with an updated list of p remake the physical coordinates 
+     do k = 1, grid%localSize(3)
+        do j = 1, grid%localSize(2)
+           do i = 1, grid%localSize(1)
+               index=i + grid%localSize(1) * (j - 1 +&
+                   grid%localSize(2) * (k - 1))
+               grid%coordinates(index,1) = unitCoordinates(index,1)
+               grid%coordinates(index,2) = unitCoordinates(index,2)+(1-unitCoordinates(index,2))*h(unitCoordinates(index,1),this%p)
+           end do
+        end do
+     end do
+  
+  SAFE_DEALLOCATE(unitCoordinates)
+
 end subroutine
+
+real(SCALAR_KIND) function h(xi1,p)
+! <<< Arguments >>>
+real(SCALAR_KIND)::xi1
+SCALAR_TYPE,allocatable::p(:)
+
+! <<< Locals >>>
+integer, parameter :: wp = SCALAR_KIND
+real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
+real(SCALAR_KIND)::shapeMollifier,amplitude
+
+!for now we're considering a single p
+assert_key(size(p), (1))
+
+amplitude=0.005_wp
+shapeMollifier=tanh(40._wp * (xi1 - 0.2_wp)) - tanh(40._wp * (xi1 - 0.8_wp))
+shapeMollifier=shapeMollifier/1.2_wp
+h=amplitude*shapeMollifier*cos(2._wp*pi*10._wp*xi1+p(1))
+
+end function
 
 subroutine computePhysicalCoordinates(this,grid)
   ! <<< Derived types >>>
@@ -31,6 +74,8 @@ subroutine computePhysicalCoordinates(this,grid)
   ! <<< Arguments >>>
   class(t_Grid),intent(in) :: grid
   class(t_WallActuator) :: this
+
+  ! <<< Locals >>>
   SCALAR_TYPE,allocatable::unitCoordinates(:,:)
  
   allocate(unitCoordinates(size(grid%coordinates(:,1)),size(grid%coordinates(1,:))))
