@@ -60,8 +60,7 @@ contains
 
   end subroutine allocateData
 
-  subroutine makeUnitCube(this)
-
+subroutine computeUnitCubeCoordinates(this,coordinates)
     ! <<< External modules >>>
     use MPI
 
@@ -73,6 +72,7 @@ contains
 
     ! <<< Arguments >>>
     class(t_Grid) :: this
+    SCALAR_TYPE, dimension(:,:), allocatable :: coordinates
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -103,8 +103,8 @@ contains
           do k = 1, this%localSize(3)
              do j = 1, this%localSize(2)
                 do i = 1, this%localSize(1)
-                   this%coordinates(i + this%localSize(1) * (j - 1 +                         &
-                        this%localSize(2) * (k - 1)), l) = unitInterval(i + this%offset(l))
+                   coordinates(i + this%localSize(1) * (j - 1 +&
+                        this%localSize(2) * (k - 1)), l) = unitInterval(i +this%offset(l))
                 end do
              end do
           end do
@@ -113,8 +113,8 @@ contains
           do k = 1, this%localSize(3)
              do j = 1, this%localSize(2)
                 do i = 1, this%localSize(1)
-                   this%coordinates(i + this%localSize(1) * (j - 1 +                         &
-                        this%localSize(2) * (k - 1)), l) = unitInterval(j + this%offset(l))
+                   coordinates(i + this%localSize(1) * (j - 1 +&
+                        this%localSize(2) * (k - 1)), l) = unitInterval(j +this%offset(l))
                 end do
              end do
           end do
@@ -123,8 +123,8 @@ contains
           do k = 1, this%localSize(3)
              do j = 1, this%localSize(2)
                 do i = 1, this%localSize(1)
-                   this%coordinates(i + this%localSize(1) * (j - 1 +                         &
-                        this%localSize(2) * (k - 1)), l) = unitInterval(k + this%offset(l))
+                   coordinates(i + this%localSize(1) * (j - 1 +&
+                        this%localSize(2) * (k - 1)), l) = unitInterval(k +this%offset(l))
                 end do
              end do
           end do
@@ -134,7 +134,18 @@ contains
        SAFE_DEALLOCATE(unitInterval)
 
     end do !... l = 1, this%nDimensions
+end subroutine
 
+
+subroutine makeUnitCube(this)
+
+    ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+
+    ! <<< Arguments >>>
+    class(t_Grid) :: this
+
+    call computeUnitCubeCoordinates(this,this%coordinates)
   end subroutine makeUnitCube
 
 end module GridImpl
