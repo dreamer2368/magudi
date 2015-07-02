@@ -78,7 +78,7 @@ contains
           select case (mode)
           case (FORWARD)
              if (controlIteration_ > 0) then
-                write(str_, '(A,1ES12.5,A,I2)') ", cost = ", instantaneousFunctional,       &
+                write(str_, '(A,1ES12.5,A,I2)') ", cost = ", instantaneousFunctional,        &
                      " iteration = ",controlIteration_
              else
                 write(str_, '(A,1ES12.5)') ", cost = ", instantaneousFunctional
