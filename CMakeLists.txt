@@ -185,6 +185,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/DragForceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/FlameTemperature.f90
   ${PROJECT_SOURCE_DIR}/src/FlameTemperatureImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ReactantDepletion.f90
+  ${PROJECT_SOURCE_DIR}/src/ReactantDepletionImpl.f90
   ${PROJECT_SOURCE_DIR}/include/UniformMap.f90
   ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
 

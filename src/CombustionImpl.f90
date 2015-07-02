@@ -7,6 +7,7 @@ subroutine setupCombustion(this, nSpecies, comm)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -17,6 +18,7 @@ subroutine setupCombustion(this, nSpecies, comm)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
+  character(len = STRING_LENGTH) :: message
 
   if (nSpecies == 0) return
 
@@ -53,8 +55,8 @@ subroutine setupCombustion(this, nSpecies, comm)
 
   else
 
-     print *, 'WARNING, maximum of 1 reaction for now!'
-     stop
+     write(message, '(A)') "WARNING, maximum of 1 reaction for now!"
+     call gracefulExit(comm, message)
 
   end if
 
