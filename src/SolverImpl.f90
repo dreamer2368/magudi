@@ -8,7 +8,7 @@ module SolverImpl
 contains
 
   subroutine showProgress(this, region, mode, startTimestep,                                 &
-       timestep, time, instantaneousFunctional)
+       timestep, time, instantaneousFunctional, controlIteration)
 
     ! <<< External modules >>>
     use iso_fortran_env, only : output_unit
@@ -31,11 +31,12 @@ contains
     class(t_Solver) :: this
     class(t_Region) :: region
     integer, intent(in) :: mode, timestep, startTimestep
+    integer, intent(in), optional :: controlIteration
     real(SCALAR_KIND), intent(in) :: time, instantaneousFunctional
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, nDimensions, ierror
+    integer :: i, nDimensions, ierror, controlIteration_
     real(SCALAR_KIND) :: timeStepSize, cfl, residuals(3), maxTemperature
     character(len = STRING_LENGTH) :: str, str_, filename
     class(t_Controller), pointer :: controller => null()
@@ -46,6 +47,10 @@ contains
 
     nDimensions = size(region%globalGridSizes, 1)
     assert_key(nDimensions, (1, 2, 3))
+
+    controlIteration_ = 0
+    if (present(controlIteration)) controlIteration_ = controlIteration
+    assert(controlIteration_ >= 0)
 
     if (this%reportInterval > 0 .and. mod(timestep, max(1, this%reportInterval)) == 0) then
 
@@ -61,18 +66,23 @@ contains
             (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) * 293.15_wp
 
        if (timestep <= this%reportInterval) then
-          write(str,'(a12,a2,a12,a2,3a12)') 'Step','  ','Time','   ','dt','CFL','Tmax [K]'
+          write(str,'(A12,A2,A12,A2,3A12)') 'Step','  ','Time','   ','dt','CFL','Tmax [K]'
           call writeAndFlush(region%comm, output_unit, str)
        end if
 
-       write(str, '(I12,a2,1ES12.5,a2,1ES12.5,1F12.4,1F12.4)') timestep, '   ', abs(time),      &
+       write(str, '(I12,A2,1ES12.5,A2,1ES12.5,1F12.4,1F12.4)') timestep, '   ', abs(time),   &
             '   ',timeStepSize, cfl, maxTemperature
 
        if (.not. region%simulationFlags%predictionOnly) then
 
           select case (mode)
           case (FORWARD)
-             write(str_, '(A,1ES12.5)') ", cost = ", instantaneousFunctional
+             if (controlIteration_ > 0) then
+                write(str_, '(A,1ES12.5,A,I2)') ", cost = ", instantaneousFunctional,       &
+                     " iteration = ",controlIteration_
+             else
+                write(str_, '(A,1ES12.5)') ", cost = ", instantaneousFunctional
+             end if
           case (ADJOINT)
              write(str_, '(A,1ES12.5)') ", gradient = ", instantaneousFunctional
           end select
@@ -516,7 +526,8 @@ subroutine cleanupSolver(this)
 
 end subroutine cleanupSolver
 
-function runForward(this, region, actuationAmount, restartFilename) result(costFunctional)
+function runForward(this, region, actuationAmount, controlIteration, restartFilename)        &
+     result(costFunctional)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -542,6 +553,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   ! <<< Arguments >>>
   class(t_Solver) :: this
   class(t_Region) :: region
+  integer, intent(in), optional :: controlIteration
   real(SCALAR_KIND), intent(in), optional :: actuationAmount
   character(len = *), intent(in), optional :: restartFilename
 
@@ -659,8 +671,13 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      end do !... i = 1, timeIntegrator%nStages
 
      ! Report simulation progess.
-     call showProgress(this, region, FORWARD, startTimestep, timestep,                       &
-          time, instantaneousCostFunctional)
+     if (present(controlIteration)) then
+        call showProgress(this, region, FORWARD, startTimestep, timestep,                    &
+             time, instantaneousCostFunctional, controlIteration)
+     else
+        call showProgress(this, region, FORWARD, startTimestep, timestep,                    &
+             time, instantaneousCostFunctional)
+     end if
 
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
@@ -992,7 +1009,8 @@ subroutine checkGradientAccuracy(this, region)
 
   do i = restartIteration, restartIteration + nIterations - 1
      actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
-     costFunctional = this%runForward(region, actuationAmount = actuationAmount)
+     costFunctional = this%runForward(region, actuationAmount = actuationAmount,             &
+          controlIteration = i)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
           costSensitivity
      if (procRank == 0)                                                                      &
