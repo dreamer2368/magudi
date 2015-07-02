@@ -548,11 +548,11 @@ contains
     call getRequiredOption("heat_release", heatRelease)
     call getRequiredOption("stoichiometric_ratio", s)
     uniformTemperature = getOption("initial_uniform_temperature", .false.)
+    if (.not.uniformTemperature) call getRequiredOption("wall_temperature", wallTemperature)
 
     ! Temperatures.
     T0 =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
     flameTemperature = T0 / (1.0_wp - heatRelease)
-    wallTemperature = 0.5_wp * flameTemperature
     if (uniformTemperature) temperature = T0
 
     ! Compute the strain rate.
