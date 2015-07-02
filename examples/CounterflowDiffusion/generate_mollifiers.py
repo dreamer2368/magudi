@@ -6,7 +6,7 @@ def target_mollifier(g):
     x_min = -20.
     x_max =  20.
     y_min = -8.
-    y_max =  1.
+    y_max =  2.
     f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
@@ -25,7 +25,7 @@ def target_mollifier(g):
 def control_mollifier(g):
     x_min = -20.
     x_max =  20.    
-    y_min = -1.
+    y_min = -2.
     y_max =  8.
     f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)

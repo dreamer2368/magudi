@@ -5,19 +5,19 @@
 #############################################################################################
 output_prefix = "CounterflowDiffusion"
 grid_file = "CounterflowDiffusion.xyz"
-initial_condition_file = "CounterflowDiffusion.ic.q"
+initial_condition_file = "CounterflowDiffusion.ic.q "
 boundary_condition_file = "bc.dat"
 target_state_file = "CounterflowDiffusion.target.q"
-target_mollifier_file = "CounterflowDiffusion.target_mollifier.f"
-control_mollifier_file = "CounterflowDiffusion.control_mollifier.f"
+#target_mollifier_file = "CounterflowDiffusion.target_mollifier.f"
+#control_mollifier_file = "CounterflowDiffusion.control_mollifier.f"
 
 #############################################################################################
 # Initialization parameters                                                                 #
 #############################################################################################
 
 # Grid information
-nx = 257
-ny = 513
+nx = 129
+ny = 257
 xmin_interior = -20.
 xmax_interior =  20.
 ymin_interior = -10.
@@ -29,10 +29,11 @@ ymax_outer    =  14.
 stretch_y     =  true
 
 # Mixture properties
-initial_fuel_mass_fraction = 0.25
+initial_fuel_mass_fraction = 0.1
 initial_oxidizer_mass_fraction = 0.233
-initial_jet_velocity = 0.1
+initial_jet_velocity = 0.3
 initial_uniform_temperature = false
+wall_temperature = 5.
 
 #############################################################################################
 # Forward parameters                                                                        #
@@ -68,7 +69,7 @@ defaults/discretization_scheme = "SBP 4-8"
 # Time stepping options
 time_step_size = 0.01
 cfl = 0.3
-number_of_timesteps = 100000
+number_of_timesteps = 100
 report_interval = 10
 save_interval = 100
 
@@ -81,7 +82,7 @@ composite_dissipation = true
 defaults/sponge_amount = 0.2
 
 # Solution limits
-enable_solution_limits = false
+enable_solution_limits = true
 minimum_density = 0.01
 minimum_temperature = 0.01
 minimum_mass_fraction = -0.1
@@ -105,16 +106,17 @@ defaults/viscous_penalty_amount = 0.
 #############################################################################################
 
 # Adjoint optimization flags
-disable_adjoint_solver = true
+disable_adjoint_solver = false
 baseline_prediction_available = false
-cost_functional_type = "TEMPERATURE"
 use_continuous_adjoint = false
+steady_state_simulation = false 
+cost_functional_type = "TEMPERATURE"
 gradient_buffer_size = 100
 
 # Gradient accuracy options
 controller_type = "FUEL_ACTUATOR"
 check_gradient_accuracy = true
 number_of_control_iterations = 32
-initial_actuation_amount = 10000
+initial_actuation_amount = 100
 restart_control_iteration = 0
 actuation_amount_geometric_growth = 0.5623413251903491
