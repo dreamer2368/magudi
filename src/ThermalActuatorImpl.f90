@@ -166,7 +166,7 @@ subroutine updateThermalActuatorForcing(this, region)
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
                 call patch%loadGradient()
 
-           patch%controlForcing(:,1:nDimensions+1) = 0.0_wp
+           patch%controlForcing(:,:) = 0.0_wp
            patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
                 patch%gradientBuffer(:,1,patch%iGradientBuffer)
 
