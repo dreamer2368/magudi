@@ -126,6 +126,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/IgnitionSource.f90
   ${PROJECT_SOURCE_DIR}/src/IgnitionSourceImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/FuelSource.f90
+  ${PROJECT_SOURCE_DIR}/src/FuelSourceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Combustion.f90
   ${PROJECT_SOURCE_DIR}/src/CombustionImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitationPatch.f90

@@ -107,8 +107,6 @@ function computeReactantDepletion(this, region) result(instantaneousFunctional)
      assert(size(region%states(i)%massFraction, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%massFraction, 2) == region%solverOptions%nSpecies)
 
-     j = region%grids(i)%index
-
      allocate(F(region%grids(i)%nGridPoints, 1))
      F(:,1) = region%states(i)%massFraction(:, this%reactant)
      instantaneousFunctional = instantaneousFunctional +                                     &

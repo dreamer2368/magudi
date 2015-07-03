@@ -76,7 +76,8 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   use StateImpl, only : allocateData
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption
+  use InputHelper, only : getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -88,11 +89,11 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, n
+  integer :: i, n, fuelIndex
   type(t_SimulationFlags) :: simulationFlags_
   type(t_SolverOptions) :: solverOptions_
   real(SCALAR_KIND) :: ratioOfSpecificHeats, temp(3)
-  character(len = STRING_LENGTH) :: key
+  character(len = STRING_LENGTH) :: key, message, fuel
 
   call this%cleanup()
 
@@ -157,6 +158,31 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
              getOption(trim(key) // "radius", 1.0_wp),                                       &
              getOption(trim(key) // "time_start", 0.0_wp),                                   &
              getOption(trim(key) // "time_duration", 0.0_wp))
+     end do
+  end if
+
+  n = min(getOption("number_of_fuel_sources", 0), 99)
+  if (n > 0) then
+     assert(this%nSpecies > 0)
+     allocate(this%fuelSources(n))
+     do i = 1, n
+        write(key, '(A,I2.2,A)') "fuel_source", i, "/"
+        call getRequiredOption(trim(key) // "fuel", fuel, grid%comm)
+        select case (trim(fuel))
+        case ("H2")
+           fuelIndex = this%combustion%H2
+        case ("O2")
+           fuelIndex = this%combustion%O2
+        case default
+           write(message, '(A)') "WARNING, unknown fuel!"
+           call gracefulExit(grid%comm, message)
+        end select
+        temp(1) = getOption(trim(key) // "x", 0.0_wp)
+        temp(2) = getOption(trim(key) // "y", 0.0_wp)
+        temp(3) = getOption(trim(key) // "z", 0.0_wp)
+        call this%fuelSources(i)%setup(fuelIndex, temp,                                      &
+             getOption(trim(key) // "amplitude", 1.0_wp),                                    &
+             getOption(trim(key) // "radius", 1.0_wp))
      end do
   end if
 
@@ -737,6 +763,11 @@ subroutine addSources(this, mode, grid, solverOptions)
      end do
   end if
 
+  if (mode == FORWARD .and. allocated(this%fuelSources)) then
+     do i = 1, size(this%fuelSources)
+        call this%fuelSources(i)%add(grid%coordinates, grid%iblank, this%rightHandSide)
+     end do
+  end if
 
   if (mode == FORWARD .and. this%nSpecies > 0) then
      call this%combustion%addForward(grid%nDimensions, this%conservedVariables(:,1),         &
