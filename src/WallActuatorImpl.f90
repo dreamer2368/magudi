@@ -53,7 +53,6 @@ subroutine setupWallActuator(this, region)
      this%numP=1
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
-     !this%p(1)=3._wp*pi/8._wp
 
 end subroutine setupWallActuator
 
@@ -81,7 +80,6 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
   use WallActuator_mod, only : t_WallActuator
   use CNSHelper
   use InputHelper, only : getOption
-  use WavywallHelperImpl !computes specific quantities for Wall
   implicit none
 
   ! <<< Arguments >>>
@@ -95,11 +93,8 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i,v,p,ii,jj,nDimensions,ierror
-  SCALAR_TYPE, allocatable :: Jac(:)
   SCALAR_TYPE, allocatable :: F(:,:)
   SCALAR_TYPE, allocatable :: dQdxi(:,:,:),viscousFluxes(:,:,:),inviscidFluxes(:,:,:)
-  SCALAR_TYPE, allocatable :: dJdp(:,:)
-  SCALAR_TYPE, allocatable :: dMijdp(:,:,:,:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -120,22 +115,14 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
 
-     allocate(dMijdp(region%grids(i)%nGridPoints,nDimensions,nDimensions,this%numP))
-     call compute_dMijdp(this,region%grids(i),dMijdp)
-  
+
      allocate(F(region%grids(i)%nGridPoints,this%numP))
-     
-     allocate(dJdp(region%grids(i)%nGridPoints,this%numP))
-     call compute_dJdp(this,region%grids(i),dJdp)
-     
-     allocate(Jac(region%grids(i)%nGridPoints))
-     call compute_Jacobian(this,region%grids(i),Jac)    
- 
      allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
      allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
      allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
 
      do ii = 1, nDimensions
+          dQdxi(:,:,ii)=region%states(i)%adjointVariables(:,:) 
           call region%grids(i)%firstDerivative(ii)%apply(dQdxi(:,:,ii),&
                region%grids(i)%localSize)
      end do
@@ -156,22 +143,22 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      F(:,:)=0._wp
      do p=1,this%numP
      do v=1,nDimensions+1
-          F(:,p)=F(:,p)+region%states(i)%rightHandSide(:,v)*dJdp(:,p)*&
-               region%states(i)%adjointVariables(:,v)
+          !F(:,p)=F(:,p)+region%states(i)%rightHandSide(:,v)*dJdp(:,p)*&
+          !     region%states(i)%adjointVariables(:,v)
 
      do ii=1,nDimensions
      do jj=1,nDimensions
-          F(:,p)=F(:,p)-Jac(:)*(inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
-               dMijdp(:,ii,jj,p)*dQdxi(:,v,ii)
+          !F(:,p)=F(:,p)-region%grids(i)%jacobian(:,1)*(inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
+          !     dMijdp(:,ii,jj,p)*dQdxi(:,v,ii)
      end do !ii
      end do !jj
 
      !this is the surface contribution whose weight only comes along the wall
      !specified by controlMollifier
      do jj=1,nDimensions
-          F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*Jac(:)*&
-               (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*dMijdp(:,2,jj,p)*&
-               region%grids(i)%controlMollifier(:,1)
+          !F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*region%grids(i)%jacobian(:,1)*&
+          !     (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*dMijdp(:,2,jj,p)*&
+          !     region%grids(i)%controlMollifier(:,1)
      end do
 
      end do !v
@@ -182,10 +169,7 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
 
      SAFE_DEALLOCATE(viscousFluxes)
      SAFE_DEALLOCATE(inviscidFluxes)
-     SAFE_DEALLOCATE(dMijdp)
      SAFE_DEALLOCATE(dQdxi)
-     SAFE_DEALLOCATE(Jac)
-     SAFE_DEALLOCATE(dJdp)
      SAFE_DEALLOCATE(F)
 
   end do
@@ -241,6 +225,9 @@ subroutine updateWallActuatorForcing(this, region)
 
            !if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
            !     call patch%loadGradient()
+
+           !control for a passive wall only happens when hooked in before time
+           !marcher
 
            patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
            
@@ -360,9 +347,10 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   ! <<< Internal modules >>>
   use InputHelper, only : getFreeUnit
   use ErrorHandler, only : gracefulExit
-  use WavywallHelperImpl
   use Grid_enum
   use InputHelper, only : getOption, getRequiredOption  
+  use WavywallHelperImpl,&
+     only:compute_dMijdp,compute_dJacobiandp,updateWallCoordinates
 
   implicit none
 
@@ -381,12 +369,21 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   character(len = STRING_LENGTH) :: filename,outputPrefix
 
   select case (mode)
+
+     !case (OPTIMIZE)
+     !Read previously written g if one doesn't exist then
+     !assume steepest descent 
+
+
      case (FORWARD)
      
      do g = 1, size(region%grids)
-        this%p(1)=this%po(1)*region%states(g)%actuationAmount
+        !this%p(1)=this%po(1)*region%states(g)%actuationAmount
+        this%p(1)=region%states(g)%actuationAmount
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
+        !call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
+        !call compute_dMijdp(this,region%grids(g),this%dMijdp)
      end do
 
      write (griditeration, "(I4)") this%index
@@ -399,6 +396,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      outputPrefix = getOption("output_prefix", PROJECT_NAME)
      region%outputOn = .false.
      this%index=this%index+1
+
   end select
 
   if (.not. allocated(region%patchFactories)) return
