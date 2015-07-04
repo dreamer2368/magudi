@@ -240,6 +240,11 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       state%adjointVariables(gridIndex,:))
+              else
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
+                      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
+                      state%adjointVariables(gridIndex,:))
               end if
 
               ! TODO: viscous penalties.
