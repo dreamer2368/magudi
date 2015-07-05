@@ -470,7 +470,7 @@ def eigenmodes(mach_number=1.3, theta_j=0.04, show_progress=True):
         p.finish()
     return modes
 
-def extract_inflow(g, k=42):
+def extract_inflow(g, k=43):
     n = g.get_size()
     n[:,2] = k
     gi = p3d.Grid().set_size(n, True)
@@ -493,7 +493,6 @@ def inflow_perturbations(g, modes):
         for j, mode in enumerate(modes):
             q = mode.get_eigenmode(r)
             n = mode.n
-            print q.shape
             for l in range(q.shape[0]):
                 if l == 2:
                     q[l] *= np.exp(1.j * n * theta + phi_p[j]) - \
