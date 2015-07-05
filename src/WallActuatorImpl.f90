@@ -11,6 +11,8 @@ subroutine setupWallActuator(this, region)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
+  use WavywallHelperImpl,&
+     only:compute_dMijdp,compute_dJacobiandp,updateWallCoordinates
 
   implicit none
 
@@ -48,12 +50,24 @@ subroutine setupWallActuator(this, region)
      end do
   end if
 
-     !region%states(j)%actuationAmount
      this%index=0
      this%numP=1
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
+     this%p(1)=3._wp*pi/8._wp  
+ 
+     SAFE_DEALLOCATE(this%dJacobiandp) 
+     allocate(this%dJacobiandp(region%grids(1)%nGridPoints,this%numP))
+     
+     SAFE_DEALLOCATE(this%dMijdp)
+     allocate(this%dMijdp(region%grids(1)%nGridPoints,&
+          region%grids(1)%nDimensions,region%grids(1)%nDimensions,this%numP)) 
 
+     call updateWallCoordinates(this,region%grids(1))
+     call region%grids(1)%update()
+     call compute_dJacobiandp(this,region%grids(1),this%dJacobiandp)
+     call compute_dMijdp(this,region%grids(1),this%dMijdp)
+ 
 end subroutine setupWallActuator
 
 subroutine cleanupWallActuator(this)
@@ -68,6 +82,9 @@ subroutine cleanupWallActuator(this)
 
   call this%cleanupBase()
 
+  SAFE_DEALLOCATE(this%dJacobiandp)
+  SAFE_DEALLOCATE(this%dMijdp)
+
 end subroutine cleanupWallActuator
 
 function computeWallActuatorSensitivity(this, region) result(instantaneousSensitivity)
@@ -80,6 +97,7 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
   use WallActuator_mod, only : t_WallActuator
   use CNSHelper
   use InputHelper, only : getOption
+  
   implicit none
 
   ! <<< Arguments >>>
@@ -93,19 +111,21 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i,v,p,ii,jj,nDimensions,ierror
-  SCALAR_TYPE, allocatable :: F(:,:)
+  SCALAR_TYPE, allocatable :: F(:,:),G(:,:)
   SCALAR_TYPE, allocatable :: dQdxi(:,:,:),viscousFluxes(:,:,:),inviscidFluxes(:,:,:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
+  assert(size(region%grids)==1)
 
   instantaneousSensitivity = 0.0_wp
 
-  do i = 1, size(region%grids)
+!  do i = 1, size(region%grids)
+i=1
 
      nDimensions = region%grids(i)%nDimensions
-     assert_key(nDimensions, (1, 2, 3))
+     assert_key(nDimensions, (2))
 
      assert(region%grids(i)%nGridPoints > 0)
      assert(allocated(region%grids(i)%controlMollifier))
@@ -114,12 +134,20 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
      assert(allocated(region%states(i)%adjointVariables))
      assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
+     assert(allocated(this%dMijdp))
+     assert(allocated(this%dJacobiandp))
 
-
+     allocate(G(region%grids(i)%nGridPoints,this%numP))
      allocate(F(region%grids(i)%nGridPoints,this%numP))
      allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
      allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
      allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+
+     G=0._wp
+     F=0._wp
+     dQdxi=0._wp
+     inviscidFluxes=0._wp
+     viscousFluxes=0._wp
 
      do ii = 1, nDimensions
           dQdxi(:,:,ii)=region%states(i)%adjointVariables(:,:) 
@@ -140,39 +168,39 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
           viscousFluxes)
      end if
 
-     F(:,:)=0._wp
      do p=1,this%numP
-     do v=1,nDimensions+1
-          !F(:,p)=F(:,p)+region%states(i)%rightHandSide(:,v)*dJdp(:,p)*&
-          !     region%states(i)%adjointVariables(:,v)
+     do v=1,nDimensions+2
+         F(:,p)=F(:,p)+region%states(i)%rightHandSide(:,v)*this%dJacobiandp(:,p)*&
+               region%states(i)%adjointVariables(:,v)
 
      do ii=1,nDimensions
      do jj=1,nDimensions
-          !F(:,p)=F(:,p)-region%grids(i)%jacobian(:,1)*(inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
-          !     dMijdp(:,ii,jj,p)*dQdxi(:,v,ii)
+          F(:,p)=F(:,p)-region%grids(i)%jacobian(:,1)*(inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
+               this%dMijdp(:,ii,jj,p)*dQdxi(:,v,ii)
      end do !ii
      end do !jj
 
      !this is the surface contribution whose weight only comes along the wall
      !specified by controlMollifier
      do jj=1,nDimensions
-          !F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*region%grids(i)%jacobian(:,1)*&
-          !     (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*dMijdp(:,2,jj,p)*&
-          !     region%grids(i)%controlMollifier(:,1)
+          F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*region%grids(i)%jacobian(:,1)*&
+               (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*this%dMijdp(:,2,jj,p)*&
+               region%grids(i)%controlMollifier(:,1)
      end do
 
-     end do !v
-     end do !p
+     end do
+     end do
 
+    G(:,1)=1._wp
     instantaneousSensitivity = instantaneousSensitivity +&
-          region%grids(i)%computeInnerProduct(F,F)
+          region%grids(i)%computeInnerProduct(F,G)
 
      SAFE_DEALLOCATE(viscousFluxes)
      SAFE_DEALLOCATE(inviscidFluxes)
      SAFE_DEALLOCATE(dQdxi)
      SAFE_DEALLOCATE(F)
 
-  end do
+!  end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
        call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                         &
@@ -382,8 +410,8 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
         this%p(1)=region%states(g)%actuationAmount
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
-        !call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
-        !call compute_dMijdp(this,region%grids(g),this%dMijdp)
+        call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
+        call compute_dMijdp(this,region%grids(g),this%dMijdp)
      end do
 
      write (griditeration, "(I4)") this%index

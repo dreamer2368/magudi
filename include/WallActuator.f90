@@ -9,9 +9,21 @@ module WallActuator_mod
 
   type, extends(t_Controller), public :: t_WallActuator
  
-     integer:: numP
-     real(SCALAR_KIND),allocatable,dimension(:)::p !list of parameter values
+     integer::numP
+     integer::numModes
+     integer::index 
+     integer::amplitude_scale
+     real(SCALAR_KIND),allocatable,dimension(:)::p  !current values of params 
+     real(SCALAR_KIND),allocatable,dimension(:)::po !initial value of params
+     real(SCALAR_KIND),allocatable,dimension(:)::amplitudes
+     real(SCALAR_KIND),allocatable,dimension(:)::phases
      
+     !this may be getting moved to their own patch
+     !at this point I am using the controller to know everything about the patch 
+     !and grid
+     real(SCALAR_KIND),allocatable,dimension(:,:)::dJacobiandp    
+     real(SCALAR_KIND),allocatable,dimension(:,:,:,:)::dMijdp
+   
    contains
 
      procedure, pass :: setup => setupWallActuator
@@ -23,11 +35,6 @@ module WallActuator_mod
      procedure, pass :: hookBeforeTimemarch => hookWallActuatorBeforeTimemarch
      procedure, pass :: hookAfterTimemarch => hookWallActuatorAfterTimemarch
    
-     !type-specific 
-     !procedure,private,nopass :: compute_dMijdp
-     !procedure,private,nopass :: compute_Jacobian
-     !procedure,private,nopass :: compute_dJdp
-
   end type t_WallActuator
 
   interface
