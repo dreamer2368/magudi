@@ -1,5 +1,8 @@
 import plot3dnasa as p3d
 import numpy as np
+from numpy.linalg import norm
+import os
+import itertools
 
 class FWHSolver:
     def __init__(self, g, mikes, nsamples, dt, gamma=1.4):
@@ -17,6 +20,7 @@ class FWHSolver:
                             cell_areas, unit_normals, dt, nsteps,
                             nsamples, int(np.ceil(d_max / dt)))
         self.get = None
+        self._n = g.get_size(0)
 
     def get_probe(self, sample_index, probe_files, chunk_size):
         if sample_index >= self._curpos and \
@@ -35,19 +39,19 @@ class FWHSolver:
         return self._buffer[:,:,:,sample_index-self._curpos]
 
     def integrate(self, probe_files=None, chunk_size=20):
-        p = None
+        pbar = None
         try:
             from progressbar import ProgressBar, Percentage, Bar, ETA
             print 'Processing FWH data...'
-            p = ProgressBar(widgets = [Percentage(), ' ', Bar(
+            pbar = ProgressBar(widgets = [Percentage(), ' ', Bar(
                 '=', left = '[', right = ']'), ' ', ETA()],
                                maxval = self.nsamples).start()
         except ImportError:
             pass
         if probe_files:
             self._curpos = self.nsamples
-            n = g.get_size(0)
-            self._buffer = np.empty([n[1], n[0], 5, chunk_size], order='F')
+            self._buffer = np.empty([self._n[1], self._n[0], 5, chunk_size],
+                                    order='F')
         for i in range(self.nsamples):
             if probe_files:
                 q = self.get_probe(i, probe_files, chunk_size)
@@ -57,12 +61,12 @@ class FWHSolver:
             q[:,:,0] = 1. / q[:,:,0]
             q[:,:,4] = (self.gamma - 1.) * (q[:,:,4] - 0.5 * q[:,:,0] * np.sum(
                 q[:,:,i+1] for i in range(3))) - 1. / self.gamma
-            for mike in mikes:
+            for mike in self.mikes:
                 mike.add_contribution(i, q)
-            if p:
-                p.update(i)
-        if p:
-            p.finish()
+            if pbar:
+                pbar.update(i)
+        if pbar:
+            pbar.finish()
 
     def _compute_normals(self, xyz):
         """Computes the areas of quadrilateral elements and the unit
@@ -118,7 +122,7 @@ class Mike:
         self.dp_factor = 1. / (4. * np.pi * len(self.slices))
         self.coeff /= dt
         self.weights = self.advanced_offset - np.trunc(self.advanced_offset)
-        self.t = (self.signal_offset + 1 + arange(nsteps)) * dt
+        self.t = (self.signal_offset + 1 + np.arange(nsteps)) * dt
         return self
 
     def _allocate(self, n, nsteps):
@@ -215,18 +219,6 @@ def extract_yz(g, f):
             fe[0][so[i] + [j]] = f[0][si[i] + [j]].T
     return ge, fe
 
-def extract_fwh(g, i=161):
-    n = g.get_size()
-    g_fwh = p3d.Grid()
-    g_fwh.set_size([n[0][2], 4 * (n[1][1] - 1) + 1, 1], True)
-    for i in range(1, 5):
-        g.set_subzone(i, [i, 0, 0], [i, -2, -1]).load()
-        for j in range(3):
-            g_fwh.xyz[0][:,(i-1)*(n[1][1]-1):i*(n[1][1]-1),0,j] = \
-                g.xyz[0][0,:,:,j].T
-    g_fwh.xyz[0][:,-1,:,:] = g_fwh.xyz[0][:,0,:,:]
-    return g_fwh
-
 def extract_const_r(g, f, r=0.5, stencil_size=5, show_progress=True):
     from scipy.interpolate import BarycentricInterpolator
     z = g.set_subzone(0, [0, 0, 0], [0, 0, -1]).load().xyz[0][0,0,:,2]
@@ -285,6 +277,18 @@ def extract_const_r(g, f, r=0.5, stencil_size=5, show_progress=True):
         p.finish()
     return ge, fe
 
+def extract_fwh(g, i=161):
+    n = g.get_size()
+    g_fwh = p3d.Grid()
+    g_fwh.set_size([n[0][2], 4 * (n[1][1] - 1) + 1, 1], True)
+    for i in range(1, 5):
+        g.set_subzone(i, [i, 0, 0], [i, -2, -1]).load()
+        for j in range(3):
+            g_fwh.xyz[0][:,(i-1)*(n[1][1]-1):i*(n[1][1]-1),0,j] = \
+                g.xyz[0][0,:,:,j].T
+    g_fwh.xyz[0][:,-1,:,:] = g_fwh.xyz[0][:,0,:,:]
+    return g_fwh
+
 def farfield_sound(g, probe_files=['OSUMach1.3.probe_fwh.%s.dat' % s
                                    for s in ['E', 'N', 'W', 'S']],
                    x0=[0., 0., 2.5], d=94., theta=30., dt=0.039, gamma=1.4):
@@ -297,3 +301,4 @@ def farfield_sound(g, probe_files=['OSUMach1.3.probe_fwh.%s.dat' % s
     # solver.get = monopole
     # solver.get_args = (g, x0, dt, gamma)
     solver.integrate(probe_files)
+    return mikes

@@ -755,15 +755,13 @@ def cartesian_grid(filename, block_index=0):
 
 def cubic_bspline_support(x, x_min, x_max):
     from scipy.signal import cubic
-    imin = np.argmin(np.abs(x - x_min))
-    imax = np.argmin(np.abs(x - x_max))
-    assert imax - imin + 1 >= 3
+    imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
+    imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
     return cubic(4. * (x - x[imin]) / (x[imax] - x[imin]) - 2.)
 
 def tanh_support(x, x_min, x_max, sigma, xi):
-    imin = np.argmin(np.abs(x - x_min))
-    imax = np.argmin(np.abs(x - x_max))
-    assert imax > imin
+    imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
+    imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
     f = lambda x: \
         np.tanh(sigma * (x + 1. - 0.5 * xi)) - \
         np.tanh(sigma * (x - 1. + 0.5 * xi))
