@@ -107,10 +107,12 @@ function computeReactantDepletion(this, region) result(instantaneousFunctional)
      assert(size(region%states(i)%massFraction, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%massFraction, 2) == region%solverOptions%nSpecies)
 
-     allocate(F(region%grids(i)%nGridPoints, 1))
+     allocate(F(region%grids(i)%nGridPoints, 2))
      F(:,1) = region%states(i)%massFraction(:, this%reactant)
+     F(:,2) = 1.0_wp
      instantaneousFunctional = instantaneousFunctional +                                     &
-          region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%targetMollifier(:,1))
      SAFE_DEALLOCATE(F)
 
   end do
@@ -152,6 +154,7 @@ subroutine computeReactantDepletionAdjointForcing(this, simulationFlags, solverO
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
+  SCALAR_TYPE :: F
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -171,10 +174,12 @@ subroutine computeReactantDepletionAdjointForcing(this, simulationFlags, solverO
                 (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
+           F = - grid%targetMollifier(gridIndex, 1) * state%specificVolume(gridIndex, 1)
+
            patch%adjointForcing(patchIndex,:) = 0.0_wp
-           patch%adjointForcing(patchIndex,nDimensions+2+this%reactant) = 2.0_wp *           &
-                grid%targetMollifier(gridIndex, 1) * state%conservedVariables(gridIndex,1) * &
+           patch%adjointForcing(patchIndex,1) = - F *                                        &
                 state%massFraction(gridIndex, this%reactant)
+           patch%adjointForcing(patchIndex,nDimensions+2+this%reactant) = F
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
