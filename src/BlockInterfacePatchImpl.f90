@@ -366,7 +366,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   class(t_State), intent(in) :: state
 
   ! <<< Local variables >>>
-  integer :: i, direction, nDimensions, nUnknowns
+  integer :: i, direction, nDimensions, nUnknowns, procRank, ierror
   SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux,              &
        metricsAlongNormalDirection, dataToBeSent
   SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
@@ -397,9 +397,20 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      end if
   end if
 
+  call MPI_Comm_rank(this%comm, procRank, ierror)
+  
+  if (procRank == 0 .and. size(dataToBeSent, 2) /= size(this%sendBuffer, 2)) then
+     SAFE_DEALLOCATE(this%sendBuffer)
+     SAFE_DEALLOCATE(this%receiveBuffer)     
+     allocate(this%sendBuffer(product(this%globalSize), size(dataToBeSent, 2)))
+     allocate(this%receiveBuffer(product(this%globalSize), size(dataToBeSent, 2)))
+  end if
+
+  call MPI_Barrier(this%comm, ierror)
+
   call this%collect(state%conservedVariables, dataToBeSent(:,1:nUnknowns))
-     if (mode == ADJOINT)                                                                    &
-          call this%collect(state%adjointVariables, dataToBeSent(:,nUnknowns+1:2*nUnknowns))
+  if (mode == ADJOINT)                                                                       &
+       call this%collect(state%adjointVariables, dataToBeSent(:,nUnknowns+1:2*nUnknowns))
 
   if (simulationFlags%viscosityOn) then
 
