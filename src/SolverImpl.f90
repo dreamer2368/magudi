@@ -1016,7 +1016,7 @@ subroutine checkGradientAccuracy(this, region)
      if (procRank == 0)                                                                      &
           write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
           costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &
-          gradientError
+          abs(gradientError)
   end do
 
   if (procRank == 0) close(fileUnit)
