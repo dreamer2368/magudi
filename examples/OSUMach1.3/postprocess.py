@@ -193,14 +193,13 @@ def monopole(sample_index, g, x0, dt, gamma):
         q[:,:,i+1] for i in range(3))
     return q
 
-def extract_yz(g, f):
-    n = g.get_size()
-    ge = p3d.Grid().set_size([n[0][2], n[4][0] + n[0][1] + n[2][0] - 2, 1],
-                             True)
-    if type(f) == p3d.Solution:
-        fe = p3d.Solution().copy_from(ge)
-    else:
-        fe = p3d.Function(ncomponents=f.ncomponents).copy_from(ge)
+def extract_yz(f):
+    n = f.get_size()
+    args = dict()
+    if type(f) == p3d.Function:
+        args.update(ncomponents=f.ncomponents)
+    fe = type(f)(**args).set_size(
+        [n[0][2], n[4][0] + n[0][1] + n[2][0] - 2, 1], True)
     si = {4: [slice(None, None, -1), 0, slice(None)],
           0: [0, slice(None), slice(None)],
           2: [slice(None), 0, slice(None)]}
@@ -211,13 +210,13 @@ def extract_yz(g, f):
     ends = {4: [-1, n[4][1]/2, -1], 0: [n[0][0]/2, -1, -1],
             2: [-1, n[2][1]/2, -1]}
     for i in [4, 0, 2]:
-        g.set_subzone(i, starts[i], ends[i]).load()
-        f.subzone_from(g).load()
-        for j in range(2):
-            ge.xyz[0][so[i] + [j]] = g.xyz[0][si[i] + [2-j]].T
-        for j in range(fe[0].shape[-1]):
-            fe[0][so[i] + [j]] = f[0][si[i] + [j]].T
-    return ge, fe
+        f.set_subzone(i, starts[i], ends[i]).load()
+        for j in range(f[0].shape[-1]):
+            if type(f) == p3d.Grid:
+                fe[0][so[i] + [j]] = f[0][si[i] + [2-j]].T
+            else:
+                fe[0][so[i] + [j]] = f[0][si[i] + [j]].T
+    return fe
 
 def extract_const_r(g, f, r=0.5, stencil_size=5, show_progress=True):
     from scipy.interpolate import BarycentricInterpolator
