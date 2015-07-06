@@ -261,6 +261,7 @@ contains
     integer, allocatable, dimension(:) :: grid, normDir, imin, imax, jmin, jmax, kmin, kmax
     character(len = 22), allocatable, dimension(:) :: name, type
     character(len = STRING_LENGTH) :: entry
+    logical :: disableAdjoint
 
     ! Initialize BC
     nbc = 99
@@ -364,30 +365,27 @@ contains
        kmax   (bc) = -1
     end if
 
-    entry = getOption("target_mollifier_file", "")
-    if (len_trim(entry) > 0) then
+    disableAdjoint = getOption("disable_adjoint_solver", .true.)
+    if (.not.disableAdjoint) then
        bc = bc + 1
        name   (bc) = 'targetRegion'
        type   (bc) = 'COST_TARGET'
        normDir(bc) =  0
-       imin   (bc) =  93
-       imax   (bc) =  109
-       jmin   (bc) =  29
-       jmax   (bc) =  173
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) = -1
        kmin   (bc) =  1
        kmax   (bc) = -1
-    end if
 
-    entry = getOption("control_mollifier_file", "")
-    if (len_trim(entry) > 0) then
        bc = bc + 1
        name   (bc) = 'controlRegion'
        type   (bc) = 'ACTUATOR'
        normDir(bc) =  0
-       imin   (bc) =  108
-       imax   (bc) =  137
-       jmin   (bc) =  86
-       jmax   (bc) =  116
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) = -1
        kmin   (bc) =  1
        kmax   (bc) = -1
     end if
