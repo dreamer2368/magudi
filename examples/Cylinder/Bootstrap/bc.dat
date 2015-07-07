@@ -3,5 +3,3 @@
   cylinder             SAT_ISOTHERMAL_WALL      1       1    1    1    1   -1    1   -1
   farField             SAT_FAR_FIELD            1      -1   -1   -1    1   -1    1   -1
   sponge               SPONGE                   1      -1  -57   -1    1   -1    1   -1
-  targetRegion         COST_TARGET              1       0  326  347    1   -1    1   -1
-  controlRegion        ACTUATOR                 1       0   60  105  226  276    1   -1
