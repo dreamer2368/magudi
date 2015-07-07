@@ -19,7 +19,7 @@ subroutine setupFuelActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, gradientBufferSize
+  integer :: i
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
@@ -30,8 +30,6 @@ subroutine setupFuelActuator(this, region)
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
-  gradientBufferSize = getOption("gradient_buffer_size", 1)
-
   if (allocated(region%patchFactories)) then
      do i = 1, size(region%patchFactories)
         call region%patchFactories(i)%connect(patch)
@@ -39,11 +37,7 @@ subroutine setupFuelActuator(this, region)
         select type (patch)
            class is (t_ActuatorPatch)
            if (patch%nPatchPoints <= 0) cycle
-
-           SAFE_DEALLOCATE(patch%gradientBuffer)
-           allocate(patch%gradientBuffer(patch%nPatchPoints, 1, gradientBufferSize))
-           patch%gradientBuffer = 0.0_wp
-
+           ! Do not set up gradient buffer
         end select
      end do
   end if
@@ -111,11 +105,11 @@ function computeFuelActuatorSensitivity(this, region) result(instantaneousSensit
      assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
 
-     allocate(F(region%grids(i)%nGridPoints, 1))
-     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+H2) *                        &
-          region%grids(i)%controlMollifier(:,1)
+     allocate(F(region%grids(i)%nGridPoints, 2))
+     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+H2)
+     F(:,2) = region%grids(i)%controlMollifier(:,1)
      instantaneousSensitivity = instantaneousSensitivity +                                   &
-          region%grids(i)%computeInnerProduct(F, F)
+          region%grids(i)%computeInnerProduct(F(:,1),F(:,2))
      SAFE_DEALLOCATE(F)
 
   end do
@@ -169,21 +163,9 @@ subroutine updateFuelActuatorForcing(this, region)
         select type (patch)
         class is (t_ActuatorPatch)
 
-           patch%iGradientBuffer = patch%iGradientBuffer - 1
-
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
-
-           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
-                call patch%loadGradient()
-
            patch%controlForcing(:,:) = 0.0_wp
            patch%controlForcing(:,nDimensions+2+H2) = -                                      &
-                region%states(j)%actuationAmount *                                           &
-                patch%gradientBuffer(:,1,patch%iGradientBuffer)
-
-           if (patch%iGradientBuffer == 1)                                                   &
-                patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+                region%states(j)%actuationAmount * region%states(j)%costSensitivity
 
         end select
      end do
@@ -205,47 +187,9 @@ subroutine updateFuelActuatorGradient(this, region)
   class(t_FuelActuator) :: this
   class(t_Region), intent(in) :: region
 
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions, H2
-  class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: F(:,:)
-
   if (.not. allocated(region%patchFactories)) return
 
-  nDimensions = size(region%globalGridSizes, 1)
-  assert_key(nDimensions, (1, 2, 3))
-
-  H2 = region%combustion%H2
-  assert(H2 > 0)
-  assert(H2 <= region%solverOptions%nSpecies)
-
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     do j = 1, size(region%states)
-        if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
-        select type (patch)
-        class is (t_ActuatorPatch)
-
-           patch%iGradientBuffer = patch%iGradientBuffer + 1
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
-
-           allocate(F(patch%nPatchPoints, 2))
-           call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2+H2), F(:,1))
-           call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,2))
-           patch%gradientBuffer(:,1,patch%iGradientBuffer) = product(F, dim = 2)
-           SAFE_DEALLOCATE(F)
-
-           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3)) then
-              call patch%saveGradient()
-              patch%iGradientBuffer = 0
-           end if
-
-        end select
-     end do
-  end do
+  ! Nothing to do here.
 
 end subroutine updateFuelActuatorGradient
 
@@ -315,53 +259,9 @@ subroutine hookFuelActuatorBeforeTimemarch(this, region, mode)
   class(t_Region) :: region
   integer, intent(in) :: mode
 
-  ! <<< Local variables >>>
-  integer :: i, fileUnit, mpiFileHandle, procRank, ierror
-  class(t_Patch), pointer :: patch => null()
-  logical :: fileExists
-  character(len = STRING_LENGTH) :: message
-
   if (.not. allocated(region%patchFactories)) return
 
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     select type (patch)
-     class is (t_ActuatorPatch)
-        if (patch%comm == MPI_COMM_NULL) cycle
-
-        call MPI_Comm_rank(patch%comm, procRank, ierror)
-
-        select case (mode)
-
-        case (FORWARD)
-           if (procRank == 0) inquire(file = trim(patch%gradientFilename), exist = fileExists)
-           call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
-           if (.not. fileExists) then
-              write(message, '(3A,I0.0,A)') "No gradient information available for patch '", &
-                   trim(patch%name), "' on grid ", patch%gridIndex, "!"
-              call gracefulExit(patch%comm, message)
-           end if
-           patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
-           call MPI_File_open(patch%comm, trim(patch%gradientFilename) // char(0),           &
-                MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
-           call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
-           call MPI_File_close(mpiFileHandle, ierror)
-
-        case (ADJOINT)
-           if (procRank == 0) then
-              open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
-                   action = 'write', status = 'unknown')
-              close(fileUnit)
-           end if
-           call MPI_Barrier(patch%comm, ierror)
-           patch%iGradientBuffer = 0
-           patch%gradientFileOffset = int(0, MPI_OFFSET_KIND)
-
-        end select
-
-     end select
-  end do
+  ! Nothing to do here.
 
 end subroutine hookFuelActuatorBeforeTimemarch
 
@@ -390,29 +290,8 @@ subroutine hookFuelActuatorAfterTimemarch(this, region, mode)
   class(t_Region) :: region
   integer, intent(in) :: mode
 
-  ! <<< Local variables >>>
-  integer :: i, procRank, ierror
-  class(t_Patch), pointer :: patch => null()
-
   if (.not. allocated(region%patchFactories)) return
 
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     select type (patch)
-     class is (t_ActuatorPatch)
-        if (patch%comm == MPI_COMM_NULL) cycle
-
-        call MPI_Comm_rank(patch%comm, procRank, ierror)
-
-        select case (mode)
-
-        case (ADJOINT)
-           call patch%saveGradient()
-
-        end select
-
-     end select
-  end do
+  ! Nothing to do here.
 
 end subroutine hookFuelActuatorAfterTimemarch

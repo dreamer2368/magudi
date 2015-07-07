@@ -984,6 +984,9 @@ subroutine checkGradientAccuracy(this, region)
      call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   end if
 
+  ! Store the cost sensitivity for later use.
+  region%states(:)%costSensitivity = costSensitivity
+
   if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable)                  &
        write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                   &
        baselineCostFunctional, costSensitivity, 0.0_wp
@@ -1012,7 +1015,7 @@ subroutine checkGradientAccuracy(this, region)
      costFunctional = this%runForward(region, actuationAmount = actuationAmount,             &
           controlIteration = i)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
-          costSensitivity
+          costSensitivity ** 2
      if (procRank == 0)                                                                      &
           write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
           costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &

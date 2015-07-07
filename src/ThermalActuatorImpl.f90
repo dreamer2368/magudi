@@ -104,11 +104,11 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
      assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
 
-     allocate(F(region%grids(i)%nGridPoints, 1))
-     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                           &
-          region%grids(i)%controlMollifier(:,1)
+     allocate(F(region%grids(i)%nGridPoints, 2))
+     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
+     F(:,2) = region%grids(i)%controlMollifier(:,1)
      instantaneousSensitivity = instantaneousSensitivity +                                   &
-          region%grids(i)%computeInnerProduct(F, F)
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
      SAFE_DEALLOCATE(F)
 
   end do

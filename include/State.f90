@@ -60,7 +60,8 @@ module State_mod
      type(t_Combustion) :: combustion
 
      integer :: nSpecies
-     real(wp) :: time, adjointForcingFactor = 1.0_wp, actuationAmount = 0.0_wp
+     real(wp) :: time, adjointForcingFactor = 1.0_wp, actuationAmount = 0.0_wp,              &
+          costSensitivity = 0.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
