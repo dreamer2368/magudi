@@ -16,10 +16,10 @@ mean_pressure_file = "Cylinder.mean_pressure.f"
 include_viscous_terms = true
 use_constant_CFL_mode = false
 use_target_state = true
-compute_time_average = true
+compute_time_average = false
 
 # Adjoint optimization flags                                                                                                                                                                   
-disable_adjoint_solver = true
+disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "SOUND"
 use_continuous_adjoint = false
@@ -73,4 +73,3 @@ patches/cylinder/viscous_penalty_amount1 = 1.
 vorticity_dilatation/start_timestep = 1000000
 vorticity_dilatation/end_timestep = 1400000
 vorticity_dilatation/save_interval = 500
-
