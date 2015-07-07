@@ -132,20 +132,21 @@ dMijdp=0.
 do i=1,size(this%p)
      dG(:,1) = dGdp_(:,i)
      call grid%firstDerivative(2)%apply(dG, grid%localSize)
-
-     dMijdp(:,1,1,i)=-1._wp/(dF1(:,1)**2)/(dG2(:,1)**2)
-     dMijdp(:,1,1,i)=dMijdp(:,1,1,i)*dG(:,1)
-
-     dMijdp(:,2,1,i)=2._wp*dG1(:,1)*dG(:,1)/dF1(:,1)**2/dG2(:,1)**3
-
+     dMijdp(:,1,1,i)=dG(:,1)
+     !dMijdp(:,1,1,i)=-1._wp/(dF1(:,1)**2)/(dG2(:,1)**2)
+     !dMijdp(:,1,1,i)=dMijdp(:,1,1,i)*dG(:,1)
+     !
+     !dMijdp(:,2,1,i)=2._wp*dG1(:,1)*dG(:,1)/dF1(:,1)**2/dG2(:,1)**3
+     !
      dG(:,1) = dGdp_(:,i)
      call grid%firstDerivative(1)%apply(dG, grid%localSize)
-     dMijdp(:,2,1,i)=dMijdp(:,2,1,i)-dG(:,1)/dF1(:,1)**2/dG2(:,1)**2
-
-     dG(:,1) = dGdp_(:,i)
-     call grid%firstDerivative(2)%apply(dG, grid%localSize)
-
-     dMijdp(:,2,2,i)=-2._wp*dG(:,1)/dF1(:,1)/dG2(:,1)**3
+     dMijdp(:,2,1,i)=-dG(:,1)
+     !dMijdp(:,2,1,i)=dMijdp(:,2,1,i)-dG(:,1)/dF1(:,1)**2/dG2(:,1)**2
+     !
+     !dG(:,1) = dGdp_(:,i)
+     !call grid%firstDerivative(2)%apply(dG, grid%localSize)
+     !
+     !dMijdp(:,2,2,i)=-2._wp*dG(:,1)/dF1(:,1)/dG2(:,1)**3
 end do
 
 SAFE_DEALLOCATE(dF1)

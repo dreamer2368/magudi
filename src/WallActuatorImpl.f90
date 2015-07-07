@@ -67,6 +67,10 @@ subroutine setupWallActuator(this, region)
      call region%grids(1)%update()
      call compute_dJacobiandp(this,region%grids(1),this%dJacobiandp)
      call compute_dMijdp(this,region%grids(1),this%dMijdp)
+
+     !you could output mesh here so that you're not handcuffed by whatever was
+     !done to create the mesh
+
  
 end subroutine setupWallActuator
 
@@ -137,8 +141,8 @@ i=1
      assert(allocated(this%dMijdp))
      assert(allocated(this%dJacobiandp))
 
-     allocate(G(region%grids(i)%nGridPoints,this%numP))
-     allocate(F(region%grids(i)%nGridPoints,this%numP))
+     allocate(G(region%grids(i)%nGridPoints,nDimensions+2))
+     allocate(F(region%grids(i)%nGridPoints,nDimensions+2))
      allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
      allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
      allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
@@ -191,9 +195,11 @@ i=1
      end do
      end do
 
-    G(:,1)=1._wp
+
+    F(:,p)=F(:,p)/region%grids(i)%jacobian(:,1)
+
     instantaneousSensitivity = instantaneousSensitivity +&
-          region%grids(i)%computeInnerProduct(F,G)
+          region%grids(i)%computeInnerProduct(F,F)
 
      SAFE_DEALLOCATE(viscousFluxes)
      SAFE_DEALLOCATE(inviscidFluxes)
@@ -407,7 +413,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      
      do g = 1, size(region%grids)
         !this%p(1)=this%po(1)*region%states(g)%actuationAmount
-        this%p(1)=region%states(g)%actuationAmount
+        !this%p(1)=region%states(g)%actuationAmount
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
         call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
@@ -422,6 +428,13 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      call region%saveData(QOI_GRID, filename)
      call MPI_Barrier(region%comm, ierror)
      outputPrefix = getOption("output_prefix", PROJECT_NAME)
+     ! Save the Jacobian and normalized metrics.
+     write(filename, '(2A)') trim(outputPrefix),&
+          ".Jacobian.f"//adjustl(trim(griditeration))
+     call region%saveData(QOI_JACOBIAN,trim(filename))
+     write(filename, '(2A)') trim(outputPrefix),&
+          ".metrics.f"//adjustl(trim(griditeration))
+     call region%saveData(QOI_METRICS,trim(filename))  
      region%outputOn = .false.
      this%index=this%index+1
 
