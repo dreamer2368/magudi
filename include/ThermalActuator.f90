@@ -14,6 +14,7 @@ module ThermalActuator_mod
      procedure, pass :: setup => setupThermalActuator
      procedure, pass :: cleanup => cleanupThermalActuator
      procedure, pass :: computeSensitivity => computeThermalActuatorSensitivity
+     procedure, pass :: computeGradient => computeThermalActuatorGradient
      procedure, pass :: updateForcing => updateThermalActuatorForcing
      procedure, pass :: updateGradient => updateThermalActuatorGradient
      procedure, pass :: isPatchValid => isThermalActuatorPatchValid
@@ -50,22 +51,33 @@ module ThermalActuator_mod
 
   end interface
 
-  interface
+interface
+subroutine computeThermalActuatorSensitivity(this,timeIntegrator, region) 
 
-     function computeThermalActuatorSensitivity(this, region) result(instantaneousSensitivity)
+use Region_mod, only : t_Region
+use TimeIntegrator_mod, only : t_TimeIntegrator
+import :: t_ThermalActuator
 
-       use Region_mod, only : t_Region
+class(t_ThermalActuator) :: this
+class(t_Region), intent(in) :: region
+class(t_TimeIntegrator),intent(in) :: timeIntegrator
 
-       import :: t_ThermalActuator
+end subroutine computeThermalActuatorSensitivity
+end interface
 
-       class(t_ThermalActuator) :: this
-       class(t_Region), intent(in) :: region
+interface
+subroutine computeThermalActuatorGradient(this,timeIntegrator,region) 
 
-       SCALAR_TYPE :: instantaneousSensitivity
+use Region_mod, only : t_Region
+use TimeIntegrator_mod, only : t_TimeIntegrator
+import :: t_ThermalActuator
 
-     end function computeThermalActuatorSensitivity
+class(t_ThermalActuator) :: this
+class(t_Region), intent(in) :: region
+class(t_TimeIntegrator),intent(in) :: timeIntegrator
 
-  end interface
+end subroutine computeThermalActuatorGradient
+end interface
 
   interface
 

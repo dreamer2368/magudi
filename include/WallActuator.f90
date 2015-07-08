@@ -10,17 +10,15 @@ module WallActuator_mod
   type, extends(t_Controller), public :: t_WallActuator
  
      integer::numP
-     integer::numModes
-     integer::index 
-     integer::amplitude_scale
-     real(SCALAR_KIND),allocatable,dimension(:)::p  !current values of params 
-     real(SCALAR_KIND),allocatable,dimension(:)::po !initial value of params
-     real(SCALAR_KIND),allocatable,dimension(:)::amplitudes
-     real(SCALAR_KIND),allocatable,dimension(:)::phases
-     
+     integer::controlIndex 
+     real(SCALAR_KIND),allocatable,dimension(:)::p  !wall-shape parameterization
+     real(SCALAR_KIND),allocatable,dimension(:)::instantaneousGradient    
+     real(SCALAR_KIND),allocatable,dimension(:)::gradient
+     !real(SCALAR_KIND)::sensitivity
+ 
      !this may be getting moved to their own patch
-     !at this point I am using the controller to know everything about the patch 
-     !and grid
+     !at this point I am using the controller to know everything about grid
+     
      real(SCALAR_KIND),allocatable,dimension(:,:)::dJacobiandp    
      real(SCALAR_KIND),allocatable,dimension(:,:,:,:)::dMijdp
    
@@ -29,6 +27,7 @@ module WallActuator_mod
      procedure, pass :: setup => setupWallActuator
      procedure, pass :: cleanup => cleanupWallActuator
      procedure, pass :: computeSensitivity => computeWallActuatorSensitivity
+     procedure, pass :: computeGradient => computeWallActuatorGradient
      procedure, pass :: updateForcing => updateWallActuatorForcing
      procedure, pass :: updateGradient => updateWallActuatorGradient
      procedure, pass :: isPatchValid => isWallActuatorPatchValid
@@ -64,22 +63,39 @@ module WallActuator_mod
 
   end interface
 
-  interface
+interface
 
-     function computeWallActuatorSensitivity(this, region) result(instantaneousSensitivity)
+subroutine computeWallActuatorSensitivity(this,timeIntegrator, region) 
 
-       use Region_mod, only : t_Region
+  use Region_mod, only : t_Region
+  use TimeIntegrator_mod, only : t_TimeIntegrator
+  import :: t_WallActuator
 
-       import :: t_WallActuator
+  class(t_WallActuator) :: this
+  class(t_Region), intent(in) :: region
+  class(t_TimeIntegrator),intent(in) :: timeIntegrator
 
-       class(t_WallActuator) :: this
-       class(t_Region), intent(in) :: region
 
-       SCALAR_TYPE :: instantaneousSensitivity
+end subroutine computeWallActuatorSensitivity
 
-     end function computeWallActuatorSensitivity
+end interface
 
-  end interface
+interface
+
+subroutine computeWallActuatorGradient(this,timeIntegrator,region) 
+
+use Region_mod, only : t_Region
+use TimeIntegrator_mod, only : t_TimeIntegrator
+import :: t_WallActuator
+
+class(t_WallActuator) :: this  
+class(t_Region), intent(in) :: region
+class(t_TimeIntegrator),intent(in) :: timeIntegrator
+
+end subroutine computeWallActuatorGradient
+
+end interface
+
 
   interface
 
@@ -100,9 +116,9 @@ module WallActuator_mod
 
      subroutine updateWallActuatorGradient(this, region)
 
-       use Region_mod, only : t_Region
-
-       import :: t_WallActuator
+     use Region_mod, only : t_Region
+  
+     import :: t_WallActuator
 
        class(t_WallActuator) :: this
        class(t_Region), intent(in) :: region

@@ -50,11 +50,21 @@ subroutine setupWallActuator(this, region)
      end do
   end if
 
-     this%index=0
+     this%controlIndex=0
      this%numP=1
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
      this%p(1)=3._wp*pi/8._wp  
+
+     SAFE_DEALLOCATE(this%gradient)
+     allocate(this%gradient(this%numP))
+     this%gradient=0._wp
+
+     SAFE_DEALLOCATE(this%instantaneousGradient)
+     allocate(this%instantaneousGradient(this%numP))
+     this%instantaneousGradient=0._wp
+
+     this%sensitivity=0._wp
  
      SAFE_DEALLOCATE(this%dJacobiandp) 
      allocate(this%dJacobiandp(region%grids(1)%nGridPoints,this%numP))
@@ -91,7 +101,7 @@ subroutine cleanupWallActuator(this)
 
 end subroutine cleanupWallActuator
 
-function computeWallActuatorSensitivity(this, region) result(instantaneousSensitivity)
+subroutine computeWallActuatorSensitivity(this,timeIntegrator, region) 
 
   ! <<< External modules >>>
   use MPI
@@ -99,127 +109,165 @@ function computeWallActuatorSensitivity(this, region) result(instantaneousSensit
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use WallActuator_mod, only : t_WallActuator
-  use CNSHelper
   use InputHelper, only : getOption
-  
+  use TimeIntegrator_mod, only : t_TimeIntegrator
   implicit none
 
   ! <<< Arguments >>>
   class(t_WallActuator) :: this
   class(t_Region), intent(in) :: region 
-
-
-  ! <<< Result >>>
-  SCALAR_TYPE :: instantaneousSensitivity
+  class(t_TimeIntegrator),intent(in) :: timeIntegrator
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i,v,p,ii,jj,nDimensions,ierror
-  SCALAR_TYPE, allocatable :: F(:,:),G(:,:)
-  SCALAR_TYPE, allocatable :: dQdxi(:,:,:),viscousFluxes(:,:,:),inviscidFluxes(:,:,:)
-
-  assert(allocated(region%grids))
-  assert(allocated(region%states))
-  assert(size(region%grids) == size(region%states))
-  assert(size(region%grids)==1)
-
-  instantaneousSensitivity = 0.0_wp
-
-!  do i = 1, size(region%grids)
-i=1
-
-     nDimensions = region%grids(i)%nDimensions
-     assert_key(nDimensions, (2))
-
-     assert(region%grids(i)%nGridPoints > 0)
-     assert(allocated(region%grids(i)%controlMollifier))
-     assert(size(region%grids(i)%controlMollifier, 1) == region%grids(i)%nGridPoints)
-     assert(size(region%grids(i)%controlMollifier, 2) == 1)
-     assert(allocated(region%states(i)%adjointVariables))
-     assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
-     assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
-     assert(allocated(this%dMijdp))
-     assert(allocated(this%dJacobiandp))
-
-     allocate(G(region%grids(i)%nGridPoints,nDimensions+2))
-     allocate(F(region%grids(i)%nGridPoints,nDimensions+2))
-     allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
-     allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
-     allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
-
-     G=0._wp
-     F=0._wp
-     dQdxi=0._wp
-     inviscidFluxes=0._wp
-     viscousFluxes=0._wp
-
-     do ii = 1, nDimensions
-          dQdxi(:,:,ii)=region%states(i)%adjointVariables(:,:) 
-          call region%grids(i)%firstDerivative(ii)%apply(dQdxi(:,:,ii),&
-               region%grids(i)%localSize)
-     end do
-
-     call computeCartesianInvsicidFluxes(nDimensions,&
-     region%states(i)%conservedVariables,&
-     region%states(i)%velocity, region%states(i)%pressure(:,1),&
-     inviscidFluxes)
-
-     if (getOption("include_viscous_terms",.false.).and.&
-          getOption("repeat_first_derivative", .true.)) then
-          call computeCartesianViscousFluxes(nDimensions,&
-          region%states(i)%velocity,&
-          region%states(i)%stressTensor, region%states(i)%heatFlux,&
-          viscousFluxes)
-     end if
-
-     do p=1,this%numP
-     do v=1,nDimensions+2
-         F(:,p)=F(:,p)+region%states(i)%rightHandSide(:,v)*this%dJacobiandp(:,p)*&
-               region%states(i)%adjointVariables(:,v)
-
-     do ii=1,nDimensions
-     do jj=1,nDimensions
-          F(:,p)=F(:,p)-region%grids(i)%jacobian(:,1)*(inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
-               this%dMijdp(:,ii,jj,p)*dQdxi(:,v,ii)
-     end do !ii
-     end do !jj
-
-     !this is the surface contribution whose weight only comes along the wall
-     !specified by controlMollifier
-     do jj=1,nDimensions
-          F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*region%grids(i)%jacobian(:,1)*&
-               (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*this%dMijdp(:,2,jj,p)*&
-               region%grids(i)%controlMollifier(:,1)
-     end do
-
-     end do
-     end do
 
 
-    F(:,p)=F(:,p)/region%grids(i)%jacobian(:,1)
+  !for the passive wall shape optimization 
+  !gradient already has time integrated and volume integrated
 
-    instantaneousSensitivity = instantaneousSensitivity +&
-          region%grids(i)%computeInnerProduct(F,F)
-
-     SAFE_DEALLOCATE(viscousFluxes)
-     SAFE_DEALLOCATE(inviscidFluxes)
-     SAFE_DEALLOCATE(dQdxi)
-     SAFE_DEALLOCATE(F)
-
-!  end do
+  this%sensitivity=0._wp
+  do i = 1, size(region%grids)
+    assert(size(this%gradient,1)==this%numP)
+    this%sensitivity = this%sensitivity +&
+          region%grids(i)%computeInnerProduct(this%gradient,this%gradient)
+  end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-       call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                         &
+       call MPI_Allreduce(MPI_IN_PLACE,this%sensitivity, 1,                         &
        SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
 
   do i = 1, size(region%grids)
-     call MPI_Bcast(instantaneousSensitivity, 1, SCALAR_TYPE_MPI,                            &
+     call MPI_Bcast(this%sensitivity, 1, SCALAR_TYPE_MPI,                            &
           0, region%grids(i)%comm, ierror)
   end do
 
-  this%cachedValue = instantaneousSensitivity
+  this%cachedValue = this%sensitivity
 
-end function computeWallActuatorSensitivity
+end subroutine computeWallActuatorSensitivity
+
+subroutine computeWallActuatorGradient(this,timeIntegrator,region)
+
+! <<< External modules >>>
+use MPI
+
+! <<< Derived types >>>
+use Region_mod, only : t_Region
+use WallActuator_mod, only : t_WallActuator
+use CNSHelper
+use InputHelper, only : getOption
+use TimeIntegrator_mod, only : t_TimeIntegrator
+use Region_mod, only : t_Region
+use TimeIntegrator_mod, only : t_TimeIntegrator
+use WallActuator_mod, only : t_WallActuator
+
+implicit none
+class(t_WallActuator) :: this
+class(t_Region), intent(in) :: region
+class(t_TimeIntegrator),intent(in) :: timeIntegrator
+
+! <<< Local variables >>>
+integer, parameter :: wp = SCALAR_KIND
+integer :: i,v,p,ii,jj,nDimensions,ierror
+SCALAR_TYPE, allocatable :: F(:,:),G(:,:)
+SCALAR_TYPE, allocatable ::dQdxi(:,:,:),viscousFluxes(:,:,:),inviscidFluxes(:,:,:)
+
+assert(allocated(region%grids))
+assert(allocated(region%states))
+assert(size(region%grids) == size(region%states))
+assert(size(region%grids)==1)
+
+
+do i = 1, size(region%grids)
+
+nDimensions = region%grids(i)%nDimensions
+assert_key(nDimensions, (2))
+
+assert(region%grids(i)%nGridPoints > 0)
+assert(allocated(region%grids(i)%controlMollifier))
+assert(size(region%grids(i)%controlMollifier, 1) ==region%grids(i)%nGridPoints)
+assert(size(region%grids(i)%controlMollifier, 2) == 1)
+assert(allocated(region%states(i)%adjointVariables))
+assert(size(region%states(i)%adjointVariables, 1) ==region%grids(i)%nGridPoints)
+assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
+assert(allocated(this%dMijdp))
+assert(allocated(this%dJacobiandp))
+
+allocate(G(region%grids(i)%nGridPoints,nDimensions+2))
+allocate(F(region%grids(i)%nGridPoints,nDimensions+2))
+allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+
+G=0._wp
+F=0._wp
+dQdxi=0._wp
+inviscidFluxes=0._wp
+viscousFluxes=0._wp
+
+do ii = 1, nDimensions
+     dQdxi(:,:,ii)=region%states(i)%adjointVariables(:,:)
+     call region%grids(i)%firstDerivative(ii)%apply(dQdxi(:,:,ii),&
+          region%grids(i)%localSize)
+end do
+
+call computeCartesianInvsicidFluxes(nDimensions,&
+region%states(i)%conservedVariables,&
+region%states(i)%velocity, region%states(i)%pressure(:,1),&
+inviscidFluxes)
+
+if (getOption("include_viscous_terms",.false.).and.&
+     getOption("repeat_first_derivative", .true.)) then
+     call computeCartesianViscousFluxes(nDimensions,&
+     region%states(i)%velocity,&
+     region%states(i)%stressTensor, region%states(i)%heatFlux,&
+     viscousFluxes)
+end if
+
+do p=1,this%numP
+do v=1,nDimensions+2
+    F(:,p)=F(:,p)+region%states(i)%rightHandSide(:,v)*this%dJacobiandp(:,p)*&
+          region%states(i)%adjointVariables(:,v)
+
+do ii=1,nDimensions
+do jj=1,nDimensions
+     F(:,p)=F(:,p)-region%grids(i)%jacobian(:,1)*(inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
+          this%dMijdp(:,ii,jj,p)*dQdxi(:,v,ii)
+end do !ii
+end do !jj
+
+!this is the surface contribution whose weight only comes along the wall
+!specified by controlMollifier
+do jj=1,nDimensions
+     F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*region%grids(i)%jacobian(:,1)*&
+          (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*this%dMijdp(:,2,jj,p)*&
+          region%grids(i)%controlMollifier(:,1)
+end do
+
+!you will also need \partial N_sat \partial \vec{p}
+
+end do
+end do
+
+
+G(:,:)=1._wp
+
+this%instantaneousGradient = this%instantaneousGradient +&
+     region%grids(i)%computeInnerProduct(F,G)
+this%gradient(:)=this%gradient(:)+&
+     timeIntegrator%norm(timeIntegrator%stage)*region%getTimeStepSize()*&
+     this%instantaneousGradient(:)
+
+SAFE_DEALLOCATE(viscousFluxes)
+SAFE_DEALLOCATE(inviscidFluxes)
+SAFE_DEALLOCATE(dQdxi)
+SAFE_DEALLOCATE(F)
+
+
+end do
+
+end subroutine computeWallActuatorGradient
+
 
 subroutine updateWallActuatorForcing(this, region)
 
@@ -230,47 +278,10 @@ subroutine updateWallActuatorForcing(this, region)
   use WallActuator_mod, only : t_WallActuator
 
   implicit none
-
-  ! <<< Arguments >>>
+! <<< Arguments >>>
   class(t_WallActuator) :: this
   class(t_Region), intent(in) :: region
 
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions
-  class(t_Patch), pointer :: patch => null()
-
-  if (.not. allocated(region%patchFactories)) return
-
-  nDimensions = size(region%globalGridSizes, 1)
-  assert_key(nDimensions, (1, 2, 3))
-
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     do j = 1, size(region%states)
-        if (patch%gridIndex /= region%grids(j)%index) cycle
-        select type (patch)
-        class is (t_ActuatorPatch)
-
-           patch%iGradientBuffer = patch%iGradientBuffer - 1
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
-
-           !if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
-           !     call patch%loadGradient()
-
-           !control for a passive wall only happens when hooked in before time
-           !marcher
-
-           patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
-           
-           if (patch%iGradientBuffer == 1)                                                   &
-                patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
-
-        end select
-     end do
-  end do
 
 end subroutine updateWallActuatorForcing
 
@@ -281,7 +292,7 @@ subroutine updateWallActuatorGradient(this, region)
   use Region_mod, only : t_Region
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use WallActuator_mod, only : t_WallActuator
-
+  use TimeIntegrator_mod, only : t_TimeIntegrator
   use CNSHelper
  
   use InputHelper, only : getOption 
@@ -296,30 +307,19 @@ subroutine updateWallActuatorGradient(this, region)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, d, v, nDimensions
   class(t_Patch), pointer :: patch => null()
+  class(t_TimeIntegrator), pointer :: timeIntegrator => null()
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (2))
+ 
+  ! Connect to the previously allocated time integrator.
+  !call region%timeIntegratorFactory%connect(timeIntegrator)
+  !assert(associated(timeIntegrator))
 
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     do j = 1, size(region%states)
-        if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
-        select type (patch)
-        class is (t_ActuatorPatch)
-
-           patch%iGradientBuffer = patch%iGradientBuffer + 1
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
-           
-           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3)) then
-              call patch%saveGradient()
-              patch%iGradientBuffer = 0
-           end if
-
-        end select
-     end do
-  end do
+     !region%getTimeStepSize()
+     !instantaneousGradient(:) = controller%computeSensitivity(region)
+     !gradient(:) =gradient(:) +&
+     !timeIntegrator%norm(i)*region%getTimeStepSize()*instantaneousCostSensitivity(:)
 
 end subroutine updateWallActuatorGradient
 
@@ -396,11 +396,13 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   ! <<< Local variables >>>
   integer :: i, g, fileUnit, mpiFileHandle, procRank, ierror
   class(t_Patch), pointer :: patch => null()
+  integer, parameter :: wp = SCALAR_KIND
   logical :: fileExists
   logical:: hasNegativeJacobian
   character(len = STRING_LENGTH) :: message
   character(len = STRING_LENGTH) :: griditeration
   character(len = STRING_LENGTH) :: filename,outputPrefix
+  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
 
   select case (mode)
 
@@ -408,19 +410,17 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      !Read previously written g if one doesn't exist then
      !assume steepest descent 
 
-
      case (FORWARD)
      
      do g = 1, size(region%grids)
-        !this%p(1)=this%po(1)*region%states(g)%actuationAmount
-        !this%p(1)=region%states(g)%actuationAmount
+        this%p(:)=3.*pi/8.- region%states(g)%actuationAmount*this%gradient(:)
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
         call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
         call compute_dMijdp(this,region%grids(g),this%dMijdp)
      end do
 
-     write (griditeration, "(I4)") this%index
+     write (griditeration, "(I4)") this%controlIndex
      call MPI_Barrier(region%comm, ierror)
      call getRequiredOption("grid_file", filename)
      filename=trim(filename)//'.'//adjustl(trim(griditeration))
@@ -436,7 +436,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
           ".metrics.f"//adjustl(trim(griditeration))
      call region%saveData(QOI_METRICS,trim(filename))  
      region%outputOn = .false.
-     this%index=this%index+1
+     this%controlIndex=this%controlIndex+1
 
   end select
 

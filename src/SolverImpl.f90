@@ -69,7 +69,7 @@ contains
           case (FORWARD)
              write(str_, '(A,E13.6)') ", cost = ", instantaneousFunctional
           case (ADJOINT)
-             write(str_, '(A,E13.6)') ", gradient = ", instantaneousFunctional
+             write(str_, '(A,E13.6)') ", <G^T,G> = ", instantaneousFunctional
           end select
 
           str = trim(str) // trim(str_)
@@ -722,6 +722,7 @@ function runAdjoint(this, region) result(costSensitivity)
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostSensitivity
+  SCALAR_TYPE :: instantaneousGradient
 
   assert(.not. region%simulationFlags%predictionOnly)
 
@@ -798,6 +799,8 @@ function runAdjoint(this, region) result(costSensitivity)
 
      do i = timeIntegrator%nStages, 1, -1
 
+        timeIntegrator%stage=i     
+
         ! Load adjoint coefficients.
         if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
            if (i == 1) then
@@ -812,9 +815,10 @@ function runAdjoint(this, region) result(costSensitivity)
         call controller%updateGradient(region)
 
         ! Update cost sensitivity.
-        instantaneousCostSensitivity = controller%computeSensitivity(region)
-        costSensitivity = costSensitivity +                                                  &
-             timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
+        call controller%computeGradient(timeIntegrator,region)
+
+        ! Update cost sensitivity.
+        call controller%computeSensitivity(timeIntegrator,region)
 
         ! Update adjoint forcing on cost target patches.
         call functional%updateAdjointForcing(region)
@@ -830,7 +834,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
      ! Report simulation progress.
      call showProgress(this, region, ADJOINT, startTimestep, timestep,                       &
-          time, instantaneousCostSensitivity)
+          time, controller%sensitivity)
 
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
@@ -978,7 +982,7 @@ subroutine checkGradientAccuracy(this, region)
      costFunctional = this%runForward(region, actuationAmount =&
           actuationAmount,desiredPrecision=gradientAccuracyPrecision)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
-          costSensitivity
+          costSensitivity**2
      if (procRank == 0)                                                                      &
           write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
           costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &
@@ -988,3 +992,12 @@ subroutine checkGradientAccuracy(this, region)
   if (procRank == 0) close(fileUnit)
 
 end subroutine checkGradientAccuracy
+
+!proposing this subroutine for adjoint-based optimization 
+subroutine findOptimalForcing()
+end subroutine findOptimalForcing
+
+
+
+
+

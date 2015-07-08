@@ -8,7 +8,7 @@ module Controller_mod
   type, abstract, public :: t_Controller
 
      SCALAR_TYPE :: cachedValue = real(0.0, SCALAR_KIND)
-
+     SCALAR_TYPE :: sensitivity
    contains
 
      procedure, non_overridable, pass :: setupBase => setupController
@@ -18,6 +18,7 @@ module Controller_mod
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
      procedure(computeSensitivity), pass, deferred :: computeSensitivity
+     procedure(computeGradient),pass,deferred::computeGradient
      procedure(updateForcing), pass, deferred :: updateForcing
      procedure(updateGradient), pass, deferred :: updateGradient
      procedure(isPatchValid), pass, deferred :: isPatchValid
@@ -55,18 +56,33 @@ module Controller_mod
 
   abstract interface
 
-     function computeSensitivity(this, region) result(instantaneousSensitivity)
+  subroutine computeSensitivity(this,timeIntegrator,region) 
 
        use Region_mod, only : t_Region
-
+       use TimeIntegrator_mod, only : t_TimeIntegrator
        import :: t_Controller
 
        class(t_Controller) :: this
        class(t_Region), intent(in) :: region
+       class(t_TimeIntegrator),intent(in) :: timeIntegrator
 
-       SCALAR_TYPE :: instantaneousSensitivity
+     end subroutine computeSensitivity
 
-     end function computeSensitivity
+  end interface
+
+abstract interface
+
+     subroutine computeGradient(this,timeIntegrator,region) 
+
+       use Region_mod, only : t_Region
+       use TimeIntegrator_mod, only : t_TimeIntegrator
+       import :: t_Controller
+
+       class(t_Controller) :: this
+       class(t_Region), intent(in) :: region
+       class(t_TimeIntegrator),intent(in) :: timeIntegrator
+
+     end subroutine computeGradient
 
   end interface
 

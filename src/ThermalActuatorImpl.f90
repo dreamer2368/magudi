@@ -126,6 +126,21 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
 
 end function computeThermalActuatorSensitivity
 
+function computeThermalActuatorGradient(this,timeIntegrator,region) result(instantaneousGradient)
+
+use Region_mod, only : t_Region
+use TimeIntegrator_mod, only : t_TimeIntegrator
+use ThermalActuator_mod, only : t_ThermalActuator
+
+implicit none
+class(t_ThermalActuator) :: this
+class(t_Region), intent(in) :: region
+class(t_TimeIntegrator),intent(in) :: timeIntegrator
+SCALAR_TYPE :: instantaneousGradient
+
+end function computeThermalActuatorGradient
+
+
 subroutine updateThermalActuatorForcing(this, region)
 
   ! <<< Derived types >>>
