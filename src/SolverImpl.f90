@@ -811,13 +811,11 @@ function runAdjoint(this, region) result(costSensitivity)
            end if
         end if
 
-        ! Update gradient.
-        call controller%updateGradient(region)
+        !! Update gradient.
+        !call controller%updateGradient(region)
 
-        ! Update cost sensitivity.
         call controller%computeGradient(timeIntegrator,region)
 
-        ! Update cost sensitivity.
         call controller%computeSensitivity(timeIntegrator,region)
 
         ! Update adjoint forcing on cost target patches.
