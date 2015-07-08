@@ -1053,6 +1053,7 @@ subroutine setupOperator(this, stencilScheme)
   'DRP 9-point filter',             \
   'DRP 13-point first derivative',  \
   'DRP 13-point second derivative', \
+  'DRP 13-point filter',            \
   'null matrix'))
 
   call this%cleanup()
@@ -1965,7 +1966,7 @@ subroutine setupOperator(this, stencilScheme)
      this%rhsInterior(-1:-6:-1) = this%rhsInterior(1:6)
 
      this%normBoundary = 1.0_wp
-     
+
      this%rhsBoundary1(1:7,1) = (/ +4.7331413118533270375404984391079E+000_wp,               &
                                    -1.8732181204453295558576323967981E+001_wp,               &
                                    +3.2580453011133238896440809919952E+001_wp,               &
@@ -2019,6 +2020,44 @@ subroutine setupOperator(this, stencilScheme)
                                     +5.8160065952544240616240402171360E-002_wp,              &
                                     -9.7460853822832689972936919112537E-003_wp,              &
                                     +8.9801406812550448657719127266081E-004_wp /)
+
+  else if (trim(stencilScheme) == "DRP 13-point filter") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 13
+     this%boundaryWidth = 11
+     this%boundaryDepth = 6
+     call allocateData(this)
+
+     this%rhsInterior(0:6) = (/ 0.809100488494_wp, 0.171503832236_wp, -0.123632891797_wp,    &
+          0.069975429105_wp, -0.029662754736_wp, 0.008520738659_wp, -0.001254597714_wp /)
+     this%rhsInterior(-1:-6:-1) = this%rhsInterior(1:6)
+
+     this%normBoundary = 1.0_wp
+
+     this%rhsBoundary1(1:1,1) = (/ 1.0_wp /)
+
+     this%rhsBoundary1(1:7,2) = (/ 0.085777408970_wp, 0.722371828476_wp, 0.356848072173_wp,  &
+          -0.223119093072_wp, 0.057347064865_wp, 0.000747264596_wp, 0.000027453993_wp /)
+
+     this%rhsBoundary1(1:7,3) = (/ -0.032649010764_wp, 0.143339502575_wp, 0.72667882202_wp,  &
+          0.294622121167_wp, -0.186711738069_wp, 0.062038376258_wp, -0.007318073189_wp /)
+
+     this%rhsBoundary1(4:7,4) = (/ 0.749200019453_wp, 0.208081098497_wp,                     &
+          -0.114261743928_wp, 0.027662875246_wp /)
+     this%rhsBoundary1(3:1:-1,4) = this%rhsBoundary1(5:7,4)
+
+     this%rhsBoundary1(4:7,4) = (/ 0.749200019453_wp, 0.208081098497_wp,                     &
+          -0.114261743928_wp, 0.027662875246_wp /)
+     this%rhsBoundary1(3:1:-1,4) = this%rhsBoundary1(5:7,4)
+
+     this%rhsBoundary1(5:9,5) = (/ 0.75647250688_wp, 0.204788880640_wp,                      &
+          -0.120007591680_wp,  0.045211119360_wp, -0.008228661760_wp /)
+     this%rhsBoundary1(4:1:-1,5) = this%rhsBoundary1(6:9,5)
+
+     this%rhsBoundary1(6:11,6) = (/ 0.784955115888_wp, 0.187772883589_wp,                    &
+          -0.123755948787_wp, 0.059227575576_wp, -0.018721609157_wp, 0.002999540835_wp /)
+     this%rhsBoundary1(5:1:-1,6) = this%rhsBoundary1(7:11,6)
 
   else if (trim(stencilScheme) == "null matrix") then
 

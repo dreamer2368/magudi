@@ -76,7 +76,7 @@ program stencil_coefficients
        tolerance = epsilon(0.0_wp) * 300.0_wp)
   call A%setup("DRP 13-point second derivative")
   call testStencilAccuracy(A, 2, 4, 4, success,                                              &
-       tolerance = epsilon(0.0_wp) * 4.0_wp)
+       tolerance = epsilon(0.0_wp) * 20.0_wp)
 
   call A%cleanup()
 
