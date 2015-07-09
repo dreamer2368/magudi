@@ -551,7 +551,7 @@ class Solution(MultiBlockCommon):
                     self.size[i,:], order='C')
         f.close()
 
-    def toprimitive(self, gamma = 1.4):
+    def toprimitive(self, gamma=1.4):
         for q in self.q:
             for i in range(1, 4):
                 q[:,:,:,i] /= q[:,:,:,0]
@@ -584,7 +584,7 @@ class Solution(MultiBlockCommon):
         s.set_size(self.get_size(), True)
         return s
 
-    def minmax(self, block_index = None):
+    def minmax(self, block_index=None):
         if block_index is None:
             print 'Solution has %i block(s)\n' % self.nblocks
             for i in range(self.nblocks):
@@ -796,6 +796,18 @@ def sbp(n, interior_accuracy=4, order=1, periodic=False, dtype=np.float64):
     if order % 2 == 1:
         a[-d:,:] = -a[-d:,:]
     return a.tocsr()
+
+def mesh_stats(x):
+    print 'Number of grid points: %i' % x.size
+    print 'Grid extent: %+.4E, %+.4E' % (x[0], x[-1])
+    dx = np.abs(x[1:] - x[:-1])
+    print 'Minimum spacing: %+.4E' % dx.min()
+    print 'Maximum spacing: %+.4E' % dx.max()
+    s = np.abs(dx[1:] - dx[:-1]) / dx[:-1]
+    i = s.argmax()
+    print 'Maximum point-to-point stretching: %g%% at %+.4E' % \
+        (s[i] * 100., x[i+1])
+    return dx, s
 
 def compute_jacobian(g, op_func=sbp, *op_func_args):
     f = Function(ncomponents=9).copy_from(g)

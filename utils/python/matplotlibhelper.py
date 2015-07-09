@@ -80,7 +80,7 @@ def setup_axis(ax, xlim, ylim, xlabel, ylabel, xticks, yticks,
 
 def wireframe_mesh(ax, x, y, skip = [1, 1], **kwargs):
     for i in range(0, x.shape[0], skip[0]):
-        ax.plot(x[i,:], y[i,:], 'k-', **kwargs)
+        ax.plot(x[i,:], y[i,:], **kwargs)
     for j in range(0, x.shape[1], skip[1]):
-        ax.plot(x[:,j], y[:,j], 'k-', **kwargs)
+        ax.plot(x[:,j], y[:,j], **kwargs)
     return ax

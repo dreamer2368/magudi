@@ -2035,7 +2035,8 @@ subroutine setupOperator(this, stencilScheme)
 
      this%normBoundary = 1.0_wp
 
-     this%rhsBoundary1(1:1,1) = (/ 1.0_wp /)
+     this%rhsBoundary1(1:4,1) = (/ 0.679117647059_wp, 0.465_wp,                              &
+          -0.179117647059_wp, 0.035_wp /)
 
      this%rhsBoundary1(1:7,2) = (/ 0.085777408970_wp, 0.722371828476_wp, 0.356848072173_wp,  &
           -0.223119093072_wp, 0.057347064865_wp, 0.000747264596_wp, 0.000027453993_wp /)
