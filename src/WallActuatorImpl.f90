@@ -54,7 +54,7 @@ subroutine setupWallActuator(this, region)
      this%numP=1
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
-     this%p(1)=3._wp*pi/8._wp  
+     this%p(1)=0._wp !3._wp*pi/8._wp
 
      SAFE_DEALLOCATE(this%gradient)
      allocate(this%gradient(this%numP))
@@ -125,7 +125,6 @@ subroutine computeWallActuatorSensitivity(this,timeIntegrator, region)
 
   !for the passive wall shape optimization 
   !gradient already has time integrated and volume integrated
-
   this%sensitivity=0._wp
   do i = 1, size(region%grids)
     assert(size(this%gradient,1)==this%numP)
@@ -141,8 +140,6 @@ subroutine computeWallActuatorSensitivity(this,timeIntegrator, region)
      call MPI_Bcast(this%sensitivity, 1, SCALAR_TYPE_MPI,                            &
           0, region%grids(i)%comm, ierror)
   end do
-
-  this%cachedValue = this%sensitivity
 
 end subroutine computeWallActuatorSensitivity
 
@@ -205,12 +202,6 @@ dQdxi=0._wp
 inviscidFluxes=0._wp
 viscousFluxes=0._wp
 
-do ii = 1, nDimensions
-     dQdxi(:,:,ii)=region%states(i)%adjointVariables(:,:)
-     call region%grids(i)%firstDerivative(ii)%apply(dQdxi(:,:,ii),&
-          region%grids(i)%localSize)
-end do
-
 call computeCartesianInvsicidFluxes(nDimensions,&
 region%states(i)%conservedVariables,&
 region%states(i)%velocity, region%states(i)%pressure(:,1),&
@@ -225,46 +216,45 @@ if (getOption("include_viscous_terms",.false.).and.&
 end if
 
 do p=1,this%numP
-do v=1,nDimensions+2
-    F(:,p)=F(:,p)+region%states(i)%rightHandSide(:,v)*this%dJacobiandp(:,p)*&
-          region%states(i)%adjointVariables(:,v)
+
+dQdxi=0.
+F=0.
 
 do ii=1,nDimensions
 do jj=1,nDimensions
-     F(:,p)=F(:,p)-region%grids(i)%jacobian(:,1)*(inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
-          this%dMijdp(:,ii,jj,p)*dQdxi(:,v,ii)
-end do !ii
-end do !jj
-
-!this is the surface contribution whose weight only comes along the wall
-!specified by controlMollifier
-do jj=1,nDimensions
-     F(:,p)=F(:,p)-region%states(i)%adjointVariables(:,v)*region%grids(i)%jacobian(:,1)*&
-          (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*this%dMijdp(:,2,jj,p)*&
-          region%grids(i)%controlMollifier(:,1)
-end do
-
-!you will also need \partial N_sat \partial \vec{p}
-
+do v=1,nDimensions+2
+dQdxi(:,v,ii)=dQdxi(:,v,ii)+&
+          (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
+          this%dMijdp(:,ii,jj,p)
 end do
 end do
+call region%grids(i)%firstDerivative(ii)%apply(dQdxi(:,:,ii),&
+          region%grids(i)%localSize)
+end do
 
+F=sum(dQdxi,dim=3)
+do v=1,nDimensions+2
+F(:,v)=F(:,v)*region%grids(i)%jacobian(:,1)
+F(:,v)=F(:,v)+region%states(i)%rightHandSide(:,v)*this%dJacobiandp(:,p)
+end do !var
 
-G(:,:)=1._wp
+G(:,:)=region%states(i)%adjointVariables(:,:)
 
-this%instantaneousGradient = this%instantaneousGradient +&
-     region%grids(i)%computeInnerProduct(F,G)
-this%gradient(:)=this%gradient(:)+&
+this%instantaneousGradient(p)=-region%grids(i)%computeInnerProduct(G,F)
+
+this%gradient(p)=this%gradient(p)+&
      timeIntegrator%norm(timeIntegrator%stage)*region%getTimeStepSize()*&
-     this%instantaneousGradient(:)
+     this%instantaneousGradient(p)
+
+end do !wall parameters
 
 SAFE_DEALLOCATE(viscousFluxes)
 SAFE_DEALLOCATE(inviscidFluxes)
 SAFE_DEALLOCATE(dQdxi)
 SAFE_DEALLOCATE(F)
+SAFE_DEALLOCATE(G)
 
-
-end do
+end do !grids
 
 end subroutine computeWallActuatorGradient
 
@@ -413,7 +403,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      case (FORWARD)
      
      do g = 1, size(region%grids)
-        this%p(:)=3.*pi/8.- region%states(g)%actuationAmount*this%gradient(:)
+        this%p(:)=-region%states(g)%actuationAmount*this%gradient(:)
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
         call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
