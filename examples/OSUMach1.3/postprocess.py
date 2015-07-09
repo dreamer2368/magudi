@@ -282,12 +282,12 @@ def extract_const_r(g, f=None, r=0.5, stencil_size=5, show_progress=True):
         return ge, fe
     return ge
 
-def extract_fwh(g, i=161):
+def extract_fwh(g, i_fwh=161):
     n = g.get_size()
     g_fwh = p3d.Grid()
     g_fwh.set_size([n[0][2], 4 * (n[1][1] - 1) + 1, 1], True)
     for i in range(1, 5):
-        g.set_subzone(i, [i, 0, 0], [i, -2, -1]).load()
+        g.set_subzone(i, [i_fwh, 0, 0], [i_fwh, -2, -1]).load()
         for j in range(3):
             g_fwh.xyz[0][:,(i-1)*(n[1][1]-1):i*(n[1][1]-1),0,j] = \
                 g.xyz[0][0,:,:,j].T
