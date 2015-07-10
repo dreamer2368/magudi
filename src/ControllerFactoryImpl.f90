@@ -6,6 +6,7 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
   use Controller_mod, only : t_Controller
   use Controller_factory, only : t_ControllerFactory
   use ThermalActuator_mod, only : t_ThermalActuator
+  use ThermalActuatorSc_mod, only : t_ThermalActuatorSc
   use FuelActuator_mod, only : t_FuelActuator
   use IgnitionActuator_mod, only : t_IgnitionActuator
 
@@ -35,6 +36,9 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
 
      case ('THERMAL_ACTUATOR')
         allocate(t_ThermalActuator :: this%controller)
+
+     case ('THERMAL_ACTUATOR_SC')
+        allocate(t_ThermalActuatorSc :: this%controller)
 
      case ('FUEL_ACTUATOR')
         allocate(t_FuelActuator :: this%controller)
