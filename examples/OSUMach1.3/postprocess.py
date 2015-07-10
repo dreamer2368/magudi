@@ -60,11 +60,15 @@ class FWHSolver:
             q[-1,:,:] = q[0,:,:]
             q[:,:,0] = 1. / q[:,:,0]
             q[:,:,4] = (self.gamma - 1.) * (q[:,:,4] - 0.5 * q[:,:,0] * np.sum(
-                q[:,:,i+1] for i in range(3))) - 1. / self.gamma
+                    q[:,:,i+1] for i in range(3))) - 1. / self.gamma
             for mike in self.mikes:
                 mike.add_contribution(i, q)
             if pbar:
                 pbar.update(i)
+            if i % 100 == 0:
+                for j, mike in enumerate(self.mikes):
+                    with open('mike%02d.dat' % (j + 1), 'w') as f:
+                        np.savetxt(f, np.array([mike.t, mike.p]).T, fmt='%+.18E')
         if pbar:
             pbar.finish()
 
