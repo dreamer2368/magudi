@@ -37,7 +37,7 @@ subroutine setupFuelActuator(this, region)
         select type (patch)
            class is (t_ActuatorPatch)
            if (patch%nPatchPoints <= 0) cycle
-           ! Do not set up gradient buffer
+           ! Do not set up gradient buffer.
         end select
      end do
   end if

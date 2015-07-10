@@ -260,7 +260,6 @@ contains
     integer :: i, bc, nbc, iunit
     integer, allocatable, dimension(:) :: grid, normDir, imin, imax, jmin, jmax, kmin, kmax
     character(len = 22), allocatable, dimension(:) :: name, type
-    character(len = STRING_LENGTH) :: entry
     logical :: disableAdjoint
 
     ! Initialize BC

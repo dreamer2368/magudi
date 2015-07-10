@@ -691,7 +691,7 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
-  costFunctional = costFunctional / duration
+  !costFunctional = costFunctional / duration
 
   ! Call controller hooks after time marching ends.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
@@ -878,7 +878,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
-  costSensitivity = costSensitivity / duration
+  !costSensitivity = costSensitivity / duration
 
   ! Call controller hooks after time marching ends.
   call controller%hookAfterTimemarch(region, ADJOINT)
