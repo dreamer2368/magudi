@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine setupIgnitionSource(this, location, amplitude, radius, timeStart,                 &
+subroutine setupIgnitionSource(this, location, amplitude, radius, timeDependent, timeStart,  &
      timeDuration)
 
   ! <<< Derived types >>>
@@ -12,6 +12,7 @@ subroutine setupIgnitionSource(this, location, amplitude, radius, timeStart,    
   class(t_IgnitionSource) :: this
   real(SCALAR_KIND), intent(in) :: location(:), amplitude, radius, timeStart,                &
        timeDuration
+  logical, intent(in) :: timeDependent
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -28,8 +29,14 @@ subroutine setupIgnitionSource(this, location, amplitude, radius, timeStart,    
 
   this%radius = radius
 
-  this%timeStart = timeStart
-  this%timeDuration = timeDuration
+  this%timeDependent = timeDependent
+  if (this%timeDependent) then
+     this%timeStart = timeStart
+     this%timeDuration = timeDuration
+  else
+     this%timeStart = 0.0_wp
+     this%timeDuration = 1.0_wp
+  end if
 
 end subroutine setupIgnitionSource
 
@@ -57,7 +64,11 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHea
   nDimensions = size(coordinates, 2)
   assert_key(nDimensions, (1, 2, 3))
 
-  timePortion = exp( -0.5_wp * (time - this%timeStart)**2 / this%timeDuration**2)
+  if (this%timeDependent) then
+     timePortion = exp( -0.5_wp * (time - this%timeStart)**2 / this%timeDuration**2)
+  else
+     timePortion = 1.0_wp
+  end if
 
   referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
 

@@ -156,6 +156,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
         call this%ignitionSources(i)%setup(temp,                                             &
              getOption(trim(key) // "amplitude", 1.0_wp),                                    &
              getOption(trim(key) // "radius", 1.0_wp),                                       &
+             getOption(trim(key) // "time_dependent", .false.),                              &
              getOption(trim(key) // "time_start", 0.0_wp),                                   &
              getOption(trim(key) // "time_duration", 0.0_wp))
      end do

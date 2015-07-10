@@ -141,6 +141,12 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
                 region%states(i)%ignitionSources(1)%location(2)) /                           &
                 region%states(i)%ignitionSources(1)%radius**2
 
+        case ('INITIAL_TIME')
+
+           F(:,2) = ignitionForce(:,nDimensions+2) *                                         &
+                (region%states(i)%time - region%states(i)%ignitionSources(1)%timeStart) /    &
+                region%states(i)%ignitionSources(1)%timeDuration**2
+
         end select
 
         F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
@@ -152,10 +158,10 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      else
 
-        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                        &
-             region%grids(i)%controlMollifier(:,1)
+        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
+        F(:,2) = region%grids(i)%controlMollifier(:,1)
         instantaneousSensitivity = instantaneousSensitivity +                                &
-             region%grids(i)%computeInnerProduct(F(:,1), F(:,1))
+             region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
      end if
 
@@ -250,35 +256,7 @@ subroutine updateIgnitionActuatorGradient(this, region)
 
   if (.not. allocated(region%patchFactories)) return
 
-  nDimensions = size(region%globalGridSizes, 1)
-  assert_key(nDimensions, (1, 2, 3))
-
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     do j = 1, size(region%states)
-        if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
-        select type (patch)
-        class is (t_ActuatorPatch)
-
-           patch%iGradientBuffer = patch%iGradientBuffer + 1
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
-
-           allocate(F(patch%nPatchPoints, 2))
-           call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2), F(:,1))
-           call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,2))
-           patch%gradientBuffer(:,1,patch%iGradientBuffer) = product(F, dim = 2)
-           SAFE_DEALLOCATE(F)
-
-           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3)) then
-              call patch%saveGradient()
-              patch%iGradientBuffer = 0
-           end if
-
-        end select
-     end do
-  end do
+  ! Nothing to do here.
 
 end subroutine updateIgnitionActuatorGradient
 
@@ -356,45 +334,7 @@ subroutine hookIgnitionActuatorBeforeTimemarch(this, region, mode)
 
   if (.not. allocated(region%patchFactories)) return
 
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     select type (patch)
-     class is (t_ActuatorPatch)
-        if (patch%comm == MPI_COMM_NULL) cycle
-
-        call MPI_Comm_rank(patch%comm, procRank, ierror)
-
-        select case (mode)
-
-        case (FORWARD)
-           if (procRank == 0) inquire(file = trim(patch%gradientFilename), exist = fileExists)
-           call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
-           if (.not. fileExists) then
-              write(message, '(3A,I0.0,A)') "No gradient information available for patch '", &
-                   trim(patch%name), "' on grid ", patch%gridIndex, "!"
-              call gracefulExit(patch%comm, message)
-           end if
-           patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
-           call MPI_File_open(patch%comm, trim(patch%gradientFilename) // char(0),           &
-                MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
-           call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
-           call MPI_File_close(mpiFileHandle, ierror)
-
-        case (ADJOINT)
-           if (procRank == 0) then
-              open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
-                   action = 'write', status = 'unknown')
-              close(fileUnit)
-           end if
-           call MPI_Barrier(patch%comm, ierror)
-           patch%iGradientBuffer = 0
-           patch%gradientFileOffset = int(0, MPI_OFFSET_KIND)
-
-        end select
-
-     end select
-  end do
+  ! Nothing to do here.
 
 end subroutine hookIgnitionActuatorBeforeTimemarch
 
@@ -429,23 +369,6 @@ subroutine hookIgnitionActuatorAfterTimemarch(this, region, mode)
 
   if (.not. allocated(region%patchFactories)) return
 
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     select type (patch)
-     class is (t_ActuatorPatch)
-        if (patch%comm == MPI_COMM_NULL) cycle
-
-        call MPI_Comm_rank(patch%comm, procRank, ierror)
-
-        select case (mode)
-
-        case (ADJOINT)
-           call patch%saveGradient()
-
-        end select
-
-     end select
-  end do
+  ! Nothing to do here.
 
 end subroutine hookIgnitionActuatorAfterTimemarch
