@@ -918,6 +918,7 @@ subroutine checkGradientAccuracy(this, region)
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
+  logical :: outputControl
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -994,7 +995,8 @@ subroutine checkGradientAccuracy(this, region)
   if (nIterations == 0) return
 
   ! Turn off output for controlled predictions.
-  region%outputOn = .false.
+  outputControl = getOption("output_control_iterations", .false.)
+  if (.not. outputControl) region%outputOn = .false.
 
   if (restartIteration == 0) restartIteration = restartIteration + 1
 
