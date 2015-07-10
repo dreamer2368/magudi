@@ -24,6 +24,7 @@ program counterflow_diffusion
   character(len = STRING_LENGTH) :: inputname, filename
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
+  logical :: xPeriodic, yPeriodic
 
   print *
   print *, '! ======================================= !'
@@ -53,7 +54,8 @@ program counterflow_diffusion
   call parseInputFile(inputname)
 
   ! Generate the grid
-  call counterflowDiffusionGrid(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge)
+  call counterflowDiffusionGrid(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge,          &
+       xPeriodic, yPeriodic)
 
   ! Save the grid
   call getRequiredOption("grid_file", filename)
@@ -69,12 +71,13 @@ program counterflow_diffusion
   call region%reportGridDiagnostics()
 
   ! Generate the BC
-  call counterflowDiffusionBC(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge)
+  call counterflowDiffusionBC(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge,            &
+       xPeriodic, yPeriodic)
 
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
-     call counterflowDiffusionInitialCondition(region%states(i), region%grids(i),                        &
-          region%simulationFlags%useTargetState)
+     call counterflowDiffusionInitialCondition(region%states(i), region%grids(i),            &
+          region%simulationFlags%useTargetState, xPeriodic, yPeriodic)
   end do
 
   ! Save initial condition.
@@ -109,7 +112,7 @@ contains
   ! =============== !
   ! Grid generation !
   ! =============== !
-  subroutine counterflowDiffusionGrid(i1, i2, j1, j2)
+  subroutine counterflowDiffusionGrid(i1, i2, j1, j2, xPeriodic, yPeriodic)
 
     ! <<< External modules >>>
     use MPI
@@ -126,6 +129,7 @@ contains
 
     ! <<< Arguments >>>
     integer, intent(out) :: i1, i2, j1, j2
+    logical, intent(out) :: xPeriodic, yPeriodic
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -153,6 +157,10 @@ contains
     call getRequiredOption("ymax_outer", ymaxo)
     zmin = getOption("zmin", 0.0_wp)
     zmax = getOption("zmax", 0.0_wp)
+
+    ! Periodicity
+    xPeriodic = getOption("periodic_in_x", .false.)
+    yPeriodic = getOption("periodic_in_y", .false.)
 
     ! Should we stretch the mesh?
     stretch_y = getOption('stretch_y',.false.)
@@ -189,13 +197,25 @@ contains
              gridIndex = i+nx_*(j-1+ny_*(k-1))
 
              ! Create X
-             region%grids(1)%coordinates(gridIndex,1) =                                      &
-                  (xmaxo - xmino) * real(i-1,wp) / real(nx-1) + xmino
+             if (xPeriodic) then
+                region%grids(1)%coordinates(gridIndex,1) =                                   &
+                     (xmaxo - xmino - dx) * real(i-1,wp) / real(nx-1) + xmino
+             else
+                region%grids(1)%coordinates(gridIndex,1) =                                   &
+                     (xmaxo - xmino) * real(i-1,wp) / real(nx-1) + xmino
+             end if
 
 
              ! Create Y
-             if (.not.stretch_y) region%grids(1)%coordinates(gridIndex,2) =                  &
-                  (ymaxo - ymino) * real(j-1,wp) / real(ny-1) + ymino
+             if (.not.stretch_y) then
+                if (yPeriodic) then
+                   region%grids(1)%coordinates(gridIndex,2) =                                &
+                        (ymaxo - ymino - dy) * real(j-1,wp) / real(ny-1) + ymino
+                else
+                   region%grids(1)%coordinates(gridIndex,2) =                                &
+                        (ymaxo - ymino) * real(j-1,wp) / real(ny-1) + ymino
+                end if
+             end if
 
              ! Create Z
              if (nz.ne.1) region%grids(1)%coordinates(gridIndex,3) =                         &
@@ -207,6 +227,9 @@ contains
 
     ! Stretch the grid.
     if (stretch_y) then
+
+       if (yPeriodic) print *, 'WARNING: Cannot stretch grid in periodic direction'
+
        ! Parameters
        sig=0.18_wp
        b=20.0_wp
@@ -320,7 +343,8 @@ contains
   ! =================== !
   ! Boundary conditions !
   ! =================== !
-  subroutine counterflowDiffusionBC(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge)
+  subroutine counterflowDiffusionBC(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge,      &
+       xPeriodic, yPeriodic)
 
     ! <<< Internal modules >>>
     use InputHelper, only : getOption
@@ -329,6 +353,7 @@ contains
 
     ! <<< Arguments >>>
     integer, intent(in) :: imin_sponge, imax_sponge, jmin_sponge, jmax_sponge
+    logical, intent(in) :: xPeriodic, yPeriodic
 
     ! <<< Local variables >>>
     integer :: i, bc, nbc, iunit
@@ -346,93 +371,97 @@ contains
     grid(:) = 1
     bc = 0
 
-    bc = bc + 1
-    name   (bc) = 'farField.E'
-    type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) =  1
-    imin   (bc) =  1
-    imax   (bc) =  1
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+    if (.not. xPeriodic) then
+       bc = bc + 1
+       name   (bc) = 'farField.E'
+       type   (bc) = 'SAT_FAR_FIELD'
+       normDir(bc) =  1
+       imin   (bc) =  1
+       imax   (bc) =  1
+       jmin   (bc) =  1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    bc = bc + 1
-    name   (bc) = 'farField.W'
-    type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) = -1
-    imin   (bc) = -1
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'farField.W'
+       type   (bc) = 'SAT_FAR_FIELD'
+       normDir(bc) = -1
+       imin   (bc) = -1
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    bc = bc + 1
-    name   (bc) = 'sponge.E'
-    type   (bc) = 'SPONGE'
-    normDir(bc) =  1
-    imin   (bc) =  1
-    imax   (bc) =  imin_sponge
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'sponge.E'
+       type   (bc) = 'SPONGE'
+       normDir(bc) =  1
+       imin   (bc) =  1
+       imax   (bc) =  imin_sponge
+       jmin   (bc) =  1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    bc = bc + 1
-    name   (bc) = 'sponge.W'
-    type   (bc) = 'SPONGE'
-    normDir(bc) =  -1
-    imin   (bc) =  imax_sponge
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'sponge.W'
+       type   (bc) = 'SPONGE'
+       normDir(bc) =  -1
+       imin   (bc) =  imax_sponge
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+    end if
 
-    bc = bc + 1
-    name   (bc) = 'farField.S'
-    type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) =  2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) =  1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+    if (.not. yPeriodic) then
+       bc = bc + 1
+       name   (bc) = 'farField.S'
+       type   (bc) = 'SAT_FAR_FIELD'
+       normDir(bc) =  2
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) =  1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    bc = bc + 1
-    name   (bc) = 'farField.N'
-    type   (bc) = 'SAT_FAR_FIELD'
-    normDir(bc) =  -2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) = -1
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'farField.N'
+       type   (bc) = 'SAT_FAR_FIELD'
+       normDir(bc) =  -2
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) = -1
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    bc = bc + 1
-    name   (bc) = 'sponge.S'
-    type   (bc) = 'SPONGE'
-    normDir(bc) =  2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) =  1
-    jmax   (bc) = jmin_sponge
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'sponge.S'
+       type   (bc) = 'SPONGE'
+       normDir(bc) =  2
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) =  1
+       jmax   (bc) = jmin_sponge
+       kmin   (bc) =  1
+       kmax   (bc) = -1
 
-    bc = bc + 1
-    name   (bc) = 'sponge.N'
-    type   (bc) = 'SPONGE'
-    normDir(bc) = -2
-    imin   (bc) =  1
-    imax   (bc) = -1
-    jmin   (bc) =  jmax_sponge
-    jmax   (bc) = -1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
+       bc = bc + 1
+       name   (bc) = 'sponge.N'
+       type   (bc) = 'SPONGE'
+       normDir(bc) = -2
+       imin   (bc) =  1
+       imax   (bc) = -1
+       jmin   (bc) =  jmax_sponge
+       jmax   (bc) = -1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+    end if
 
     entry = getOption("target_mollifier_file", "")
     if (len_trim(entry) > 0) then
@@ -491,7 +520,8 @@ contains
   ! ================== !
   ! Initial conditions !
   ! ================== !
-  subroutine counterflowDiffusionInitialCondition(state, grid, generateTargetState)
+  subroutine counterflowDiffusionInitialCondition(state, grid, generateTargetState,          &
+       xPeriodic, yPeriodic)
 
     ! <<< External modules >>>
     use MPI
@@ -510,6 +540,7 @@ contains
     type(t_State) :: state
     type(t_Grid) :: grid
     logical, intent(in), optional :: generateTargetState
+    logical, intent(in) :: xPeriodic, yPeriodic
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -549,6 +580,10 @@ contains
     call getRequiredOption("stoichiometric_ratio", s)
     uniformTemperature = getOption("initial_uniform_temperature", .false.)
     if (.not.uniformTemperature) call getRequiredOption("wall_temperature", wallTemperature)
+
+    ! Initialize velocities.
+    u = 0.0_wp
+    v = 0.0_wp
 
     ! Temperatures.
     T0 =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
@@ -594,8 +629,8 @@ contains
        y = grid%coordinates(i,2)
 
        ! Velocities.
-       u =  strainRate * x
-       v = -strainRate * y
+       if (.not.xPeriodic) u =  strainRate * x
+       if (.not.yPeriodic) v = -strainRate * y
 
        ! Similarity transformation.
        eta = sqrt(strainRate * Re * Sc) * y! / lengthScale
