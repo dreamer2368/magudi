@@ -366,6 +366,8 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
      state%rightHandSide(:,1) = state%rightHandSide(:,1) +                                   &
           state%specificVolume(:,1) * state%conservedVariables(:,nDimensions+2) *            &
           temp2(:,nDimensions+1) + sum(state%velocity * temp2(:,1:nDimensions), dim = 2)
+     if (nSpecies > 0) state%rightHandSide(:,1) = state%rightHandSide(:,1) +                 &
+          sum(state%massFraction * temp2(:,ndimensions+3:nUnknowns), dim = 2)
 
      SAFE_DEALLOCATE(temp2)
 
