@@ -60,11 +60,15 @@ class FWHSolver:
             q[-1,:,:] = q[0,:,:]
             q[:,:,0] = 1. / q[:,:,0]
             q[:,:,4] = (self.gamma - 1.) * (q[:,:,4] - 0.5 * q[:,:,0] * np.sum(
-                q[:,:,i+1] for i in range(3))) - 1. / self.gamma
+                    q[:,:,i+1] for i in range(3))) - 1. / self.gamma
             for mike in self.mikes:
                 mike.add_contribution(i, q)
             if pbar:
                 pbar.update(i)
+            if i % 100 == 0:
+                for j, mike in enumerate(self.mikes):
+                    with open('mike%02d.dat' % (j + 1), 'w') as f:
+                        np.savetxt(f, np.array([mike.t, mike.p]).T, fmt='%+.18E')
         if pbar:
             pbar.finish()
 
@@ -282,12 +286,12 @@ def extract_const_r(g, f=None, r=0.5, stencil_size=5, show_progress=True):
         return ge, fe
     return ge
 
-def extract_fwh(g, i=161):
+def extract_fwh(g, i_fwh=161):
     n = g.get_size()
     g_fwh = p3d.Grid()
     g_fwh.set_size([n[0][2], 4 * (n[1][1] - 1) + 1, 1], True)
     for i in range(1, 5):
-        g.set_subzone(i, [i, 0, 0], [i, -2, -1]).load()
+        g.set_subzone(i, [i_fwh, 0, 0], [i_fwh, -2, -1]).load()
         for j in range(3):
             g_fwh.xyz[0][:,(i-1)*(n[1][1]-1):i*(n[1][1]-1),0,j] = \
                 g.xyz[0][0,:,:,j].T
