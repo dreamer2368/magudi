@@ -229,7 +229,6 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
        localMetricsAlongDirection2(:), localStressTensor(:), localHeatFlux(:),               &
        localAdjointDiffusion(:,:), localSpeciesFlux(:,:)
 
-
   call startTiming("computeRhsAdjoint")
 
   nDimensions = grid%nDimensions

@@ -90,11 +90,12 @@ PURE_SUBROUTINE computeDependentVariables(nDimensions, nSpecies, conservedVariab
      assert(size(massFraction, 2) == nSpecies)
      if (present(specificVolume)) then
         do i = 1, nSpecies
-           massFraction(:,i) = specificVolume * conservedVariables(:,nDimensions + 2 + i)
+           massFraction(:,i) = specificVolume * conservedVariables(:,nDimensions+2+i)
         end do
      else
         do i = 1, nSpecies
-           massFraction(:,i) = conservedVariables(:,nDimensions + 2 + i) / conservedVariables(:,1)
+           massFraction(:,i) = conservedVariables(:,nDimensions+2+i) /                       &
+                conservedVariables(:,1)
         end do
      end if
   end if
@@ -910,13 +911,13 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
   integer :: k
   SCALAR_TYPE :: specificVolume_, velocity_(nDimensions), temperature_,                      &
        massFraction_(nSpecies), contravariantVelocity, phiSquared,                           &
-       deltaConservedVariables_(nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),      &
-       deltaSpecificVolume(nDimensions + nSpecies + 2),                                      &
-       deltaVelocity(nDimensions,nDimensions + nSpecies + 2),                                &
-       deltaTemperature(nDimensions + nSpecies + 2),                                         &
-       deltaMassFraction(nSpecies, nDimensions + nSpecies + 2),                               &
-       deltaContravariantVelocity(nDimensions + nSpecies + 2),                               &
-       deltaPhiSquared(nDimensions + nSpecies + 2)
+       deltaConservedVariables_(nDimensions+nSpecies+2, nDimensions+nSpecies+2),             &
+       deltaSpecificVolume(nDimensions+nSpecies+2),                                          &
+       deltaVelocity(nDimensions, nDimensions+nSpecies+2),                                   &
+       deltaTemperature(nDimensions+nSpecies+2),                                             &
+       deltaMassFraction(nSpecies, nDimensions+nSpecies+2),                                  &
+       deltaContravariantVelocity(nDimensions+nSpecies+2),                                   &
+       deltaPhiSquared(nDimensions+nSpecies+2)
 
   assert_key(nDimensions, (1, 2, 3))
   assert(nSpecies >= 0)
@@ -1444,22 +1445,22 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
   SCALAR_TYPE :: arcLength, normalizedMetrics(nDimensions), specificVolume_,                 &
        velocity_(nDimensions), temperature_, massFraction_(nSpecies),                        &
        contravariantVelocity, speedOfSound, phiSquared,                                      &
-       rightEigenvectors(nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),             &
-       eigenvalues(nDimensions + nSpecies + 2),                                              &
-       leftEigenvectors(nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),              &
-       deltaConservedVariables_(nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),      &
-       deltaSpecificVolume(nDimensions + nSpecies + 2),                                      &
-       deltaVelocity(nDimensions,nDimensions + nSpecies + 2),                                &
-       deltaTemperature(nDimensions + nSpecies + 2),                                         &
-       deltaMassFraction(nSpecies, nDimensions + nSpecies + 2),                              &
-       deltaContravariantVelocity(nDimensions + nSpecies + 2),                               &
-       deltaSpeedOfSound(nDimensions + nSpecies + 2),                                        &
-       deltaPhiSquared(nDimensions + nSpecies + 2), deltaRightEigenvectors                   &
-       (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),   &
-       deltaEigenvalues(nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),              &
+       rightEigenvectors(nDimensions+nSpecies+2, nDimensions+nSpecies+2),                    &
+       eigenvalues(nDimensions+nSpecies+2),                                                  &
+       leftEigenvectors(nDimensions+nSpecies+2, nDimensions+nSpecies+2),                     &
+       deltaConservedVariables_(nDimensions+nSpecies+2, nDimensions+nSpecies+2),             &
+       deltaSpecificVolume(nDimensions+nSpecies+2),                                          &
+       deltaVelocity(nDimensions, nDimensions+nSpecies+2),                                   &
+       deltaTemperature(nDimensions+nSpecies+2),                                             &
+       deltaMassFraction(nSpecies, nDimensions+nSpecies+2),                                  &
+       deltaContravariantVelocity(nDimensions+nSpecies+2),                                   &
+       deltaSpeedOfSound(nDimensions+nSpecies+2),                                            &
+       deltaPhiSquared(nDimensions+nSpecies+2), deltaRightEigenvectors                       &
+       (nDimensions+nSpecies+2, nDimensions+nSpecies+2, nDimensions+nSpecies+2),             &
+       deltaEigenvalues(nDimensions+nSpecies+2, nDimensions+nSpecies+2),                     &
        deltaLeftEigenvectors                                                                 &
-       (nDimensions + nSpecies + 2,nDimensions + nSpecies + 2,nDimensions + nSpecies + 2),   &
-       temp(nDimensions + nSpecies + 2)
+       (nDimensions+nSpecies+2, nDimensions+nSpecies+2, nDimensions+nSpecies+2),             &
+       temp(nDimensions+nSpecies+2)
 
   ! Normalize the metrics.
   arcLength = sqrt(sum(metrics ** 2))
@@ -1486,7 +1487,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      temperature_ = temperature
   else
      temperature_ = ratioOfSpecificHeats * (specificVolume_ *                                &
-          conservedVariables(nDimensions + 2) - 0.5_wp * sum(velocity_ ** 2))
+          conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
   end if
 
   ! Compute mass fraction if it was not specified.
@@ -2566,7 +2567,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      temperature_ = temperature
   else
      temperature_ = ratioOfSpecificHeats * (specificVolume_ *                                &
-          conservedVariables(nDimensions + 2) - 0.5_wp * sum(velocity_ ** 2))
+          conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
   end if
 
   ! Compute mass fraction if it was not specified.
@@ -2574,7 +2575,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
      massFraction_ = massFraction
   else
      do k = 1, nSpecies
-        massFraction_(k) = specificVolume_ * conservedVariables(nDimensions + 2 + k)
+        massFraction_(k) = specificVolume_ * conservedVariables(nDimensions+2+k)
      end do
   end if
 
@@ -2637,7 +2638,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies,       
           metrics(2) * heatFlux(2) !... not normalized.
      do k = 1, nSpecies
         contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                        &
-          metrics(2) * speciesFlux(k,2) !... not normalized
+             metrics(2) * speciesFlux(k,2) !... not normalized
      end do
      temp1 = velocity(1) * contravariantStressTensor(1) +                                    &
           velocity(2) * contravariantStressTensor(2) - contravariantHeatFlux
@@ -2944,7 +2945,7 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   assert_key(nDimensions, (1, 2, 3))
   assert(nSpecies >= 0)
   assert(combustion%nReactions > 0)
-  assert(size(conservedVariables) == nDimensions + 2 + nSpecies)
+  assert(size(conservedVariables) == nDimensions+2+nSpecies)
 
   ! Compute specific volume if it was not specified.
   if (present(specificVolume)) then
@@ -2967,8 +2968,9 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   if (present(temperature)) then
      temperature_ = temperature
   else
-     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(nDimensions + 2) &
-          - 0.5_wp * (sum(velocity_ ** 2)))
+     temperature_ = ratioOfSpecificHeats *                                                   &
+          (specificVolume_ * conservedVariables(nDimensions+2) -                             &
+          0.5_wp * (sum(velocity_ ** 2)))
   end if
 
   ! Compute mass fraction if it was not specified.
