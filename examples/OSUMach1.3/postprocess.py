@@ -318,7 +318,7 @@ def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4):
     u_j = mach_number * np.sqrt(temperature_ratio)
     St = numpy.fft.fftfreq(m, d=dt)[1:m/2] / u_j
     y = np.empty([m / 2, num_windows, p.shape[1]])
-    window_func = np.hamming(m)
+    window_func = np.blackman(m)
     for j in range(p.shape[1]):
         for i, w in enumerate(windows):
             y[:,i,j] = np.absolute(numpy.fft.fft(
@@ -329,7 +329,7 @@ def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4):
         y[1:] ** 2, axis=1), axis=0)) / p_ref ** 2)
     SPL = 10. * np.log10(np.mean(np.mean(y[1:] ** 2, axis=1), axis=1) /
                          p_ref ** 2)
-    SPL += 10. * np.log10(1. / dt / (m / 2 - 1))
+    SPL += 10. * np.log10(1. / dt / n)
     return St, SPL, OASPL
 
 def extract_axisymmetric(g, f, show_progress=True):
