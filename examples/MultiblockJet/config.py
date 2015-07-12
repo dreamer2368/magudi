@@ -196,7 +196,7 @@ def mesh_segment(n, x_min, x_max, dx_min, dx_max=None):
     """
     from scipy.optimize import curve_fit
     if dx_max is None:
-        f = lambda x, sigma: np.sinh(sigma * x) / np.sinh(sigma)        
+        f = lambda x, sigma: np.sinh(sigma * x) / np.sinh(sigma)
         sigma = fsolve(lambda x: ((x_max - x_min) * f(1. / (n - 1.), x) -
                                   dx_min) ** 2, 2.)
         return x_min + (x_max - x_min) * f(np.linspace(0., 1., n), sigma)
@@ -234,7 +234,7 @@ def dc_func(x, n, num_const_dr, dr_min, a_inner, sigma):
     return (c[-1] - 0.5) ** 2
 
 def nozzle_quadrant(grid_size, num_const_dr=4, a_inner=0.24,
-                    p_inner=1.12, dr_min=0.005):    
+                    p_inner=1.12, dr_min=0.005):
     theta = np.linspace(0., np.pi / 2, grid_size[1])
     s = np.linspace(0., 1., grid_size[0])
     p = np.empty_like(s)
@@ -343,12 +343,12 @@ def plot_jacobian_continuity(g):
         c = ax.contour(x, y, z, levels=np.linspace(vmin, vmax, 31))
     plt.colorbar(c)
     ax.set_xlim([-0.5, 0.5])
-    ax.set_ylim([-0.5, 0.5])    
+    ax.set_ylim([-0.5, 0.5])
     ax.set_aspect('equal')
     plt.show()
 
 def grid(num_radial_nozzle, num_radial_near_field, num_azimuthal,
-         num_axial=512, a_inner=0.24, dr_min=0.005):
+         num_axial=512, a_inner=0.24, p_inner=1.12, dr_min=0.005):
     assert num_azimuthal % 4 == 0
     num_radial = num_radial_nozzle + num_radial_near_field
     g = p3d.Grid().set_size([
@@ -358,7 +358,7 @@ def grid(num_radial_nozzle, num_radial_near_field, num_azimuthal,
         [num_radial, num_azimuthal / 4, num_axial],
         [num_radial, num_azimuthal / 4, num_axial]], True)
     x, y = nozzle_quadrant([num_radial_nozzle, num_azimuthal / 4],
-                           a_inner=a_inner, dr_min=dr_min)
+                           a_inner=a_inner, p_inner=p_inner, dr_min=dr_min)
     for k in range(num_axial):
         g.xyz[1][:num_radial_nozzle,:,k,0] = x
         g.xyz[1][:num_radial_nozzle,:,k,1] = y
@@ -370,7 +370,7 @@ def grid(num_radial_nozzle, num_radial_near_field, num_azimuthal,
     if num_axial > 1:
         z = axial_coordinate(num_axial=num_axial)
         p3d.mesh_stats(z)
-        # plot_axial_spacing(z)    
+        # plot_axial_spacing(z)
         for k in range(num_axial):
             g.xyz[1][:,:,k,2] = z[k]
     complete_rotated_blocks(g)
@@ -390,7 +390,7 @@ def target_state(g, mach_number=1.3, gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
     T_inf = 1./ (gamma - 1.)
-    u_j = mach_number * np.sqrt(temperature_ratio)    
+    u_j = mach_number * np.sqrt(temperature_ratio)
     for i, xyz in enumerate(g.xyz):
         z = xyz[0,0,:,2]
         r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2)
@@ -416,7 +416,7 @@ def target_state(g, mach_number=1.3, gamma=1.4):
 def initial_condition(g, mach_number=1.3, gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
-    u_j = mach_number * np.sqrt(temperature_ratio)    
+    u_j = mach_number * np.sqrt(temperature_ratio)
     for i, xyz in enumerate(g.xyz):
         z = xyz[0,0,:,2]
         r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2) / 0.5
@@ -445,7 +445,7 @@ def plot_eigenvalues(St, alpha, u_j, theta_j):
         ax.plot(St, omega / alpha[i,:].real / u_j, 'rs-', mec='r', mfc='w')
     ax.set_xlim([0.35, 0.95])
     ax.set_ylim([0.5, 0.75])
-    plt.show()    
+    plt.show()
 
 def eigenmodes(mach_number=1.3, theta_j=0.04, show_progress=True):
     u_j = InstabilityMode(mach_number=mach_number,
@@ -530,7 +530,7 @@ def inflow_perturbations(g, modes):
     return sr, si
 
 if __name__ == '__main__':
-    g = grid(60, 196, 132)
+    g = grid(60, 196, 132, a_inner=0.24, p_inner=1.08634735266)
     g.save('MultiblockJet.xyz')
     target_state(g).save('MultiblockJet.target.q')
     initial_condition(g).save('MultiblockJet.ic.q')
