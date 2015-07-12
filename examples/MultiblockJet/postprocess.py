@@ -25,3 +25,15 @@ def extract_yz(f):
             else:
                 fe[0][so[i] + [j]] = f[0][si[i] + [j]].T
     return fe
+
+def extract_xy(f, k=0):
+    n = f.get_size()
+    args = dict()
+    if type(f) == p3d.Function:
+        args.update(ncomponents=f.ncomponents)
+    fe = type(f)(**args).set_size(
+        [[n[i][0], n[i][1], 1] for i in range(5)], True)
+    for i in range(5):
+        f.set_subzone(i, [0, 0, k], [-1, -1, k]).load()
+        fe[0][:,:,0,:] = f[0][:,:,0,:]
+    return fe
