@@ -24,6 +24,10 @@ subroutine setupThermalActuatorSc(this, region)
 
   call this%cleanup()
 
+  if (region%simulationFlags%predictionOnly) return
+
+  call this%setupBase(region%simulationFlags, region%solverOptions)
+
 end subroutine setupThermalActuatorSc
 
 subroutine cleanupThermalActuatorSc(this)
@@ -281,6 +285,6 @@ subroutine hookThermalActuatorScAfterTimemarch(this, region, mode)
 
   if (.not. allocated(region%patchFactories)) return
 
-  ! Nothing to do here
+  ! Nothing to do here.
 
 end subroutine hookThermalActuatorScAfterTimemarch

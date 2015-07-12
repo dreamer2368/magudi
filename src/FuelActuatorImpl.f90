@@ -30,18 +30,6 @@ subroutine setupFuelActuator(this, region)
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
-  if (allocated(region%patchFactories)) then
-     do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        select type (patch)
-           class is (t_ActuatorPatch)
-           if (patch%nPatchPoints <= 0) cycle
-           ! Do not set up gradient buffer.
-        end select
-     end do
-  end if
-
 end subroutine setupFuelActuator
 
 subroutine cleanupFuelActuator(this)
