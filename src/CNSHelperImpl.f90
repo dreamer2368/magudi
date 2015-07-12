@@ -783,7 +783,6 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
   ! Advection.
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
-     assert(real(temperature(i), wp) > 0.0_wp)
      localSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))
      localWaveSpeed = 0.0_wp
      do j = 1, nDimensions
@@ -839,7 +838,6 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
   integer :: i, j
   real(wp) :: localSpeedOfSound, localWaveSpeed
 
-
   assert(size(iblank) > 0)
   assert_key(nDimensions, (1, 2, 3))
   assert(size(jacobian) == size(iblank))
@@ -856,7 +854,6 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
   ! Advection.
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
-     assert(real(temperature(i), wp) > 0.0_wp)
      localSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))
      localWaveSpeed = 0.0_wp
      do j = 1, nDimensions

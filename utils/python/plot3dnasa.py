@@ -10,8 +10,46 @@ lengths and quad-precision floating-point (as supported natively)."""
 import sys
 import numpy as np
 from struct import pack, unpack_from
+from itertools import izip
 
-__all__ = ['Grid', 'Solution', 'Function', 'FileFormatError', 'fromfile']
+__all__ = ['Grid', 'Solution', 'Function', 'FileFormatError', 'fromfile',
+           'cartesian_grid', 'cubic_bspline_support', 'tanh_support',
+           'find_extents']
+
+def fdcoeff(stencil, order=1):
+    from scipy.linalg import solve
+    from scipy.special import gamma
+    p = np.arange(len(stencil))
+    A = np.empty([p.size, p.size])
+    for i, s in enumerate(stencil):
+        A[i,:] = s ** p / gamma(p + 1)
+    b = np.zeros(A.shape[1])
+    b[order] = 1.
+    return solve(A.T, b)
+
+def fdmakeop(n, interior_accuracy=4, order=1,
+             periodic=False, dtype=np.float64):
+    from scipy.sparse import dok_matrix
+    a = dok_matrix((n, n), dtype=dtype)
+    m = (interior_accuracy + order - 1) / 2
+    s = np.arange(-m, m + 1)
+    if periodic:
+        for k in xrange(n):
+            c = fdcoeff(s, order)
+            for ck, sk in izip(c, s):
+                a[k,(k+sk)%n] = ck
+        return a.tocsr()
+    for k in xrange(m, n - m):
+        c = fdcoeff(s, order)
+        for ck, sk in izip(c, s):
+            a[k,(k+sk)%n] = ck
+    for k in range(m):
+        s = np.arange(0, m + 1) - k
+        c = fdcoeff(s, order)
+        for ck, sk in izip(c, s):
+            a[k,k+sk] = ck
+            a[-(k+1),-(k+1+sk)] = (-1) ** order * ck
+    return a.tocsr()
 
 class FileFormatError(Exception):
     pass
@@ -25,11 +63,11 @@ class FileFormat(object):
         self.endianness = '='
         self.ncomponents = 0
         self.nblocks = 0
-        self.size = np.empty([0, 3], dtype = np.dtype(np.int32))
+        self.size = np.empty([0, 3], dtype=np.dtype(np.int32))
         self.file_type = ''
         self.has_iblank = False
-        self.aux_header = np.zeros([4], dtype = self.real_dtype)
-        self.offsets = np.empty([0], dtype = np.dtype(np.int64))
+        self.aux_header = np.zeros([4], dtype=self.real_dtype)
+        self.offsets = np.empty([0], dtype=np.dtype(np.int64))
         if filename:
             self.detect(filename)
 
@@ -46,8 +84,8 @@ class FileFormat(object):
                     self.endianness)
                 self.nblocks = self._get_integer(f)
                 # block dimensions
-                a = np.fromstring(self._get_raw_bytes(f), dtype = np.dtype(
-                        np.int32).newbyteorder(self.endianness))
+                a = np.fromstring(self._get_raw_bytes(f), dtype=np.dtype(
+                    np.int32).newbyteorder(self.endianness))
                 if np.any(a <= 0):
                     raise FileFormatError(filename)
                 if a.size == 4 * self.nblocks:
@@ -70,17 +108,18 @@ class FileFormat(object):
             raise FileFormatError(filename)
 
     def _compute_offsets(self, f):
-        self.offsets = np.empty(self.nblocks, dtype = np.dtype(np.int64))
+        self.offsets = np.empty(self.nblocks, dtype=np.dtype(np.int64))
         self.offsets[0] = f.tell() + self.reclength_dtype.itemsize
         for i in range(1, self.offsets.size):
             r = self._get_reclength(f)
             self.offsets[i] = self.offsets[i-1] + \
                               r + 2 * self.reclength_dtype.itemsize
-            if i < self.offsets.size - 1:
+            if i < self.offsets.size - 1 or self.file_type == 'solution':
                 f.seek(r + 2 * self.reclength_dtype.itemsize, 1)
-                if self.file_type == 'solution':
-                    r = self._get_reclength(f)
-                    self.offsets[i] += r + 2 * self.reclength_dtype.itemsize
+            if self.file_type == 'solution':
+                r = self._get_reclength(f)
+                self.offsets[i] += r + 2 * self.reclength_dtype.itemsize
+                if i < self.offsets.size - 1:
                     f.seek(r + 2 * self.reclength_dtype.itemsize, 1)
 
     def _detect_endianness(self, f):
@@ -161,14 +200,14 @@ class MultiBlockCommon(object):
         ndim = np.array(size).ndim
         if ndim == 1:
             self.nblocks = 1
-            self.size = np.empty([1, 3], dtype = np.dtype(
+            self.size = np.empty([1, 3], dtype=np.dtype(
                     np.int32).newbyteorder(self._format.endianness))
             for i, s in enumerate(size):
                 self.size[0,:] = [size[i] if i < len(size) else 1
                                   for i in range(3)]
         elif ndim == 2:
             self.nblocks = len(size)
-            self.size = np.empty([self.nblocks, 3], dtype = np.dtype(
+            self.size = np.empty([self.nblocks, 3], dtype=np.dtype(
                     np.int32).newbyteorder(self._format.endianness))
             for i, s in enumerate(size):
                 self.size[i,:] = [size[i][j] if j < len(size[i]) else 1
@@ -206,16 +245,16 @@ class MultiBlockCommon(object):
         if starts is None or ends is None:
             return np.reshape(np.fromstring(
                 f.read(dtype.itemsize * np.prod(size)), dtype),
-                              size.tolist(), order = 'F')
+                              size.tolist(), order='F')
         size_ = ends - starts + 1
-        a = np.empty(size_.tolist(), dtype = dtype)
+        a = np.empty(size_.tolist(), dtype=dtype, order='F')
         f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
         for k in range(starts[2], ends[2] + 1):
             f.seek(size[0] * starts[1] * dtype.itemsize, 1)
             for j in range(starts[1], ends[1] + 1):
                 f.seek(starts[0] * dtype.itemsize, 1)
                 a[:, j - starts[1], k - starts[2]] = np.fromstring(
-                    f.read(size_[0] * dtype.itemsize), dtype = dtype)
+                    f.read(size_[0] * dtype.itemsize), dtype=dtype)
                 f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
             f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
         f.seek(size[0] * size[1] * (size[2] - (ends[2] + 1)) *
@@ -226,9 +265,9 @@ class MultiBlockCommon(object):
         if starts is None or ends is None:
             return np.reshape(np.fromstring(
                 f.read(dtype.itemsize * n * np.prod(size)), dtype),
-                              size.tolist() + [n], order = 'F')
+                              size.tolist() + [n], order='F')
         size_ = ends - starts + 1
-        a = np.empty(size_.tolist() + [n], dtype = dtype)
+        a = np.empty(size_.tolist() + [n], dtype=dtype, order='F')
         for i in range(n):
             f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
             for k in range(starts[2], ends[2] + 1):
@@ -236,31 +275,11 @@ class MultiBlockCommon(object):
                 for j in range(starts[1], ends[1] + 1):
                     f.seek(starts[0] * dtype.itemsize, 1)
                     a[:, j - starts[1], k - starts[2], i] = np.fromstring(
-                          f.read(size_[0] * dtype.itemsize), dtype = dtype)
+                          f.read(size_[0] * dtype.itemsize), dtype=dtype)
                     f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
                 f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
             f.seek(size[0] * size[1] * (size[2] - (ends[2] + 1)) *
                    dtype.itemsize, 1)
-        return a
-
-    def read_scalar(self, f, size, dtype, starts, ends):
-        if starts is None or ends is None:
-            return np.reshape(np.fromstring(
-                f.read(dtype.itemsize * np.prod(size)), dtype),
-                              size.tolist(), order = 'F')
-        size_ = ends - starts + 1
-        a = np.empty(size_.tolist(), dtype = dtype)
-        f.seek(size[0] * size[1] * starts[2] * dtype.itemsize, 1)
-        for k in range(starts[2], ends[2] + 1):
-            f.seek(size[0] * starts[1] * dtype.itemsize, 1)
-            for j in range(starts[1], ends[1] + 1):
-                f.seek(starts[0] * dtype.itemsize, 1)
-                a[:, j - starts[1], k - starts[2]] = np.fromstring(
-                    f.read(size_[0] * dtype.itemsize), dtype = dtype)
-                f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
-            f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
-        f.seek(size[0] * size[1] * (size[2] - (ends[2] + 1)) *
-               dtype.itemsize, 1)
         return a
 
     def write_header(self, f, ncomponents = 0):
@@ -272,7 +291,7 @@ class MultiBlockCommon(object):
             f.write(self.size.tostring())
             f.write(pack(self._format.reclength_dtype.str, 4 * self.size.size))
         else:
-            s = np.empty([self.nblocks, 4], dtype = np.dtype(
+            s = np.empty([self.nblocks, 4], dtype=np.dtype(
                     np.int32).newbyteorder(self._format.endianness))
             s[:,:-1] = self.size
             s[:,-1] = ncomponents
@@ -313,11 +332,12 @@ class Grid(MultiBlockCommon):
 
     def allocate(self):
         for i in range(self.nblocks):
-            self.xyz[i] = np.empty(self.size[i].tolist() + [3], dtype =
-                                   self._format.real_dtype)
+            self.xyz[i] = np.empty(self.size[i].tolist() + [3],
+                                   dtype=self._format.real_dtype, order='F')
         if self.has_iblank:
-            self.iblank[i] = np.empty(self.size[i].tolist(), dtype =
-                                      self._format.integer_dtype)
+            self.iblank[i] = np.empty(self.size[i].tolist(),
+                                      dtype=self._format.integer_dtype,
+                                      order='F')
         return self
 
     def load(self, filename=''):
@@ -420,6 +440,13 @@ class Grid(MultiBlockCommon):
     def __setitem__(self, key, item):
         self.xyz[key] = item
 
+    def squeeze(self):
+        for i, xyz in enumerate(self.xyz):
+            nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
+                 if self.size[i,2] == 1 else 3
+            self.xyz[i] = xyz[:,:,:,:nd]
+        return self
+
 class Solution(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
                  subzone_ends=None, forceread=False):
@@ -445,7 +472,7 @@ class Solution(MultiBlockCommon):
     def allocate(self):
         for i in range(self.nblocks):
             self.q[i] = np.empty(self.size[i].tolist() + [5],
-                                 dtype = self._format.real_dtype)
+                                 dtype=self._format.real_dtype, order='F')
         return self
 
     def load(self, filename=''):
@@ -465,7 +492,7 @@ class Solution(MultiBlockCommon):
                    2 * self._format.reclength_dtype.itemsize -
                    4 * self._format.real_dtype.itemsize)
             self.time = np.fromstring(f.read(self._format.real_dtype.itemsize),
-                                      dtype = self._format.real_dtype)[0]
+                                      dtype=self._format.real_dtype)[0]
             j = 0
             for i in range(self._format.nblocks):
                 if self._block_index is not None and i != self._block_index:
@@ -486,7 +513,7 @@ class Solution(MultiBlockCommon):
             if self._format.aux_header is not None:
                 aux_header = self._format.aux_header
             else:
-                aux_header = np.zeros(dtype = self._format.real_dtype)
+                aux_header = np.zeros(dtype=self._format.real_dtype)
             aux_header[-1] = self.time
             for i in range(self.nblocks):
                 s = 4 * self._format.real_dtype.itemsize
@@ -524,7 +551,7 @@ class Solution(MultiBlockCommon):
                     self.size[i,:], order='C')
         f.close()
 
-    def toprimitive(self, gamma = 1.4):
+    def toprimitive(self, gamma=1.4):
         for q in self.q:
             for i in range(1, 4):
                 q[:,:,:,i] /= q[:,:,:,0]
@@ -557,7 +584,7 @@ class Solution(MultiBlockCommon):
         s.set_size(self.get_size(), True)
         return s
 
-    def minmax(self, block_index = None):
+    def minmax(self, block_index=None):
         if block_index is None:
             print 'Solution has %i block(s)\n' % self.nblocks
             for i in range(self.nblocks):
@@ -577,6 +604,18 @@ class Solution(MultiBlockCommon):
 
     def __setitem__(self, key, item):
         self.q[key] = item
+
+    def squeeze(self):
+        for i, q in enumerate(self.q):
+            nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
+                 if self.size[i,2] == 1 else 3
+            p = np.copy(q)
+            self.q[i] = np.empty(self.size[i].tolist() + [nd + 2], order='F')
+            for j in range(nd+1):
+                self.q[i][:,:,:,j] = p[:,:,:,j]
+            self.q[i][:,:,:,nd+1] = p[:,:,:,4]
+        return self
+
 
 class Function(MultiBlockCommon):
     def __init__(self, filename='', block_index=None, subzone_starts=None,
@@ -603,7 +642,7 @@ class Function(MultiBlockCommon):
     def allocate(self):
         for i in range(self.nblocks):
             self.f[i] = np.empty(self.size[i].tolist() + [self.ncomponents],
-                                 dtype = self._format.real_dtype)
+                                 dtype=self._format.real_dtype, order='F')
         return self
 
     def load(self, filename=''):
@@ -716,15 +755,13 @@ def cartesian_grid(filename, block_index=0):
 
 def cubic_bspline_support(x, x_min, x_max):
     from scipy.signal import cubic
-    imin = np.argmin(np.abs(x - x_min))
-    imax = np.argmin(np.abs(x - x_max))
-    assert imax - imin + 1 >= 3
+    imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
+    imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
     return cubic(4. * (x - x[imin]) / (x[imax] - x[imin]) - 2.)
 
 def tanh_support(x, x_min, x_max, sigma, xi):
-    imin = np.argmin(np.abs(x - x_min))
-    imax = np.argmin(np.abs(x - x_max))
-    assert imax > imin
+    imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
+    imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
     f = lambda x: \
         np.tanh(sigma * (x + 1. - 0.5 * xi)) - \
         np.tanh(sigma * (x - 1. + 0.5 * xi))
@@ -733,6 +770,59 @@ def tanh_support(x, x_min, x_max, sigma, xi):
 
 def find_extents(x, x_min, x_max):
     return np.where(x >= x_min)[0][0], np.where(x <= x_max)[0][-1] + 2
+
+def sbp(n, interior_accuracy=4, order=1, periodic=False, dtype=np.float64):
+    if periodic:
+        return fdmakeop(n, interior_accuracy, order, True, dtype)
+    from scipy.sparse import dok_matrix
+    assert interior_accuracy in [2, 4, 6, 8]
+    assert order in [1, 2]
+    a = dok_matrix((n, n), dtype=dtype)
+    d = interior_accuracy if interior_accuracy != 2 else 1
+    m = (interior_accuracy + order - 1) / 2
+    s = np.arange(-m, m + 1)
+    for k in xrange(d, n - d):
+        c = fdcoeff(s, order)
+        for ck, sk in izip(c, s):
+            a[k,(k+sk)%n] = ck
+    if order == 1:
+        if interior_accuracy == 4:
+            a[0,0:4] = a[-1,-1:-5:-1] = [-24./17., 59./34., -4./17., -3./34.]
+            a[1,0:3] = a[-2,-1:-4:-1] = [-0.5, 0., 0.5]
+            a[2,0:5] = a[-3,-1:-6:-1] = [4./43., -59./86., 0., 59./86.,
+                                         -4./43.]
+            a[3,0:6] = a[-4,-1:-7:-1] = [3./98., 0., -59./98., 0., 32./49,
+                                         -4./49.]
+    if order % 2 == 1:
+        a[-d:,:] = -a[-d:,:]
+    return a.tocsr()
+
+def mesh_stats(x):
+    print 'Number of grid points: %i' % x.size
+    print 'Grid extent: %+.4E, %+.4E' % (x[0], x[-1])
+    dx = np.abs(x[1:] - x[:-1])
+    print 'Minimum spacing: %+.4E' % dx.min()
+    print 'Maximum spacing: %+.4E' % dx.max()
+    s = np.abs(dx[1:] - dx[:-1]) / dx[:-1]
+    i = s.argmax()
+    print 'Maximum point-to-point stretching: %g%% at %+.4E' % \
+        (s[i] * 100., x[i+1])
+    return dx, s
+
+def compute_jacobian(g, op_func=sbp, *op_func_args):
+    f = Function(ncomponents=9).copy_from(g)
+    for i, xyz in enumerate(g.xyz):
+        n = g.get_size(i)
+        f.f[i].fill(0.)
+        for j in range(3):
+            if n[j] > 1:
+                op = op_func(n[j], *op_func_args)
+                for k in range(3):
+                    f.f[i][:,:,:,k+3*j] = np.apply_along_axis(
+                        op.dot, j, xyz[:,:,:,k])
+            else:
+                f.f[i][:,:,:,j+3*j] = 1.
+    return f
 
 if __name__ == '__main__':
     pass

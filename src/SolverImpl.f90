@@ -431,6 +431,9 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   this%reportInterval = getOption("report_interval", 1)
   if (this%reportInterval == 0) this%reportInterval = -1
 
+  this%probeInterval = getOption("probe_interval", -1)
+  if (this%probeInterval == 0) this%probeInterval = -1
+
   call this%timeIntegratorFactory%connect(timeIntegrator,                                    &
        trim(region%solverOptions%timeIntegratorType))
   assert(associated(timeIntegrator))
@@ -679,6 +682,10 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
              time, instantaneousCostFunctional)
      end if
 
+     ! Save solution on probe patches.
+     if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
+          call region%saveProbeData(FORWARD)
+
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
 
@@ -692,6 +699,9 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
   !costFunctional = costFunctional / duration
+
+  ! Finish writing remaining data gathered on probes.
+  if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   ! Call controller hooks after time marching ends.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
@@ -821,6 +831,9 @@ function runAdjoint(this, region) result(costSensitivity)
   ! Call controller hooks before time marching starts.
   call controller%hookBeforeTimemarch(region, ADJOINT)
 
+  ! Reset probes.
+  if (this%probeInterval > 0) call region%resetProbes()
+
   time = startTime
 
   do timestep = startTimestep + sign(1, timemarchDirection),                                 &
@@ -866,6 +879,10 @@ function runAdjoint(this, region) result(costSensitivity)
      call showProgress(this, region, ADJOINT, startTimestep, timestep,                       &
           time, instantaneousCostSensitivity)
 
+     ! Save solution on probe patches.
+     if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
+          call region%saveProbeData(ADJOINT)
+
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
 
@@ -879,6 +896,9 @@ function runAdjoint(this, region) result(costSensitivity)
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
   !costSensitivity = costSensitivity / duration
+
+  ! Finish writing remaining data gathered on probes.
+  if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
 
   ! Call controller hooks after time marching ends.
   call controller%hookAfterTimemarch(region, ADJOINT)

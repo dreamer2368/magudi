@@ -2,10 +2,7 @@ def rc_journal(width=None, height=None):
     from numpy import sqrt
     import matplotlib
     golden_ratio = 0.5 * (1. + sqrt(5.))
-    try:
-        matplotlib.rcParams['backend'] = 'pgf'
-    except ValueError:
-        matplotlib.rcParams['backend'] = 'agg'
+    matplotlib.rcParams['backend'] = 'Agg'
     matplotlib.rcParams['font.size'] = 8.
     matplotlib.rcParams['text.usetex'] = True
     matplotlib.rcParams['font.family'] = 'serif'
@@ -65,9 +62,10 @@ def read_engauge_data(filename):
 
 def setup_axis(ax, xlim, ylim, xlabel, ylabel, xticks, yticks,
                xlabelpad=2., ylabelpad=2., xscale='linear', yscale='linear'):
-
-    ax.set_xscale(xscale)
-    ax.set_yscale(yscale)
+    if xscale:
+        ax.set_xscale(xscale)
+    if yscale:
+        ax.set_yscale(yscale)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.set_xlabel(xlabel, labelpad=xlabelpad)
@@ -78,4 +76,11 @@ def setup_axis(ax, xlim, ylim, xlabel, ylabel, xticks, yticks,
     ticks, ticklabels = nice_labels(yticks, yscale)
     ax.set_yticks(ticks)
     ax.set_yticklabels(ticklabels)
+    return ax
+
+def wireframe_mesh(ax, x, y, skip = [1, 1], **kwargs):
+    for i in range(0, x.shape[0], skip[0]):
+        ax.plot(x[i,:], y[i,:], **kwargs)
+    for j in range(0, x.shape[1], skip[1]):
+        ax.plot(x[:,j], y[:,j], **kwargs)
     return ax

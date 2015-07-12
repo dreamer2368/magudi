@@ -25,7 +25,8 @@ module StencilOperator_mod
      procedure, pass :: applyAtInteriorPoints => applyOperatorAtInteriorPoints
      procedure, pass :: applyNorm => applyOperatorNorm
      procedure, pass :: applyNormInverse => applyOperatorNormInverse
-     procedure, pass :: applyAtDomainBoundary => applyOperatorAtDomainBoundary
+     procedure, pass :: applyAndProjectOnBoundary => applyOperatorAndProjectOnBoundary
+     procedure, pass :: projectOnBoundaryAndApply => projectOnBoundaryAndApplyOperator
 
   end type t_StencilOperator
 
@@ -127,11 +128,11 @@ module StencilOperator_mod
 
   interface
 
-     pure subroutine applyOperatorAtDomainBoundary(this, x, gridSize, faceOrientation)
+     pure subroutine applyOperatorAndProjectOnBoundary(this, x, gridSize, faceOrientation)
 
-       !> Applies a stencil operator to a real/complex semidiscrete vector only at points that
-       !> lie on the left (right) boundary of the computational domain if `faceOrientation`
-       !> is greater (lesser) than zero.
+       !> Applies a stencil operator to a real/complex semidiscrete vector followed by zeroing
+       !> the result at all points except points that lie on the left (right) boundary of the
+       !> computational domain if `faceOrientation` is greater (lesser) than zero.
 
        import :: t_StencilOperator
 
@@ -139,7 +140,25 @@ module StencilOperator_mod
        SCALAR_TYPE, intent(inout) :: x(:,:)
        integer, intent(in) :: gridSize(3), faceOrientation
 
-     end subroutine applyOperatorAtDomainBoundary
+     end subroutine applyOperatorAndProjectOnBoundary
+
+  end interface
+
+  interface
+
+     pure subroutine projectOnBoundaryAndApplyOperator(this, x, gridSize, faceOrientation)
+
+       !> Zeros a real/complex semidiscrete vector at all points except points that lie on the
+       !> left (right) boundary of the computational domain if `faceOrientation` is greater
+       !> (lesser) than zero. Then, applies a stencil operator to the result.
+
+       import :: t_StencilOperator
+
+       class(t_StencilOperator), intent(in) :: this
+       SCALAR_TYPE, intent(inout) :: x(:,:)
+       integer, intent(in) :: gridSize(3), faceOrientation
+
+     end subroutine projectOnBoundaryAndApplyOperator
 
   end interface
 

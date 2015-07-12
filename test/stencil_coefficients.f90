@@ -16,6 +16,7 @@ program stencil_coefficients
   integer, parameter :: wp = SCALAR_KIND
   type(t_StencilOperator) :: A
   logical :: success
+  integer :: i
 
   interface
 
@@ -70,6 +71,22 @@ program stencil_coefficients
   call A%setup("SBP 4-8 composite dissipation")
   call testStencilAccuracy(A, 0, 8, 4, success,                                              &
        tolerance = epsilon(0.0_wp) * 20.0_wp)
+
+  call A%setup("DRP 13-point first derivative")
+  call testStencilAccuracy(A, 1, 4, 4, success,                                              &
+       tolerance = epsilon(0.0_wp) * 300.0_wp)
+  call A%setup("DRP 13-point second derivative")
+  call testStencilAccuracy(A, 2, 4, 4, success,                                              &
+       tolerance = epsilon(0.0_wp) * 20.0_wp)
+  call A%setup("DRP 13-point filter")
+  A%rhsInterior = -A%rhsInterior
+  A%rhsInterior(0) = A%rhsInterior(0) + 1.0_wp
+  A%rhsBoundary1 = -A%rhsBoundary1
+  do i = 1, size(A%rhsBoundary1, 2)
+     A%rhsBoundary1(i,i) = A%rhsBoundary1(i,i) + 1.0_wp
+  end do
+  call testStencilAccuracy(A, 0, 4, 2, success,                                              &
+       tolerance = epsilon(0.0_wp) * 5000.0_wp)
 
   call A%cleanup()
 

@@ -112,7 +112,7 @@ program boundary_operator
         call A%apply(u, localSize)
 
         v = f
-        call A%applyAtDomainBoundary(v, localSize, faceOrientation)
+        call A%applyAndProjectOnBoundary(v, localSize, faceOrientation)
 
         GridLoop: do k = offset(3) + 1, offset(3) + localSize(3)
            do j = offset(2) + 1, offset(2) + localSize(2)
@@ -160,6 +160,42 @@ program boundary_operator
               end do !... i = offset(1) + 1, offset(1) + localSize(1)
            end do !... j = offset(2) + 1, offset(2) + localSize(2)
         end do GridLoop !... k = offset(3) + 1, offset(3) + localSize(3)
+
+        call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
+        if (trim(str) /= "SBP 1-2") then
+
+           u = f
+           v = 0.0_wp
+
+           do k = offset(3) + 1, offset(3) + localSize(3)
+              do j = offset(2) + 1, offset(2) + localSize(2)
+                 do i = offset(1) + 1, offset(1) + localSize(1)
+
+                    localIndex = i - offset(1) + localSize(1) * (j - 1 - offset(2) +         &
+                         localSize(2) * (k - 1 - offset(3)))
+
+                    if (direction == 1 .and. ((faceOrientation == +1 .and. i == 1) .or.      &
+                         (faceOrientation == -1 .and. i == globalSize(1))))                  &
+                         v(localIndex,:) = u(localIndex,:)
+                    if (direction == 2 .and. ((faceOrientation == +1 .and. j == 1) .or.      &
+                         (faceOrientation == -1 .and. j == globalSize(2))))                  &
+                         v(localIndex,:) = u(localIndex,:)
+                    if (direction == 3 .and. ((faceOrientation == +1 .and. k == 1) .or.      &
+                         (faceOrientation == -1 .and. k == globalSize(3))))                  &
+                         v(localIndex,:) = u(localIndex,:)
+
+                 end do
+              end do
+           end do
+
+           call A%apply(v, localSize)
+
+           call A%projectOnBoundaryAndApply(u, localSize, faceOrientation)
+
+           success = success .and. (maxval(abs(u - v)) <= tolerance)
+
+        end if
 
         call MPI_Barrier(MPI_COMM_WORLD, ierror)
         call MPI_Comm_free(cartesianCommunicator, ierror)

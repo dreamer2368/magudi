@@ -134,13 +134,10 @@ function computeDragForce(this, region) result(instantaneousFunctional)
 
            allocate(F(region%grids(i)%nGridPoints, 1))
 
-           F(:,1) = (region%states(i)%pressure(:,1) -                                        &
-                1.0_wp / region%solverOptions%ratioOfSpecificHeats) *                        &
-                matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),         &
-                this%direction(1:nDimensions))
+           F(:,1) = 0.0_wp
            do l = 1, nDimensions
               if (region%simulationFlags%viscosityOn) then
-                 F(:,1) = F(:,1) - this%direction(l) *                                       &
+                 F(:,1) = F(:,1) + this%direction(l) *                                       &
                       sum(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k) *     &
                       region%states(i)%stressTensor(:,1+nDimensions*(l-1):nDimensions*l),    &
                       dim = 2)
@@ -149,7 +146,7 @@ function computeDragForce(this, region) result(instantaneousFunctional)
            F(:,1) = normBoundaryFactor * F(:,1)
 
            instantaneousFunctional = instantaneousFunctional +                               &
-                patch%computeInnerProduct(region%grids(i), F(:,1), F(:,1),                   &
+                patch%computeInnerProduct(region%grids(i), F(:,1),                           &
                 region%grids(i)%targetMollifier(:,1))
 
            SAFE_DEALLOCATE(F)
@@ -202,11 +199,9 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, direction, nDimensions, nUnknowns, nSpecies, gridIndex, patchIndex
+  integer :: direction, nDimensions, nUnknowns, nSpecies
   real(SCALAR_KIND) :: normBoundaryFactor
-  SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
-       unitNormal(:), incomingJacobianOfInviscidFlux(:,:)
-  SCALAR_TYPE :: F
+  SCALAR_TYPE, allocatable :: temp1(:,:), temp2(:,:)
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -220,68 +215,36 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
   direction = abs(patch%normalDirection)
   assert(direction >= 1 .and. direction <= nDimensions)
 
-  normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(direction)%normBoundary(1),        &
-       real(patch%normalDirection, wp))
+ normBoundaryFactor = 1.0_wp / grid%firstDerivative(direction)%normBoundary(1)
 
-  allocate(localConservedVariables(nUnknowns))
-  allocate(unitNormal(nDimensions))
-  allocate(metricsAlongNormalDirection(nDimensions))
-  allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
+  if (patch%nPatchPoints > 0) then
 
-  do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
-     do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
-        do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
-           gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
-                (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
-                (k - 1 - patch%gridOffset(3)))
-           if (grid%iblank(gridIndex) == 0) cycle
-           patchIndex = i - patch%offset(1) + patch%localSize(1) *                           &
-                (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
-                (k - 1 - patch%offset(3)))
+     allocate(temp1(grid%nGridPoints, nUnknowns))
+     allocate(temp2(grid%nGridPoints, 1))
 
-           localConservedVariables = state%conservedVariables(gridIndex,:)
-           metricsAlongNormalDirection =                                                     &
-                grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
-           unitNormal = metricsAlongNormalDirection /                                        &
-                sqrt(sum(metricsAlongNormalDirection ** 2))
+     ! Hack for TBL:
 
-           if (simulationFlags%useContinuousAdjoint) then
+     temp1 = 0.0_wp
 
-              F = grid%jacobian(gridIndex, 1) *                                              &
-                   dot_product(state%adjointVariables(gridIndex,2:nDimensions+1) -           &
-                   this%direction(1:nDimensions), unitNormal)
+     temp2(:,1) = grid%jacobian(:,1) * grid%metrics(:,1) * state%dynamicViscosity(:,1)
+     call grid%adjointFirstDerivative(1)%projectOnBoundaryAndApply(temp2, grid%localSize,    &
+          patch%normalDirection)
+     call grid%firstDerivative(1)%applyNorm(temp2, grid%localSize)
+     temp1(:,3) = grid%jacobian(:,1) * state%specificVolume(:,1) * temp2(:,1)
 
-              call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,              &
-                   localConservedVariables, metricsAlongNormalDirection,                     &
-                   solverOptions%ratioOfSpecificHeats, - patch%normalDirection,              &
-                   incomingJacobianOfInviscidFlux,                                           &
-                   specificVolume = state%specificVolume(gridIndex, 1),                      &
-                   temperature = state%temperature(gridIndex, 1))
+     temp2(:,1) = grid%jacobian(:,1) * grid%metrics(:,5) * state%dynamicViscosity(:,1)
+     call grid%adjointFirstDerivative(2)%projectOnBoundaryAndApply(temp2, grid%localSize,    &
+          patch%normalDirection)
+     call grid%firstDerivative(1)%applyNorm(temp2, grid%localSize)
+     temp1(:,2) = grid%jacobian(:,1) * state%specificVolume(:,1) * temp2(:,1)
 
-              patch%adjointForcing(patchIndex,:) = - patch%inviscidPenaltyAmount * F *       &
-                   matmul(transpose(incomingJacobianOfInviscidFlux(2:nDimensions+1,:)),      &
-                   unitNormal)
+     call patch%collect(temp1, patch%adjointForcing)
+     patch%adjointForcing = patch%adjointForcing * normBoundaryFactor
 
-           else
+     SAFE_DEALLOCATE(temp2)
+     SAFE_DEALLOCATE(temp1)
 
-              F = grid%jacobian(gridIndex, 1) * normBoundaryFactor *                         &
-                   (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                           &
-                   dot_product(metricsAlongNormalDirection, this%direction(1:nDimensions))
-
-              patch%adjointForcing(patchIndex,1) =                                           &
-                   0.5_wp * sum(state%velocity(gridIndex,:) ** 2) * F
-              patch%adjointForcing(patchIndex,2:nDimensions+1) =                             &
-                   - state%velocity(gridIndex,:) * F
-              patch%adjointForcing(patchIndex,nDimensions+2) = F
-
-           end if
-
-        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
-     end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
-  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
-
-  SAFE_DEALLOCATE(unitNormal)
-  SAFE_DEALLOCATE(metricsAlongNormalDirection)
+  end if
 
 end subroutine computeDragForceAdjointForcing
 

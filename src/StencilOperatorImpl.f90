@@ -378,7 +378,7 @@ contains
 
   end subroutine applyOperatorAtInteriorPoints_3
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_1(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAndProjectOnBoundary_1(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -430,9 +430,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_1
+  end subroutine applyOperatorAndProjectOnBoundary_1
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_2(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAndProjectOnBoundary_2(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -486,9 +486,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_2
+  end subroutine applyOperatorAndProjectOnBoundary_2
 
-  PURE_SUBROUTINE applyOperatorAtDomainBoundary_3(this, x, gridSize, faceOrientation)
+  PURE_SUBROUTINE applyOperatorAndProjectOnBoundary_3(this, x, gridSize, faceOrientation)
 
     ! <<< Derived types >>>
     use StencilOperator_mod, only : t_StencilOperator
@@ -542,7 +542,202 @@ contains
 
     end if
 
-  end subroutine applyOperatorAtDomainBoundary_3
+  end subroutine applyOperatorAndProjectOnBoundary_3
+
+  PURE_SUBROUTINE projectOnBoundaryAndApplyOperator_1(this, x, gridSize, faceOrientation)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), faceOrientation
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, m, n
+    SCALAR_TYPE, allocatable :: x_(:,:,:,:)
+
+    allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
+
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    end do
+
+    n = this%boundaryWidth
+
+    x = 0.0_wp
+
+    if (faceOrientation > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          i = 1
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do j = 1, gridSize(2)
+                   do m = 1, this%boundaryDepth
+                      x(i + m - 1 + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l) =      &
+                           this%rhsBoundary1(1,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    else
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          i = gridSize(1)
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do j = 1, gridSize(2)
+                   do m = this%boundaryDepth, 1, -1
+                      x(i - m + 1 + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l) =      &
+                           this%rhsBoundary2(n,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    end if
+
+    SAFE_DEALLOCATE(x_)
+
+  end subroutine projectOnBoundaryAndApplyOperator_1
+
+  PURE_SUBROUTINE projectOnBoundaryAndApplyOperator_2(this, x, gridSize, faceOrientation)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), faceOrientation
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, m, n
+    SCALAR_TYPE, allocatable :: x_(:,:,:,:)
+
+    allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
+
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    end do
+
+    n = this%boundaryWidth
+
+    x = 0.0_wp
+
+    if (faceOrientation > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          j = 1
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do i = 1, gridSize(1)
+                   do m = 1, this%boundaryDepth
+                      x(i + gridSize(1) * (j + m - 2 + gridSize(2) * (k - 1)), l) =          &
+                           this%rhsBoundary1(1,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    else
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          j = gridSize(2)
+          do l = 1, size(x, 2)
+             do k = 1, gridSize(3)
+                do i = 1, gridSize(1)
+                   do m = this%boundaryDepth, 1, -1
+                      x(i + gridSize(1) * (j - m + gridSize(2) * (k - 1)), l) =              &
+                           this%rhsBoundary2(n,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    end if
+
+    SAFE_DEALLOCATE(x_)
+
+  end subroutine projectOnBoundaryAndApplyOperator_2
+
+  PURE_SUBROUTINE projectOnBoundaryAndApplyOperator_3(this, x, gridSize, faceOrientation)
+
+    ! <<< Derived types >>>
+    use StencilOperator_mod, only : t_StencilOperator
+
+    ! <<< Arguments >>>
+    class(t_StencilOperator), intent(in) :: this
+    SCALAR_TYPE, intent(inout) :: x(:,:)
+    integer, intent(in) :: gridSize(3), faceOrientation
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, k, l, m, n
+    SCALAR_TYPE, allocatable :: x_(:,:,:,:)
+
+    allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
+
+    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
+       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    end do
+
+    n = this%boundaryWidth
+
+    x = 0.0_wp
+
+    if (faceOrientation > 0) then
+
+       ! Left boundary.
+       if (this%hasDomainBoundary(1)) then
+          k = 1
+          do l = 1, size(x, 2)
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   do m = 1, this%boundaryDepth
+                      x(i + gridSize(1) * (j - 1 + gridSize(2) * (k + m - 2)), l) =          &
+                           this%rhsBoundary1(1,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    else
+
+       ! Right boundary.
+       if (this%hasDomainBoundary(2)) then
+          k = gridSize(3)
+          do l = 1, size(x, 2)
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   do m = this%boundaryDepth, 1, -1
+                      x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - m)), l) =              &
+                           this%rhsBoundary2(n,m) * x_(i,j,k,l)
+                   end do
+                end do
+             end do
+          end do
+       end if
+
+    end if
+
+    SAFE_DEALLOCATE(x_)
+
+  end subroutine projectOnBoundaryAndApplyOperator_3
 
   PURE_SUBROUTINE applyOperatorNorm_1(this, x, gridSize)
 
@@ -835,27 +1030,30 @@ subroutine setupOperator(this, stencilScheme)
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: x1, x2, x3
 
-  assert_key(stencilScheme, (      \
-  'SBP 1-2 first derivative',      \
-  'SBP 1-2 second derivative',     \
-  'SBP 1-2 composite dissipation', \
-  'SBP 2-4 first derivative',      \
-  'SBP 2-4 second derivative',     \
-  'SBP 2-4 dissipation',           \
-  'SBP 2-4 dissipation transpose', \
-  'SBP 2-4 composite dissipation', \
-  'Standard 5-point filter',       \
-  'SBP 3-6 first derivative',      \
-  'SBP 3-6 second derivative',     \
-  'SBP 3-6 dissipation',           \
-  'SBP 3-6 dissipation transpose', \
-  'SBP 3-6 composite dissipation', \
-  'SBP 4-8 first derivative',      \
-  'SBP 4-8 second derivative',     \
-  'SBP 4-8 dissipation',           \
-  'SBP 4-8 dissipation transpose', \
-  'SBP 4-8 composite dissipation', \
-  'DRP 9-point filter',            \
+  assert_key(stencilScheme, (       \
+  'SBP 1-2 first derivative',       \
+  'SBP 1-2 second derivative',      \
+  'SBP 1-2 composite dissipation',  \
+  'SBP 2-4 first derivative',       \
+  'SBP 2-4 second derivative',      \
+  'SBP 2-4 dissipation',            \
+  'SBP 2-4 dissipation transpose',  \
+  'SBP 2-4 composite dissipation',  \
+  'Standard 5-point filter',        \
+  'SBP 3-6 first derivative',       \
+  'SBP 3-6 second derivative',      \
+  'SBP 3-6 dissipation',            \
+  'SBP 3-6 dissipation transpose',  \
+  'SBP 3-6 composite dissipation',  \
+  'SBP 4-8 first derivative',       \
+  'SBP 4-8 second derivative',      \
+  'SBP 4-8 dissipation',            \
+  'SBP 4-8 dissipation transpose',  \
+  'SBP 4-8 composite dissipation',  \
+  'DRP 9-point filter',             \
+  'DRP 13-point first derivative',  \
+  'DRP 13-point second derivative', \
+  'DRP 13-point filter',            \
   'null matrix'))
 
   call this%cleanup()
@@ -1678,6 +1876,188 @@ subroutine setupOperator(this, stencilScheme)
           -3.0_wp / 32.0_wp, 1.0_wp / 64.0_wp /)
      this%rhsBoundary1(3:1:-1,4) = this%rhsBoundary1(5:7,4)
 
+  else if (trim(stencilScheme) == "DRP 13-point first derivative") then
+
+     this%symmetryType = SKEW_SYMMETRIC
+     this%interiorWidth = 13
+     this%boundaryWidth = 11
+     this%boundaryDepth = 6
+     call allocateData(this)
+
+     this%rhsInterior(1:6) = (/ +9.1083989961046158884449223488881E-001_wp,                  &
+                                -3.4195287358140815340035015906213E-001_wp,                  &
+                                +1.3803907328137065312584595523507E-001_wp,                  &
+                                -4.8269781409397925994599952280221E-002_wp,                  &
+                                +1.2472818178268679717084650313541E-002_wp,                  &
+                                -1.7227229242514893380588708194318E-003_wp /)
+     this%rhsInterior(-1:-6:-1) = - this%rhsInterior(1:6)
+
+     this%normBoundary = 1.0_wp
+
+     this%rhsBoundary1(1:7,1) = (/ -2.2054462468058574498358102539027E+000_wp,               &
+                                   +4.7907207504743750847052990415757E+000_wp,               &
+                                   -5.1219100502840136759893413993387E+000_wp,               &
+                                   +4.3560242991761195202872469263174E+000_wp,               &
+                                   -2.6621263984801656044415289901374E+000_wp,               &
+                                   +1.0228938290312966274670491142147E+000_wp,               &
+                                   -1.8015618311175450219291443872908E-001_wp /)
+
+     this%rhsBoundary1(1:7,2) = (/ -2.0839945703453454625946405976346E-001_wp,               &
+                                   -1.0890523690038639260460742477278E+000_wp,               &
+                                   +2.1545870338706711574556654684244E+000_wp,               &
+                                   -1.3931686380866877775059715344834E+000_wp,               &
+                                   +7.6849925659269384213662516663408E-001_wp,               &
+                                   -2.8018214718148207379084200629556E-001_wp,               &
+                                   +4.7716320843203324010061213211805E-002_wp /)
+
+     this%rhsBoundary1(1:7,3) = (/ +4.8653402919582049864719144773788E-002_wp,               &
+                                   -4.6718942991066221653035665769951E-001_wp,               &
+                                   -4.7718722757375299865233721644263E-001_wp,               &
+                                   +1.2742418176766598292851992139565E+000_wp,               &
+                                   -5.1750883227457007860879493782542E-001_wp,               &
+                                   +1.6506785384999144743480951940672E-001_wp,               &
+                                   -2.6077584687248032793239066169436E-002_wp /)
+
+     this%rhsBoundary1(1:7,4) = (/ -2.6250993375175630031627008311165E-002_wp,               &
+                                   +1.8833730683403585345984136657799E-001_wp,               &
+                                   -7.9792163354254481682480170822249E-001_wp,               &
+                                   +0.0000000000000000000000000000000E+000_wp,               &
+                                   +7.9792163354254481682480170822249E-001_wp,               &
+                                   -1.8833730683403585345984136657799E-001_wp,               &
+                                   +2.6250993375175630031627008311165E-002_wp /)
+
+     this%rhsBoundary1(1:9,5) = (/ +8.3010422318690440302147315416164E-003_wp,               &
+                                   -6.2400883586085285768298993582152E-002_wp,               &
+                                   +2.4992644535898403610438199224578E-001_wp,               &
+                                   -8.4585440888718839102472592991157E-001_wp,               &
+                                   +0.0000000000000000000000000000000E+000_wp,               &
+                                   +8.4585440888718839102472592991157E-001_wp,               &
+                                   -2.4992644535898403610438199224578E-001_wp,               &
+                                   +6.2400883586085285768298993582152E-002_wp,               &
+                                   -8.3010422318690440302147315416164E-003_wp /)
+
+     this%rhsBoundary1(1:11,6) = (/ -2.6494900234774859217489035169923E-003_wp,              &
+                                    +2.1641176020156560356254918102549E-002_wp,              &
+                                    -9.2327847148325566766361264237684E-002_wp,              &
+                                    +2.8922276219461971527120727959842E-001_wp,              &
+                                    -8.7477923690750154205960592130903E-001_wp,              &
+                                    +0.0000000000000000000000000000000E+000_wp,              &
+                                    +8.7477923690750154205960592130903E-001_wp,              &
+                                    -2.8922276219461971527120727959842E-001_wp,              &
+                                    +9.2327847148325566766361264237684E-002_wp,              &
+                                    -2.1641176020156560356254918102549E-002_wp,              &
+                                    +2.6494900234774859217489035169923E-003_wp /)
+
+  else if (trim(stencilScheme) == "DRP 13-point second derivative") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 13
+     this%boundaryWidth = 11
+     this%boundaryDepth = 6
+     call allocateData(this)
+
+     this%rhsInterior(0:6) = (/ -3.0932689374140908764950319934624E+000_wp,                  &
+                                +1.8117592073153699737816408065692E+000_wp,                  &
+                                -3.3438269916183987705583208818595E-001_wp,                  &
+                                +8.7349401467551123473691980072727E-002_wp,                  &
+                                -2.1869332809975397294053625502616E-002_wp,                  &
+                                +4.2243461063809429482875929492585E-003_wp,                  &
+                                -4.4645421044132760621866917137460E-004_wp /)
+     this%rhsInterior(-1:-6:-1) = this%rhsInterior(1:6)
+
+     this%normBoundary = 1.0_wp
+
+     this%rhsBoundary1(1:7,1) = (/ +4.7331413118533270375404984391079E+000_wp,               &
+                                   -1.8732181204453295558576323967981E+001_wp,               &
+                                   +3.2580453011133238896440809919952E+001_wp,               &
+                                   -3.2662826237066540750809968782159E+001_wp,               &
+                                   +1.9830453011133238896440809919952E+001_wp,               &
+                                   -6.7321812044532955585763239679810E+000_wp,               &
+                                   +9.8314131185332703754049843910794E-001_wp /)
+
+     this%rhsBoundary1(1:7,2) = (/ +8.2022895972330285853254027778687E-001_wp,               &
+                                   -1.1713737583398171511952416667212E+000_wp,               &
+                                   -5.2989893748379045534522916653024E-001_wp,               &
+                                   +1.4287541388672761626825277775959E+000_wp,               &
+                                   -6.9656560415045712201189583319691E-001_wp,               &
+                                   +1.6195957499351618213809166661210E-001_wp,               &
+                                   -1.3104373610030474800793055546461E-002_wp /)
+
+     this%rhsBoundary1(1:7,3) = (/ -7.7535624543688550227579420261105E-002_wp,               &
+                                   +1.2985470805954646346988098549000E+000_wp,               &
+                                   -2.4130343681553282534136913039166E+000_wp,               &
+                                   +1.2173791575404376712182550718888E+000_wp,               &
+                                   +3.6322985113384132529753627500979E-003_wp,               &
+                                   -3.4786252737868698634523478433373E-002_wp,               &
+                                   +5.7977087896447831057539130722288E-003_wp /)
+
+     this%rhsBoundary1(1:7,4) = (/ +1.5660656422279830804838779522893E-002_wp,               &
+                                   -1.7729727186701231816236601047069E-001_wp,               &
+                                   +1.5682431796675307954059150261767E+000_wp,               &
+                                   -2.8132131284455966160967755904579E+000_wp,               &
+                                   +1.5682431796675307954059150261767E+000_wp,               &
+                                   -1.7729727186701231816236601047069E-001_wp,               &
+                                   +1.5660656422279830804838779522893E-002_wp /)
+
+     this%rhsBoundary1(1:9,5) = (/ -3.5741930674022842916259048164782E-003_wp,               &
+                                   +3.8095462267220224407907676108308E-002_wp,               &
+                                   -2.4042224558860899394826129365362E-001_wp,               &
+                                   +1.6760169110278905047878905667033E+000_wp,               &
+                                   -2.9402318692781989019118220886831E+000_wp,               &
+                                   +1.6760169110278905047878905667033E+000_wp,               &
+                                   -2.4042224558860899394826129365362E-001_wp,               &
+                                   +3.8095462267220224407907676108308E-002_wp,               &
+                                   -3.5741930674022842916259048164782E-003_wp /)
+
+     this%rhsBoundary1(1:11,6) = (/ +8.9801406812550448657719127266081E-004_wp,              &
+                                    -9.7460853822832689972936919112537E-003_wp,              &
+                                    +5.8160065952544240616240402171360E-002_wp,              &
+                                    -2.8227272480920862141376147176946E-001_wp,              &
+                                    +1.7391373200773310119011515562991E+000_wp,              &
+                                    -3.0123531798130177331858279721249E+000_wp,              &
+                                    +1.7391373200773310119011515562991E+000_wp,              &
+                                    -2.8227272480920862141376147176946E-001_wp,              &
+                                    +5.8160065952544240616240402171360E-002_wp,              &
+                                    -9.7460853822832689972936919112537E-003_wp,              &
+                                    +8.9801406812550448657719127266081E-004_wp /)
+
+  else if (trim(stencilScheme) == "DRP 13-point filter") then
+
+     this%symmetryType = SYMMETRIC
+     this%interiorWidth = 13
+     this%boundaryWidth = 11
+     this%boundaryDepth = 6
+     call allocateData(this)
+
+     this%rhsInterior(0:6) = (/ 0.809100488494_wp, 0.171503832236_wp, -0.123632891797_wp,    &
+          0.069975429105_wp, -0.029662754736_wp, 0.008520738659_wp, -0.001254597714_wp /)
+     this%rhsInterior(-1:-6:-1) = this%rhsInterior(1:6)
+
+     this%normBoundary = 1.0_wp
+
+     this%rhsBoundary1(1:4,1) = (/ 0.679117647059_wp, 0.465_wp,                              &
+          -0.179117647059_wp, 0.035_wp /)
+
+     this%rhsBoundary1(1:7,2) = (/ 0.085777408970_wp, 0.722371828476_wp, 0.356848072173_wp,  &
+          -0.223119093072_wp, 0.057347064865_wp, 0.000747264596_wp, 0.000027453993_wp /)
+
+     this%rhsBoundary1(1:7,3) = (/ -0.032649010764_wp, 0.143339502575_wp, 0.72667882202_wp,  &
+          0.294622121167_wp, -0.186711738069_wp, 0.062038376258_wp, -0.007318073189_wp /)
+
+     this%rhsBoundary1(1:11,4) = (/ 0.000054596010_wp, -0.042124772446_wp,                   &
+          0.173103107841_wp, 0.700384128648_wp, 0.276543612935_wp, -0.131223506571_wp,       &
+          0.023424966418_wp, -0.013937561779_wp, 0.024565095706_wp, -0.013098287852_wp,      &
+          0.002308621090_wp /)
+
+     this%rhsBoundary1(1:11,5) = (/ -0.008391235145_wp, 0.047402506444_wp,                   &
+          -0.121438547725_wp, 0.200063042812_wp, 0.759930952164_wp, 0.207269200140_wp,       &
+          -0.122263107844_wp, 0.047121062819_wp, -0.009014891495_wp, -0.001855812216_wp,     &
+          0.001176830044_wp /)
+
+     this%rhsBoundary1(6:11,6) = (/ 0.784955115888_wp, 0.187772883589_wp,                    &
+          -0.123755948787_wp, 0.059227575576_wp, -0.018721609157_wp, 0.002999540835_wp /)
+     this%rhsBoundary1(5:1:-1,6) = this%rhsBoundary1(7:11,6)
+
   else if (trim(stencilScheme) == "null matrix") then
 
      this%symmetryType = SYMMETRIC
@@ -1966,15 +2346,15 @@ PURE_SUBROUTINE applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSiz
 
 end subroutine applyOperatorAtInteriorPoints
 
-PURE_SUBROUTINE applyOperatorAtDomainBoundary(this, x, gridSize, faceOrientation)
+PURE_SUBROUTINE applyOperatorAndProjectOnBoundary(this, x, gridSize, faceOrientation)
 
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
 
   ! <<< Private members >>>
-  use StencilOperatorImpl, only : applyOperatorAtDomainBoundary_1,                           &
-                                  applyOperatorAtDomainBoundary_2,                           &
-                                  applyOperatorAtDomainBoundary_3
+  use StencilOperatorImpl, only : applyOperatorAndProjectOnBoundary_1,                           &
+                                  applyOperatorAndProjectOnBoundary_2,                           &
+                                  applyOperatorAndProjectOnBoundary_3
 
   implicit none
 
@@ -1990,14 +2370,47 @@ PURE_SUBROUTINE applyOperatorAtDomainBoundary(this, x, gridSize, faceOrientation
 
   select case (this%direction)
   case (1)
-     call applyOperatorAtDomainBoundary_1(this, x, gridSize, faceOrientation)
+     call applyOperatorAndProjectOnBoundary_1(this, x, gridSize, faceOrientation)
   case (2)
-     call applyOperatorAtDomainBoundary_2(this, x, gridSize, faceOrientation)
+     call applyOperatorAndProjectOnBoundary_2(this, x, gridSize, faceOrientation)
   case (3)
-     call applyOperatorAtDomainBoundary_3(this, x, gridSize, faceOrientation)
+     call applyOperatorAndProjectOnBoundary_3(this, x, gridSize, faceOrientation)
   end select
 
-end subroutine applyOperatorAtDomainBoundary
+end subroutine applyOperatorAndProjectOnBoundary
+
+PURE_SUBROUTINE projectOnBoundaryAndApplyOperator(this, x, gridSize, faceOrientation)
+
+  ! <<< Derived types >>>
+  use StencilOperator_mod, only : t_StencilOperator
+
+  ! <<< Private members >>>
+  use StencilOperatorImpl, only : projectOnBoundaryAndApplyOperator_1,                       &
+                                  projectOnBoundaryAndApplyOperator_2,                       &
+                                  projectOnBoundaryAndApplyOperator_3
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_StencilOperator), intent(in) :: this
+  SCALAR_TYPE, intent(out) :: x(:,:)
+  integer, intent(in) :: gridSize(3), faceOrientation
+
+  assert(size(x, 2) > 0)
+  assert(all(gridSize > 0))
+  assert(size(x, 1) == product(gridSize))
+  assert(this%direction >= 1 .and. this%direction <= 3)
+
+  select case (this%direction)
+  case (1)
+     call projectOnBoundaryAndApplyOperator_1(this, x, gridSize, faceOrientation)
+  case (2)
+     call projectOnBoundaryAndApplyOperator_2(this, x, gridSize, faceOrientation)
+  case (3)
+     call projectOnBoundaryAndApplyOperator_3(this, x, gridSize, faceOrientation)
+  end select
+
+end subroutine projectOnBoundaryAndApplyOperator
 
 PURE_SUBROUTINE applyOperatorNorm(this, x, gridSize)
 

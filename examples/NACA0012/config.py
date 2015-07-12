@@ -15,9 +15,9 @@ def airfoil_slope(x, c, t):
     return 5. * t * (0.14845 / np.sqrt(x / c) - 0.1260 - 0.7032 * (x / c) +
                      0.8529 * (x / c) ** 2 - 0.406 * (x / c) ** 3)
 
-def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0004,
-                     ds_le=0.0016, ds_normal=0.00048, stretch_ratio=1.04,
-                     stop_height=75.):
+def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0001,
+                     ds_le=0.0008, ds_normal=0.00025, stretch_ratio=1.02,
+                     stop_height=100.):
     c = 2000.
     s = np.linspace(0., 1., 200)
     x_airfoil = np.cumsum(np.tanh(3.5 * (1. - s)) + np.tanh(3.5 * s) - 1.)
@@ -26,7 +26,7 @@ def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0004,
     y_airfoil = airfoil_profile(x_airfoil, c, t)
     x_te = x_airfoil[-1] - 0.5 * y_airfoil[-1] / \
            airfoil_slope(x_airfoil[-1], c, t)
-    x_start = 0.5 * c
+    x_start = 0.52 * c
     # Write glyph file.
     with open(filename, 'w') as f:
         print >>f, """
@@ -82,6 +82,11 @@ def write_glyph_file(filename, grid_size, t=0.12, alpha=2., ds_te=0.0004,
             (ds_te * c)
         print >>f, 'gg::conBreakPtSpacing $con_NACA -breakpt 2 %f' % \
             (ds_le * c)
+        print >>f, 'set ds_start [ggu::vec3Length [ggu::vec3Sub [' \
+            'gg::conGetPt $con_NACA %i] [gg::conGetPt $con_NACA %i]]]' % \
+            (grid_size[0], grid_size[0] - 1)
+        print >>f, 'gg::conBeginSpacing $con_NACA -sub 1 $ds_start'
+        print >>f, 'gg::conEndSpacing $con_NACA -sub 3 $ds_start'
         print >>f, 'gg::domExtrusionBegin [list $con_NACA] -edge'
         print >>f, 'gg::domExtrusionMode HYPERBOLIC'
         print >>f, 'gg::domExtrusionAtt -s_init %f -march_plane {0 0 1} ' \
@@ -115,6 +120,6 @@ def target_state(g, mach_number, gamma=1.4):
     return s.fromprimitive(gamma)
 
 if __name__ == '__main__':
-    grid(grid_size = [180, 180])
+    grid(grid_size=[512, 448])
     g = p3d.fromfile('NACA0012.xyz')
     target_state(g, mach_number=0.5).save('NACA0012.target.q')

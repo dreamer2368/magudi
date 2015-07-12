@@ -7,6 +7,7 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
   use Functional_mod, only : t_Functional
   use PressureDrag_mod, only : t_PressureDrag
   use AcousticNoise_mod, only : t_AcousticNoise
+  use ReynoldsStress_mod, only : t_ReynoldsStress
   use FlameTemperature_mod, only : t_FlameTemperature
   use ReactantDepletion_mod, only : t_ReactantDepletion
   use Functional_factory, only : t_FunctionalFactory
@@ -43,6 +44,9 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
 
      case ('DRAG')
         allocate(t_DragForce :: this%functional)
+
+     case ('REYNOLDS_STRESS')
+        allocate(t_ReynoldsStress :: this%functional)
 
      case ('TEMPERATURE')
         allocate(t_FlameTemperature :: this%functional)
