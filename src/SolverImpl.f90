@@ -938,7 +938,7 @@ subroutine checkGradientAccuracy(this, region)
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
-  logical :: outputControl
+  logical :: outputControl, baselineActuation
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -973,7 +973,8 @@ subroutine checkGradientAccuracy(this, region)
      call gracefulExit(region%comm, message)
   end if
 
-  if (nIterations > 0) then
+  baselineActuation = getOption("baseline_actuation", .false.)
+  if (nIterations > 0 .or. baselineActuation) then
      call getRequiredOption("initial_actuation_amount", initialActuationAmount)
      if (nIterations > 1) then
         call getRequiredOption("actuation_amount_geometric_growth", geometricGrowthFactor)
@@ -995,7 +996,11 @@ subroutine checkGradientAccuracy(this, region)
      end if
      call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   else
-     baselineCostFunctional = this%runForward(region)
+     if (baselineActuation) then
+        baselineCostFunctional = this%runForward(region, actuationAmount = initialActuationAmount)
+     else
+        baselineCostFunctional = this%runForward(region)
+     end if
   end if
 
   ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
