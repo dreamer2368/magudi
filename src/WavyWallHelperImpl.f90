@@ -257,8 +257,8 @@ assert(size(p) == 1)
 amplitude=0.01_wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.2_wp)) - tanh(40._wp * (xi1 - 0.8_wp))
 shapeMollifier=shapeMollifier/1.2_wp
-g=xi2+(1-xi2)*amplitude*shapeMollifier*cos(2._wp*pi*10._wp*xi1+p(1))
-
+!g=xi2+(1-xi2)*amplitude*shapeMollifier*cos(2._wp*pi*10._wp*xi1+p(1))
+g=xi2+(1-xi2)*p(1)*shapeMollifier*cos(2._wp*pi*10._wp*xi1)
 end function
 
 subroutine dgdp(xi1,xi2,xi3,p,dgdp_vec) 
@@ -280,7 +280,8 @@ dgdp_vec=0._wp
 amplitude=0.01_wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.2_wp)) - tanh(40._wp * (xi1 - 0.8_wp))
 shapeMollifier=shapeMollifier/1.2_wp
-dgdp_vec(1)=-(1-xi2)*amplitude*shapeMollifier*sin(2._wp*pi*10._wp*xi1+p(1))
+!dgdp_vec(1)=-(1-xi2)*amplitude*shapeMollifier*sin(2._wp*pi*10._wp*xi1+p(1))
+dgdp_vec(1)=(1-xi2)*shapeMollifier*cos(2._wp*pi*10._wp*xi1)
 
 !generalize here to more p
 

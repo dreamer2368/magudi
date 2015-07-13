@@ -54,7 +54,7 @@ subroutine setupWallActuator(this, region)
      this%numP=1
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
-     this%p(1)=0._wp !3._wp*pi/8._wp
+     this%p(1)=0._wp !flat-wall
 
      SAFE_DEALLOCATE(this%gradient)
      allocate(this%gradient(this%numP))
@@ -69,7 +69,8 @@ subroutine setupWallActuator(this, region)
      SAFE_DEALLOCATE(this%dJacobiandp) 
      allocate(this%dJacobiandp(region%grids(1)%nGridPoints,this%numP))
      
-     SAFE_DEALLOCATE(this%dMijdp)
+     SAFE_DEALLOCATE(this%dMijdp) 
+
      allocate(this%dMijdp(region%grids(1)%nGridPoints,&
           region%grids(1)%nDimensions,region%grids(1)%nDimensions,this%numP)) 
 
@@ -122,14 +123,12 @@ subroutine computeWallActuatorSensitivity(this,timeIntegrator, region)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i,v,p,ii,jj,nDimensions,ierror
 
-
   !for the passive wall shape optimization 
   !gradient already has time integrated and volume integrated
   this%sensitivity=0._wp
   do i = 1, size(region%grids)
     assert(size(this%gradient,1)==this%numP)
-    this%sensitivity = this%sensitivity +&
-          region%grids(i)%computeInnerProduct(this%gradient,this%gradient)
+    this%sensitivity=this%sensitivity+dot_product(this%gradient(:),this%gradient(:))
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
@@ -144,7 +143,6 @@ subroutine computeWallActuatorSensitivity(this,timeIntegrator, region)
 end subroutine computeWallActuatorSensitivity
 
 subroutine computeWallActuatorGradient(this,timeIntegrator,region)
-
 ! <<< External modules >>>
 use MPI
 
@@ -157,6 +155,8 @@ use TimeIntegrator_mod, only : t_TimeIntegrator
 use Region_mod, only : t_Region
 use TimeIntegrator_mod, only : t_TimeIntegrator
 use WallActuator_mod, only : t_WallActuator
+use ActuatorPatch_mod, only : t_ActuatorPatch
+use Patch_mod, only : t_Patch
 
 implicit none
 class(t_WallActuator) :: this
@@ -165,15 +165,22 @@ class(t_TimeIntegrator),intent(in) :: timeIntegrator
 
 ! <<< Local variables >>>
 integer, parameter :: wp = SCALAR_KIND
-integer :: i,v,p,ii,jj,nDimensions,ierror
+integer :: i,v,p,ii,jj,j,k,l,nDimensions,ierror
 SCALAR_TYPE, allocatable :: F(:,:),G(:,:)
-SCALAR_TYPE, allocatable ::dQdxi(:,:,:),viscousFluxes(:,:,:),inviscidFluxes(:,:,:)
+SCALAR_TYPE, allocatable::dQdxi(:,:,:),viscousFluxes(:,:,:),&
+          inviscidFluxes(:,:,:),transformedFluxes(:,:,:)
+class(t_Patch), pointer :: patch => null()
+
+integer::gridIndex
+SCALAR_TYPE, allocatable :: localConservedVariables(:),
+metricsAlongNormalDirection(:),    &
+inviscidPenalty(:), deltaPressure(:), deltaInviscidPenalty(:,:)
+SCALAR_TYPE :: normalMomentum
 
 assert(allocated(region%grids))
 assert(allocated(region%states))
 assert(size(region%grids) == size(region%states))
 assert(size(region%grids)==1)
-
 
 do i = 1, size(region%grids)
 
@@ -195,48 +202,124 @@ allocate(F(region%grids(i)%nGridPoints,nDimensions+2))
 allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
 allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
 allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+allocate(transformedFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
 
 G=0._wp
 F=0._wp
 dQdxi=0._wp
 inviscidFluxes=0._wp
 viscousFluxes=0._wp
+transformedFluxes=0._wp
 
 call computeCartesianInvsicidFluxes(nDimensions,&
 region%states(i)%conservedVariables,&
 region%states(i)%velocity, region%states(i)%pressure(:,1),&
 inviscidFluxes)
 
-if (getOption("include_viscous_terms",.false.).and.&
-     getOption("repeat_first_derivative", .true.)) then
-     call computeCartesianViscousFluxes(nDimensions,&
-     region%states(i)%velocity,&
-     region%states(i)%stressTensor, region%states(i)%heatFlux,&
-     viscousFluxes)
-end if
+!if (getOption("include_viscous_terms",.false.).and.&
+!     getOption("repeat_first_derivative", .true.)) then
+!     call computeCartesianViscousFluxes(nDimensions,&
+!     region%states(i)%velocity,&
+!     region%states(i)%stressTensor, region%states(i)%heatFlux,&
+!     viscousFluxes)
+!end if
 
 do p=1,this%numP
 
 dQdxi=0.
 F=0.
-
 do ii=1,nDimensions
 do jj=1,nDimensions
 do v=1,nDimensions+2
+
 dQdxi(:,v,ii)=dQdxi(:,v,ii)+&
           (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
           this%dMijdp(:,ii,jj,p)
 end do
 end do
+
 call region%grids(i)%firstDerivative(ii)%apply(dQdxi(:,:,ii),&
           region%grids(i)%localSize)
+
 end do
 
 F=sum(dQdxi,dim=3)
 do v=1,nDimensions+2
 F(:,v)=F(:,v)*region%grids(i)%jacobian(:,1)
-F(:,v)=F(:,v)+region%states(i)%rightHandSide(:,v)*this%dJacobiandp(:,p)
+end do
+
+call transformFluxes(nDimensions,inviscidFluxes,region%grids(i)%metrics,&
+     transformedFluxes,region%grids(i)%isCurvilinear)
+
+do ii=1,nDimensions
+call region%grids(i)%firstDerivative(ii)%apply(transformedFluxes(:,:,ii),&
+          region%grids(i)%localSize)
+end do
+
+G=sum(transformedFluxes,dim=3)
+do v=1,nDimensions+2
+G(:,v)=G(:,v)*this%dJacobiandp(:,p)
 end do !var
+F=F+G
+
+!add in patch R_{SAT} to F(:,v)
+if (.not. allocated(region%patchFactories)) cycle
+
+allocate(localConservedVariables(nDimensions+2))
+allocate(metricsAlongNormalDirection(nDimensions))
+allocate(inviscidPenalty(nDimensions+2))
+
+! Inviscid penalty amount.
+this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount",1.0_wp)
+this%inviscidPenaltyAmount = getOption(trim(key) // "inviscid_penalty_amount",&
+this%inviscidPenaltyAmount)
+this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,&
+real(this%normalDirection, wp))
+this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /&
+grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
+
+do i = 1, size(region%patchFactories)
+call region%patchFactories(i)%connect(patch)
+if (.not. associated(patch)) cycle
+do j = 1, size(region%states)
+if (patch%gridIndex /= region%grids(j)%index) cycle
+select type (patch)
+class is (t_ActuatorPatch)
+
+do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+
+gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *&
+(j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *&
+(k - 1 - patch%gridOffset(3)))
+
+if (grid%iblank(gridIndex) == 0) cycle
+
+localConservedVariables = region%state%conservedVariables(gridIndex,:)
+
+metricsAlongNormalDirection =&
+grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
+
+normalMomentum=dot_product(localConservedVariables(2:nDimensions+1),            &
+metricsAlongNormalDirection)
+
+inviscidPenalty(1) = normalMomentum
+inviscidPenalty(2:nDimensions+1) = normalMomentum*state%velocity(gridIndex,:)
+inviscidPenalty(nDimensions+2) =&
+normalMomentum * state%specificVolume(gridIndex, 1) *&
+     (localConservedVariables(nDimensions+2)+state%pressure(gridIndex, 1))
+
+!F(gridIndex,:)=F(gridIndex,:)-this%inviscidPenaltyAmount&
+!*grid%jacobian(gridIndex,1)*inviscidPenalty(:)
+
+end do
+end do
+end do
+
+SAFE_DEALLOCATE(inviscidPenalty)
+SAFE_DEALLOCATE(metricsAlongNormalDirection)
+SAFE_DEALLOCATE(localConservedVariables)
 
 G(:,:)=region%states(i)%adjointVariables(:,:)
 
@@ -246,15 +329,15 @@ this%gradient(p)=this%gradient(p)+&
      timeIntegrator%norm(timeIntegrator%stage)*region%getTimeStepSize()*&
      this%instantaneousGradient(p)
 
-end do !wall parameters
+end do !over wall parameters list
 
 SAFE_DEALLOCATE(viscousFluxes)
 SAFE_DEALLOCATE(inviscidFluxes)
 SAFE_DEALLOCATE(dQdxi)
 SAFE_DEALLOCATE(F)
-SAFE_DEALLOCATE(G)
+SAFE_DEALLOACTE(G)
 
-end do !grids
+end do
 
 end subroutine computeWallActuatorGradient
 

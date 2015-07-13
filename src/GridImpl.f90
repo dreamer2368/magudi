@@ -60,6 +60,38 @@ contains
 
   end subroutine allocateData
 
+  subroutine deallocateData(this)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+
+    ! <<< Arguments >>>
+    class(t_Grid) :: this
+
+
+     SAFE_DEALLOCATE(this%firstDerivative)
+     SAFE_DEALLOCATE(this%secondDerivative)
+     SAFE_DEALLOCATE(this%dissipation)
+     SAFE_DEALLOCATE(this%dissipationTranspose)
+     SAFE_DEALLOCATE(this%adjointFirstDerivative)
+     SAFE_DEALLOCATE(this%iblank)
+     SAFE_DEALLOCATE(this%coordinates)
+     SAFE_DEALLOCATE(this%jacobian)
+     SAFE_DEALLOCATE(this%metrics)
+     SAFE_DEALLOCATE(this%norm)
+     SAFE_DEALLOCATE(this%targetMollifier)
+     SAFE_DEALLOCATE(this%controlMollifier)
+     SAFE_DEALLOCATE(this%arcLengths)
+
+#ifdef SCALAR_TYPE_IS_binary128_IEEE754
+    SAFE_DEALLOCATE(this%mpiReduceBuffer(numProcs))
+#endif
+
+  end subroutine deallocateData
+
 subroutine computeUnitCubeCoordinates(this,coordinates)
     ! <<< External modules >>>
     use MPI
@@ -779,6 +811,13 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   do i = 1, nDimensions
      call this%computeCoordinateDerivatives(i,                                               &
           jacobianMatrixInverse(:,(i-1)*nDimensions+1:i*nDimensions))
+
+     !i=1 dx/dxi1, dy/dxi1, jacobianMatrixInverse(:,1:2)
+     !i=2 dx/dxi2, dy/dxi2, jacobianMatrixInverse(:,3:4)
+ 
+     !i=1 dx/dxi1, dy/dxi1, dz/dxi1 jacobianMatrixInverse(:,1:3)
+     !i=2 dx/dxi2, dy/dxi2, dz/dxi2 jacobianMatrixInverse(:,4:6)
+     !i=3 dx/dxi3, dy/dxi3, dz/dxi3 jacobianMatrixInverse(:,7:9)
   end do
 
   ! Zero out `jacobianMatrixInverse` at hole points.
