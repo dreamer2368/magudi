@@ -1,5 +1,61 @@
 #include "config.h"
 
+module IgnitionActuatorImpl
+
+  implicit none
+  public
+
+contains
+
+  subroutine computeSource(time, coordinates, iblank, timeStart, timeDuration, amplitude,    &
+       radius, location, ratioOfSpecificHeats, heatRelease, ignitionSource)
+
+    implicit none
+
+    ! <<< Arguments >>>
+    real(SCALAR_KIND), intent(in) :: time, timeStart, timeDuration, amplitude, radius,       &
+         location(:), ratioOfSpecificHeats, heatRelease
+    SCALAR_TYPE, intent(in) :: coordinates(:,:)
+    integer, intent(in) :: iblank(:)
+    SCALAR_TYPE, intent(out) :: ignitionSource(:)
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, nDimensions
+    real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
+    real(wp) :: r, power, timePortion, referenceTemperature, flameTemperature, gaussianFactor
+
+    nDimensions = size(coordinates,2)
+    assert_key(nDimensions, (1, 2, 3))
+    assert(size(location) >= nDimensions)
+    assert(size(coordinates,1) == size(ignitionSource))
+
+    timePortion = exp( -0.5_wp * (time - timeStart)**2 / timeDuration**2)
+
+    referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
+
+    flameTemperature = referenceTemperature / (1.0_wp - heatRelease)
+
+    power = 0.5_wp * amplitude * heatRelease * flameTemperature / timeDuration /             &
+         sqrt(2.0_wp * pi)
+
+    gaussianFactor = 0.5_wp / radius**2
+
+    do i = 1, size(ignitionSource)
+
+       if (iblank(i) == 0) cycle
+
+       r = real(sum((coordinates(i,:) - location(1:nDimensions)) ** 2), wp)
+
+       ignitionSource(i) = power * timePortion! * exp(- gaussianFactor * r)
+
+    end do
+
+  end subroutine computeSource
+
+end module IgnitionActuatorImpl
+
+
 subroutine setupIgnitionActuator(this, region)
 
   ! <<< Derived types >>>
@@ -19,8 +75,7 @@ subroutine setupIgnitionActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, gradientBufferSize
-  class(t_Patch), pointer :: patch => null()
+  character(len = STRING_LENGTH) :: key
 
   call this%cleanup()
 
@@ -28,32 +83,18 @@ subroutine setupIgnitionActuator(this, region)
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
-  gradientBufferSize = getOption("gradient_buffer_size", 1)
+  write(key, '(A)') "ignition_actuator/"
 
-  if (allocated(region%patchFactories)) then
-     do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        select type (patch)
-           class is (t_ActuatorPatch)
-           if (patch%nPatchPoints <= 0) cycle
+  call getRequiredOption(trim(key) // "sensitivity_dependence",                              &
+       this%sensitivityDependence, region%comm)
 
-           SAFE_DEALLOCATE(patch%gradientBuffer)
-           allocate(patch%gradientBuffer(patch%nPatchPoints, 1, gradientBufferSize))
-           patch%gradientBuffer = 0.0_wp
-
-           ! Control forcing not yet implemented.
-           patch%controlForcing = 0.0_wp
-
-        end select
-     end do
-  end if
-
-  this%partialSensitivity = getOption("partial_sensitivity",.false.)
-  if (this%partialSensitivity) then
-     call getRequiredOption("sensitivity_dependence", this%sensitivityDependence,            &
-          region%comm)
-  end if
+  this%location(1) =  getOption(trim(key) // "x",0.0_wp)
+  this%location(2) =  getOption(trim(key) // "y",0.0_wp)
+  this%location(3) =  getOption(trim(key) // "z",0.0_wp)
+  call getRequiredOption(trim(key) // "amplitude", this%amplitude, region%comm)
+  call getRequiredOption(trim(key) // "radius", this%radius, region%comm)
+  call getRequiredOption(trim(key) // "time_start", this%timeStart, region%comm)
+  call getRequiredOption(trim(key) // "time_duration", this%timeDuration, region%comm)
 
 end subroutine setupIgnitionActuator
 
@@ -81,6 +122,9 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   use IgnitionActuator_mod, only : t_IgnitionActuator
   use IgnitionSource_mod, only : t_IgnitionSource
 
+  ! <<< Private members >>>
+  use IgnitionActuatorImpl, only : computeSource
+
   implicit none
 
   ! <<< Arguments >>>
@@ -93,13 +137,20 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
-  SCALAR_TYPE, allocatable :: F(:,:), ignitionForce(:,:)
+  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius, location(3)
+  SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
 
   instantaneousSensitivity = 0.0_wp
+
+  timeStart = this%timeStart
+  timeDuration = this%timeDuration
+  amplitude = this%amplitude
+  radius = this%radius
+  location = this%location
 
   do i = 1, size(region%grids)
 
@@ -115,56 +166,37 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
 
      allocate(F(region%grids(i)%nGridPoints, 2))
+     allocate(ignitionSource(region%grids(i)%nGridPoints))
 
-     if (this%partialSensitivity) then
+     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
 
-        assert(size(region%states(i)%ignitionSources) > 0)
+     call computeSource(region%states(i)%time, region%grids(i)%coordinates,                  &
+          region%grids(i)%iblank, timeStart, timeDuration, amplitude, radius, location,      &
+          region%solverOptions%ratioOfSpecificHeats,                                         &
+          region%states(i)%combustion%heatRelease, ignitionSource)
 
-        allocate(ignitionForce(region%grids(i)%nGridPoints, nDimensions+2))
-        ignitionForce = 0.0_wp
+     select case (this%sensitivityDependence)
 
-        call region%states(i)%ignitionSources(1)%add(region%states(i)%time,                  &
-             region%grids(i)%coordinates, region%grids(i)%iblank,                            &
-             region%solverOptions%ratioOfSpecificHeats,                                      &
-             region%states(i)%combustion%heatRelease, ignitionForce)
+     case ('AMPLITUDE')
+        F(:,2) = ignitionSource / this%amplitude
 
-        select case (this%sensitivityDependence)
+     case ('VERTICAL_POSITION')
 
-        case ('AMPLITUDE')
-           F(:,2) = ignitionForce(:,nDimensions+2) /                                         &
-                region%states(i)%ignitionSources(1)%amplitude
+        F(:,2) = ignitionSource *                                                            &
+             (region%grids(i)%coordinates(:,2) - this%location(2)) /  this%radius**2
 
-        case ('VERTICAL_POSITION')
+     case ('INITIAL_TIME')
 
-           F(:,2) = ignitionForce(:,nDimensions+2) *                                         &
-                (region%grids(i)%coordinates(:,2) -                                          &
-                region%states(i)%ignitionSources(1)%location(2)) /                           &
-                region%states(i)%ignitionSources(1)%radius**2
+        F(:,2) = ignitionSource *                                                            &
+             (region%states(i)%time - this%timeStart) / this%timeDuration**2
 
-        case ('INITIAL_TIME')
+     end select
 
-           F(:,2) = ignitionForce(:,nDimensions+2) *                                         &
-                (region%states(i)%time - region%states(i)%ignitionSources(1)%timeStart) /    &
-                region%states(i)%ignitionSources(1)%timeDuration**2
+     instantaneousSensitivity = instantaneousSensitivity +                                   &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
 
-        end select
-
-        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
-        instantaneousSensitivity = instantaneousSensitivity +                                &
-             region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                             &
-             region%grids(i)%controlMollifier(:,1))
-
-        SAFE_DEALLOCATE(ignitionForce)
-
-     else
-
-        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
-        F(:,2) = region%grids(i)%controlMollifier(:,1)
-        instantaneousSensitivity = instantaneousSensitivity +                                &
-             region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
-
-     end if
-
+     SAFE_DEALLOCATE(ignitionSource)
      SAFE_DEALLOCATE(F)
 
   end do
@@ -190,6 +222,9 @@ subroutine updateIgnitionActuatorForcing(this, region)
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use IgnitionActuator_mod, only : t_IgnitionActuator
 
+  ! <<< Private members >>>
+  use IgnitionActuatorImpl, only : computeSource
+
   implicit none
 
   ! <<< Arguments >>>
@@ -199,12 +234,20 @@ subroutine updateIgnitionActuatorForcing(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions
+  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius, location(3)
+  SCALAR_TYPE, allocatable :: ignitionSource(:)
   class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
+
+  timeStart = this%timeStart
+  timeDuration = this%timeDuration
+  amplitude = this%amplitude
+  radius = this%radius
+  location = this%location
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
@@ -214,19 +257,35 @@ subroutine updateIgnitionActuatorForcing(this, region)
         select type (patch)
         class is (t_ActuatorPatch)
 
-           patch%iGradientBuffer = patch%iGradientBuffer - 1
+           allocate(ignitionSource(region%grids(j)%nGridPoints))
 
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+           select case (this%sensitivityDependence)
 
-           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
-                call patch%loadGradient()
+           case ('AMPLITUDE')
+              amplitude = - region%states(j)%actuationAmount *                               &
+                   region%states(j)%costSensitivity
 
-           ! No forcing for now.
-           patch%controlForcing = 0.0_wp
+           case ('VERTICAL_POSITION')
 
-           if (patch%iGradientBuffer == 1)                                                   &
-                patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+              location(2) = - region%states(j)%actuationAmount *                             &
+                   region%states(j)%costSensitivity
+
+           case ('INITIAL_TIME')
+
+              timeStart = - region%states(j)%actuationAmount *                               &
+                   region%states(j)%costSensitivity
+
+           end select
+
+           call computeSource(region%states(j)%time, region%grids(j)%coordinates,            &
+                region%grids(j)%iblank, timeStart, timeDuration, amplitude, radius, location,&
+                region%solverOptions%ratioOfSpecificHeats,                                   &
+                region%states(j)%combustion%heatRelease, ignitionSource)
+
+           patch%controlForcing(:,:) = 0.0_wp
+           patch%controlForcing(:,nDimensions+2) = ignitionSource
+
+           SAFE_DEALLOCATE(ignitionSource)
 
         end select
      end do
@@ -247,12 +306,6 @@ subroutine updateIgnitionActuatorGradient(this, region)
   ! <<< Arguments >>>
   class(t_IgnitionActuator) :: this
   class(t_Region), intent(in) :: region
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions
-  class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: F(:,:)
 
   if (.not. allocated(region%patchFactories)) return
 
@@ -326,12 +379,6 @@ subroutine hookIgnitionActuatorBeforeTimemarch(this, region, mode)
   class(t_Region) :: region
   integer, intent(in) :: mode
 
-  ! <<< Local variables >>>
-  integer :: i, fileUnit, mpiFileHandle, procRank, ierror
-  class(t_Patch), pointer :: patch => null()
-  logical :: fileExists
-  character(len = STRING_LENGTH) :: message
-
   if (.not. allocated(region%patchFactories)) return
 
   ! Nothing to do here.
@@ -362,10 +409,6 @@ subroutine hookIgnitionActuatorAfterTimemarch(this, region, mode)
   class(t_Controller) :: this
   class(t_Region) :: region
   integer, intent(in) :: mode
-
-  ! <<< Local variables >>>
-  integer :: i, procRank, ierror
-  class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return
 
