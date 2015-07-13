@@ -937,8 +937,9 @@ subroutine checkGradientAccuracy(this, region)
   integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
-       initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
-  logical :: outputControl, baselineActuation
+       baselineActuationAmount, initialActuationAmount, geometricGrowthFactor,               &
+       gradientError, dummyValue
+  logical :: outputControl
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -973,8 +974,7 @@ subroutine checkGradientAccuracy(this, region)
      call gracefulExit(region%comm, message)
   end if
 
-  baselineActuation = getOption("baseline_actuation", .false.)
-  if (nIterations > 0 .or. baselineActuation) then
+  if (nIterations > 0) then
      call getRequiredOption("initial_actuation_amount", initialActuationAmount)
      if (nIterations > 1) then
         call getRequiredOption("actuation_amount_geometric_growth", geometricGrowthFactor)
@@ -996,8 +996,11 @@ subroutine checkGradientAccuracy(this, region)
      end if
      call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   else
-     if (baselineActuation) then
-        baselineCostFunctional = this%runForward(region, actuationAmount = initialActuationAmount)
+     baselineActuationAmount = getOption("baseline_actuation_amount", 0.0_wp)
+     if (baselineActuationAmount > 0.0_wp .and. restartIteration == 0) then
+        region%states(:)%costSensitivity = -1.0_wp
+        baselineCostFunctional = this%runForward(region,                                     &
+             actuationAmount = baselineActuationAmount)
      else
         baselineCostFunctional = this%runForward(region)
      end if
@@ -1013,9 +1016,13 @@ subroutine checkGradientAccuracy(this, region)
   ! Store the cost sensitivity for later use.
   region%states(:)%costSensitivity = costSensitivity
 
-  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable)                  &
-       write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                   &
-       baselineCostFunctional, costSensitivity, 0.0_wp
+  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+     write(fileUnit, '(A4,5A24)') 'i', 'Actuation amount', 'Control forcing',                &
+          'Cost functional', 'Finite difference','Gradient error'
+     write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))') 0, baselineActuationAmount,    &
+          - region%states(1)%actuationAmount * region%states(1)%costSensitivity,             &
+          baselineCostFunctional, costSensitivity, 0.0_wp
+  end if
 
   if (nIterations == 0) return
 
@@ -1044,7 +1051,8 @@ subroutine checkGradientAccuracy(this, region)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
           costSensitivity ** 2
      if (procRank == 0)                                                                      &
-          write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
+          write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
+          - region%states(1)%actuationAmount * region%states(1)%costSensitivity,             &
           costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &
           abs(gradientError)
   end do
