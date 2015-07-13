@@ -678,6 +678,10 @@ subroutine addSources(this, mode, grid)
      end do
   end if
 
+  !if (mode == FORWARD .and. allocated(this%randomFluctuation)) then
+     !call this%randomFluctuation%add(this%time,grid%iblank,this%rightHandSide)
+  !end if
+
   call endTiming("addSources")
 
 end subroutine addSources

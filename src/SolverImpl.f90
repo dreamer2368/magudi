@@ -817,6 +817,7 @@ function runAdjoint(this, region) result(costSensitivity)
         call controller%computeGradient(timeIntegrator,region)
 
         call controller%computeSensitivity(timeIntegrator,region)
+        costSensitivity=controller%sensitivity
 
         ! Update adjoint forcing on cost target patches.
         call functional%updateAdjointForcing(region)
@@ -982,9 +983,9 @@ subroutine checkGradientAccuracy(this, region)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
           costSensitivity
      if (procRank == 0)                                                                      &
-          write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
+          write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
           costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &
-          abs(gradientError)
+          abs(gradientError),costSensitivity
   end do
 
   if (procRank == 0) close(fileUnit)

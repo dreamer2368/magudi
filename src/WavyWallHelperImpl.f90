@@ -99,7 +99,7 @@ k=1
           index=i + grid%localSize(1) * (j - 1 +&
               grid%localSize(2) * (k - 1))
           call dgdp(unitCoordinates(index,1),&
-               unitCoordinates(index,2),p=this%p,dgdp_vec=dgdp_vec)
+               unitCoordinates(index,2),p=this%p,dgdpVec=dgdp_vec)
           dGdp_(index,:)=dgdp_vec(:)
      end do
    end do
@@ -130,23 +130,15 @@ call grid%firstDerivative(2)%apply(dG2, grid%localSize)
 dMijdp=0.
 
 do i=1,size(this%p)
+
      dG(:,1) = dGdp_(:,i)
      call grid%firstDerivative(2)%apply(dG, grid%localSize)
      dMijdp(:,1,1,i)=dG(:,1)
-     !dMijdp(:,1,1,i)=-1._wp/(dF1(:,1)**2)/(dG2(:,1)**2)
-     !dMijdp(:,1,1,i)=dMijdp(:,1,1,i)*dG(:,1)
-     !
-     !dMijdp(:,2,1,i)=2._wp*dG1(:,1)*dG(:,1)/dF1(:,1)**2/dG2(:,1)**3
-     !
+     
      dG(:,1) = dGdp_(:,i)
      call grid%firstDerivative(1)%apply(dG, grid%localSize)
      dMijdp(:,2,1,i)=-dG(:,1)
-     !dMijdp(:,2,1,i)=dMijdp(:,2,1,i)-dG(:,1)/dF1(:,1)**2/dG2(:,1)**2
-     !
-     !dG(:,1) = dGdp_(:,i)
-     !call grid%firstDerivative(2)%apply(dG, grid%localSize)
-     !
-     !dMijdp(:,2,2,i)=-2._wp*dG(:,1)/dF1(:,1)/dG2(:,1)**3
+
 end do
 
 SAFE_DEALLOCATE(dF1)
@@ -198,7 +190,7 @@ k=1
           index=i + grid%localSize(1) * (j - 1 +&
               grid%localSize(2) * (k - 1))
           call dgdp(unitCoordinates(index,1),&
-               unitCoordinates(index,2),p=this%p,dgdp_vec=dgdp_vec)
+               unitCoordinates(index,2),p=this%p,dgdpVec=dgdp_vec)
           dGdp_(index,:)=dgdp_vec(:)
      end do
    end do
@@ -249,41 +241,69 @@ real(SCALAR_KIND),optional::xi3
 SCALAR_TYPE,allocatable::p(:)
 
 integer, parameter :: wp = SCALAR_KIND
-SCALAR_TYPE::amplitude,shapeMollifier
+SCALAR_TYPE::amplitude,shapeMollifier,gstar,width,chi
 SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
 
 assert(size(p) == 1)
 
-amplitude=0.01_wp
-shapeMollifier=tanh(40._wp * (xi1 - 0.2_wp)) - tanh(40._wp * (xi1 - 0.8_wp))
-shapeMollifier=shapeMollifier/1.2_wp
-!g=xi2+(1-xi2)*amplitude*shapeMollifier*cos(2._wp*pi*10._wp*xi1+p(1))
-g=xi2+(1-xi2)*p(1)*shapeMollifier*cos(2._wp*pi*10._wp*xi1)
+width=0.5_wp
+shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
+shapeMollifier=shapeMollifier/0.8_wp
+gstar=xi2+(1._wp-xi2)*p(1)*shapeMollifier*cos(2._wp*pi*10._wp*xi1)
+
+if (xi2 .le. width) then
+chi=tanh(5._wp *xi2/width)
+else
+chi=1._wp
+end if
+
+g=gstar-chi*(gstar-xi2)
+
+!yo=background_y[j]
+!width=1./2.
+!
+!if s[j] <= width:
+!xi=np.tanh(5.*s[j]/width)
+!else:
+!xi=1.
+!
+!for k in range(size[0]):
+!allege_y=s[j] * yMax + (1. - s[j]) * (yMin +wallHeight[k])
+!g.xyz[0][k,j,0,1] = allege_y - xi*(allege_y-yo)
+
+
 end function
 
-subroutine dgdp(xi1,xi2,xi3,p,dgdp_vec) 
+subroutine dgdp(xi1,xi2,xi3,p,dgdpVec) 
 ! <<< Arguments >>>
 real(SCALAR_KIND)::xi1,xi2
 real(SCALAR_KIND),optional::xi3
 SCALAR_TYPE,allocatable::p(:)
-SCALAR_TYPE,allocatable::dgdp_vec(:)
+SCALAR_TYPE,allocatable::dgdpVec(:),dgstardpVec(:)
 
 integer::i
 integer, parameter :: wp = SCALAR_KIND
-SCALAR_TYPE::amplitude,shapeMollifier
+SCALAR_TYPE::amplitude,shapeMollifier,gstar,width,chi
 SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
 
 assert(size(p) == 1)
-assert(size(dgdp_vec) == size(p))
+assert(size(dgdpVec) == size(p))
 
-dgdp_vec=0._wp
-amplitude=0.01_wp
-shapeMollifier=tanh(40._wp * (xi1 - 0.2_wp)) - tanh(40._wp * (xi1 - 0.8_wp))
-shapeMollifier=shapeMollifier/1.2_wp
-!dgdp_vec(1)=-(1-xi2)*amplitude*shapeMollifier*sin(2._wp*pi*10._wp*xi1+p(1))
-dgdp_vec(1)=(1-xi2)*shapeMollifier*cos(2._wp*pi*10._wp*xi1)
+allocate(dgstardpVec(size(dgdpVec)))
 
-!generalize here to more p
+width=0.5_wp
+dgdpVec=0._wp
+shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
+shapeMollifier=shapeMollifier/0.8_wp
+dgstardpVec(1)=(1-xi2)*shapeMollifier*cos(2._wp*pi*10._wp*xi1)
+
+if (xi2 .le. width) then
+chi=tanh(5._wp *xi2/width)
+else
+chi=1._wp
+end if
+
+dgdpVec=dgstardpVec-chi*(dgstardpVec)
 
 end subroutine
 

@@ -7,7 +7,7 @@ module TimeIntegrator_mod
 
   type, abstract, public :: t_TimeIntegrator
 
-     integer :: nStages
+     integer :: nStages,stage
      real(SCALAR_KIND), allocatable :: norm(:)
 
    contains
