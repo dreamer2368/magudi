@@ -997,6 +997,7 @@ subroutine checkGradientAccuracy(this, region)
      call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   else
      baselineActuationAmount = getOption("baseline_actuation_amount", 0.0_wp)
+     initialActuationAmount = initialActuationAmount + baselineActuationAmount
      if (baselineActuationAmount > 0.0_wp .and. restartIteration == 0) then
         region%states(:)%costSensitivity = -1.0_wp
         baselineCostFunctional = this%runForward(region,                                     &
