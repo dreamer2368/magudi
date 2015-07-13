@@ -35,5 +35,5 @@ def extract_xy(f, k=0):
         [[n[i][0], n[i][1], 1] for i in range(5)], True)
     for i in range(5):
         f.set_subzone(i, [0, 0, k], [-1, -1, k]).load()
-        fe[0][:,:,0,:] = f[0][:,:,0,:]
+        fe[i][:,:,0,:] = f[0][:,:,0,:]
     return fe
