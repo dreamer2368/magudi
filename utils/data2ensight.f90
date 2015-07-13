@@ -407,8 +407,8 @@ program data2ensight
                       region%states(1)%conservedVariables(ii,1),4)
               end select
               ! Reaction rate
-              rbuffer(i,j,k) = Da * density * Yf * Yo *                                      &
-                   exp(- activationTemperature / temperature)
+              rbuffer(i,j,k) = real(Da * density * Yf * Yo *                                 &
+                   exp(- activationTemperature / temperature), 4)
            end do
         end do
      end do
