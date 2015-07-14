@@ -1,7 +1,0 @@
-# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
-# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
-  cylinder             SAT_ISOTHERMAL_WALL      1       1    1    1    1   -1    1   -1
-  farField             SAT_FAR_FIELD            1      -1   -1   -1    1   -1    1   -1
-  sponge               SPONGE                   1      -1  -11   -1    1   -1    1   -1
-  targetRegion         COST_TARGET              1       0  275  290    1   -1    1   -1
-  controlRegion        ACTUATOR                 1       0   98  145  223  279    1   -1

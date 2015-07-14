@@ -59,10 +59,10 @@ def target_mollifier(g):
     return f
 
 def control_mollifier(g):
-    x_min = 0.8
-    x_max = 1.2
-    y_min = -0.25
-    y_max = 0.25
+    x_min = 0.6
+    x_max = 1.8
+    y_min = -0.35
+    y_max = 0.35
     r_min =  x_min
     r_max =  np.sqrt(x_max ** 2 + y_max ** 2)
     theta_min = np.arctan2(y_min, x_min)
