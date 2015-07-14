@@ -983,9 +983,11 @@ subroutine checkGradientAccuracy(this, region)
 
   ! Find (or load from file) the cost functional for the baseline prediction.
   if (region%simulationFlags%isBaselineAvailable) then
-     if (procRank == 0)                                                                      &
-          read(fileUnit, *, iostat = iostat) i, actuationAmount, controlGradient,            &
-          baselineCostFunctional, costSensitivity, gradientError
+     if (procRank == 0) then
+        read(fileUnit, *, iostat = iostat)
+        read(fileUnit, *, iostat = iostat) i, actuationAmount, controlGradient,              &
+             baselineCostFunctional, costSensitivity, gradientError
+     end if
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
         write(message, "(2A)") trim(filename),                                               &
