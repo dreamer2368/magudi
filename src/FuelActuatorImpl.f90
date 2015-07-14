@@ -17,11 +17,6 @@ subroutine setupFuelActuator(this, region)
   class(t_FuelActuator) :: this
   class(t_Region) :: region
 
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i
-  class(t_Patch), pointer :: patch => null()
-
   call this%cleanup()
 
   if (region%simulationFlags%predictionOnly) return
@@ -59,7 +54,7 @@ function computeFuelActuatorSensitivity(this, region) result(instantaneousSensit
 
   ! <<< Arguments >>>
   class(t_FuelActuator) :: this
-  class(t_Region), intent(in) :: region
+  class(t_Region) :: region
 
   ! <<< Result >>>
   SCALAR_TYPE :: instantaneousSensitivity
@@ -67,6 +62,7 @@ function computeFuelActuatorSensitivity(this, region) result(instantaneousSensit
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, H2, ierror
+  real(SCALAR_KIND) :: instantaneousGradient
   SCALAR_TYPE, allocatable :: F(:,:)
 
   assert(allocated(region%grids))
@@ -75,6 +71,7 @@ function computeFuelActuatorSensitivity(this, region) result(instantaneousSensit
   assert(region%solverOptions%nSpecies > 0)
 
   instantaneousSensitivity = 0.0_wp
+  instantaneousGradient = 0.0_wp
 
   do i = 1, size(region%grids)
 
@@ -96,21 +93,29 @@ function computeFuelActuatorSensitivity(this, region) result(instantaneousSensit
      allocate(F(region%grids(i)%nGridPoints, 2))
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+H2)
      F(:,2) = region%grids(i)%controlMollifier(:,1)
-     instantaneousSensitivity = instantaneousSensitivity +                                   &
+     instantaneousGradient = instantaneousGradient +                                         &
           region%grids(i)%computeInnerProduct(F(:,1),F(:,2))
      SAFE_DEALLOCATE(F)
 
   end do
 
-  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-       call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                         &
-       SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  instantaneousSensitivity = instantaneousGradient ** 2
+
+  if (region%commGridMasters /= MPI_COMM_NULL) then
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousGradient, 1,                              &
+          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                           &
+          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  end if
 
   do i = 1, size(region%grids)
+     call MPI_Bcast(instantaneousGradient, 1, SCALAR_TYPE_MPI,                               &
+          0, region%grids(i)%comm, ierror)
      call MPI_Bcast(instantaneousSensitivity, 1, SCALAR_TYPE_MPI,                            &
           0, region%grids(i)%comm, ierror)
   end do
 
+  region%states(:)%controlGradient = instantaneousGradient
   this%cachedValue = instantaneousSensitivity
 
 end function computeFuelActuatorSensitivity
@@ -153,7 +158,7 @@ subroutine updateFuelActuatorForcing(this, region)
 
            patch%controlForcing(:,:) = 0.0_wp
            patch%controlForcing(:,nDimensions+2+H2) = -                                      &
-                region%states(j)%actuationAmount * region%states(j)%costSensitivity
+                region%states(j)%actuationAmount * region%states(j)%controlGradient
 
         end select
      end do

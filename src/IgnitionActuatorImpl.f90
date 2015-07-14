@@ -120,7 +120,6 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use IgnitionActuator_mod, only : t_IgnitionActuator
-  use IgnitionSource_mod, only : t_IgnitionSource
 
   ! <<< Private members >>>
   use IgnitionActuatorImpl, only : computeSource
@@ -129,7 +128,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
   ! <<< Arguments >>>
   class(t_IgnitionActuator) :: this
-  class(t_Region), intent(in) :: region
+  class(t_Region) :: region
 
   ! <<< Result >>>
   SCALAR_TYPE :: instantaneousSensitivity
@@ -137,7 +136,8 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
-  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius, location(3)
+  real(SCALAR_KIND) ::  instantaneousGradient, timeStart, timeDuration, amplitude,           &
+       radius, location(3)
   SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:)
 
   assert(allocated(region%grids))
@@ -145,6 +145,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   assert(size(region%grids) == size(region%states))
 
   instantaneousSensitivity = 0.0_wp
+  instantaneousGradient = 0.0_wp
 
   timeStart = this%timeStart
   timeDuration = this%timeDuration
@@ -192,7 +193,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      end select
 
-     instantaneousSensitivity = instantaneousSensitivity +                                   &
+     instantaneousGradient = instantaneousGradient +                                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
           region%grids(i)%controlMollifier(:,1))
 
@@ -201,15 +202,23 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
   end do
 
-  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-       call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                         &
-       SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  instantaneousSensitivity = instantaneousGradient ** 2
+
+  if (region%commGridMasters /= MPI_COMM_NULL) then
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousGradient, 1,                              &
+          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                           &
+          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  end if
 
   do i = 1, size(region%grids)
+     call MPI_Bcast(instantaneousGradient, 1, SCALAR_TYPE_MPI,                               &
+          0, region%grids(i)%comm, ierror)
      call MPI_Bcast(instantaneousSensitivity, 1, SCALAR_TYPE_MPI,                            &
           0, region%grids(i)%comm, ierror)
   end do
 
+  region%states(:)%controlGradient = instantaneousGradient
   this%cachedValue = instantaneousSensitivity
 
 end function computeIgnitionActuatorSensitivity
@@ -262,18 +271,18 @@ subroutine updateIgnitionActuatorForcing(this, region)
            select case (this%sensitivityDependence)
 
            case ('AMPLITUDE')
-              amplitude = - region%states(j)%actuationAmount *                               &
-                   region%states(j)%costSensitivity
+              amplitude = amplitude - region%states(j)%actuationAmount *                     &
+                   region%states(j)%controlGradient
 
            case ('VERTICAL_POSITION')
 
-              location(2) = - region%states(j)%actuationAmount *                             &
-                   region%states(j)%costSensitivity
+              location(2) = location(2) - region%states(j)%actuationAmount *                 &
+                   region%states(j)%controlGradient
 
            case ('INITIAL_TIME')
 
-              timeStart = - region%states(j)%actuationAmount *                               &
-                   region%states(j)%costSensitivity
+              timeStart = timeStart - region%states(j)%actuationAmount *                     &
+                   region%states(j)%controlGradient
 
            end select
 

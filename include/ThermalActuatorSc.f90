@@ -59,7 +59,7 @@ module ThermalActuatorSc_mod
        import :: t_ThermalActuatorSc
 
        class(t_ThermalActuatorSc) :: this
-       class(t_Region), intent(in) :: region
+       class(t_Region) :: region
 
        SCALAR_TYPE :: instantaneousSensitivity
 

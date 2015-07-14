@@ -571,12 +571,11 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
   class(t_Functional), pointer :: functional => null()
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
-  SCALAR_TYPE :: instantaneousCostFunctional, duration
+  SCALAR_TYPE :: instantaneousCostFunctional
 
   call startTiming("runForward")
 
   costFunctional = 0.0_wp
-  duration = 0.0_wp
 
   region%states(:)%actuationAmount = 0.0_wp
   if (present(actuationAmount) .and. .not. region%simulationFlags%predictionOnly)            &
@@ -659,7 +658,6 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
            instantaneousCostFunctional = functional%compute(region)
            costFunctional = costFunctional +                                                 &
                 timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
-           duration = duration + timeIntegrator%norm(i) * timeStepSize
         end if
 
         ! Update the time average.
@@ -697,8 +695,6 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
      end if
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
-
-  !costFunctional = costFunctional / duration
 
   ! Finish writing remaining data gathered on probes.
   if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
@@ -762,15 +758,15 @@ function runAdjoint(this, region) result(costSensitivity)
   type(t_ReverseMigratorFactory) :: reverseMigratorFactory
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
+  SCALAR_TYPE :: instantaneousCostSensitivity, controlGradient
   real(SCALAR_KIND) :: time, startTime, timeStepSize
-  SCALAR_TYPE :: instantaneousCostSensitivity, duration
 
   assert(.not. region%simulationFlags%predictionOnly)
 
   call startTiming("runAdjoint")
 
   costSensitivity = 0.0_wp
-  duration = 0.0_wp
+  controlGradient = 0.0_wp
 
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)
@@ -857,11 +853,12 @@ function runAdjoint(this, region) result(costSensitivity)
         ! Update gradient.
         call controller%updateGradient(region)
 
-        ! Update cost sensitivity.
+        ! Update cost sensitivity and control gradient.
         instantaneousCostSensitivity = controller%computeSensitivity(region)
         costSensitivity = costSensitivity +                                                  &
              timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
-        duration = duration + timeIntegrator%norm(i) * timeStepSize
+        controlGradient = controlGradient +                                                  &
+             timeIntegrator%norm(i) * timeStepSize * region%states(1)%controlGradient
 
         ! Update adjoint forcing on cost target patches.
         call functional%updateAdjointForcing(region)
@@ -877,7 +874,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
      ! Report simulation progress.
      call showProgress(this, region, ADJOINT, startTimestep, timestep,                       &
-          time, instantaneousCostSensitivity)
+          time, controlGradient)
 
      ! Save solution on probe patches.
      if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
@@ -895,7 +892,8 @@ function runAdjoint(this, region) result(costSensitivity)
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
-  !costSensitivity = costSensitivity / duration
+  ! Store control gradient for later use.
+  region%states(:)%controlGradient = controlGradient
 
   ! Finish writing remaining data gathered on probes.
   if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
@@ -937,9 +935,9 @@ subroutine checkGradientAccuracy(this, region)
   integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
-       baselineActuationAmount, initialActuationAmount, geometricGrowthFactor,               &
-       gradientError, dummyValue
-  logical :: outputControl
+       controlGradient, initialActuationAmount, geometricGrowthFactor, gradientError,        &
+       dummyValue
+  logical :: outputControl, useBaselineActuation
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -986,7 +984,7 @@ subroutine checkGradientAccuracy(this, region)
   ! Find (or load from file) the cost functional for the baseline prediction.
   if (region%simulationFlags%isBaselineAvailable) then
      if (procRank == 0)                                                                      &
-          read(fileUnit, *, iostat = iostat) i, actuationAmount,                             &
+          read(fileUnit, *, iostat = iostat) i, actuationAmount, controlGradient,            &
           baselineCostFunctional, costSensitivity, gradientError
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
@@ -996,12 +994,10 @@ subroutine checkGradientAccuracy(this, region)
      end if
      call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   else
-     baselineActuationAmount = getOption("baseline_actuation_amount", 0.0_wp)
-     initialActuationAmount = initialActuationAmount + baselineActuationAmount
-     if (baselineActuationAmount > 0.0_wp .and. restartIteration == 0) then
-        region%states(:)%costSensitivity = -1.0_wp
+     useBaselineActuation = getOption("use_baseline_actuation", .false.)
+     if (useBaselineActuation .and. restartIteration == 0) then
         baselineCostFunctional = this%runForward(region,                                     &
-             actuationAmount = baselineActuationAmount)
+             actuationAmount = initialActuationAmount)
      else
         baselineCostFunctional = this%runForward(region)
      end if
@@ -1010,18 +1006,17 @@ subroutine checkGradientAccuracy(this, region)
   ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
   if (restartIteration == 0) then
      costSensitivity = this%runAdjoint(region)
+     controlGradient = region%states(1)%controlGradient
   else
      call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+     call MPI_Bcast(controlGradient, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+     region%states(:)%controlGradient = controlGradient
   end if
 
-  ! Store the cost sensitivity for later use.
-  region%states(:)%costSensitivity = costSensitivity
-
   if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
-     write(fileUnit, '(A4,5A24)') 'i', 'Actuation amount', 'Control forcing',                &
+     write(fileUnit, '(A4,5A24)') 'i', 'Actuation amount', 'Control gradient',               &
           'Cost functional', 'Finite difference','Gradient error'
-     write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))') 0, baselineActuationAmount,    &
-          - region%states(1)%actuationAmount * region%states(1)%costSensitivity,             &
+     write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp, controlGradient,    &
           baselineCostFunctional, costSensitivity, 0.0_wp
   end if
 
@@ -1035,8 +1030,8 @@ subroutine checkGradientAccuracy(this, region)
 
   do i = 1, restartIteration - 1
      if (procRank == 0)                                                                      &
-          read(fileUnit, *, iostat = iostat) j, actuationAmount, costFunctional,             &
-          dummyValue, gradientError
+          read(fileUnit, *, iostat = iostat) j, actuationAmount, controlGradient,            &
+          costFunctional, dummyValue, gradientError
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
         write(message, "(2A)") trim(filename),                                               &
@@ -1050,12 +1045,11 @@ subroutine checkGradientAccuracy(this, region)
      costFunctional = this%runForward(region, actuationAmount = actuationAmount,             &
           controlIteration = i)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
-          costSensitivity ** 2
+          costSensitivity
      if (procRank == 0)                                                                      &
           write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
-          - region%states(1)%actuationAmount * region%states(1)%costSensitivity,             &
-          costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &
-          abs(gradientError)
+          controlGradient, costFunctional,                                                   &
+          -(costFunctional - baselineCostFunctional) / actuationAmount, abs(gradientError)
   end do
 
   if (procRank == 0) close(fileUnit)

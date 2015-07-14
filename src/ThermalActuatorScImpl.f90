@@ -57,7 +57,7 @@ function computeThermalActuatorScSensitivity(this, region) result(instantaneousS
 
   ! <<< Arguments >>>
   class(t_ThermalActuatorSc) :: this
-  class(t_Region), intent(in) :: region
+  class(t_Region) :: region
 
   ! <<< Result >>>
   SCALAR_TYPE :: instantaneousSensitivity
@@ -65,6 +65,7 @@ function computeThermalActuatorScSensitivity(this, region) result(instantaneousS
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
+  real(SCALAR_KIND) :: instantaneousGradient
   SCALAR_TYPE, allocatable :: F(:,:)
 
   assert(allocated(region%grids))
@@ -72,6 +73,7 @@ function computeThermalActuatorScSensitivity(this, region) result(instantaneousS
   assert(size(region%grids) == size(region%states))
 
   instantaneousSensitivity = 0.0_wp
+  instantaneousGradient = 0.0_wp
 
   do i = 1, size(region%grids)
 
@@ -89,21 +91,29 @@ function computeThermalActuatorScSensitivity(this, region) result(instantaneousS
      allocate(F(region%grids(i)%nGridPoints, 2))
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
      F(:,2) = region%grids(i)%controlMollifier(:,1)
-     instantaneousSensitivity = instantaneousSensitivity +                                   &
+     instantaneousGradient = instantaneousGradient +                                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
      SAFE_DEALLOCATE(F)
 
   end do
 
-  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-       call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                         &
-       SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  instantaneousSensitivity = instantaneousGradient ** 2
+
+  if (region%commGridMasters /= MPI_COMM_NULL) then
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousGradient, 1,                              &
+          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                           &
+          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  end if
 
   do i = 1, size(region%grids)
+     call MPI_Bcast(instantaneousGradient, 1, SCALAR_TYPE_MPI,                               &
+          0, region%grids(i)%comm, ierror)
      call MPI_Bcast(instantaneousSensitivity, 1, SCALAR_TYPE_MPI,                            &
           0, region%grids(i)%comm, ierror)
   end do
 
+  region%states(:)%controlGradient = instantaneousGradient
   this%cachedValue = instantaneousSensitivity
 
 end function computeThermalActuatorScSensitivity
@@ -142,7 +152,7 @@ subroutine updateThermalActuatorScForcing(this, region)
 
            patch%controlForcing(:,:) = 0.0_wp
            patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
-                region%states(j)%costSensitivity
+                region%states(j)%controlGradient
 
         end select
      end do
