@@ -889,9 +889,6 @@ function runAdjoint(this, region) result(costSensitivity)
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
-  ! Store control gradient for later use.
-  region%states(:)%controlGradient = costSensitivity
-
   ! Finish writing remaining data gathered on probes.
   if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
 
@@ -1006,8 +1003,10 @@ subroutine checkGradientAccuracy(this, region)
      costSensitivity = this%runAdjoint(region)
   else
      call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
-     region%states(:)%controlGradient = costSensitivity
   end if
+
+  ! Store gradient to be used for control forcing.
+  region%states(:)%controlGradient = costSensitivity
 
   if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
      write(fileUnit, '(A4,5A24)') 'i', 'Actuation amount', 'Cost functional',                &
