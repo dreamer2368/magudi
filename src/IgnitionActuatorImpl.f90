@@ -47,7 +47,7 @@ contains
 
        r = real(sum((coordinates(i,:) - location(1:nDimensions)) ** 2), wp)
 
-       ignitionSource(i) = power * timePortion! * exp(- gaussianFactor * r)
+       ignitionSource(i) = power * timePortion * exp(- gaussianFactor * r)
 
     end do
 
@@ -136,8 +136,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
-  real(SCALAR_KIND) ::  instantaneousGradient, timeStart, timeDuration, amplitude,           &
-       radius, location(3)
+  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius, location(3)
   SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:)
 
   assert(allocated(region%grids))
@@ -145,7 +144,6 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   assert(size(region%grids) == size(region%states))
 
   instantaneousSensitivity = 0.0_wp
-  instantaneousGradient = 0.0_wp
 
   timeStart = this%timeStart
   timeDuration = this%timeDuration
@@ -191,9 +189,13 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
         F(:,2) = ignitionSource *                                                            &
              (region%states(i)%time - this%timeStart) / this%timeDuration**2
 
+     case default
+
+        F(:,2) = ignitionSource
+
      end select
 
-     instantaneousGradient = instantaneousGradient +                                         &
+     instantaneousSensitivity = instantaneousSensitivity +                                   &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
           region%grids(i)%controlMollifier(:,1))
 
@@ -202,23 +204,15 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
   end do
 
-  instantaneousSensitivity = instantaneousGradient ** 2
-
-  if (region%commGridMasters /= MPI_COMM_NULL) then
-     call MPI_Allreduce(MPI_IN_PLACE, instantaneousGradient, 1,                              &
-          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
-     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                           &
-          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
-  end if
+  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+       call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                         &
+       SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
 
   do i = 1, size(region%grids)
-     call MPI_Bcast(instantaneousGradient, 1, SCALAR_TYPE_MPI,                               &
-          0, region%grids(i)%comm, ierror)
      call MPI_Bcast(instantaneousSensitivity, 1, SCALAR_TYPE_MPI,                            &
           0, region%grids(i)%comm, ierror)
   end do
 
-  region%states(:)%controlGradient = instantaneousGradient
   this%cachedValue = instantaneousSensitivity
 
 end function computeIgnitionActuatorSensitivity
@@ -271,7 +265,7 @@ subroutine updateIgnitionActuatorForcing(this, region)
            select case (this%sensitivityDependence)
 
            case ('AMPLITUDE')
-              amplitude = amplitude - region%states(j)%actuationAmount *                     &
+              amplitude = - region%states(j)%actuationAmount *                               &
                    region%states(j)%controlGradient
 
            case ('VERTICAL_POSITION')
@@ -287,8 +281,8 @@ subroutine updateIgnitionActuatorForcing(this, region)
            end select
 
            call computeSource(region%states(j)%time, region%grids(j)%coordinates,            &
-                region%grids(j)%iblank, timeStart, timeDuration, amplitude, radius, location,&
-                region%solverOptions%ratioOfSpecificHeats,                                   &
+                region%grids(j)%iblank, timeStart, timeDuration, amplitude, radius,          &
+                location, region%solverOptions%ratioOfSpecificHeats,                         &
                 region%states(j)%combustion%heatRelease, ignitionSource)
 
            patch%controlForcing(:,:) = 0.0_wp
