@@ -37,9 +37,6 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
      case ('THERMAL_ACTUATOR')
         allocate(t_ThermalActuator :: this%controller)
 
-     case ('THERMAL_ACTUATOR_SC')
-        allocate(t_ThermalActuatorSc :: this%controller)
-
      case ('FUEL_ACTUATOR')
         allocate(t_FuelActuator :: this%controller)
 
