@@ -183,7 +183,9 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
         temp(3) = getOption(trim(key) // "z", 0.0_wp)
         call this%fuelSources(i)%setup(fuelIndex, temp,                                      &
              getOption(trim(key) // "amplitude", 1.0_wp),                                    &
-             getOption(trim(key) // "radius", 1.0_wp))
+             getOption(trim(key) // "frequency", 1.0_wp),                                    &
+             getOption(trim(key) // "radius", 1.0_wp),                                       &
+             getOption(trim(key) // "phase", 0.0_wp))
      end do
   end if
 
@@ -766,7 +768,8 @@ subroutine addSources(this, mode, grid, solverOptions)
 
   if (mode == FORWARD .and. allocated(this%fuelSources)) then
      do i = 1, size(this%fuelSources)
-        call this%fuelSources(i)%add(grid%coordinates, grid%iblank, this%rightHandSide)
+        call this%fuelSources(i)%add(this%time, grid%coordinates, grid%iblank,               &
+             this%rightHandSide)
      end do
   end if
 

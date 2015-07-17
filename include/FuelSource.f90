@@ -8,9 +8,7 @@ module FuelSource_mod
   type, public :: t_FuelSource
 
      integer :: fuelIndex
-     real(SCALAR_KIND) :: location(3), amplitude, radius
-
-     SCALAR_TYPE, allocatable :: strength(:)
+     real(SCALAR_KIND) :: location(3), amplitude, gaussianFactor, angularFrequency, phase
 
    contains
 
@@ -21,7 +19,8 @@ module FuelSource_mod
 
   interface
 
-     subroutine setupFuelSource(this, fuelIndex, location, amplitude, radius)
+     subroutine setupFuelSource(this, fuelIndex, location, amplitude, frequency, radius,     &
+          phase)
 
        use Grid_mod, only : t_Grid
 
@@ -29,7 +28,8 @@ module FuelSource_mod
 
        class(t_FuelSource) :: this
        integer, intent(in) :: fuelIndex
-       real(SCALAR_KIND), intent(in) :: location(:), amplitude, radius
+       real(SCALAR_KIND), intent(in) :: location(:), amplitude, frequency, radius
+       real(SCALAR_KIND), intent(in), optional :: phase
 
      end subroutine setupFuelSource
 
@@ -37,11 +37,12 @@ module FuelSource_mod
 
   interface
 
-     subroutine addFuelSource(this, coordinates, iblank, rightHandSide)
+     subroutine addFuelSource(this, time, coordinates, iblank, rightHandSide)
 
        import :: t_FuelSource
 
        class(t_FuelSource) :: this
+       real(SCALAR_KIND), intent(in) :: time
        SCALAR_TYPE, intent(in) :: coordinates(:,:)
        integer, intent(in) :: iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
