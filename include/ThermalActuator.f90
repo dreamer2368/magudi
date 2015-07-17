@@ -20,7 +20,6 @@ module ThermalActuator_mod
      procedure, pass :: hookBeforeTimemarch => hookThermalActuatorBeforeTimemarch
      procedure, pass :: hookAfterTimemarch => hookThermalActuatorAfterTimemarch
 
-
   end type t_ThermalActuator
 
   interface
