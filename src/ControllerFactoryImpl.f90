@@ -34,6 +34,9 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
      case ('THERMAL_ACTUATOR')
         allocate(t_ThermalActuator :: this%controller)
 
+     case ('MOMENTUM_ACTUATOR')
+        allocate(t_MomentumActuator :: this%controller)        
+
      case default
         this%controllerType = ""
 

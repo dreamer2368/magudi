@@ -59,6 +59,25 @@ def target_mollifier(g):
     return f
 
 def control_mollifier(g):
+    r_min =  0.5
+    r_max =  0.75
+    theta_min = -np.pi / 2
+    theta_max =  np.pi / 2        
+    r = np.sqrt(g.xyz[0][:,:,0,0] ** 2 + g.xyz[0][:,:,0,1] ** 2)
+    theta = np.arctan2(g.xyz[0][:,:,0,1], g.xyz[0][:,:,0,0])
+    f = p3d.Function().copy_from(g)
+    f.f[0].fill(1.)
+    n = f.get_size(0)
+    f.f[0][:,:,0,0] *= p3d.cubic_bspline_support(r, r_min, r_max)
+    f.f[0][:,:,0,0] *= p3d.tanh_support(theta, theta_min, theta_max, 15., 0.5)
+    imin, imax = p3d.find_extents(r[:,0], r_min, r_max)    
+    jmin = np.argmin(np.abs(theta[0,:] - theta_min))
+    jmax = np.argmin(np.abs(theta[0,:] - theta_max)) + 2
+    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        'controlRegion', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)
+    return f
+
+def antisound_control_mollifier(g):
     x_min = 0.6
     x_max = 1.8
     y_min = -0.35
