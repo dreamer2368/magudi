@@ -204,7 +204,7 @@ subroutine updateFuelActuatorGradient(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions
+  integer :: i, j, nDimensions, H2
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: F(:,:)
 
@@ -212,6 +212,10 @@ subroutine updateFuelActuatorGradient(this, region)
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
+
+  H2 = region%combustion%H2
+  assert(H2 > 0)
+  assert(H2 <= region%solverOptions%nSpecies)
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
@@ -226,7 +230,7 @@ subroutine updateFuelActuatorGradient(this, region)
            assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
 
            allocate(F(patch%nPatchPoints, 2))
-           call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2), F(:,1))
+           call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2+H2), F(:,1))
            call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,2))
            patch%gradientBuffer(:,1,patch%iGradientBuffer) = product(F, dim = 2)
            SAFE_DEALLOCATE(F)
