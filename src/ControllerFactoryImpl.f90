@@ -6,6 +6,7 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
   use Controller_mod, only : t_Controller
   use Controller_factory, only : t_ControllerFactory
   use ThermalActuator_mod, only : t_ThermalActuator
+  use MomentumActuator_mod, only : t_MomentumActuator  
 
   implicit none
 
