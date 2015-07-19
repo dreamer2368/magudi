@@ -9,7 +9,6 @@ boundary_condition_file = "bc.dat"
 # Simulation flags
 include_viscous_terms = true
 use_constant_CFL_mode = false
-use_target_state = true
 curvilinear_domain = false
 
 # Physical constants
@@ -25,11 +24,12 @@ defaults/discretization_scheme = "SBP 3-6"
 time_step_size = 0.05
 number_of_timesteps = 240
 report_interval = 10
-save_interval = 20
+save_interval = 240
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.005
+dissipation_amount = 0.0001
+composite_dissipation = false
 
 # Sponge options
 defaults/sponge_amount = 0.2
@@ -43,7 +43,7 @@ maximum_temperature = 4.
 
 # Acoustic source
 number_of_acoustic_sources = 1
-acoustic_source01/amplitude = 1.
+acoustic_source01/amplitude = 0.01
 acoustic_source01/frequency = 0.477464829275686
 acoustic_source01/x = -3.
 acoustic_source01/radius = 2.1213203435596424
