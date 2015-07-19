@@ -866,7 +866,7 @@ function runAdjoint(this, region) result(costSensitivity)
   call this%residualManager%cleanup()
   call reverseMigratorFactory%cleanup()
 
-  costSensitivity = functional%runningTimeQuadrature
+  costSensitivity = controller%runningTimeQuadrature
 
   call endTiming("runAdjoint")
 
