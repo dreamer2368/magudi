@@ -20,14 +20,15 @@ subroutine setupFuelActuator(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, gradientBufferSize
-  character(len = STRING_LENGTH) :: message, fuel
+  character(len = STRING_LENGTH) :: key, message, fuel
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
 
   if (region%simulationFlags%predictionOnly) return
 
-  fuel =  getOption("fuel","H2")
+  write(key, '(A)') "fuel_actuator/"
+  fuel =  getOption(trim(key) // "reactant","H2")
   select case (trim(fuel))
   case ("H2")
      this%fuelIndex = region%combustion%H2
