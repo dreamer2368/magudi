@@ -8,6 +8,7 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
   use ThermalActuator_mod, only : t_ThermalActuator
   use FuelActuator_mod, only : t_FuelActuator
   use IgnitionActuator_mod, only : t_IgnitionActuator
+  use MomentumActuator_mod, only : t_MomentumActuator
 
   implicit none
 
@@ -41,6 +42,9 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
 
      case ('IGNITION_ACTUATOR')
         allocate(t_IgnitionActuator :: this%controller)
+
+     case ('MOMENTUM_ACTUATOR')
+        allocate(t_MomentumActuator :: this%controller)
 
      case default
         this%controllerType = ""

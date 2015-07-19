@@ -179,6 +179,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/FuelActuatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/IgnitionActuator.f90
   ${PROJECT_SOURCE_DIR}/src/IgnitionActuatorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/MomentumActuator.f90
+  ${PROJECT_SOURCE_DIR}/src/MomentumActuatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PressureDrag.f90
