@@ -9,7 +9,7 @@ module ReynoldsStress_mod
 
   type, private :: t_ReynoldsStressInternal
      SCALAR_TYPE, pointer :: meanVelocity(:,:) => null()
-  end type t_ReynoldsStressInternal  
+  end type t_ReynoldsStressInternal
 
   type, extends(t_Functional), public :: t_ReynoldsStress
 

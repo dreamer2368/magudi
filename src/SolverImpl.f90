@@ -561,6 +561,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   if (.not. region%simulationFlags%predictionOnly) then
      call this%functionalFactory%connect(functional)
      assert(associated(functional))
+     functional%runningTimeQuadrature = 0.0_wp
   end if
 
   ! Setup residual manager if this is a steady-state simulation.
@@ -625,7 +626,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
         ! Update the cost functional.
         if (.not. region%simulationFlags%predictionOnly) then
            instantaneousCostFunctional = functional%compute(region)
-           costFunctional = costFunctional +                                                 &
+           functional%runningTimeQuadrature = functional%runningTimeQuadrature +             &
                 timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
         end if
 
@@ -676,6 +677,9 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      end do
      call region%saveData(QOI_TIME_AVERAGED_STATE, trim(this%outputPrefix) // ".mean.q")
   end if
+
+  if (.not. region%simulationFlags%predictionOnly)                                           &
+       costFunctional = functional%runningTimeQuadrature
 
   call endTiming("runForward")
 
@@ -818,7 +822,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
         ! Update cost sensitivity.
         instantaneousCostSensitivity = controller%computeSensitivity(region)
-        costSensitivity = costSensitivity +                                                  &
+        controller%runningTimeQuadrature = controller%runningTimeQuadrature +                &
              timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
 
         ! Update adjoint forcing on cost target patches.
@@ -861,6 +865,8 @@ function runAdjoint(this, region) result(costSensitivity)
 
   call this%residualManager%cleanup()
   call reverseMigratorFactory%cleanup()
+
+  costSensitivity = functional%runningTimeQuadrature
 
   call endTiming("runAdjoint")
 

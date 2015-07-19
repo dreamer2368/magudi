@@ -30,6 +30,7 @@ subroutine cleanupController(this)
   integer, parameter :: wp = SCALAR_KIND
 
   this%cachedValue = 0.0_wp
+  this%runningTimeQuadrature = 0.0_wp
 
 end subroutine cleanupController
 
@@ -80,8 +81,8 @@ subroutine writeSensitivityToFile(this, comm, filename, timestep, time, append)
   end if
 
   if (procRank == 0) then
-     write(fileUnit, '(I8,1X,E13.6,1X,SP,' // SCALAR_FORMAT // ')')                          &
-          timestep, time, this%cachedValue
+     write(fileUnit, '(I8,1X,E13.6,2(1X,SP,' // SCALAR_FORMAT // '))')                       &
+          timestep, time, this%cachedValue, this%runningTimeQuadrature
   end if
 
   call MPI_Bcast(ostat, 1, MPI_INTEGER, 0, comm, ierror)

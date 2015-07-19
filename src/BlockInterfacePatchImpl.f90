@@ -398,10 +398,10 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   end if
 
   call MPI_Comm_rank(this%comm, procRank, ierror)
-  
+
   if (procRank == 0 .and. size(dataToBeSent, 2) /= size(this%sendBuffer, 2)) then
      SAFE_DEALLOCATE(this%sendBuffer)
-     SAFE_DEALLOCATE(this%receiveBuffer)     
+     SAFE_DEALLOCATE(this%receiveBuffer)
      allocate(this%sendBuffer(product(this%globalSize), size(dataToBeSent, 2)))
      allocate(this%receiveBuffer(product(this%globalSize), size(dataToBeSent, 2)))
   end if
