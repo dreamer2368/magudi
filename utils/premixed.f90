@@ -442,8 +442,8 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
-    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, T0, Yf0, Yo0, Z0,       &
-         fuel, oxidizer
+    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, velocity(3),            &
+         T0, Yf0, Yo0, Z0, fuel, oxidizer
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -474,10 +474,16 @@ contains
     temperature = getOption("initial_temperature", T0)
 
     ! Density
-    density = 1.0_wp!T0 / temperature
+    density = T0 / temperature
     print *
     print *, 'Mixture density = ',density
     print *
+
+    ! Velocity
+    velocity = 0.0_wp
+    velocity(1) = getOption("initial_velocity_1", 0.0_wp)
+    velocity(2) = getOption("initial_velocity_2", 0.0_wp)
+    velocity(3) = getOption("initial_velocity_3", 0.0_wp)
 
     ! Components
     fuel = YF0*Z0
@@ -487,9 +493,11 @@ contains
 
        ! State variables
        state%conservedVariables(i,1) = density
-       state%conservedVariables(i,2:nDimensions+1) = 0.0_wp
+       state%conservedVariables(i,2) = density * velocity(1)
+       state%conservedVariables(i,3) = density * velocity(2)
+       state%conservedVariables(i,4) = density * velocity(3)
        state%conservedVariables(i,nDimensions+2) = density * temperature /                   &
-            ratioOfSpecificHeats
+            ratioOfSpecificHeats + 0.5_wp * density * sum(velocity**2)
        if (nSpecies.gt.0) state%conservedVariables(i,H2) = density * fuel
        if (nSpecies.gt.1) state%conservedVariables(i,O2) = density * oxidizer
 
