@@ -37,3 +37,20 @@ def extract_xy(f, k=0):
         f.set_subzone(i, [0, 0, k], [-1, -1, k]).load()
         fe[i][:,:,0,:] = f[0][:,:,0,:]
     return fe
+
+def extract_const_r(g, f, r=0.5):
+    n = f.get_size()
+    g.set_subzone(1, [0, 0, 0], [-1, -1, 0]).load()
+    idx = np.argmin(np.abs(np.mean(np.sqrt(g.xyz[0][:,:,0,0] ** 2 + 
+                                           g.xyz[0][:,:,0,1] ** 2), 
+                                   axis=1) - r))
+    args = dict()
+    if type(f) == p3d.Function:
+        args.update(ncomponents=f.ncomponents)
+    fe = type(f)(**args).set_size([n[0][2], 4 * (n[1][1] - 1) + 1, 1], True)
+    for i in range(1, 5):
+        f.set_subzone(i, [idx, 0, 0], [idx, -2, -1]).load()
+        for j in range(f[0].shape[-1]):
+            fe[0][:,(i-1)*(n[1][1]-1):i*(n[1][1]-1),0,j] = f[0][0,:,:,j].T
+        fe[0][:,-1,:,:] = fe[0][:,0,:,:]
+    return fe
