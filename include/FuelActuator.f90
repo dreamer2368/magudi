@@ -9,6 +9,8 @@ module FuelActuator_mod
 
   type, extends(t_Controller), public :: t_FuelActuator
 
+     integer :: fuelIndex
+
    contains
 
      procedure, pass :: setup => setupFuelActuator
