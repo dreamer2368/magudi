@@ -179,10 +179,20 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
      case ('AMPLITUDE')
         F(:,2) = ignitionSource / this%amplitude
 
-     case ('VERTICAL_POSITION')
+     case ('POSITION_1')
+
+        F(:,2) = ignitionSource *                                                            &
+             (region%grids(i)%coordinates(:,1) - this%location(1)) /  this%radius**2
+
+     case ('POSITION_2')
 
         F(:,2) = ignitionSource *                                                            &
              (region%grids(i)%coordinates(:,2) - this%location(2)) /  this%radius**2
+
+     case ('POSITION_3')
+
+        F(:,2) = ignitionSource *                                                            &
+             (region%grids(i)%coordinates(:,3) - this%location(3)) /  this%radius**2
 
      case ('INITIAL_TIME')
 
@@ -265,12 +275,22 @@ subroutine updateIgnitionActuatorForcing(this, region)
            select case (this%sensitivityDependence)
 
            case ('AMPLITUDE')
-              amplitude = - region%states(j)%actuationAmount *                               &
+              amplitude = amplitude - region%states(j)%actuationAmount *                     &
                    region%states(j)%controlGradient
 
-           case ('VERTICAL_POSITION')
+           case ('POSITION_1')
+
+              location(1) = location(1) - region%states(j)%actuationAmount *                 &
+                   region%states(j)%controlGradient
+
+           case ('POSITION_2')
 
               location(2) = location(2) - region%states(j)%actuationAmount *                 &
+                   region%states(j)%controlGradient
+
+           case ('POSITION_3')
+
+              location(3) = location(3) - region%states(j)%actuationAmount *                 &
                    region%states(j)%controlGradient
 
            case ('INITIAL_TIME')
