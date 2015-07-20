@@ -195,14 +195,12 @@ assert(allocated(this%dJacobiandp))
 
 allocate(G(region%grids(i)%nGridPoints,nDimensions+2))
 allocate(F(region%grids(i)%nGridPoints,nDimensions+2))
-allocate(dQdxi(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
 allocate(inviscidFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
 allocate(viscousFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
 allocate(transformedFluxes(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
 
 G=0._wp
 F=0._wp
-dQdxi=0._wp
 inviscidFluxes=0._wp
 viscousFluxes=0._wp
 transformedFluxes=0._wp
@@ -239,15 +237,14 @@ call region%grids(i)%firstDerivative(ii)%apply(transformedFluxes(:,:,ii),&
 end do
 
 G=sum(transformedFluxes,dim=3)
-
 do v=1,nDimensions+2
 G(:,v)=G(:,v)*this%dJacobiandp(:,p)
 end do !var
 
 F=F+G
 
-if (allocated(region%patchFactories)) then
 
+if (allocated(region%patchFactories)) then
 do m = 1, size(region%patchFactories)
 call region%patchFactories(m)%connect(patch)
 if (.not. associated(patch)) cycle
@@ -297,7 +294,7 @@ inviscidPenalty(nDimensions+2) =normalMomentum *&
      region%states(i)%specificVolume(gridIndex, 1) *&
      (localConservedVariables(nDimensions+2)+region%states(i)%pressure(gridIndex, 1))
 
-F(gridIndex,:)=F(gridIndex,:)-inviscidPenaltyAmount&
+F(gridIndex,:)=F(gridIndex,:)+inviscidPenaltyAmount&
      *this%djacobiandp(gridIndex,p)*inviscidPenalty(:)
 
 normalMomentum=dot_product(localConservedVariables(2:nDimensions+1),&
@@ -310,7 +307,7 @@ inviscidPenalty(nDimensions+2) =normalMomentum *&
      region%states(i)%specificVolume(gridIndex, 1) *&
      (localConservedVariables(nDimensions+2)+region%states(i)%pressure(gridIndex,1))
 
-F(gridIndex,:)=F(gridIndex,:)-inviscidPenaltyAmount&
+F(gridIndex,:)=F(gridIndex,:)+inviscidPenaltyAmount&
      *region%grids(i)%jacobian(gridIndex,1)*inviscidPenalty(:)
 
 end do
@@ -326,6 +323,7 @@ end select
 end do !patch factories
 end if
 
+
 G(:,:)=region%states(i)%adjointVariables(:,:)
 
 this%instantaneousGradient(p)=-region%grids(i)%computeInnerProduct(G,F)
@@ -338,7 +336,6 @@ end do !over wall parameters list
 
 SAFE_DEALLOCATE(viscousFluxes)
 SAFE_DEALLOCATE(inviscidFluxes)
-SAFE_DEALLOCATE(dQdxi)
 SAFE_DEALLOCATE(F)
 SAFE_DEALLOCATE(G)
 

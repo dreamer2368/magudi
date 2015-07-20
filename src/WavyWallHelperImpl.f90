@@ -106,25 +106,7 @@ k=1
 SAFE_DEALLOCATE(dgdp_vec)
 SAFE_DEALLOCATE(unitCoordinates)
 
-SAFE_DEALLOCATE(dF1)
-SAFE_DEALLOCATE(dF2)
-SAFE_DEALLOCATE(dG1)
-SAFE_DEALLOCATE(dG2)
-SAFE_DEALLOCATE(dG)
-allocate(dF1(grid%nGridPoints,1))
-allocate(dF2(grid%nGridPoints,1))
-allocate(dG1(grid%nGridPoints,1))
-allocate(dG2(grid%nGridPoints,1))
 allocate(dG(grid%nGridPoints,1))
-
-!dF1(:,1) = grid%coordinates(:,1)
-!call grid%firstDerivative(1)%apply(dF1, grid%localSize)
-!dF2(:,1) = grid%coordinates(:,1)
-!call grid%firstDerivative(2)%apply(dF2, grid%localSize)
-!dG1(:,1) = grid%coordinates(:,2)
-!call grid%firstDerivative(1)%apply(dG1, grid%localSize)
-!dG2(:,1) = grid%coordinates(:,2)
-!call grid%firstDerivative(2)%apply(dG2, grid%localSize)
 
 dMijdp=0.
 
@@ -140,11 +122,7 @@ do i=1,size(this%p)
 
 end do
 
-!SAFE_DEALLOCATE(dF1)
-!SAFE_DEALLOCATE(dF2)
 SAFE_DEALLOCATE(dG)
-!SAFE_DEALLOCATE(dG1)
-!SAFE_DEALLOCATE(dG2)
 SAFE_DEALLOCATE(dGdp_)
 
 
@@ -248,7 +226,7 @@ SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
 
 assert(size(p) == 1)
 
-width=0.4_wp
+width=0.2_wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
 shapeMollifier=shapeMollifier/0.8_wp
 gstar=xi2+(1._wp-xi2)*p(1)*shapeMollifier*&
@@ -281,7 +259,7 @@ assert(size(dgdpVec) == size(p))
 
 allocate(dgstardpVec(size(dgdpVec)))
 
-width=0.4_wp
+width=0.2_wp
 dgdpVec=0._wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
 shapeMollifier=shapeMollifier/0.8_wp
