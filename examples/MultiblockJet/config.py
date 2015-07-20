@@ -386,11 +386,31 @@ def grid(num_radial_nozzle, num_radial_near_field, num_azimuthal,
     # plot_jacobian_continuity(g)
     return g
 
-def target_state(g, mach_number=1.3, gamma=1.4):
+def convective_mach_number(M_j, M_inf, temperature_ratio):
+    u_j = M_j * np.sqrt(temperature_ratio)
+    u_inf = M_inf
+    u_c = (u_j + u_inf * np.sqrt(temperature_ratio)) / \
+          (1. + np.sqrt(temperature_ratio))
+    return u_c - u_inf
+
+def crocco_busemann(u, u_j, temperature_ratio, u_inf, gamma=1.4):
+    M_j = u_j / np.sqrt(temperature_ratio)
+    c_1 = (1. / temperature_ratio + 0.5 * (gamma - 1.) * M_j ** 2 *
+           ((u_inf / u_j) ** 2 - 1.) - 1.) / (u_inf / u_j - 1.)
+    c_2 = 1. + 0.5 * (gamma - 1.) * M_j ** 2 - c_1
+    return -0.5 * (gamma - 1.) * M_j ** 2 * u ** 2 + c_1 * u + c_2
+
+def target_state(g, M_j=1.3, M_inf=0., gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
-    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
-    T_inf = 1./ (gamma - 1.)
-    u_j = mach_number * np.sqrt(temperature_ratio)
+    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * M_j ** 2)
+    f = lambda M: np.abs(convective_mach_number(M, M_inf,
+                                                temperature_ratio) -
+                         convective_mach_number(M_j, 0.,
+                                                temperature_ratio))
+    M_j = fsolve(f, M_j)
+    T_inf = 1. / (gamma - 1.)
+    u_j = M_j * np.sqrt(temperature_ratio)
+    u_inf = M_inf
     for i, xyz in enumerate(g.xyz):
         z = xyz[0,0,:,2]
         r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2)
@@ -404,32 +424,33 @@ def target_state(g, mach_number=1.3, gamma=1.4):
         rho = np.where(z <= 0., 1. / temperature_ratio + np.zeros_like(z),
                        1. + (1. / temperature_ratio - 1.) * np.exp(-0.078 * z))
         for k in range(z.size):
-            s.q[i][:,:,k,3] = 0.5 * u[k] * (1. + np.tanh(
-                0.25 / theta[k] * (r0[k] / r - r / r0[k])))
-            s.q[i][:,:,k,0] = rho[k] / (0.5 * (gamma - 1.) * s.q[i][:,:,k,3] /
-                                        u[k] * (1. - s.q[i][:,:,k,3] / u[k]) *
-                                        rho[k] * u[k] ** 2 + s.q[i][:,:,k,3] /
-                                        u[k] + rho[k] *
-                                        (1. - s.q[i][:,:,k,3] / u[k]))
+            s.q[i][:,:,k,3] = 0.5 * (u[k] - u_inf) * (1. + np.tanh(
+                0.25 / theta[k] * (r0[k] / r - r / r0[k]))) + u_inf
+            s.q[i][:,:,k,0] = rho[k] / crocco_busemann(
+                s.q[i][:,:,k,3] / u[k], u[k], 1. / rho[k], M_inf, gamma)
     return s.fromprimitive(gamma)
 
-def initial_condition(g, mach_number=1.3, gamma=1.4):
+def initial_condition(g, M_j=1.3, gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
-    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
-    u_j = mach_number * np.sqrt(temperature_ratio)
+    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * M_j ** 2)
+    f = lambda M_j: np.abs(convective_mach_number(M_j, M_inf,
+                                                  temperature_ratio) -
+                           convective_mach_number(M_j, 0.,
+                                                  temperature_ratio))
+    M_j = fsolve(f, M_j)
+    T_inf = 1. / (gamma - 1.)
+    u_j = M_j * np.sqrt(temperature_ratio)
+    u_inf = M_inf
     for i, xyz in enumerate(g.xyz):
         z = xyz[0,0,:,2]
         r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2) / 0.5
         condlist = [z <= 0., np.logical_and(z > 0., z < 24.), z >= 24.]
         theta = 0.04 + np.where(z <= 0., np.zeros_like(z), 0.46 * z / 34.)
         for k in range(z.size):
-            s.q[i][:,:,k,3] = 0.5 * u_j * (1. + np.tanh(
-                0.25 / theta[k] * (1. / r - r)))
-        s.q[i][:,:,:,0] = 1. / (0.5 * (gamma - 1.) * s.q[i][:,:,:,3] / u_j *
-                                (1. - s.q[i][:,:,:,3] / u_j) *
-                                mach_number ** 2 + s.q[i][:,:,:,3] / u_j +
-                                (1. - s.q[i][:,:,:,3] / u_j) /
-                                temperature_ratio) / temperature_ratio
+            s.q[i][:,:,k,3] = 0.5 * (u_j - u_inf) * (1. + np.tanh(
+                0.25 / theta[k] * (1. / r - r))) + u_inf
+        s.q[i][:,:,:,0] = 1. / crocco_busemann(s.q[i][:,:,k,3],
+                                               M_j, M_inf, gamma)
     return s.fromprimitive(gamma)
 
 def plot_eigenvalues(St, alpha, u_j, theta_j):
@@ -529,6 +550,63 @@ def inflow_perturbations(g, modes):
                         q[l] * np.exp(1.j * mode.alpha * z_))
     return sr, si
 
+def target_mollifier(g):
+    z_min =  0.
+    z_max = 24.
+    r_min =  7.
+    r_max =  9.
+    f = p3d.Function().copy_from(g)
+    z = g.xyz[0][0,0,:,2]
+    n = f.get_size()
+    block_code = ['IB', 'E', 'N', 'W', 'S']
+    for i, fi in enumerate(f.f):
+        r = np.sqrt(g.xyz[i][:,:,0,0] ** 2 + g.xyz[i][:,:,0,1] ** 2)
+        if r.max() < r_min or r.min() > r_max:
+            fi.fill(0.)
+            continue
+        fi.fill(1.)
+        for k in range(n[i][1]):
+            for j in range(n[i][0]):
+                fi[j,k,:,0] *= p3d.tanh_support(z, z_min, z_max, 40., 0.2)
+            for j in range(n[i][2]):
+                fi[:,k,j,0] *= p3d.cubic_bspline_support(r[:,k], r_min, r_max)
+        kmin, kmax = p3d.find_extents(z, z_min, z_max)
+        imin, imax = p3d.find_extents(np.mean(r, axis=1), r_min, r_max)
+        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+            'targetRegion.' + block_code[i], 'COST_TARGET',
+            i + 1, 0, imin, imax, 1, -1, kmin, kmax)
+    return f
+
+def control_mollifier(g):
+    z_min =   1.
+    z_max =   3.
+    r_min = 0.3
+    r_max = 0.7
+    f = p3d.Function().copy_from(g)
+    z = g.xyz[0][0,0,:,2]
+    n = f.get_size()
+    block_code = ['IB', 'E', 'N', 'W', 'S']
+    for i, fi in enumerate(f.f):
+        r = np.sqrt(g.xyz[i][:,:,0,0] ** 2 + g.xyz[i][:,:,0,1] ** 2)
+        if r.max() < r_min or r.min() > r_max:
+            fi.fill(0.)
+            continue
+        fi.fill(1.)
+        for k in range(n[i][1]):
+            for j in range(n[i][0]):
+                fi[j,k,:,0] *= p3d.tanh_support(z, z_min, z_max, 16., 0.2)
+            for j in range(n[i][2]):
+                fi[:,k,j,0] *= p3d.tanh_support(r[:,k], r_min, r_max, 20., 0.2)
+        kmin, kmax = p3d.find_extents(z, z_min, z_max)
+        imin = min(np.where(r[:,i] >= r_min)[0][0]
+                   for i in range(n[i][1]))
+        imax = max(np.where(r[:,i] <= r_max)[0][-1] + 2
+                   for i in range(n[i][1]))
+        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+            'controlRegion.' + block_code[i], 'ACTUATOR',
+            i + 1, 0, imin, imax, 1, -1, kmin, kmax)
+    return f
+
 if __name__ == '__main__':
     g = grid(60, 196, 132, a_inner=0.24, p_inner=1.08634735266)
     g.save('MultiblockJet.xyz')
@@ -541,3 +619,5 @@ if __name__ == '__main__':
         sr, si = inflow_perturbations(gi, mode)
         sr.save('MultiblockJet-%02d.eigenmode_real.q' % (i + 1))
         si.save('MultiblockJet-%02d.eigenmode_imag.q' % (i + 1))
+    control_mollifier(g).save('MultiblockJet.control_mollifier.f')
+    target_mollifier(g).save('MultiblockJet.target_mollifier.f')
