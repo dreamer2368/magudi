@@ -246,7 +246,7 @@ subroutine updateIgnitionActuatorForcing(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions
+  integer :: i, j, k, l, m, n, nDimensions, nUnknowns, nSpecies, gridIndex, patchIndex
   real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius, location(3)
   SCALAR_TYPE, allocatable :: ignitionSource(:)
   class(t_Patch), pointer :: patch => null()
@@ -256,57 +256,80 @@ subroutine updateIgnitionActuatorForcing(this, region)
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
+  nSpecies = region%solverOptions%nSpecies
+  assert(nSpecies >= 0)
+
+  nUnknowns = region%solverOptions%nUnknowns
+  assert(nUnknowns == nDimensions + 2 + nSpecies)
+
   timeStart = this%timeStart
   timeDuration = this%timeDuration
   amplitude = this%amplitude
   radius = this%radius
   location = this%location
 
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
+  do m = 1, size(region%patchFactories)
+     call region%patchFactories(m)%connect(patch)
      if (.not. associated(patch)) cycle
-     do j = 1, size(region%states)
-        if (patch%gridIndex /= region%grids(j)%index) cycle
+     do n = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(n)%index) cycle
         select type (patch)
         class is (t_ActuatorPatch)
 
-           allocate(ignitionSource(region%grids(j)%nGridPoints))
+           allocate(ignitionSource(region%grids(n)%nGridPoints))
 
            select case (this%sensitivityDependence)
 
            case ('AMPLITUDE')
-              amplitude = amplitude - region%states(j)%actuationAmount *                     &
-                   region%states(j)%controlGradient
+              amplitude = amplitude - region%states(n)%actuationAmount *                     &
+                   region%states(n)%controlGradient
 
            case ('POSITION_1')
 
-              location(1) = location(1) - region%states(j)%actuationAmount *                 &
-                   region%states(j)%controlGradient
+              location(1) = location(1) - region%states(n)%actuationAmount *                 &
+                   region%states(n)%controlGradient
 
            case ('POSITION_2')
 
-              location(2) = location(2) - region%states(j)%actuationAmount *                 &
-                   region%states(j)%controlGradient
+              location(2) = location(2) - region%states(n)%actuationAmount *                 &
+                   region%states(n)%controlGradient
 
            case ('POSITION_3')
 
-              location(3) = location(3) - region%states(j)%actuationAmount *                 &
-                   region%states(j)%controlGradient
+              location(3) = location(3) - region%states(n)%actuationAmount *                 &
+                   region%states(n)%controlGradient
 
            case ('INITIAL_TIME')
 
-              timeStart = timeStart - region%states(j)%actuationAmount *                     &
-                   region%states(j)%controlGradient
+              timeStart = timeStart - region%states(n)%actuationAmount *                     &
+                   region%states(n)%controlGradient
 
            end select
 
-           call computeSource(region%states(j)%time, region%grids(j)%coordinates,            &
-                region%grids(j)%iblank, timeStart, timeDuration, amplitude, radius,          &
+           call computeSource(region%states(n)%time, region%grids(n)%coordinates,            &
+                region%grids(n)%iblank, timeStart, timeDuration, amplitude, radius,          &
                 location, region%solverOptions%ratioOfSpecificHeats,                         &
-                region%states(j)%combustion%heatRelease, ignitionSource)
+                region%states(n)%combustion%heatRelease, ignitionSource)
 
-           patch%controlForcing(:,:) = 0.0_wp
-           patch%controlForcing(:,nDimensions+2) = ignitionSource
+           do l = 1, nUnknowns
+              do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+                 do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+                    do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                       gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *        &
+                            (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *          &
+                            (k - 1 - patch%gridOffset(3)))
+                       patchIndex = i - patch%offset(1) + patch%localSize(1) *               &
+                            (j - 1 - patch%offset(2) + patch%localSize(2) *                  &
+                            (k - 1 - patch%offset(3)))
+
+                       patch%controlForcing(patchIndex,:) = 0.0_wp
+                       patch%controlForcing(patchIndex,nDimensions+2) =                      &
+                            ignitionSource(gridIndex)
+
+                    end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                 end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+              end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+           end do !... l = 1, nUnknowns
 
            SAFE_DEALLOCATE(ignitionSource)
 
