@@ -182,17 +182,17 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
      case ('POSITION_1')
 
         F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,1) - this%location(1)) /  this%radius**2
+             (region%grids(i)%coordinates(:,1) - this%location(1)) / this%radius**2
 
      case ('POSITION_2')
 
         F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,2) - this%location(2)) /  this%radius**2
+             (region%grids(i)%coordinates(:,2) - this%location(2)) / this%radius**2
 
      case ('POSITION_3')
 
         F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,3) - this%location(3)) /  this%radius**2
+             (region%grids(i)%coordinates(:,3) - this%location(3)) / this%radius**2
 
      case ('INITIAL_TIME')
 
@@ -201,7 +201,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      case default
 
-        F(:,2) = ignitionSource
+        F(:,2) = 1.0_wp
 
      end select
 
