@@ -67,7 +67,7 @@ subroutine compute_dMijdp(this,grid,dMijdp)
   ! <<< Arguments >>>
   class(t_Grid),intent(inout) :: grid 
   class(t_WallActuator) :: this
-  SCALAR_TYPE,allocatable::dMijdp(:,:,:,:)
+  SCALAR_TYPE,allocatable::dMijdp(:,:,:)
 
  ! <<< Locals >>>
   SCALAR_TYPE,allocatable::dF1(:,:),dG1(:,:),dF2(:,:),dG2(:,:),dGdp_(:,:)
@@ -81,9 +81,8 @@ subroutine compute_dMijdp(this,grid,dMijdp)
 !assert sizes and dimensions
 assert_key(grid%nDimensions,(2))
 assert(size(dMijdp,1)==grid%ngridpoints)
-assert(size(dMijdp,2)==grid%nDimensions)
-assert(size(dMijdp,3)==grid%nDimensions)
-assert(size(dMijdp,4)==size%this(p))
+assert(size(dMijdp,2)==grid%nDimensions*grid%nDimensions)
+assert(size(dMijdp,3)==size%this(p))
 
 SAFE_DEALLOCATE(unitCoordinates)
 SAFE_DEALLOCATE(dGdp_)
@@ -118,14 +117,14 @@ allocate(dG1(grid%nGridPoints,1))
 allocate(dG2(grid%nGridPoints,1))
 allocate(dG(grid%nGridPoints,1))
 
-dF1(:,1) = grid%coordinates(:,1)
-call grid%firstDerivative(1)%apply(dF1, grid%localSize)
-dF2(:,1) = grid%coordinates(:,1)
-call grid%firstDerivative(2)%apply(dF2, grid%localSize)
-dG1(:,1) = grid%coordinates(:,2)
-call grid%firstDerivative(1)%apply(dG1, grid%localSize)
-dG2(:,1) = grid%coordinates(:,2)
-call grid%firstDerivative(2)%apply(dG2, grid%localSize)
+!dF1(:,1) = grid%coordinates(:,1)
+!call grid%firstDerivative(1)%apply(dF1, grid%localSize)
+!dF2(:,1) = grid%coordinates(:,1)
+!call grid%firstDerivative(2)%apply(dF2, grid%localSize)
+!dG1(:,1) = grid%coordinates(:,2)
+!call grid%firstDerivative(1)%apply(dG1, grid%localSize)
+!dG2(:,1) = grid%coordinates(:,2)
+!call grid%firstDerivative(2)%apply(dG2, grid%localSize)
 
 dMijdp=0.
 
@@ -133,19 +132,19 @@ do i=1,size(this%p)
 
      dG(:,1) = dGdp_(:,i)
      call grid%firstDerivative(2)%apply(dG, grid%localSize)
-     dMijdp(:,1,1,i)=dG(:,1)
+     dMijdp(:,1,i)=dG(:,1)
      
      dG(:,1) = dGdp_(:,i)
      call grid%firstDerivative(1)%apply(dG, grid%localSize)
-     dMijdp(:,2,1,i)=-dG(:,1)
+     dMijdp(:,3,i)=-dG(:,1)
 
 end do
 
-SAFE_DEALLOCATE(dF1)
-SAFE_DEALLOCATE(dF2)
+!SAFE_DEALLOCATE(dF1)
+!SAFE_DEALLOCATE(dF2)
 SAFE_DEALLOCATE(dG)
-SAFE_DEALLOCATE(dG1)
-SAFE_DEALLOCATE(dG2)
+!SAFE_DEALLOCATE(dG1)
+!SAFE_DEALLOCATE(dG2)
 SAFE_DEALLOCATE(dGdp_)
 
 
@@ -211,6 +210,9 @@ call grid%firstDerivative(2)%apply(dG, grid%localSize)
 
 do i=1,size(this%p)
 dJdp(:,i)=-1._wp/(dF(:,1)*dG(:,1)**2)
+end do
+
+do i=1,size(this%p)
 dG(:,1) = dGdp_(:,i)
 call grid%firstDerivative(2)%apply(dG, grid%localSize)
 dJdp(:,i)=dJdp(:,i)*dG(:,1)
@@ -246,10 +248,11 @@ SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
 
 assert(size(p) == 1)
 
-width=0.5_wp
+width=0.4_wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
 shapeMollifier=shapeMollifier/0.8_wp
-gstar=xi2+(1._wp-xi2)*p(1)*shapeMollifier*cos(2._wp*pi*10._wp*xi1)
+gstar=xi2+(1._wp-xi2)*p(1)*shapeMollifier*&
+cos(2._wp*pi*10._wp*xi1)*cos(2._wp*pi*15._wp*xi1+3._wp*pi/8._wp)*cos(2._wp*pi*5._wp*xi1)
 
 if (xi2 .le. width) then
 chi=tanh(5._wp *xi2/width)
@@ -258,19 +261,6 @@ chi=1._wp
 end if
 
 g=gstar-chi*(gstar-xi2)
-
-!yo=background_y[j]
-!width=1./2.
-!
-!if s[j] <= width:
-!xi=np.tanh(5.*s[j]/width)
-!else:
-!xi=1.
-!
-!for k in range(size[0]):
-!allege_y=s[j] * yMax + (1. - s[j]) * (yMin +wallHeight[k])
-!g.xyz[0][k,j,0,1] = allege_y - xi*(allege_y-yo)
-
 
 end function
 
@@ -291,11 +281,12 @@ assert(size(dgdpVec) == size(p))
 
 allocate(dgstardpVec(size(dgdpVec)))
 
-width=0.5_wp
+width=0.4_wp
 dgdpVec=0._wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
 shapeMollifier=shapeMollifier/0.8_wp
-dgstardpVec(1)=(1-xi2)*shapeMollifier*cos(2._wp*pi*10._wp*xi1)
+dgstardpVec(1)=(1-xi2)*shapeMollifier*&
+     cos(2._wp*pi*10._wp*xi1)*cos(2._wp*pi*15._wp*xi1+3._wp*pi/8._wp)*cos(2._wp*pi*5._wp*xi1)
 
 if (xi2 .le. width) then
 chi=tanh(5._wp *xi2/width)

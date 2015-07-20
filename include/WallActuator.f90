@@ -20,7 +20,7 @@ module WallActuator_mod
      !at this point I am using the controller to know everything about grid
      
      real(SCALAR_KIND),allocatable,dimension(:,:)::dJacobiandp    
-     real(SCALAR_KIND),allocatable,dimension(:,:,:,:)::dMijdp
+     real(SCALAR_KIND),allocatable,dimension(:,:,:)::dMijdp
    
    contains
 

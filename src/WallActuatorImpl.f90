@@ -54,7 +54,7 @@ subroutine setupWallActuator(this, region)
      this%numP=1
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
-     this%p(1)=0._wp !flat-wall
+     this%p(1)=0.00_wp 
 
      SAFE_DEALLOCATE(this%gradient)
      allocate(this%gradient(this%numP))
@@ -70,9 +70,8 @@ subroutine setupWallActuator(this, region)
      allocate(this%dJacobiandp(region%grids(1)%nGridPoints,this%numP))
      
      SAFE_DEALLOCATE(this%dMijdp) 
-
      allocate(this%dMijdp(region%grids(1)%nGridPoints,&
-          region%grids(1)%nDimensions,region%grids(1)%nDimensions,this%numP)) 
+          region%grids(1)%nDimensions*region%grids(1)%nDimensions,this%numP)) 
 
      call updateWallCoordinates(this,region%grids(1))
      call region%grids(1)%update()
@@ -131,14 +130,11 @@ subroutine computeWallActuatorSensitivity(this,timeIntegrator, region)
     this%sensitivity=this%sensitivity+dot_product(this%gradient(:),this%gradient(:))
   end do
 
-!  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-!       call MPI_Allreduce(MPI_IN_PLACE,this%sensitivity, 1,                         &
-!       SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
-!
-!  do i = 1, size(region%grids)
-!     call MPI_Bcast(this%sensitivity, 1, SCALAR_TYPE_MPI,                            &
-!          0, region%grids(i)%comm, ierror)
-!  end do
+
+  do i = 1, size(region%grids)
+  call MPI_Bcast(this%sensitivity, 1, SCALAR_TYPE_MPI,                            &
+     0, region%grids(i)%comm, ierror)
+  end do
 
 end subroutine computeWallActuatorSensitivity
 
@@ -172,7 +168,7 @@ SCALAR_TYPE, allocatable::dQdxi(:,:,:),viscousFluxes(:,:,:),&
 class(t_Patch), pointer :: patch => null()
 character(len = STRING_LENGTH) :: key
 
-integer::gridIndex
+integer::gridIndex,direction
 SCALAR_TYPE, allocatable :: localConservedVariables(:),dmetricsdp(:),metricsAlongNormalDirection(:),&
 inviscidPenalty(:), deltaPressure(:), deltaInviscidPenalty(:,:)
 SCALAR_TYPE :: normalMomentum,inviscidPenaltyAmount
@@ -216,38 +212,24 @@ region%states(i)%conservedVariables,&
 region%states(i)%velocity, region%states(i)%pressure(:,1),&
 inviscidFluxes)
 
-!if (getOption("include_viscous_terms",.false.).and.&
-!     getOption("repeat_first_derivative", .true.)) then
-!     call computeCartesianViscousFluxes(nDimensions,&
-!     region%states(i)%velocity,&
-!     region%states(i)%stressTensor, region%states(i)%heatFlux,&
-!     viscousFluxes)
-!end if
-
 do p=1,this%numP
 
-dQdxi=0.
 F=0.
+transformedFluxes=0.
+call transformFluxes(nDimensions,inviscidFluxes,this%dMijdp(:,:,p),&
+     transformedFluxes,region%grids(i)%isCurvilinear)
+
 do ii=1,nDimensions
-do jj=1,nDimensions
-do v=1,nDimensions+2
-
-dQdxi(:,v,ii)=dQdxi(:,v,ii)+&
-          (inviscidFluxes(:,v,jj)-viscousFluxes(:,v,jj))*&
-          this%dMijdp(:,ii,jj,p)
-end do
-end do
-
-call region%grids(i)%firstDerivative(ii)%apply(dQdxi(:,:,ii),&
+call region%grids(i)%firstDerivative(ii)%apply(transformedFluxes(:,:,ii),&
           region%grids(i)%localSize)
-
 end do
 
-F=sum(dQdxi,dim=3)
+F=sum(transformedFluxes,dim=3)
 do v=1,nDimensions+2
 F(:,v)=F(:,v)*region%grids(i)%jacobian(:,1)
 end do
 
+transformedFluxes=0.
 call transformFluxes(nDimensions,inviscidFluxes,region%grids(i)%metrics,&
      transformedFluxes,region%grids(i)%isCurvilinear)
 
@@ -257,6 +239,7 @@ call region%grids(i)%firstDerivative(ii)%apply(transformedFluxes(:,:,ii),&
 end do
 
 G=sum(transformedFluxes,dim=3)
+
 do v=1,nDimensions+2
 G(:,v)=G(:,v)*this%dJacobiandp(:,p)
 end do !var
@@ -271,6 +254,8 @@ if (.not. associated(patch)) cycle
 if (patch%gridIndex /= region%grids(i)%index) cycle
 select type (patch)
 class is (t_ActuatorPatch)
+
+direction = abs(patch%normalDirection)
 
 allocate(localConservedVariables(nDimensions+2))
 allocate(metricsAlongNormalDirection(nDimensions))
@@ -299,9 +284,9 @@ if (region%grids(i)%iblank(gridIndex) == 0) cycle
 localConservedVariables = region%states(i)%conservedVariables(gridIndex,:)
 
 metricsAlongNormalDirection =&
-region%grids(i)%metrics(gridIndex,1+nDimensions*(2-1):nDimensions*2)
+region%grids(i)%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
-dmetricsdp(:)=this%dMijdp(gridIndex,:,2,p)
+dmetricsdp(:)=this%dMijdp(gridIndex,1+nDimensions*(direction-1):nDimensions*direction,p)
 
 normalMomentum=dot_product(localConservedVariables(2:nDimensions+1),            &
 metricsAlongNormalDirection)
@@ -309,24 +294,24 @@ metricsAlongNormalDirection)
 inviscidPenalty(1) = normalMomentum
 inviscidPenalty(2:nDimensions+1) = normalMomentum*region%states(i)%velocity(gridIndex,:)
 inviscidPenalty(nDimensions+2) =normalMomentum *&
-          region%states(i)%specificVolume(gridIndex, 1) *&
-          (localConservedVariables(nDimensions+2)+region%states(i)%pressure(gridIndex, 1))
+     region%states(i)%specificVolume(gridIndex, 1) *&
+     (localConservedVariables(nDimensions+2)+region%states(i)%pressure(gridIndex, 1))
 
 F(gridIndex,:)=F(gridIndex,:)-inviscidPenaltyAmount&
-*this%djacobiandp(gridIndex,p)*inviscidPenalty(:)
+     *this%djacobiandp(gridIndex,p)*inviscidPenalty(:)
 
 normalMomentum=dot_product(localConservedVariables(2:nDimensions+1),&
-dmetricsdp)
+     dmetricsdp)
 
 !calculate the dinviscidPenaltydp
 inviscidPenalty(1) = normalMomentum
 inviscidPenalty(2:nDimensions+1) =normalMomentum*region%states(i)%velocity(gridIndex,:)
 inviscidPenalty(nDimensions+2) =normalMomentum *&
-          region%states(i)%specificVolume(gridIndex, 1) *&
-          (localConservedVariables(nDimensions+2)+region%states(i)%pressure(gridIndex,1))
+     region%states(i)%specificVolume(gridIndex, 1) *&
+     (localConservedVariables(nDimensions+2)+region%states(i)%pressure(gridIndex,1))
 
 F(gridIndex,:)=F(gridIndex,:)-inviscidPenaltyAmount&
-*region%grids(i)%jacobian(gridIndex,1)*inviscidPenalty(:)
+     *region%grids(i)%jacobian(gridIndex,1)*inviscidPenalty(:)
 
 end do
 end do
