@@ -136,6 +136,10 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      end do
   end if
 
+ allocate(this%randomFluctuationSource)
+ call this%randomFluctuationSource%setup(&
+     getOption("random_fluctuation_source/amplitude", 0._wp))
+
 end subroutine setupState
 
 subroutine cleanupState(this)
@@ -151,6 +155,7 @@ subroutine cleanupState(this)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
 
+  SAFE_DEALLOCATE(this%randomFluctuationSource)
   SAFE_DEALLOCATE(this%acousticSources)
   SAFE_DEALLOCATE(this%conservedVariables)
   SAFE_DEALLOCATE(this%targetState)
@@ -678,9 +683,9 @@ subroutine addSources(this, mode, grid)
      end do
   end if
 
-  !if (mode == FORWARD .and. allocated(this%randomFluctuation)) then
-     !call this%randomFluctuation%add(this%time,grid%iblank,this%rightHandSide)
-  !end if
+  if (mode == FORWARD .and. allocated(this%randomFluctuationSource)) then
+     call this%randomFluctuationSource%add(this%time,grid%iblank,this%rightHandSide)
+  end if
 
   call endTiming("addSources")
 

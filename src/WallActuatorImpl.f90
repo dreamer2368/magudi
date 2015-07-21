@@ -154,6 +154,11 @@ use WallActuator_mod, only : t_WallActuator
 use ActuatorPatch_mod, only : t_ActuatorPatch
 use Patch_mod, only : t_Patch
 
+use Region_enum, only : FORWARD
+
+! <<< Private members >>>
+  use RhsHelperImpl, only : computeDissipation
+
 implicit none
 class(t_WallActuator) :: this
 class(t_Region), intent(in) :: region
@@ -172,6 +177,9 @@ integer::gridIndex,direction
 SCALAR_TYPE, allocatable :: localConservedVariables(:),dmetricsdp(:),metricsAlongNormalDirection(:),&
 inviscidPenalty(:), deltaPressure(:), deltaInviscidPenalty(:,:)
 SCALAR_TYPE :: normalMomentum,inviscidPenaltyAmount
+
+
+SCALAR_TYPE, allocatable ::dissipationTerm(:,:,:)
 
 assert(allocated(region%grids))
 assert(allocated(region%states))
@@ -210,11 +218,16 @@ region%states(i)%conservedVariables,&
 region%states(i)%velocity, region%states(i)%pressure(:,1),&
 inviscidFluxes)
 
+if (region%simulationFlags%viscosityOn .and. region%simulationFlags%repeatFirstDerivative)then
+call computeCartesianViscousFluxes(nDimensions, region%states(i)%velocity,&
+     region%states(i)%stressTensor, region%states(i)%heatFlux,viscousFluxes)
+end if
+
 do p=1,this%numP
 
 F=0.
 transformedFluxes=0.
-call transformFluxes(nDimensions,inviscidFluxes,this%dMijdp(:,:,p),&
+call transformFluxes(nDimensions,inviscidFluxes-viscousFluxes,this%dMijdp(:,:,p),&
      transformedFluxes,region%grids(i)%isCurvilinear)
 
 do ii=1,nDimensions
@@ -228,7 +241,7 @@ F(:,v)=F(:,v)*region%grids(i)%jacobian(:,1)
 end do
 
 transformedFluxes=0.
-call transformFluxes(nDimensions,inviscidFluxes,region%grids(i)%metrics,&
+call transformFluxes(nDimensions,inviscidFluxes-viscousFluxes,region%grids(i)%metrics,&
      transformedFluxes,region%grids(i)%isCurvilinear)
 
 do ii=1,nDimensions
@@ -323,6 +336,19 @@ end select
 end do !patch factories
 end if
 
+!Dissipation
+if (region%simulationFlags%dissipationOn) then
+allocate(dissipationTerm(region%grids(i)%nGridPoints,nDimensions+2,nDimensions))
+do ii=1,ndimensions
+dissipationTerm(:,:,ii)=region%states(i)%conservedVariables(:,:)
+end do
+call computeDissipation(FORWARD,region%simulationFlags,region%solverOptions,region%grids(i),dissipationTerm)
+G=sum(dissipationTerm,dim=3)
+do v=1,nDimensions+2
+F(:,v)=F(:,v)-G(:,v)*this%dJacobiandp(:,p)
+end do !var
+SAFE_DEALLOCATE(dissipationTerm)
+end if
 
 G(:,:)=region%states(i)%adjointVariables(:,:)
 

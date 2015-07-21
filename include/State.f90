@@ -19,6 +19,7 @@ end module State_enum
 module State_mod
 
   use AcousticSource_mod, only : t_AcousticSource
+  use RandomFluctuationSource_mod, only : t_RandomFluctuationSource
 
   implicit none
   private
@@ -52,6 +53,7 @@ module State_mod
   type, public :: t_State
 
      type(t_AcousticSource), allocatable :: acousticSources(:)
+     type(t_RandomFluctuationSource),allocatable :: randomFluctuationSource
 
      integer :: nSpecies
      real(wp) :: time, adjointForcingFactor = 1.0_wp, actuationAmount = 0.0_wp

@@ -61,7 +61,7 @@ module Solver_mod
 
   interface
 
-     function runForward(this, region, actuationAmount,desiredPrecision,&
+     function runForward(this, region, actuationAmount,&
           restartFilename) result(costFunctional)
 
        use Region_mod, only : t_Region
@@ -72,7 +72,6 @@ module Solver_mod
        class(t_Region) :: region
 
        real(SCALAR_KIND), intent(in), optional :: actuationAmount
-       real(SCALAR_KIND), intent(in), optional :: desiredPrecision
        character(len = *), intent(in), optional :: restartFilename
 
        SCALAR_TYPE :: costFunctional

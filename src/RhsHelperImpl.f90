@@ -7,6 +7,74 @@ module RhsHelperImpl
 
 contains
 
+  subroutine computeDissipation(mode, simulationFlags, solverOptions, grid, dissipationTerms)
+
+    ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+    use State_mod, only : t_State
+    use SolverOptions_mod, only : t_SolverOptions
+    use SimulationFlags_mod, only : t_SimulationFlags
+
+    ! <<< Enumerations >>>
+    use Region_enum, only : FORWARD, ADJOINT
+
+    ! <<< Internal modules >>>
+    use MPITimingsHelper, only : startTiming, endTiming
+
+    ! <<< Arguments >>>
+    integer, intent(in) :: mode
+    type(t_SimulationFlags), intent(in) :: simulationFlags
+    type(t_SolverOptions), intent(in) :: solverOptions
+    class(t_Grid), intent(in) :: grid
+    SCALAR_TYPE, allocatable :: dissipationTerms(:,:,:) 
+    !class(t_State) :: state
+
+    ! <<< Local variables >>>
+    integer :: i, j, nDimensions, nUnknowns
+    real(SCALAR_KIND) :: dissipationAmount
+
+    assert_key(mode, (FORWARD, ADJOINT))
+
+    nDimensions = grid%nDimensions
+    assert_key(nDimensions, (1, 2, 3))
+
+    nUnknowns = solverOptions%nUnknowns
+
+!    allocate(dissipationTerm(grid%nGridPoints, nUnknowns))
+
+    select case (mode)
+    case (FORWARD)
+       dissipationAmount = + solverOptions%dissipationAmount
+    case (ADJOINT)
+       dissipationAmount = - solverOptions%dissipationAmount
+    end select
+
+    do i = 1, nDimensions
+
+       !select case (mode)
+       !case (FORWARD)
+       !   dissipationTerm = state%conservedVariables
+       !case (ADJOINT)
+       !   dissipationTerm = state%adjointVariables
+       !end select
+
+       call grid%dissipation(i)%apply(dissipationTerms(:,:,i), grid%localSize)
+
+       !if (.not. simulationFlags%compositeDissipation) then
+       !   do j = 1, nUnknowns
+       !      dissipationTerm(:,j) = - grid%arcLengths(:,i) *dissipationTerm(:,j)
+       !   end do
+       !   call grid%dissipationTranspose(i)%apply(dissipationTerm,grid%localSize)
+       !   call grid%firstDerivative(i)%applyNormInverse(dissipationTerm,grid%localSize)
+       !end if
+       !state%rightHandSide = state%rightHandSide + dissipationAmount *dissipationTerm
+
+    end do
+
+    dissipationTerms=dissipationTerms*dissipationAmount
+!    SAFE_DEALLOCATE(dissipationTerm)
+  end subroutine computeDissipation
+
   subroutine addDissipation(mode, simulationFlags, solverOptions, grid, state)
 
     ! <<< Derived types >>>
@@ -174,8 +242,11 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   SAFE_DEALLOCATE(fluxes2) !... no longer needed
 
   ! Add dissipation if required.
-  if (simulationFlags%dissipationOn)                                                         &
+  if (simulationFlags%dissipationOn) then 
+       !call computeDissipation(FORWARD,simulationFlags,solverOptions,grid,dissipation)
+       !state%rightHandSide = state%rightHandSide + sum(dissipation,dim=3)
        call addDissipation(FORWARD, simulationFlags, solverOptions, grid, state)
+  end if
 
   call endTiming("computeRhsForward")
 

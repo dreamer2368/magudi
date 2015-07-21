@@ -92,6 +92,7 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/RhsHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/InterfaceHelper.f90
   ${PROJECT_SOURCE_DIR}/src/InterfaceHelperImpl.f90
+  ${PROJECT_SOURCE_DIR}/src/WavyWallHelperImpl.f90
 
   # Factories.
   ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
@@ -124,6 +125,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/RegionImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticSource.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/RandomFluctuationSource.f90
+  ${PROJECT_SOURCE_DIR}/src/RandomFluctuationSourceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitationPatch.f90
   ${PROJECT_SOURCE_DIR}/src/SolenoidalExcitationPatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/JetExcitationPatch.f90

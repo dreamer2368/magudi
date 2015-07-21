@@ -31,13 +31,12 @@ module RandomFluctuationSource_mod
 
   interface
 
-     subroutine addRandomFluctuationSource(this, time, coordinates, iblank, rightHandSide)
+     subroutine addRandomFluctuationSource(this, time, iblank, rightHandSide)
 
        import :: t_RandomFluctuationSource
 
        class(t_RandomFluctuationSource) :: this
        real(SCALAR_KIND), intent(in) :: time
-       SCALAR_TYPE, intent(in) :: coordinates(:,:)
        integer, intent(in) :: iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 

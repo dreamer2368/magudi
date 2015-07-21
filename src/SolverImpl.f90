@@ -494,7 +494,7 @@ subroutine cleanupSolver(this)
 
 end subroutine cleanupSolver
 
-function runForward(this, region, actuationAmount, restartFilename,desiredPrecision) result(costFunctional)
+function runForward(this, region, actuationAmount, restartFilename) result(costFunctional)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -521,7 +521,6 @@ function runForward(this, region, actuationAmount, restartFilename,desiredPrecis
   class(t_Solver) :: this
   class(t_Region) :: region
   real(SCALAR_KIND), intent(in), optional :: actuationAmount
-  real(SCALAR_KIND), intent(in), optional :: desiredPrecision
   character(len = *), intent(in), optional :: restartFilename
 
   ! <<< Result >>>
@@ -648,16 +647,6 @@ function runForward(this, region, actuationAmount, restartFilename,desiredPrecis
            call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
         end do
      end if
-
-     ! Add random fluctuation at a desired precision 
-     ! Consider doing this like "acoustic monopole source" if this is too much
-     ! interaction with magudi
-     if (present(desiredPrecision)) then
-        do j = 1, size(region%grids)
-           call region%grids(j)%applyRandFluctuation(region%states(j)%conservedVariables,&
-               desiredPrecision)
-        end do
-     end if 
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
@@ -922,7 +911,7 @@ subroutine checkGradientAccuracy(this, region)
 
   if (nIterations > 0) then
      call getRequiredOption("initial_actuation_amount", initialActuationAmount)
-     call getRequiredOption("precision_for_gradient_accuracy", gradientAccuracyPrecision)
+     !call getRequiredOption("precision_for_gradient_accuracy", gradientAccuracyPrecision)
      if (nIterations > 1) then
         call getRequiredOption("actuation_amount_geometric_growth", geometricGrowthFactor)
      else
@@ -979,7 +968,7 @@ subroutine checkGradientAccuracy(this, region)
   do i = restartIteration, restartIteration + nIterations - 1
      actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
      costFunctional = this%runForward(region, actuationAmount =&
-          actuationAmount,desiredPrecision=gradientAccuracyPrecision)
+          actuationAmount)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
           costSensitivity
      if (procRank == 0)                                                                      &
