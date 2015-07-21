@@ -1189,6 +1189,43 @@ function computeVectorInnerProduct(this, f, g, weight) result(innerProduct)
 
 end function computeVectorInnerProduct
 
+subroutine transformGradientOfScalar(this,f,gradF,transformGradF,metrics,jacobian)
+! <<< External modules >>>
+use MPI
+
+! <<< Derived types >>>
+use Grid_mod, only : t_Grid
+
+! <<< Internal modules >>>
+use MPITimingsHelper, only : startTiming, endTiming
+
+! <<< Arguments >>>
+class(t_Grid) :: this
+SCALAR_TYPE, intent(in) :: f(:) !indicator of scalar or vector quantity
+SCALAR_TYPE, intent(in) :: gradF(:,:),metrics(:,:),jacobian(:,:)
+SCALAR_TYPE, intent(out) :: transformGradF(:,:)
+end subroutine
+
+
+subroutine transformGradientOfVector(this,f,gradF,transformGradF,metrics,jacobian)
+! <<< External modules >>>
+use MPI
+
+! <<< Derived types >>>
+use Grid_mod, only : t_Grid
+
+! <<< Internal modules >>>
+use MPITimingsHelper, only : startTiming, endTiming
+
+! <<< Arguments >>>
+class(t_Grid) :: this
+SCALAR_TYPE, intent(in) :: f(:,:) !indicator of scalar or vector quantity
+SCALAR_TYPE, intent(in) :: gradF(:,:),metrics(:,:),jacobian(:,:)
+SCALAR_TYPE, intent(out) :: transformGradF(:,:)
+end subroutine
+
+
+
 subroutine computeGradientOfScalar(this, f, gradF)
 
   ! <<< External modules >>>

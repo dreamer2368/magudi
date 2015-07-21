@@ -58,6 +58,7 @@ module Grid_mod
      procedure, pass :: update => updateGrid
      generic :: computeInnerProduct => computeScalarInnerProduct, computeVectorInnerProduct
      generic :: computeGradient => computeGradientOfScalar, computeGradientOfVector
+     generic :: transformGradient=>transformGradientOfScalar,transformGradientOfVector
      procedure, pass :: findMinimum
      procedure, pass :: findMaximum
      procedure, pass :: isVariableWithinRange
@@ -68,6 +69,8 @@ module Grid_mod
      procedure, private, pass :: computeVectorInnerProduct
      procedure, private, pass :: computeGradientOfScalar
      procedure, private, pass :: computeGradientOfVector
+     procedure, private, pass :: transformGradientOfScalar
+     procedure, private, pass :: transformGradientOfVector
 
   end type t_Grid
 
@@ -219,6 +222,34 @@ module Grid_mod
      end function computeVectorInnerProduct
 
   end interface computeInnerProduct
+
+
+  interface transformGradient
+
+     subroutine transformGradientOfScalar(this,f,gradF,transformGradF,metrics,jacobian)
+
+       import :: t_Grid
+
+          class(t_Grid) :: this
+          SCALAR_TYPE, intent(in) :: f(:)
+          SCALAR_TYPE, intent(in) :: gradF(:,:),metrics(:,:),jacobian(:,:)
+          SCALAR_TYPE, intent(out) :: transformGradF(:,:)
+     end subroutine
+
+     subroutine transformGradientOfVector(this,f,gradF,transformGradF,metrics,jacobian)
+
+       import :: t_Grid
+
+          class(t_Grid) :: this
+          SCALAR_TYPE, intent(in) :: f(:,:)
+          SCALAR_TYPE, intent(in) :: gradF(:,:),metrics(:,:),jacobian(:,:)
+          SCALAR_TYPE, intent(out) :: transformGradF(:,:)
+
+     end subroutine 
+
+  end interface transformGradient
+
+
 
   interface computeGradient
 
