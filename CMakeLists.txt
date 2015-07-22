@@ -9,6 +9,10 @@ if (NOT cmake_build_type_tolower STREQUAL "debug" AND NOT cmake_build_type_tolow
   message(FATAL_ERROR "Unknown build type \"${CMAKE_BUILD_TYPE}\". Allowed values are Debug, Release, RelWithDebInfo (case-insensitive).")
 endif()
 
+if (cmake_build_type_tolower STREQUAL "debug")
+  add_definitions(-DDEBUG)
+endif()
+
 if (NOT SCALAR_TYPE)
   set(SCALAR_TYPE "real64_iso")
 endif()
@@ -37,9 +41,7 @@ if (PLOT3D_FORMAT STREQUAL "extended")
   add_definitions(-DUSE_EXTENDED_PLOT3D)
 endif()
 
-if(USE_IBM_XLF)
-  set(CMAKE_Fortran_COMPILER "mpixlf2008_r")
-else()
+if(NOT CMAKE_Fortran_COMPILER_ID STREQUAL "XL")
   set(CMAKE_Fortran_COMPILER "mpif90")
 endif()
 find_program(MPI_FOUND ${CMAKE_Fortran_COMPILER})
@@ -60,23 +62,25 @@ elseif(CMAKE_Fortran_COMPILER_NAME STREQUAL "ifort")
   set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -xHost -parallel -no-prec-div -ipo -gen-interfaces")
   set(CMAKE_C_FLAGS_RELEASE "-O3 -xHost -parallel -no-prec-div -ipo")
 elseif(CMAKE_Fortran_COMPILER_NAME STREQUAL "bgxlf2008_r")
-  set(CMAKE_Fortran_FLAGS "-WF,-qfpp -qsuffix=f=f90:cpp=f90 -qmoddir=${PROJECT_BINARY_DIR}/modules")
-  set(CMAKE_Fortran_FLAGS_DEBUG "-WF,-DDEBUG")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -WF,-qfpp -qsuffix=f=f90:cpp=f90")
+  set(CMAKE_Fortran_FLAGS_DEBUG "-qcheck -qdbg -qflttrap -g")
+  set(CMAKE_Fortran_FLAGS_RELEASE "-O5")
 else()
   message(FATAL_ERROR "${CMAKE_Fortran_COMPILER_NAME}: Fortran compiler could not be determined correctly or is unsupported.")
 endif()
 
-if(NOT USE_IBM_XLF)
-  if (cmake_build_type_tolower STREQUAL "debug")
-    add_definitions(-DDEBUG)
-  endif()
-  set(CMAKE_Fortran_FORMAT "FREE")
-  set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/modules)
+set(CMAKE_Fortran_FORMAT "FREE")
+set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/modules)
+
+if(NOT CMAKE_C_COMPILER_ID STREQUAL "XL")
   set(CMAKE_C_FLAGS_DEBUG "-std=c89 -pedantic-errors")
 endif()
 
 configure_file(${PROJECT_SOURCE_DIR}/include/config.h.in ${PROJECT_BINARY_DIR}/include/config.h)
 include_directories(${PROJECT_BINARY_DIR}/include)
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "XL")
+  include_directories(${PROJECT_BINARY_DIR}/modules)
+endif()
 
 set(magudiObj_SOURCES
 
@@ -200,9 +204,9 @@ set(magudiObj_SOURCES
 
 add_library(magudiObj OBJECT ${magudiObj_SOURCES})
 add_executable(magudi $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/src/main.f90)
-# enable_testing()
-# add_subdirectory(test)
-# add_subdirectory(utils)
+enable_testing()
+add_subdirectory(test)
+add_subdirectory(utils)
 
 set(magudi_BUILD_FILES
 
