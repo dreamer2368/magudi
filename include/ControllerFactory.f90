@@ -5,7 +5,6 @@ module Controller_factory
   use Controller_mod, only : t_Controller
 
   implicit none
-  private
 
   type, public :: t_ControllerFactory
 

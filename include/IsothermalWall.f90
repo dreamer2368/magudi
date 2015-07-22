@@ -5,7 +5,6 @@ module IsothermalWall_mod
   use ImpenetrableWall_mod, only : t_ImpenetrableWall
 
   implicit none
-  private
 
   type, extends(t_ImpenetrableWall), public :: t_IsothermalWall
 

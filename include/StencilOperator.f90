@@ -5,7 +5,6 @@ module StencilOperator_mod
   use MPI, only : MPI_COMM_NULL
 
   implicit none
-  private
 
   type, public :: t_StencilOperator
 

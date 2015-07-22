@@ -3,7 +3,6 @@
 module PLOT3DDescriptor_type
 
   implicit none
-  private
 
   integer, parameter, public ::                                                              &
        PLOT3D_GRID_FILE     = 0,                                                             &

@@ -5,7 +5,6 @@ module UniformMap_mod
   use MappingFunction_mod, only : t_MappingFunction
 
   implicit none
-  private
 
   type, extends(t_MappingFunction), public :: t_UniformMap
 

@@ -52,9 +52,15 @@ contains
     allocate(xWithGhostPoints(gridSize(1) + sum(this%nGhost),                                &
          gridSize(2), gridSize(3), size(x, 2)))
 
-    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-       xWithGhostPoints(i + this%nGhost(1), j, k, l) =                                       &
-            x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    do l = 1, size(x, 2)
+       do k = 1, gridSize(3)
+          do j = 1, gridSize(2)
+             do i = 1, gridSize(1)
+                xWithGhostPoints(i + this%nGhost(1), j, k, l) =                              &
+                     x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+             end do
+          end do
+       end do
     end do
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
@@ -119,9 +125,15 @@ contains
     allocate(xWithGhostPoints(gridSize(1), gridSize(2) +                                     &
          sum(this%nGhost), gridSize(3), size(x, 2)))
 
-    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-       xWithGhostPoints(i, j + this%nGhost(1), k, l) =                                       &
-            x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    do l = 1, size(x, 2)
+       do k = 1, gridSize(3)
+          do j = 1, gridSize(2)
+             do i = 1, gridSize(1)
+                xWithGhostPoints(i, j + this%nGhost(1), k, l) =                              &
+                     x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+             end do
+          end do
+       end do
     end do
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
@@ -186,9 +198,15 @@ contains
     allocate(xWithGhostPoints(gridSize(1), gridSize(2),                                      &
          gridSize(3) + sum(this%nGhost), size(x, 2)))
 
-    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-       xWithGhostPoints(i, j, k + this%nGhost(1), l) =                                       &
-            x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    do l = 1, size(x, 2)
+       do k = 1, gridSize(3)
+          do j = 1, gridSize(2)
+             do i = 1, gridSize(1)
+                xWithGhostPoints(i, j, k + this%nGhost(1), l) =                              &
+                     x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+             end do
+          end do
+       end do
     end do
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
@@ -256,25 +274,45 @@ contains
     select case (this%symmetryType) !... save FLOPS based on symmetry of interior stencil.
 
     case (SKEW_SYMMETRIC)
-       do concurrent(i = is:ie, j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-          x(i - this%nGhost(1) + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l) =         &
-               sum(this%rhsInterior(1:n) * (xWithGhostPoints(i+1:i+n,j,k,l) -                &
-               xWithGhostPoints(i-1:i-n:-1,j,k,l)))
+       do l = 1, size(x, 2)
+          do k = 1, gridSize(3)
+             do j = 1, gridSize(2)
+                do i = is, ie
+                   x(i - this%nGhost(1) + gridSize(1) * (j - 1 + gridSize(2) *               &
+                        (k - 1)), l) = sum(this%rhsInterior(1:n) *                           &
+                        (xWithGhostPoints(i+1:i+n,j,k,l) -                                   &
+                        xWithGhostPoints(i-1:i-n:-1,j,k,l)))
+                end do
+             end do
+          end do
        end do
 
     case (SYMMETRIC)
-       do concurrent(i = is:ie, j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-          x(i - this%nGhost(1) + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l) =         &
-               sum(this%rhsInterior(1:n) * (xWithGhostPoints(i+1:i+n,j,k,l) +                &
-               xWithGhostPoints(i-1:i-n:-1,j,k,l))) +                                        &
-               this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
+       do l = 1, size(x, 2)
+          do k = 1, gridSize(3)
+             do j = 1, gridSize(2)
+                do i = is, ie
+                   x(i - this%nGhost(1) + gridSize(1) * (j - 1 + gridSize(2) *               &
+                        (k - 1)), l) = sum(this%rhsInterior(1:n) *                           &
+                        (xWithGhostPoints(i+1:i+n,j,k,l) +                                   &
+                        xWithGhostPoints(i-1:i-n:-1,j,k,l))) +                               &
+                        this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
+                end do
+             end do
+          end do
        end do
 
     case default
-       do concurrent(i = is:ie, j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-          x(i - this%nGhost(1) + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l) =         &
-               sum(this%rhsInterior * xWithGhostPoints(i + lbound(this%rhsInterior,1) :      &
-               i + ubound(this%rhsInterior,1), j, k, l))
+       do l = 1, size(x, 2)
+          do k = 1, gridSize(3)
+             do j = 1, gridSize(2)
+                do i = is, ie
+                   x(i - this%nGhost(1) + gridSize(1) * (j - 1 + gridSize(2) *               &
+                        (k - 1)), l) = sum(this%rhsInterior * xWithGhostPoints(i +           &
+                        lbound(this%rhsInterior,1) : i + ubound(this%rhsInterior,1), j, k, l))
+                end do
+             end do
+          end do
        end do
 
     end select
@@ -304,25 +342,45 @@ contains
     select case (this%symmetryType) !... save FLOPS based on symmetry of interior stencil.
 
     case (SKEW_SYMMETRIC)
-       do concurrent(i = 1:gridSize(1), j = js:je, k = 1:gridSize(3), l = 1:size(x,2))
-          x(i + gridSize(1) * (j - 1 - this%nGhost(1) + gridSize(2) * (k - 1)), l) =         &
-               sum(this%rhsInterior(1:n) * (xWithGhostPoints(i,j+1:j+n,k,l) -                &
-               xWithGhostPoints(i,j-1:j-n:-1,k,l)))
+       do l = 1, size(x, 2)
+          do k = 1, gridSize(3)
+             do j = js, je
+                do i = 1, gridSize(1)
+                   x(i + gridSize(1) * (j - 1 - this%nGhost(1) + gridSize(2) *               &
+                        (k - 1)), l) = sum(this%rhsInterior(1:n) *                           &
+                        (xWithGhostPoints(i,j+1:j+n,k,l) -                                   &
+                        xWithGhostPoints(i,j-1:j-n:-1,k,l)))
+                end do
+             end do
+          end do
        end do
 
     case (SYMMETRIC)
-       do concurrent(i = 1:gridSize(1), j = js:je, k = 1:gridSize(3), l = 1:size(x,2))
-          x(i + gridSize(1) * (j - 1 - this%nGhost(1) + gridSize(2) * (k - 1)), l) =         &
-               sum(this%rhsInterior(1:n) * (xWithGhostPoints(i,j+1:j+n,k,l) +                &
-               xWithGhostPoints(i,j-1:j-n:-1,k,l))) +                                        &
-               this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
+       do l = 1, size(x, 2)
+          do k = 1, gridSize(3)
+             do j = js, je
+                do i = 1, gridSize(1)
+                   x(i + gridSize(1) * (j - 1 - this%nGhost(1) + gridSize(2) *               &
+                        (k - 1)), l) = sum(this%rhsInterior(1:n) *                           &
+                        (xWithGhostPoints(i,j+1:j+n,k,l) +                                   &
+                        xWithGhostPoints(i,j-1:j-n:-1,k,l))) +                               &
+                        this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
+                end do
+             end do
+          end do
        end do
 
     case default
-       do concurrent(i = 1:gridSize(1), j = js:je, k = 1:gridSize(3), l = 1:size(x,2))
-          x(i + gridSize(1) * (j - 1 - this%nGhost(1) + gridSize(2) * (k - 1)), l) =         &
-               sum(this%rhsInterior * xWithGhostPoints(i, j + lbound(this%rhsInterior,1) :   &
-               j + ubound(this%rhsInterior,1), k, l))
+       do l = 1, size(x, 2)
+          do k = 1, gridSize(3)
+             do j = js, je
+                do i = 1, gridSize(1)
+                   x(i + gridSize(1) * (j - 1 - this%nGhost(1) + gridSize(2) *               &
+                        (k - 1)), l) = sum(this%rhsInterior * xWithGhostPoints(i, j +        &
+                        lbound(this%rhsInterior,1) : j + ubound(this%rhsInterior,1), k, l))
+                end do
+             end do
+          end do
        end do
 
     end select
@@ -352,26 +410,46 @@ contains
     select case (this%symmetryType) !... save FLOPS based on symmetry of interior stencil.
 
     case (SKEW_SYMMETRIC)
-       do concurrent(i = 1:gridSize(1), j = 1:gridSize(2), k = ks:ke, l = 1:size(x,2))
-          x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1 - this%nGhost(1))), l) =         &
-               sum(this%rhsInterior(1:n) * (xWithGhostPoints(i,j,k+1:k+n,l) -                &
-               xWithGhostPoints(i,j,k-1:k-n:-1,l)))
+       do l = 1, size(x, 2)
+          do k = ks, ke
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1 -                       &
+                        this%nGhost(1))), l) = sum(this%rhsInterior(1:n) *                   &
+                        (xWithGhostPoints(i,j,k+1:k+n,l) -                                   &
+                        xWithGhostPoints(i,j,k-1:k-n:-1,l)))
+                end do
+             end do
+          end do
        end do
 
     case (SYMMETRIC)
-       do concurrent(i = 1:gridSize(1), j = 1:gridSize(2), k = ks:ke, l = 1:size(x,2))
-          x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1 - this%nGhost(1))), l) =         &
-               sum(this%rhsInterior(1:n) * (xWithGhostPoints(i,j,k+1:k+n,l) +                &
-               xWithGhostPoints(i,j,k-1:k-n:-1,l))) +                                        &
-               this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
+       do l = 1, size(x, 2)
+          do k = ks, ke
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1 -                       &
+                        this%nGhost(1))), l) = sum(this%rhsInterior(1:n) *                   &
+                        (xWithGhostPoints(i,j,k+1:k+n,l) +                                   &
+                        xWithGhostPoints(i,j,k-1:k-n:-1,l))) +                               &
+                        this%rhsInterior(0) * xWithGhostPoints(i,j,k,l)
+                end do
+             end do
+          end do
        end do
 
     case default
-       do concurrent(i = 1:gridSize(1), j = 1:gridSize(2), k = ks:ke, l = 1:size(x,2))
-          x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1 - this%nGhost(1))), l) =         &
-               sum(this%rhsInterior *                                                        &
-               xWithGhostPoints(i, j, k + lbound(this%rhsInterior, 1) :                      &
-               k + ubound(this%rhsInterior, 1), l))
+       do l = 1, size(x, 2)
+          do k = ks, ke
+             do j = 1, gridSize(2)
+                do i = 1, gridSize(1)
+                   x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1 -                       &
+                        this%nGhost(1))), l) = sum(this%rhsInterior *                        &
+                        xWithGhostPoints(i, j, k + lbound(this%rhsInterior, 1) :             &
+                        k + ubound(this%rhsInterior, 1), l))
+                end do
+             end do
+          end do
        end do
 
     end select
@@ -561,8 +639,14 @@ contains
 
     allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
 
-    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    do l = 1, size(x, 2)
+       do k = 1, gridSize(3)
+          do j = 1, gridSize(2)
+             do i = 1, gridSize(1)
+                x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+             end do
+          end do
+       end do
     end do
 
     n = this%boundaryWidth
@@ -626,8 +710,14 @@ contains
 
     allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
 
-    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    do l = 1, size(x, 2)
+       do k = 1, gridSize(3)
+          do j = 1, gridSize(2)
+             do i = 1, gridSize(1)
+                x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+             end do
+          end do
+       end do
     end do
 
     n = this%boundaryWidth
@@ -691,8 +781,14 @@ contains
 
     allocate(x_(gridSize(1), gridSize(2), gridSize(3), size(x, 2)))
 
-    do concurrent (i = 1:gridSize(1), j = 1:gridSize(2), k = 1:gridSize(3), l = 1:size(x,2))
-       x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+    do l = 1, size(x, 2)
+       do k = 1, gridSize(3)
+          do j = 1, gridSize(2)
+             do i = 1, gridSize(1)
+                x_(i,j,k,l) = x(i + gridSize(1) * (j - 1 + gridSize(2) * (k - 1)), l)
+             end do
+          end do
+       end do
     end do
 
     n = this%boundaryWidth

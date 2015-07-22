@@ -5,7 +5,6 @@ module UniformCheckpointer_mod
   use ReverseMigrator_mod, only : t_ReverseMigrator
 
   implicit none
-  private
 
   type, private :: t_IntermediateStorage
      SCALAR_TYPE, allocatable :: buffer(:,:,:)

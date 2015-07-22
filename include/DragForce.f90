@@ -5,7 +5,6 @@ module DragForce_mod
   use Functional_mod, only : t_Functional
 
   implicit none
-  private
 
   type, extends(t_Functional), public :: t_DragForce
 

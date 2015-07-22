@@ -5,7 +5,6 @@ module ReynoldsStress_mod
   use Functional_mod, only : t_Functional
 
   implicit none
-  private
 
   type, private :: t_ReynoldsStressInternal
      SCALAR_TYPE, pointer :: meanVelocity(:,:) => null()

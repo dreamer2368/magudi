@@ -5,7 +5,6 @@ module JetExcitationPatch_mod
   use SpongePatch_mod, only : t_SpongePatch
 
   implicit none
-  private
 
   type, extends(t_SpongePatch), public :: t_JetExcitationPatch
 

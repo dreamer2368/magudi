@@ -3,7 +3,6 @@
 module PatchDescriptor_mod
 
   implicit none
-  private
 
   type, public :: t_PatchDescriptor
 

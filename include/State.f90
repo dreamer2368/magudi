@@ -21,7 +21,6 @@ module State_mod
   use AcousticSource_mod, only : t_AcousticSource
 
   implicit none
-  private
 
   integer, parameter, private :: wp = SCALAR_KIND
 

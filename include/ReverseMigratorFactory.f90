@@ -5,7 +5,6 @@ module ReverseMigrator_factory
   use ReverseMigrator_mod, only : t_ReverseMigrator
 
   implicit none
-  private
 
   type, public :: t_ReverseMigratorFactory
 

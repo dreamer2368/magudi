@@ -5,7 +5,6 @@ module TimeIntegrator_factory
   use TimeIntegrator_mod, only : t_TimeIntegrator
 
   implicit none
-  private
 
   type, public :: t_TimeIntegratorFactory
 

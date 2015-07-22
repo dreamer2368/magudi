@@ -5,7 +5,6 @@ module SolenoidalExcitationPatch_mod
   use Patch_mod, only : t_Patch
 
   implicit none
-  private
 
   integer, parameter, private :: real64 = selected_real_kind(15)
 

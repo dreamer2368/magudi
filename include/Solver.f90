@@ -9,7 +9,6 @@ module Solver_mod
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
   implicit none
-  private
 
   type, public :: t_Solver
 

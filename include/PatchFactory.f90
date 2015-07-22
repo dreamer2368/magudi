@@ -5,7 +5,6 @@ module Patch_factory
   use Patch_mod, only : t_Patch
 
   implicit none
-  private
 
   type, public :: t_PatchFactory
 

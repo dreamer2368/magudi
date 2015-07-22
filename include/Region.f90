@@ -23,7 +23,6 @@ module Region_mod
   use SimulationFlags_mod, only : t_SimulationFlags
 
   implicit none
-  private
 
   type, public :: t_Region
 

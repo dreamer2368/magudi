@@ -3,7 +3,6 @@
 module SolverOptions_mod
 
   implicit none
-  private
 
   type, public :: t_SolverOptions
 
