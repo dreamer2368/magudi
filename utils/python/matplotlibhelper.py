@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 def rc_journal(width=None, height=None):
     from numpy import sqrt
     import matplotlib
@@ -8,7 +11,7 @@ def rc_journal(width=None, height=None):
     matplotlib.rcParams['font.family'] = 'serif'
     w = width if width is not None else 4.5
     h = height if height is not None else width / golden_ratio
-    matplotlib.rcParams['figure.figsize'] = (w, h)    
+    matplotlib.rcParams['figure.figsize'] = (w, h)
     matplotlib.rcParams['lines.linewidth'] = 0.5
     matplotlib.rcParams['patch.linewidth'] = 0.5
     matplotlib.rcParams['axes.linewidth'] = 0.5
@@ -58,7 +61,7 @@ def read_engauge_data(filename):
         curves[i] = np.array([float(s) for s in ''.join(
             raw_data[offsets[i]:offsets[i+1]-1]).replace(',', ' ').split()])
         curves[i] = np.reshape(curves[i], [2, curves[i].size / 2], order='F')
-    return curves    
+    return curves
 
 def setup_axis(ax, xlim, ylim, xlabel, ylabel, xticks, yticks,
                xlabelpad=2., ylabelpad=2., xscale='linear', yscale='linear'):

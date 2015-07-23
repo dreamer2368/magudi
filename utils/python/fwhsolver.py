@@ -1,9 +1,24 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import plot3dnasa as p3d
 import numpy as np
 from numpy.linalg import norm
 
+def get_fromfile(offset, size, n, probe_files):
+    q = np.empty([n[1], n[0], 5, size], order='F')
+    m = (n[1] - 1) / 4 + 1
+    n = 40 * m * n[0] * size
+    for i, filename in enumerate(probe_files):
+        with open(filename) as f:
+            f.seek(offset * n / size)
+        q[i*(m-1):(i+1)*(m-1),:,:,:] = np.reshape(
+            np.fromstring(f.read(n), dtype='<f8'), [m, q.shape[1], 5, size],
+            order='F')[:-1,:,:,:]
+    return q
+
 class FWHSolver:
-    def __init__(self, g, mikes, nsamples, dt, gamma=1.4):
+    def __init__(self, g, mikes, nsamples, dt, probe_files=None, gamma=1.4):
         d_min = min((mike.min_dist(g.xyz[0]) for mike in mikes))
         d_max = max((mike.max_dist(g.xyz[0]) for mike in mikes))
         self.nsamples = nsamples
@@ -17,26 +32,10 @@ class FWHSolver:
             mike.set_params(np.rollaxis(g.xyz[0][:,:,0,:], axis=1, start=0),
                             cell_areas, unit_normals, dt, nsteps,
                             nsamples, int(np.ceil(d_max / dt)))
-        self.get = None
-        self._n = g.get_size(0)
+        self.get = get_fromfile
+        self.get_args = (g.get_size(0), probe_files)
 
-    def get_probe(self, sample_index, probe_files, chunk_size):
-        if sample_index >= self._curpos and \
-           sample_index < self._curpos + chunk_size:
-            return self._buffer[:,:,:,sample_index-self._curpos]
-        self._curpos = sample_index - sample_index % chunk_size
-        m = (self._buffer.shape[0] - 1) / 4 + 1
-        n = 40 * m * self._buffer.shape[1] * chunk_size
-        for i, filename in enumerate(probe_files):
-            with open(filename) as f:
-                f.seek(self._curpos * n / chunk_size)
-                self._buffer[i*(m-1):(i+1)*(m-1),:,:,:] = np.reshape(
-                    np.fromstring(f.read(n), dtype='<f8'),
-                    [m, self._buffer.shape[1], 5, chunk_size],
-                    order='F')[:-1,:,:,:]
-        return self._buffer[:,:,:,sample_index-self._curpos]
-
-    def integrate(self, probe_files=None, chunk_size=20):
+    def integrate(self, chunk_size=20):
         pbar = None
         try:
             from progressbar import ProgressBar, Percentage, Bar, ETA
@@ -46,21 +45,16 @@ class FWHSolver:
                                maxval = self.nsamples).start()
         except ImportError:
             pass
-        if probe_files:
-            self._curpos = self.nsamples
-            self._buffer = np.empty([self._n[1], self._n[0], 5, chunk_size],
-                                    order='F')
         for i in range(self.nsamples):
-            if probe_files:
-                q = self.get_probe(i, probe_files, chunk_size)
-            else:
-                q = self.get(i, *self.get_args)
-            q[-1,:,:] = q[0,:,:]
-            q[:,:,0] = 1. / q[:,:,0]
-            q[:,:,4] = (self.gamma - 1.) * (q[:,:,4] - 0.5 * q[:,:,0] * np.sum(
-                    q[:,:,i+1] for i in range(3))) - 1. / self.gamma
+            if i % chunk_size == 0:
+                q = self.get(i, chunk_size, *self.get_args)
+                q[-1,:,:,:] = q[0,:,:,:]
+                q[:,:,0,:] = 1. / q[:,:,0,:]
+                q[:,:,4,:] = (self.gamma - 1.) * (
+                    q[:,:,4,:] - 0.5 * q[:,:,0,:] * np.sum(
+                        q[:,:,i+1,:] for i in range(3))) - 1. / self.gamma
             for mike in self.mikes:
-                mike.add_contribution(i, q)
+                mike.add_contribution(i, q[:,:,:,i%chunk_size])
             if pbar:
                 pbar.update(i)
             if i % 100 == 0:
@@ -177,3 +171,26 @@ def get_mikes(n, x0, d, theta):
     return [Mike([x0[0] + d * np.sin(np.pi * theta / 180.) * np.cos(phi[i]),
                   x0[1] + d * np.sin(np.pi * theta / 180.) * np.sin(phi[i]),
                   x0[2] + d * np.cos(np.pi * theta / 180.)]) for i in range(n)]
+
+def monopole_pressure(t, amp, omega, dist, a_inf=1.):
+    return amp / (4. * np.pi * dist) * omega * \
+        np.cos(omega * (t - dist / a_inf))
+
+def get_monopole(offset, size, disp, dt, amp, ppw, a_inf=1., gamma=1.4):
+    omega = 2. * np.pi / (ppw * dt)
+    t = dt * np.arange(offset, offset + size)
+    dist = norm(disp, axis=-1)
+    q = np.empty([disp.shape[0], disp.shape[1], 5, size], order='F')
+    for i in range(t.size):
+        q[:,:,0,i] = 1. + monopole_pressure(t[i], amp, omega, dist)
+        q[:,:,1:4,i] = amp * disp / (4. * np.pi)
+        for j in range(3):
+            q[:,:,j+1,i] *= (np.sin(omega * (t[i] - dist / a_inf)) /
+                             dist ** 3 + omega * np.cos(
+                                 omega * (t[i] - dist / a_inf)) / dist ** 2)
+    q[:,:,4,:] = 1. / gamma + (q[:,:,0,:] - 1.)
+    q[:,:,4,:] = q[:,:,4,:] / (gamma - 1.) + 0.5 * q[:,:,0,:] * \
+               np.sum(q[:,:,i+1,:] ** 2 for i in range(3))
+    for i in range(3):
+        q[:,:,i+1,:] *= q[:,:,0,:]
+    return q

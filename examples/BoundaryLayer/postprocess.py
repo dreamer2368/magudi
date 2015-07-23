@@ -23,6 +23,12 @@ def wall_scales(y, q, Re=2266., gamma=1.4):
     u_tau = np.sqrt(tau_wall / q[0,0])
     return mu_wall / (q[0,0] * u_tau), u_tau
 
+def displacement_thickness(y, q):
+    return np.trapz(1. - q[:,1] / q[-1,1], y)
+
+def momentum_thickness(y, q):
+    return np.trapz(q[:,1] / q[-1,1] * (1. - q[:,1] / q[-1,1]), y)
+
 def wall_units(y, q, Re=2266., gamma=1.4, van_driest=True):
     y_tau, u_tau = wall_scales(y, q, Re, gamma)
     if not van_driest:
