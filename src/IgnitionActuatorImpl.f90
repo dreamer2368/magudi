@@ -30,7 +30,11 @@ contains
     assert(size(location) >= nDimensions)
     assert(size(coordinates,1) == size(ignitionSource))
 
-    timePortion = exp( -0.5_wp * (time - timeStart)**2 / timeDuration**2)
+    if (timeDuration > 0.0_wp) then
+       timePortion = exp( -0.5_wp * (time - timeStart)**2 / timeDuration**2)
+    else
+       timePortion = 1.0_wp
+    end if
 
     referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
 
@@ -40,6 +44,8 @@ contains
          sqrt(2.0_wp * pi)
 
     gaussianFactor = 0.5_wp / radius**2
+
+    ignitionSource = 0.0_wp
 
     do i = 1, size(ignitionSource)
 
