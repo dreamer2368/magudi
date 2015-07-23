@@ -96,10 +96,10 @@ subroutine setupIgnitionActuator(this, region)
   this%location(1) =  getOption(trim(key) // "x",0.0_wp)
   this%location(2) =  getOption(trim(key) // "y",0.0_wp)
   this%location(3) =  getOption(trim(key) // "z",0.0_wp)
+  this%timeStart = getOption(trim(key) // "time_start",0.0_wp)
+  this%timeDuration = getOption(trim(key) // "time_duration",0.0_wp)
   call getRequiredOption(trim(key) // "amplitude", this%amplitude, region%comm)
   call getRequiredOption(trim(key) // "radius", this%radius, region%comm)
-  call getRequiredOption(trim(key) // "time_start", this%timeStart, region%comm)
-  call getRequiredOption(trim(key) // "time_duration", this%timeDuration, region%comm)
 
 end subroutine setupIgnitionActuator
 

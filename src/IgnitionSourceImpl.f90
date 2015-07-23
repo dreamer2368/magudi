@@ -1,7 +1,6 @@
 #include "config.h"
 
-subroutine setupIgnitionSource(this, location, amplitude, radius, timeDependent, timeStart,  &
-     timeDuration)
+subroutine setupIgnitionSource(this, location, amplitude, radius, timeStart, timeDuration)
 
   ! <<< Derived types >>>
   use IgnitionSource_mod, only : t_IgnitionSource
@@ -12,7 +11,6 @@ subroutine setupIgnitionSource(this, location, amplitude, radius, timeDependent,
   class(t_IgnitionSource) :: this
   real(SCALAR_KIND), intent(in) :: location(:), amplitude, radius, timeStart,                &
        timeDuration
-  logical, intent(in) :: timeDependent
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -29,14 +27,8 @@ subroutine setupIgnitionSource(this, location, amplitude, radius, timeDependent,
 
   this%radius = radius
 
-  this%timeDependent = timeDependent
-  if (this%timeDependent) then
-     this%timeStart = timeStart
-     this%timeDuration = timeDuration
-  else
-     this%timeStart = 0.0_wp
-     this%timeDuration = 1.0_wp
-  end if
+  this%timeStart = timeStart
+  this%timeDuration = timeDuration
 
 end subroutine setupIgnitionSource
 
@@ -64,8 +56,9 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHea
   nDimensions = size(coordinates, 2)
   assert_key(nDimensions, (1, 2, 3))
 
-  if (this%timeDependent) then
-     timePortion = exp( -0.5_wp * (time - this%timeStart)**2 / this%timeDuration**2)
+  if (this%timeDuration > 0.0_wp) then
+     timePortion = exp( -0.5_wp * (time - this%timeStart)**2 / this%timeDuration**2) /       &
+          this%timeDuration
   else
      timePortion = 1.0_wp
   end if
@@ -74,8 +67,7 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHea
 
   flameTemperature = referenceTemperature / (1.0_wp - heatRelease)
 
-  power = 0.5_wp * this%amplitude * heatRelease * flameTemperature /                         &
-       this%timeDuration / sqrt(2.0_wp * pi)
+  power = 0.5_wp * this%amplitude * heatRelease * flameTemperature / sqrt(2.0_wp * pi)
 
   gaussianFactor = 0.5_wp / this%radius**2
 
