@@ -194,3 +194,20 @@ def get_monopole(offset, size, disp, dt, amp, ppw, a_inf=1., gamma=1.4):
     for i in range(3):
         q[:,:,i+1,:] *= q[:,:,0,:]
     return q
+
+def windowed_fft(p, num_windows=5, dt=0.18):
+    import numpy.fft
+    from scipy.signal import get_window
+    n = p.shape[0]
+    m = 2 * (n / (num_windows + 1))
+    windows = [((int(0.5 * i * m), int(0.5 * i * m) + m))
+               for i in range(num_windows)]
+    y = np.empty([(m + 1) // 2, num_windows, p.shape[1]])
+    window_func = get_window('blackman', m)
+    for j in range(p.shape[1]):
+        for i, w in enumerate(windows):
+            y[:,i,j] = np.absolute(numpy.fft.fft(
+                p[w[0]:w[1],j] * window_func))[:(m+1)//2] / window_func.sum()
+            y[1:,i,j] *= np.sqrt(2.)
+    p_hat = np.sqrt(np.mean(np.mean(y ** 2, axis=1), axis=1))
+    return numpy.fft.fftfreq(m, d=dt)[:p_hat.size], p_hat
