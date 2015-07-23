@@ -3,7 +3,6 @@
 
 import plot3dnasa as p3d
 import numpy as np
-from numpy.linalg import norm
 
 def get_fromfile(offset, size, n, probe_files):
     q = np.empty([n[1], n[0], 5, size], order='F')
@@ -12,9 +11,9 @@ def get_fromfile(offset, size, n, probe_files):
     for i, filename in enumerate(probe_files):
         with open(filename) as f:
             f.seek(offset * n / size)
-        q[i*(m-1):(i+1)*(m-1),:,:,:] = np.reshape(
-            np.fromstring(f.read(n), dtype='<f8'), [m, q.shape[1], 5, size],
-            order='F')[:-1,:,:,:]
+            q[i*(m-1):(i+1)*(m-1),:,:,:] = np.reshape(
+                np.fromstring(f.read(n), dtype='<f8'), [m, q.shape[1], 5, size],
+                order='F')[:-1,:,:,:]
     return q
 
 class FWHSolver:
@@ -71,8 +70,9 @@ class FWHSolver:
                      xyz[:-1,1:,0,:] - xyz[:-1,:-1,0,:])
         b = np.cross(xyz[:-1,1:,0,:] - xyz[1:,1:,0,:],
                      xyz[1:,:-1,0,:] - xyz[1:,1:,0,:])
-        ab = norm(a + b, axis=-1)
-        cell_areas = 0.5 * (norm(a, axis=-1) + norm(b, axis=-1))
+        ab = np.sqrt(np.sum((a + b) ** 2, axis=-1))
+        cell_areas = 0.5 * (np.sqrt(np.sum(a ** 2, axis=-1)) + 
+                            np.sqrt(np.sum(b ** 2, axis=-1)))
         unit_normals = a + b
         for i in range(unit_normals.shape[-1]):
             unit_normals[:,:,i] /= ab
@@ -91,11 +91,11 @@ class Mike:
 
     def min_dist(self, xyz):
         """Distance to the closest grid point."""
-        return norm(xyz - self.xyz, axis=-1).min()
+        return np.sqrt(np.sum((xyz - self.xyz) ** 2, axis=-1)).min()
 
     def max_dist(self, xyz):
         """Distance to the farthest grid point."""
-        return norm(xyz - self.xyz, axis=-1).max()
+        return np.sqrt(np.sum((xyz - self.xyz) ** 2, axis=-1)).max()
 
     def set_params(self, xyz, cell_areas, unit_normals, dt, nsteps,
                    nsamples, offset):
@@ -104,7 +104,7 @@ class Mike:
         dist = np.empty_like(self.normal_projection)
         for i, s in enumerate(self.slices):
             self.disp[:,:,:,i] = self.xyz - xyz[s + [slice(None)]]
-            dist[:,:,i] = norm(self.disp[:,:,:,i], axis=-1)
+            dist[:,:,i] = np.sqrt(np.sum(self.disp[:,:,:,i] ** 2, axis=-1))
         self.dist_inverse = 1. / dist
         self.advanced_offset = dist / dt - self.coeff.size // 2
         for i in range(3):
@@ -179,7 +179,7 @@ def monopole_pressure(t, amp, omega, dist, a_inf=1.):
 def get_monopole(offset, size, disp, dt, amp, ppw, a_inf=1., gamma=1.4):
     omega = 2. * np.pi / (ppw * dt)
     t = dt * np.arange(offset, offset + size)
-    dist = norm(disp, axis=-1)
+    dist = np.sqrt(np.sum(disp ** 2, axis=-1))
     q = np.empty([disp.shape[0], disp.shape[1], 5, size], order='F')
     for i in range(t.size):
         q[:,:,0,i] = 1. + monopole_pressure(t[i], amp, omega, dist)

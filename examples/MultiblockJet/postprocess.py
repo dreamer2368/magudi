@@ -60,14 +60,14 @@ def compute_sound(prefix, x0, dt, d, theta):
     import fwhsolver as fwh
     g = p3d.Grid('%s.xyz' % prefix)
     n = g.get_size(0)
-    ge = pp.extract_const_r(g, g)
+    ge = extract_const_r(g, g)
     mikes = fwh.get_mikes(8, x0, d, theta)
-    probe_files = ['%s.probe_fwh3.%s.dat' % s
+    probe_files = ['%s.probe_fwh3.%s.dat' % (prefix, s)
                    for s in ['E', 'N', 'W', 'S']]
     nsamples = os.stat(probe_files[0]).st_size / \
                (40 * n[0] * ((n[1] - 1) / 4 + 1))
-    solver = fwh.FWHSolver(ge, mikes, nsamples, dt)
-    solver.integrate()
+    solver = fwh.FWHSolver(ge, mikes, nsamples, dt, probe_files=probe_files)
+    solver.integrate(chunk_size=1)
     for i, mike in enumerate(mikes):
         with open('mike%02d.dat' % (i + 1), 'w') as f:
             np.savetxt(f, np.array([mike.t, mike.p]).T, fmt='%+.18E')

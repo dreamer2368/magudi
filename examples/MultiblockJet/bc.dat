@@ -54,3 +54,19 @@
   excitation.W         JET_EXCITATION		3       3    1	 -1    1   -1	 1   49
   excitation.S         JET_EXCITATION		4       3    1	 -1    1   -1	 1   49
   excitation.E         JET_EXCITATION		5       3    1	 -1    1   -1	 1   49
+  fwh1.N	       PROBE			2	0  155  155    1   -1	 1   -1
+  fwh1.W	       PROBE			3	0  155  155    1   -1	 1   -1
+  fwh1.S	       PROBE			4	0  155  155    1   -1	 1   -1
+  fwh1.E	       PROBE			5	0  155  155    1   -1	 1   -1
+  fwh2.N	       PROBE			2	0  172  172    1   -1	 1   -1
+  fwh2.W	       PROBE			3	0  172  172    1   -1	 1   -1
+  fwh2.S	       PROBE			4	0  172  172    1   -1	 1   -1
+  fwh2.E	       PROBE			5	0  172  172    1   -1	 1   -1
+  fwh3.N	       PROBE			2	0  183  183    1   -1	 1   -1
+  fwh3.W	       PROBE			3	0  183  183    1   -1	 1   -1
+  fwh3.S	       PROBE			4	0  183  183    1   -1	 1   -1
+  fwh3.E	       PROBE			5	0  183  183    1   -1	 1   -1
+  fwh4.N	       PROBE			2	0  192  192    1   -1	 1   -1
+  fwh4.W	       PROBE			3	0  192  192    1   -1	 1   -1
+  fwh4.S	       PROBE			4	0  192  192    1   -1	 1   -1
+  fwh4.E	       PROBE			5	0  192  192    1   -1	 1   -1
