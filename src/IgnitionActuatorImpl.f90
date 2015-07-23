@@ -31,7 +31,7 @@ contains
     assert(size(coordinates,1) == size(ignitionSource))
 
     if (timeDuration > 0.0_wp) then
-       timePortion = exp( -0.5_wp * (time - timeStart)**2 / timeDuration**2)
+       timePortion = exp( -0.5_wp * (time - timeStart)**2 / timeDuration**2) / timeDuration
     else
        timePortion = 1.0_wp
     end if
@@ -40,8 +40,7 @@ contains
 
     flameTemperature = referenceTemperature / (1.0_wp - heatRelease)
 
-    power = 0.5_wp * amplitude * heatRelease * flameTemperature / timeDuration /             &
-         sqrt(2.0_wp * pi)
+    power = 0.5_wp * amplitude * heatRelease * flameTemperature  / sqrt(2.0_wp * pi)
 
     gaussianFactor = 0.5_wp / radius**2
 
