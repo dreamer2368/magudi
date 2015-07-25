@@ -2980,17 +2980,11 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
      end do
   end if
 
-  ! Bound the mass fractions.
-  do k = 1, nSpecies
-     !massFraction_(k) = max(massFraction_(k), 0.0_wp)
-     !massFraction_(k) = min(massFraction_(k), 1.0_wp)
-  end do
-
   ! Other dependent variables.
   referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
   flameTemperature = referenceTemperature / (1.0_wp - combustion%heatRelease)
   activationTemperature = combustion%zelDovich / combustion%heatRelease * flameTemperature
-  chemicalSource = combustion%Damkohler * conservedVariables(1) *                            &
+  chemicalSource = combustion%Damkohler * conservedVariables(1)**2 *                         &
        massFraction_(combustion%H2) * massFraction_(combustion%O2) *                         &
        exp(- activationTemperature / temperature_)
   H = combustion%heatRelease * flameTemperature / combustion%Yfs
@@ -2998,10 +2992,10 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   ! Zero-out source Jacobian.
   jacobianOfSource = 0.0_wp
 
-  jacobianOfSource(nDimensions+2,1) = H * chemicalSource * specificVolume_
+  temp = 2.0_wp * chemicalSource * specificVolume_
+  jacobianOfSource(nDimensions+2,1) = temp * H
   do k = 1, nSpecies
-     jacobianOfSource(nDimensions+2+k,1) = - combustion%stoichiometricCoefficient(k) *       &
-          chemicalSource * specificVolume_
+     jacobianOfSource(nDimensions+2+k,1) = - temp * combustion%stoichiometricCoefficient(k)
   end do
 
   temp = activationTemperature / temperature_**2
@@ -3012,8 +3006,6 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   end do
 
   do k = 1, nSpecies
-     !if (massFraction_(k) <= 0.0_wp .or. massFraction_(k) > 1.0_wp) cycle
-     !if (massFraction_(k) <= 0.0_wp) cycle
      if (k == combustion%H2) then
         temp = combustion%Damkohler * conservedVariables(1) * massFraction_(combustion%O2) * &
              exp(- activationTemperature / temperature_)

@@ -105,7 +105,7 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
      do i = 1, size(rightHandSide, 1)
         if (iblank(i) == 0) cycle
 
-        chemicalSource = this%Damkohler * density(i) * massFraction(i,this%H2) *             &
+        chemicalSource = this%Damkohler * density(i)**2 * massFraction(i,this%H2) *          &
              massFraction(i,this%O2) * exp(- activationTemperature / temperature(i))
 
         ! Heat release due to combustion.
