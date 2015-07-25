@@ -82,7 +82,6 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
   integer :: i, k, nSpecies
   real(SCALAR_KIND) :: referenceTemperature, flameTemperature, activationTemperature,        &
        chemicalSource, H
-  SCALAR_TYPE :: massFraction_(size(massFraction,2))
 
   nSpecies = size(massFraction,2)
   assert(nSpecies >= 0)
@@ -106,15 +105,8 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
      do i = 1, size(rightHandSide, 1)
         if (iblank(i) == 0) cycle
 
-        ! Bound mass fractions between 0 and 1.
-        do k = 1, nSpecies
-           massFraction_(k) = massFraction(i,k)
-           !massFraction_(k) = max(massFraction(i,k), 0.0_wp)
-           !massFraction_(k) = min(massFraction_(k), 1.0_wp)
-        end do
-
-        chemicalSource = this%Damkohler * density(i) * massFraction_(this%H2) *              &
-             massFraction_(this%O2) * exp(- activationTemperature / temperature(i))
+        chemicalSource = this%Damkohler * density(i) * massFraction(i,this%H2) *             &
+             massFraction(i,this%O2) * exp(- activationTemperature / temperature(i))
 
         ! Heat release due to combustion.
         rightHandSide(i,nDimensions+2) = rightHandSide(i,nDimensions+2) +                    &
