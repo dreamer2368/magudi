@@ -3007,11 +3007,11 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
 
   do k = 1, nSpecies
      if (k == combustion%H2) then
-        temp = combustion%Damkohler * conservedVariables(1) * massFraction_(combustion%O2) * &
-             exp(- activationTemperature / temperature_)
+        temp = combustion%Damkohler * conservedVariables(1)**2 *                             &
+             massFraction_(combustion%O2) * exp(- activationTemperature / temperature_)
      else if (k == combustion%O2) then
-        temp = combustion%Damkohler * conservedVariables(1) * massFraction_(combustion%H2) * &
-             exp(- activationTemperature / temperature_)
+        temp = combustion%Damkohler * conservedVariables(1)**2 *                             &
+             massFraction_(combustion%H2) * exp(- activationTemperature / temperature_)
      end if
      jacobianOfSource(nDimensions+2,nDimensions+2+k) = H * temp
      do l = 1, nSpecies
