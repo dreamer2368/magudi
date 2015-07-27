@@ -107,6 +107,8 @@ program main
      end if
   else if (getOption("check_gradient_accuracy", .true.)) then !... verify gradient is exact.
      call solver%checkGradientAccuracy(region)
+  else if (getOption("find_Optimal_Forcing",.true.)) then
+     call solver%findOptimalForcing(region)
   else
      if (.not. region%simulationFlags%isBaselineAvailable)                                   &
           dummyValue = solver%runForward(region)
