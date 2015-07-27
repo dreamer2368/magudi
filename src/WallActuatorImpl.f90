@@ -22,9 +22,13 @@ subroutine setupWallActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, gradientBufferSize
+  integer :: i, gradientBufferSize,j
   class(t_Patch), pointer :: patch => null()
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
+  SCALAR_TYPE::r
+  integer::seed,n
+  integer, allocatable :: seed_(:)
+  SCALAR_TYPE,allocatable::phases(:)
 
   call this%cleanup()
 
@@ -51,10 +55,33 @@ subroutine setupWallActuator(this, region)
   end if
 
      this%controlIndex=0
-     this%numP=1
+     this%numP=20
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
-     this%p(1)=0.00_wp 
+     this%p(:)=0.00_wp 
+
+     allocate(this%po(this%numP))
+     this%po(:)=0.00_wp
+
+     seed=12345
+     call random_seed(size = n)
+     allocate(seed_(n))
+     seed_ = seed
+     call random_seed(put = seed_)
+     SAFE_DEALLOCATE(seed_)
+
+     allocate(phases(this%numP/2))
+     call random_number(phases)
+     phases(:)=phases(:)*2._wp*pi 
+ 
+     i=1
+     do j=2,size(this%p),2
+     CALL RANDOM_NUMBER(r)
+     this%po(j)=phases(i)
+     i=i+1
+     end do
+
+     SAFE_DEALLOCATE(phases)
 
      SAFE_DEALLOCATE(this%gradient)
      allocate(this%gradient(this%numP))
@@ -505,7 +532,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      case (FORWARD)
      
      do g = 1, size(region%grids)
-        this%p(:)=-region%states(g)%actuationAmount*this%gradient(:)
+        this%p(:)=this%po(:)-region%states(g)%actuationAmount*this%gradient(:)
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
         call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
