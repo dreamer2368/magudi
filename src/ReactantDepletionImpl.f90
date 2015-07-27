@@ -60,9 +60,6 @@ subroutine cleanupReactantDepletion(this)
   ! <<< Arguments >>>
   class(t_ReactantDepletion) :: this
 
-  ! <<< Local variables >>>
-  integer :: i
-
   call this%cleanupBase()
 
 end subroutine cleanupReactantDepletion
@@ -85,7 +82,7 @@ function computeReactantDepletion(this, region) result(instantaneousFunctional)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, ierror
+  integer :: i, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
 
   assert(allocated(region%grids))
