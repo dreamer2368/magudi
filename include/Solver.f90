@@ -28,6 +28,7 @@ module Solver_mod
      procedure, pass :: runForward
      procedure, pass :: runAdjoint
      procedure, pass :: checkGradientAccuracy
+     procedure, pass :: findOptimalForcing
 
   end type t_Solver
 
@@ -109,6 +110,21 @@ module Solver_mod
        class(t_Region) :: region
 
      end subroutine checkGradientAccuracy
+
+  end interface
+
+  interface
+
+     subroutine findOptimalForcing(this, region)
+
+       use Region_mod, only : t_Region
+
+       import :: t_Solver
+
+       class(t_Solver) :: this
+       class(t_Region) :: region
+
+     end subroutine findOptimalForcing
 
   end interface
 

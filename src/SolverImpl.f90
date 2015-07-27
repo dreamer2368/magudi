@@ -586,7 +586,6 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
        call controller%hookBeforeTimemarch(region, FORWARD)
 
   time = startTime
-  region%states(:)%time = time
   do i = 1, size(region%states) !... update state
      call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
           region%solverOptions)
@@ -615,6 +614,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
            call region%states(j)%update(region%grids(j), region%simulationFlags,             &
                 region%solverOptions)
         end do
+
 
         ! Update the cost functional.
         if (.not. region%simulationFlags%predictionOnly) then
@@ -751,10 +751,10 @@ function runAdjoint(this, region) result(costSensitivity)
           region%solverOptions)
   end do
 
-  startTimestep = region%timestep
-  startTime = region%states(1)%time
+startTimestep = region%timestep
+  startTime = region%states(1)%time  
 
-  ! Connect to the previously allocated reverse migrator.
+! Connect to the previously allocated reverse migrator.
   call reverseMigratorFactory%connect(reverseMigrator,                                       &
        region%solverOptions%checkpointingScheme)
   assert(associated(reverseMigrator))
@@ -778,7 +778,7 @@ function runAdjoint(this, region) result(costSensitivity)
   ! Call controller hooks before time marching starts.
   call controller%hookBeforeTimemarch(region, ADJOINT)
 
-  time = startTime
+  time=startTime
 
   do timestep = startTimestep + sign(1, timemarchDirection),                                 &
        startTimestep + sign(this%nTimesteps, timemarchDirection), timemarchDirection
@@ -814,6 +814,7 @@ function runAdjoint(this, region) result(costSensitivity)
         ! Take a single adjoint sub-step using the time integrator.
         call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep, i)
 
+        
         ! TODO: how to enforce limits on adjoint variables... check for NaN?
         if (region%simulationFlags%enableSolutionLimits)                                     &
              call checkSolutionLimits(region, ADJOINT, this%outputPrefix)
@@ -874,7 +875,7 @@ subroutine checkGradientAccuracy(this, region)
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError,dummyValue,&
-       gradientAccuracyPrecision
+       radientAccuracyPrecision
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -911,7 +912,6 @@ subroutine checkGradientAccuracy(this, region)
 
   if (nIterations > 0) then
      call getRequiredOption("initial_actuation_amount", initialActuationAmount)
-     !call getRequiredOption("precision_for_gradient_accuracy", gradientAccuracyPrecision)
      if (nIterations > 1) then
         call getRequiredOption("actuation_amount_geometric_growth", geometricGrowthFactor)
      else
@@ -981,8 +981,90 @@ subroutine checkGradientAccuracy(this, region)
 
 end subroutine checkGradientAccuracy
 
-!proposing this subroutine for adjoint-based optimization 
-subroutine findOptimalForcing()
+subroutine findOptimalForcing(this, region)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+  use Solver_mod, only : t_Solver
+
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_FORWARD_STATE
+
+  ! <<< Internal modules >>>
+  use InputHelper, only : getFreeUnit, getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Solver) :: this
+  class(t_Region) :: region
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDescents,restartIteration,fileUnit, iostat, procRank,ierror
+  character(len = STRING_LENGTH) :: filename, message
+  real(wp) :: lambda
+  real(wp) :: actuationAmount, baselineCostFunctional, costFunctional,costSensitivity,      &
+       initialActuationAmount, geometricGrowthFactor, gradientError,dummyValue,&
+       radientAccuracyPrecision
+
+  call getRequiredOption("initial_amplitude_of_descent", lambda)
+
+  call getRequiredOption("number_of_descents", nDescents)
+  if (nDescents < 0) then
+     write(message, '(A)') "Number of control iterations must be a non-negativenumber!"
+     call gracefulExit(region%comm, message)
+  end if
+
+  call MPI_Comm_rank(region%comm, procRank, ierror)
+
+  restartIteration=0
+  write(filename, '(2A)') trim(this%outputPrefix), ".cost_optimization.txt"
+  if (procRank == 0) then
+     if (restartIteration == 0 .and. .not.region%simulationFlags%isBaselineAvailable) then
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='write',          &
+             status = 'unknown', iostat = iostat)
+     else
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='readwrite',      &
+             status = 'old', position = 'rewind', iostat = iostat)
+     end if
+  end if
+
+  call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+  if (iostat /= 0) then
+     write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
+     call gracefulExit(region%comm, message)
+  end if
+
+     baselineCostFunctional = this%runForward(region)
+     costSensitivity = this%runAdjoint(region)
+
+  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable)&
+       write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,&
+       baselineCostFunctional,costSensitivity, 0.0_wp
+
+  if (nDescents == 0) return
+
+  ! Turn off output for controlled predictions.
+  region%outputOn = .false.
+
+  do i = 1,nDescents
+     actuationAmount = lambda 
+     costFunctional = this%runForward(region, actuationAmount=actuationAmount)
+     costSensitivity = this%runAdjoint(region)
+     if (procRank == 0)&
+          write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i,actuationAmount,       &
+          costFunctional,costSensitivity,&
+          abs(costFunctional - baselineCostFunctional) /baselineCostFunctional
+  end do
+
+  if (procRank == 0) close(fileUnit)
+
+
 end subroutine findOptimalForcing
 
 
