@@ -27,16 +27,25 @@ disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "SOUND"
 controller_type="PASSIVE_WALL_ACTUATOR"
+cost_functional_timeHorizon/startTime=-1
+cost_functional_timeHorizon/stopTime=2.
+cost_functional_MollifierStrength=1000.
+cost_functional_normalizeTimeMollifier=0.1
 use_continuous_adjoint = false
 gradient_buffer_size = 20
 
 # Gradient accuracy options
-check_gradient_accuracy = true
-precision_for_gradient_accuracy = 1e-15
-number_of_control_iterations = 32
-initial_actuation_amount = 200.
+check_gradient_accuracy = false
+number_of_control_iterations = 16
+initial_actuation_amount = 5.
 restart_control_iteration = 0
-actuation_amount_geometric_growth = 0.5623413251903491
+actuation_amount_geometric_growth = 0.1 #0.5623413251903491
+
+# Optimization
+find_Optimal_Forcing = true
+number_of_descents = 25
+initial_amplitude_of_descent=1.
+control_algorithm = "STEEPEST_DESCENT"
 
 # Discretization scheme
 defaults/discretization_scheme = "SBP 3-6"
@@ -68,11 +77,7 @@ acoustic_source01/x = 0.5
 acoustic_source01/radius = 0.1
 
 #Random Fluctuating Field
-random_fluctuation_source/amplitude=1.e-6
-
-# Periodicity
-#grid001/dir1/periodicity_type = 'PLANE'
-#grid001/dir1/periodic_length = 1.
+random_fluctuation_source/amplitude=1.e-15
 
 # Damping
 defaults/sponge_amount = 0.5
