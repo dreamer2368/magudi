@@ -214,28 +214,28 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
            localMetricsAlongNormalDirection =                                                &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
-           call computeRoeAverage(nDimensions, localConservedVariables,                      &
-                localInterfaceConservedVariables, solverOptions%ratioOfSpecificHeats,        &
-                localRoeAverage)
-
-           select case (nDimensions)
-           case (1)
-              call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,                  &
-                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
-                   incomingDirection, incomingJacobianOfInviscidFlux)
-           case (2)
-              call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,                  &
-                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
-                   incomingDirection, incomingJacobianOfInviscidFlux)
-           case (3)
-              call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,                  &
-                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
-                   incomingDirection, incomingJacobianOfInviscidFlux)
-           end select !... nDimensions
-
            select case (mode)
 
            case (FORWARD)
+
+              call computeRoeAverage(nDimensions, localConservedVariables,                   &
+                   localInterfaceConservedVariables, solverOptions%ratioOfSpecificHeats,     &
+                   localRoeAverage)
+
+              select case (nDimensions)
+              case (1)
+                 call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,               &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              case (2)
+                 call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,               &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              case (3)
+                 call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,               &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              end select !... nDimensions
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
                    this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *                &
@@ -252,17 +252,61 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
 
            case (ADJOINT)
 
+              select case (nDimensions)
+              case (1)
+                 call computeIncomingJacobianOfInviscidFlux1D(localConservedVariables,       &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              case (2)
+                 call computeIncomingJacobianOfInviscidFlux2D(localConservedVariables,       &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              case (3)
+                 call computeIncomingJacobianOfInviscidFlux3D(localConservedVariables,       &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              end select !... nDimensions
+
               if (simulationFlags%useContinuousAdjoint) then
                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
                       this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
-                      state%adjointVariables(gridIndex,:) -                                  &
-                      interfaceAdjointVariables(patchIndex,:))
+                      state%adjointVariables(gridIndex,:))
               else
                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
                       this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       state%adjointVariables(gridIndex,:))
+              end if
+
+              select case (nDimensions)
+              case (1)
+                 call computeIncomingJacobianOfInviscidFlux1D(                               &
+                      localInterfaceConservedVariables,                                      &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              case (2)
+                 call computeIncomingJacobianOfInviscidFlux2D(                               &
+                      localInterfaceConservedVariables,                                      &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              case (3)
+                 call computeIncomingJacobianOfInviscidFlux3D(                               &
+                      localInterfaceConservedVariables,                                      &
+                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                      incomingDirection, incomingJacobianOfInviscidFlux)
+              end select !... nDimensions
+
+              if (simulationFlags%useContinuousAdjoint) then
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
+                      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
+                      interfaceAdjointVariables(patchIndex,:))
+              else
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
+                      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
+                      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
+                      interfaceAdjointVariables(patchIndex,:))
               end if
 
               ! TODO: viscous penalties.

@@ -769,7 +769,8 @@ def tanh_support(x, x_min, x_max, sigma, xi):
     return y - y.min()
 
 def find_extents(x, x_min, x_max):
-    return np.where(x >= x_min)[0][0], np.where(x <= x_max)[0][-1] + 2
+    return max(1, np.where(x >= x_min)[0][0]), \
+        min(len(x), np.where(x <= x_max)[0][-1] + 2)
 
 def sbp(n, interior_accuracy=4, order=1, periodic=False, dtype=np.float64):
     if periodic:
