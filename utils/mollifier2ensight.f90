@@ -39,7 +39,7 @@ program mollifier2ensight
   character(LEN=80) :: file_description1,file_description2
   character(LEN=80) :: node_id,element_id
   character(LEN=80) :: part,description_part,cblock,extents,cbuffer
-  logical :: use_iblank
+  logical :: use_iblank, writeTarget, writeControl
 
   ! Local variables
   integer :: i, j, k
@@ -59,6 +59,9 @@ program mollifier2ensight
   print*,'==========================================='
   print*
   directory='ensight-3D'
+
+  writeTarget = .true.
+  writeControl = .true.
 
   ! Set the grid name.
   grid_name = trim(prefix)//'.xyz'
@@ -86,11 +89,15 @@ program mollifier2ensight
   ndim = size(region%grids(1)%coordinates(1,:))
 
   ! Load the mollifier files.
-  fname = trim(prefix)//'.target_mollifier.f'
-  call region%loadData(QOI_TARGET_MOLLIFIER, fname)
+  if (writeTarget) then
+     fname = trim(prefix)//'.target_mollifier.f'
+     call region%loadData(QOI_TARGET_MOLLIFIER, fname)
+  end if
 
-  fname = trim(prefix)//'.control_mollifier.f'
-  call region%loadData(QOI_CONTROL_MOLLIFIER, fname)
+  if (writeControl) then
+     fname = trim(prefix)//'.control_mollifier.f'
+     call region%loadData(QOI_CONTROL_MOLLIFIER, fname)
+  end if
 
   ! Check if iblank is used
   use_iblank = .false.
@@ -207,41 +214,45 @@ program mollifier2ensight
   ! Binary file length
   reclength=80*3+4*(1+nx*ny*nz)
 
-  ! Convert the data to single precision
-  do k=1,nz
-     do j=1,ny
-        do i=1,nx
-           ! Store solution in buffer
-           ii = i+nx*(j-1+ny*(k-1))
-           rbuffer(i,j,k) = real(region%grids(1)%targetMollifier(ii,1),4)
+  if (writeTarget) then
+     ! Convert the data to single precision
+     do k=1,nz
+        do j=1,ny
+           do i=1,nx
+              ! Store solution in buffer
+              ii = i+nx*(j-1+ny*(k-1))
+              rbuffer(i,j,k) = real(region%grids(1)%targetMollifier(ii,1),4)
+           end do
+         end do
+     end do
+
+     ! Write Ensight scalar file
+     cbuffer='TARGET_MOLLIFIER'
+     write(fname,'(4A,I6.6)') trim(directory),'/',trim(cbuffer),'.',1
+     open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+     write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
+     close(10)
+  end if
+
+  if (writeControl) then
+     ! Convert the data to single precision
+     do k=1,nz
+        do j=1,ny
+           do i=1,nx
+              ! Store solution in buffer
+              ii = i+nx*(j-1+ny*(k-1))
+              rbuffer(i,j,k) = real(region%grids(1)%controlMollifier(ii,1),4)
+           end do
         end do
      end do
-  end do
 
-  ! Write Ensight scalar file
-  cbuffer='TARGET_MOLLIFIER'
-  write(fname,'(4A,I6.6)') trim(directory),'/',trim(cbuffer),'.',1
-  open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
-  write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
-  close(10)
-
-  ! Convert the data to single precision
-  do k=1,nz
-     do j=1,ny
-        do i=1,nx
-           ! Store solution in buffer
-           ii = i+nx*(j-1+ny*(k-1))
-           rbuffer(i,j,k) = real(region%grids(1)%controlMollifier(ii,1),4)
-        end do
-     end do
-  end do
-
-  ! Write Ensight scalar file
-  cbuffer='CONTROL_MOLLIFIER'
-  write(fname,'(4A,I6.6)') trim(directory),'/',trim(cbuffer),'.',1
-  open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
-  write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
-  close(10)
+     ! Write Ensight scalar file
+     cbuffer='CONTROL_MOLLIFIER'
+     write(fname,'(4A,I6.6)') trim(directory),'/',trim(cbuffer),'.',1
+     open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+     write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
+     close(10)
+  end if
 
   ! =================== !
   ! Write the case file !
@@ -260,11 +271,16 @@ program mollifier2ensight
   write(10,'(a80)') cbuffer
 
   cbuffer='VARIABLE'
-  write(10,'(a)') cbuffer
-  write(cbuffer,'(5A)') 'scalar per node: 1 ',  'TARGET_MOLLIFIER', ' ', 'TARGET_MOLLIFIER', '.******'
   write(10,'(a80)') cbuffer
-  write(cbuffer,'(5A)') 'scalar per node: 1 ',  'CONTROL_MOLLIFIER', ' ', 'CONTROL_MOLLIFIER', '.******'
-  write(10,'(a80)') cbuffer
+
+  if (writeTarget) then
+     write(cbuffer,'(5A)') 'scalar per node: 1 ',  'TARGET_MOLLIFIER', ' ', 'TARGET_MOLLIFIER', '.******'
+     write(10,'(a80)') cbuffer
+  end if
+  if (writeControl) then  
+     write(cbuffer,'(5A)') 'scalar per node: 1 ',  'CONTROL_MOLLIFIER', ' ', 'CONTROL_MOLLIFIER', '.******'
+     write(10,'(a80)') cbuffer
+ end if
   
   cbuffer='TIME'
   write(10,'(a80)') cbuffer
