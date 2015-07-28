@@ -60,8 +60,13 @@ program mollifier2ensight
   print*
   directory='ensight-3D'
 
-  writeTarget = .true.
-  writeControl = .true.
+  ! Decide which mollifiers to write
+  writeTarget = .false.
+  fname = getOption("target_mollifier_file", "")
+  if (trim(fname).ne."") writeTarget = .true.
+  writeControl = .false.
+  fname = getOption("control_mollifier_file", "")
+  if (trim(fname).ne."") writeControl = .true.
 
   ! Set the grid name.
   grid_name = trim(prefix)//'.xyz'
