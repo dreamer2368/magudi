@@ -177,7 +177,8 @@ PURE_SUBROUTINE computeTransportVariables(temperature, powerLawExponent, bulkVis
 end subroutine computeTransportVariables
 
 PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,                          &
-     conservedVariablesR, ratioOfSpecificHeats, roeAverage)
+     conservedVariablesR, ratioOfSpecificHeats, roeAverage, deltaRoeAverage,                 &
+     deltaConservedVariablesL)
 
   implicit none
 
@@ -186,18 +187,57 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
   SCALAR_TYPE, intent(in) :: conservedVariablesL(:), conservedVariablesR(:)
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: roeAverage(:)
+  SCALAR_TYPE, intent(out), optional :: deltaRoeAverage(:,:)
+  SCALAR_TYPE, intent(in), optional :: deltaConservedVariablesL(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i
+  integer :: i, nUnknowns
   SCALAR_TYPE :: sqrtDensityL, sqrtDensityR, specificVolumeL, specificVolumeR,               &
        enthalpyL, enthalpyR
+  SCALAR_TYPE, allocatable :: deltaConservedVariablesL_(:,:), deltaSqrtDensity(:),           &
+       deltaSpecificVolume(:), deltaEnthalpy(:)
+
+  assert_key(nDimensions, (1, 2, 3))
+
+  nUnknowns = size(conservedVariablesL)
+
+  assert(nUnknowns >= nDimensions + 2)
+  assert(size(conservedVariablesR) == nUnknowns)
+  assert(size(roeAverage) == nUnknowns)
+
+  if (present(deltaRoeAverage)) then
+
+     assert(size(deltaRoeAverage, 1) == nUnknowns)
+     assert(size(deltaRoeAverage, 2) == nUnknowns)
+
+     allocate(deltaConservedVariablesL_(nUnknowns, nUnknowns))
+     allocate(deltaSqrtDensity(nUnknowns))
+     allocate(deltaSpecificVolume(nUnknowns))
+     allocate(deltaEnthalpy(nUnknowns))
+
+     if (present(deltaConservedVariablesL)) then
+        assert(size(deltaConservedVariablesL, 1) == nUnknowns)
+        assert(size(deltaConservedVariablesL, 2) == nUnknowns)
+        deltaConservedVariablesL_ = deltaConservedVariablesL
+     else
+        deltaConservedVariablesL_ = 0.0_wp
+        do i = 1, nUnknowns
+           deltaConservedVariablesL_(i,i) = 1.0_wp
+        end do
+     end if
+
+  end if
 
   sqrtDensityL = sqrt(conservedVariablesL(1))
   sqrtDensityR = sqrt(conservedVariablesR(1))
+  if (present(deltaRoeAverage))                                                              &
+       deltaSqrtDensity = 0.5_wp / sqrtDensityL * deltaConservedVariablesL_(1,:)
 
   specificVolumeL = 1.0_wp / conservedVariablesL(1)
   specificVolumeR = 1.0_wp / conservedVariablesR(1)
+  if (present(deltaRoeAverage))                                                              &
+       deltaSpecificVolume = -specificVolumeL ** 2 * deltaConservedVariablesL_(1,:)
 
   enthalpyL = ratioOfSpecificHeats * conservedVariablesL(nDimensions+2) -                    &
        0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * specificVolumeL *                          &
@@ -205,6 +245,15 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
   enthalpyR = ratioOfSpecificHeats * conservedVariablesR(nDimensions+2) -                    &
        0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * specificVolumeR *                          &
        sum(conservedVariablesR(2:nDimensions+1) ** 2)
+  if (present(deltaRoeAverage)) then
+     deltaEnthalpy = ratioOfSpecificHeats * deltaConservedVariablesL_(nDimensions+2,:) -     &
+          0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * deltaSpecificVolume *                   &
+          sum(conservedVariablesL(2:nDimensions+1) ** 2)
+     do i = 1, nDimensions
+        deltaEnthalpy = deltaEnthalpy - (ratioOfSpecificHeats - 1.0_wp) * specificVolumeL *  &
+             conservedVariablesL(i+1) * deltaConservedVariablesL_(i+1,:)
+     end do
+  end if
 
   roeAverage(1) = sqrtDensityL * sqrtDensityR
   do i = 1, nDimensions
@@ -212,10 +261,47 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
           sqrtDensityL * conservedVariablesR(i+1)) / (sqrtDensityL + sqrtDensityR)
   end do
 
-  roeAverage(nDimensions+2) = ((sqrtDensityR * enthalpyL + sqrtDensityL * enthalpyR) /       &
-       (sqrtDensityL + sqrtDensityR) +                                                       &
+  roeAverage(nDimensions+2) = (sqrtDensityR * enthalpyL + sqrtDensityL * enthalpyR) /        &
+       (sqrtDensityL + sqrtDensityR)
+
+  if (present(deltaRoeAverage)) then
+
+     deltaRoeAverage(1,:) = deltaSqrtDensity * sqrtDensityR
+     do i = 1, nDimensions
+        deltaRoeAverage(i+1,:) = (sqrtDensityR * deltaConservedVariablesL_(i+1,:) +          &
+             deltaSqrtDensity * (conservedVariablesR(i+1) - roeAverage(i+1))) /              &
+             (sqrtDensityL + sqrtDensityR)
+     end do
+
+     deltaRoeAverage(nDimensions+2,:) = (sqrtDensityR * deltaEnthalpy +                      &
+          deltaSqrtDensity * (enthalpyR - roeAverage(nDimensions+2))) /                      &
+          (sqrtDensityL + sqrtDensityR)
+
+  end if
+
+  roeAverage(nDimensions+2) = (roeAverage(nDimensions+2) +                                   &
        0.5_wp * (ratioOfSpecificHeats - 1.0_wp) / roeAverage(1) *                            &
        sum(roeAverage(2:nDimensions+1) ** 2)) / ratioOfSpecificHeats
+
+  if (present(deltaRoeAverage)) then
+
+     deltaRoeAverage(nDimensions+2,:) = deltaRoeAverage(nDimensions+2,:) -                   &
+          0.5_wp * (ratioOfSpecificHeats - 1.0_wp) / roeAverage(1) ** 2 *                    &
+          deltaRoeAverage(1,:) * sum(roeAverage(2:nDimensions+1) ** 2)
+     do i = 1, nDimensions
+        deltaRoeAverage(nDimensions+2,:) = deltaRoeAverage(nDimensions+2,:) +                &
+             (ratioOfSpecificHeats - 1.0_wp) / roeAverage(1) * roeAverage(i+1) *             &
+             deltaRoeAverage(i+1,:)
+     end do
+     deltaRoeAverage(nDimensions+2,:) = deltaRoeAverage(nDimensions+2,:) /                   &
+          ratioOfSpecificHeats
+
+  end if
+
+  SAFE_DEALLOCATE(deltaEnthalpy)
+  SAFE_DEALLOCATE(deltaSpecificVolume)
+  SAFE_DEALLOCATE(deltaSqrtDensity)
+  SAFE_DEALLOCATE(deltaConservedVariablesL_)
 
 end subroutine computeRoeAverage
 

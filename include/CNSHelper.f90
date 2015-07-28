@@ -52,12 +52,16 @@ module CNSHelper
   interface
 
      pure subroutine computeRoeAverage(nDimensions, conservedVariablesL,                     &
-          conservedVariablesR, ratioOfSpecificHeats, roeAverage)
+          conservedVariablesR, ratioOfSpecificHeats, roeAverage, deltaRoeAverage,            &
+          deltaConservedVariablesL)
 
        integer, intent(in) :: nDimensions
        SCALAR_TYPE, intent(in) :: conservedVariablesL(:), conservedVariablesR(:)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: roeAverage(:)
+
+       SCALAR_TYPE, intent(out), optional :: deltaRoeAverage(:,:)
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariablesL(:,:)
 
      end subroutine computeRoeAverage
 
@@ -87,6 +91,7 @@ module CNSHelper
 
        integer, intent(in) :: nDimensions
        SCALAR_TYPE, intent(in) :: velocityGradient(:,:)
+
        SCALAR_TYPE, intent(out), optional :: vorticityMagnitude(:), dilatation(:)
 
      end subroutine computeVorticityMagnitudeAndDilatation
@@ -135,6 +140,7 @@ module CNSHelper
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(in) :: velocity(:,:), temperature(:), metrics(:,:)
        SCALAR_TYPE, intent(out) :: spectralRadius(:,:)
+
        logical, intent(in), optional :: isDomainCurvilinear
 
      end subroutine computeSpectralRadius
@@ -153,6 +159,7 @@ module CNSHelper
        integer, intent(in) :: nDimensions
        SCALAR_TYPE, intent(in) :: fluxes(:,:,:), metrics(:,:)
        SCALAR_TYPE, intent(out) :: transformedFluxes(:,:,:)
+
        logical, intent(in), optional :: isDomainCurvilinear
 
      end subroutine transformFluxes
@@ -170,6 +177,7 @@ module CNSHelper
        integer, intent(in) :: nDimensions, iblank(:)
        SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:), velocity(:,:), temperature(:)
        real(SCALAR_KIND), intent(in) :: timeStepSize, ratioOfSpecificHeats
+
        SCALAR_TYPE, intent(in), optional :: dynamicViscosity(:), thermalDiffusivity(:)
 
        real(SCALAR_KIND) :: cfl
@@ -191,6 +199,7 @@ module CNSHelper
        SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:),                                 &
             velocity(:,:), temperature(:)
        real(SCALAR_KIND), intent(in) :: cfl, ratioOfSpecificHeats
+
        SCALAR_TYPE, intent(in), optional :: dynamicViscosity(:), thermalDiffusivity(:)
 
        real(SCALAR_KIND) :: timeStepSize
