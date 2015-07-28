@@ -60,18 +60,23 @@ def ambient_state(g, gamma=1.4):
 	return s.fromprimitive(gamma)
 
 
-def target_state(g, u1, u2, S, gamma=1.4):
+def target_state(g, u1, u2, S,yCenter, gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     x = g.xyz[0][:,:,:,0]
     s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
-        1. + np.tanh(2. * g.xyz[0][:,:,:,1] / \
+        1. + np.tanh(100. * (g.xyz[0][:,:,:,1]-yCenter) / \
                      (1. + S * np.where(x > 0., x, np.zeros_like(x)))))
     return s.fromprimitive(gamma)
 
-def initial_condition(g, u1, u2, gamma=1.4):
+def initial_condition(g, u1, u2,S,yCenter, gamma=1.4):
+#    s = p3d.Solution().copy_from(g).quiescent(gamma)
+#    s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
+#        1. + np.tanh(100. * (g.xyz[0][:,:,:,1]-yCenter)))
     s = p3d.Solution().copy_from(g).quiescent(gamma)
+    x = g.xyz[0][:,:,:,0]
     s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
-        1. + np.tanh(2. * g.xyz[0][:,:,:,1]))
+        1. + np.tanh(100. * (g.xyz[0][:,:,:,1]-yCenter) / \
+                     (1. + S * np.where(x > 0., x, np.zeros_like(x)))))
     return s.fromprimitive(gamma)
 
 def target_mollifier(g,x_min,x_max,y_min,y_max):
@@ -115,21 +120,26 @@ if __name__ == '__main__':
 		outputPrefix = 'ShearLayerWavyWall'
         
 		xMin = 0.
-		xMax = 1.
+		xMax = 2.5
 		yMin = 0.
-		yMax = 1.
+		yMax = 1.5
 
-		g = grid([201,201],xMin,xMax,yMin,yMax)
+		g = grid([1001,601],xMin,xMax,yMin,yMax)
 		g.save(outputPrefix+'.xyz')
-		initial_condition(g, u1=0.0, u2=0.0).save(outputPrefix+'.ic.q')
-		target_state(g, u1=0.0, u2=0.0, S=0.05).save(outputPrefix+'.target.q')
- 		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
+	
+		yShearMax=0.25
+
+		initial_condition(g, u1=0.9, u2=0.2,S=2.5,yCenter=yShearMax).save(outputPrefix+'.ic.q')
+		target_state(g, u1=0.9, u2=0.2, S=2.5,yCenter=yShearMax).save(outputPrefix+'.target.q')
+
+		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
 		ambient_pressure(p3d.fromfile(outputPrefix+'.ambient.q')).save(outputPrefix+'.ambient_pressure.f')
 
-		xMinTarget = 0.05
-		xMaxTarget = 0.95
-		yMinTarget = 0.55
-		yMaxTarget = 0.65
+
+		xMinTarget = 0.5
+		xMaxTarget = 2.0
+		yMinTarget = 0.5
+		yMaxTarget = 0.7
 		target_mollifier(g,xMinTarget,xMaxTarget,yMinTarget,yMaxTarget).save(outputPrefix+'.target_mollifier.f')
 
 		xMinControl =  xMin
@@ -141,9 +151,9 @@ if __name__ == '__main__':
 		#IMPLEMENTING THE BOUNDARY CONDITION FILE
 
 		#SPONGE INDICES
-		left_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMin+0.05))) + 1
-		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-0.05)) ) + 1
-		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-0.05))) + 1
+		left_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMin+0.2))) + 1
+		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-0.5)) ) + 1
+		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-0.5))) + 1
 
 		#TARGET INDICES
 		left_target=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMinTarget)) ) + 1
@@ -157,6 +167,20 @@ if __name__ == '__main__':
 		bottom_c=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMinControl))) + 1
 		top_c=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMinControl))) + 1
 
+		#EXCITATION INDICES
+
+		xMinExcite =  0.0
+		xMaxExcite =  1.
+		yMinExcite =  0.
+		yMaxExcite =  1.
+
+		left_excite=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMinExcite)) ) + 1
+		right_excite=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMaxExcite))) + 1
+		bottom_excite=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMinExcite))) + 1
+		top_excite=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMaxExcite))) + 1
+
+#  excitationSupport    SOLENOIDAL_EXCITATION    1       0   69  186  248  393    1   -1
+
 		with open(outputPrefix+'_bc.dat', "wt") as fp:
 				fp.write("# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax\n")
 				fp.write("# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====\n")
@@ -167,5 +191,6 @@ if __name__ == '__main__':
 				fp.write("wall.S               SAT_SLIP_WALL            1       2    1   -1    1    1    1   -1\n")
 				fp.write("farfield.N           SAT_FAR_FIELD            1      -2    1   -1   -1   -1    1   -1\n")
 				fp.write("sponge.N             SPONGE                   1      -2    1   -1  %i   -1    1   -1\n"% (top_sponge))
-				fp.write("targetRegion         COST_TARGET              1       0  %i %i  %i  %i    1   -1\n"%(left_target,right_target,bottom_target,top_target))
+    				fp.write("targetRegion         COST_TARGET              1       0  %i %i  %i  %i    1   -1\n"%(left_target,right_target,bottom_target,top_target))
+				fp.write("excitationSupport    SOLENOIDAL_EXCITATION    1       0  %i %i  %i  %i    1   -1\n"%(left_excite,right_excite,bottom_excite,top_excite))
 				fp.write("controlRegion.p1        ACTUATOR                 1       2  %i  %i %i %i 1   -1\n"%(left_c,right_c,bottom_c,top_c))
