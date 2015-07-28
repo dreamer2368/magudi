@@ -753,24 +753,36 @@ def cartesian_grid(filename, block_index=0):
                       [0, 0, -1]).load().xyz[0][0,0,:,2]
     return x, y, z
 
-def cubic_bspline_support(x, x_min, x_max):
+def cubic_bspline_support(x, x_min, x_max, strict=True):
     from scipy.signal import cubic
+    if x_min >= x.max() or x_max <= x.min():
+        return np.zeros_like(x)
+    if not strict:
+        return cubic(4. * (x - x_min) / (x_max - x_min) - 2.)
     imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
     imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
     return cubic(4. * (x - x[imin]) / (x[imax] - x[imin]) - 2.)
 
-def tanh_support(x, x_min, x_max, sigma, xi):
-    imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
-    imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
+def tanh_support(x, x_min, x_max, sigma, xi, strict=True):
+    if x_min >= x.max() or x_max <= x.min():
+        return np.zeros_like(x)
     f = lambda x: \
         np.tanh(sigma * (x + 1. - 0.5 * xi)) - \
-        np.tanh(sigma * (x - 1. + 0.5 * xi))
+        np.tanh(sigma * (x - 1. + 0.5 * xi))    
+    if not strict:
+        y = f(2. * (x - x_min) / (x_max - x_min) - 1.)
+        return y - y.min()
+    imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
+    imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
     y = f(2. * (x - x[imin]) / (x[imax] - x[imin]) - 1.)
     return y - y.min()
 
 def find_extents(x, x_min, x_max):
-    return max(1, np.where(x >= x_min)[0][0]), \
-        min(len(x), np.where(x <= x_max)[0][-1] + 2)
+    try:
+        return max(1, np.where(x >= x_min)[0][0]), \
+            min(len(x), np.where(x <= x_max)[0][-1] + 2)
+    except IndexError:
+        return None, None
 
 def sbp(n, interior_accuracy=4, order=1, periodic=False, dtype=np.float64):
     if periodic:
