@@ -21,8 +21,6 @@ program mixing_layer
 
   integer :: i, numProcs, ierror
   integer :: imin_sponge, imax_sponge, jmin_sponge, jmax_sponge
-  integer :: imin_tmol, imax_tmol, jmin_tmol, jmax_tmol
-  integer :: imin_cmol, imax_cmol, jmin_cmol, jmax_cmol
   character(len = STRING_LENGTH) :: inputname, filename
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
@@ -71,38 +69,8 @@ program mixing_layer
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
-  ! Create target mollifier
-  filename = getOption("target_mollifier_file", "")
-  if (len_trim(filename) /= 0) then
-     do i = 1, size(region%grids)
-        call mixingLayerTargetMollifier(region%states(i), region%grids(i),                   &
-             imin_tmol,imax_tmol,jmin_tmol,jmax_tmol)
-     end do
-
-     ! Write the target mollifier.
-     call region%saveData(QOI_TARGET_MOLLIFIER, filename)
-  else
-     imin_tmol=1;imax_tmol=1;jmin_tmol=1;jmax_tmol=1
-  end if
-
-  ! Create control mollifier
-  filename = getOption("control_mollifier_file", "")
-  if (len_trim(filename) /= 0) then
-     do i = 1, size(region%grids)
-        call mixingLayerControlMollifier(region%states(i), region%grids(i),                   &
-             imin_cmol,imax_cmol,jmin_cmol,jmax_cmol)
-     end do
-
-     ! Write the control mollifier.
-     call region%saveData(QOI_CONTROL_MOLLIFIER, filename)
-  else
-     imin_cmol=1;imax_cmol=1;jmin_cmol=1;jmax_cmol=1
-  end if
-
   ! Generate the BC
-  call mixingLayerBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge,                        &
-       imin_tmol,imax_tmol,jmin_tmol,jmax_tmol,                                              &
-       imin_cmol,imax_cmol,jmin_cmol,jmax_cmol)
+  call mixingLayerBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
 
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
@@ -340,20 +308,16 @@ contains
   ! =================== !
   ! Boundary conditions !
   ! =================== !
-  subroutine mixingLayerBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge,                  &
-       imin_tmol,imax_tmol,jmin_tmol,jmax_tmol,                                              &
-       imin_cmol,imax_cmol,jmin_cmol,jmax_cmol)
+  subroutine mixingLayerBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
     implicit none
 
-    integer, intent(in), optional :: imin_sponge,imax_sponge,jmin_sponge,jmax_sponge,        &
-         imin_tmol,imax_tmol,jmin_tmol,jmax_tmol,imin_cmol,imax_cmol,jmin_cmol,jmax_cmol
+    integer, intent(in), optional :: imin_sponge,imax_sponge,jmin_sponge,jmax_sponge
     integer :: i, bc, nbc, iunit
     integer, allocatable, dimension(:) :: grid,normDir,imin,imax,jmin,jmax,kmin,kmax
     character(len = 22), allocatable, dimension(:) :: name,type
 
     ! Number of BC
-    nbc = 10
-    if (imax_tmol > 1) nbc = nbc + 2
+    nbc = 11
 
     ! Allocate BC
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
@@ -473,41 +437,27 @@ contains
 
     ! BC 10
     bc = 10
-    name   (bc) = 'localizedIgnition'
-    type   (bc) = 'GAUSSIAN_IGNITION'
+    name   (bc) = 'targetRegion'
+    type   (bc) = 'COST_TARGET'
     normDir(bc) =  0
-    imin   (bc) =  imin_sponge
-    imax   (bc) =  imax_sponge
-    jmin   (bc) =  jmin_sponge
-    jmax   (bc) =  jmax_sponge
+    imin   (bc) =  1
+    imax   (bc) = -1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    if (imax_tmol > 1) then
-       ! BC 11
-       bc = 11
-       name   (bc) = 'targetRegion'
-       type   (bc) = 'COST_TARGET'
-       normDir(bc) =  0
-       imin   (bc) =  imin_tmol
-       imax   (bc) =  imax_tmol
-       jmin   (bc) =  jmin_tmol
-       jmax   (bc) =  jmax_tmol
-       kmin   (bc) =  1
-       kmax   (bc) = -1
-
-       ! BC 12
-       bc = 12
-       name   (bc) = 'controlRegion'
-       type   (bc) = 'ACTUATOR'
-       normDir(bc) =  0
-       imin   (bc) =  imin_cmol
-       imax   (bc) =  imax_cmol
-       jmin   (bc) =  jmin_cmol
-       jmax   (bc) =  jmax_cmol
-       kmin   (bc) =  1
-       kmax   (bc) = -1
-    end if
+    ! BC 11
+    bc = 11
+    name   (bc) = 'controlRegion'
+    type   (bc) = 'ACTUATOR'
+    normDir(bc) =  0
+    imin   (bc) =  1
+    imax   (bc) = -1
+    jmin   (bc) =  1
+    jmax   (bc) = -1
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
    ! Open the file
     iunit=11
