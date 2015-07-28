@@ -42,9 +42,9 @@ restart_control_iteration = 0
 actuation_amount_geometric_growth = 0.1 #0.5623413251903491
 
 # Optimization
-find_Optimal_Forcing = true
+find_Optimal_Forcing = false
 number_of_descents = 25
-initial_amplitude_of_descent=1.
+initial_amplitude_of_descent=0.25 #0.1
 control_algorithm = "STEEPEST_DESCENT"
 
 # Discretization scheme
@@ -71,9 +71,9 @@ maximum_temperature = 4.
 # Acoustic source
 number_of_acoustic_sources = 1
 acoustic_source01/amplitude =2.
-acoustic_source01/frequency = 4.77464829275686
-acoustic_source01/y = 0.4
-acoustic_source01/x = 0.5
+acoustic_source01/frequency =4.77
+acoustic_source01/y = 0.3
+acoustic_source01/x = 0.2
 acoustic_source01/radius = 0.1
 
 #Random Fluctuating Field
