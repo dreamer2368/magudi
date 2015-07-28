@@ -33,7 +33,6 @@ program mixing_layer
   print *, '!               - Cartesian grid                    !'
   print *, '!               - Target/initial solution           !'
   print *, '!               - Boundary conditions               !'
-  print *, '!               - Adjoint mollifiers                !'
   print *, '!    for a spatially evolving mixing layer          !'
   print *, '!                                                   !'
   print *, '! ================================================= !'
