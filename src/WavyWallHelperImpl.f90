@@ -236,8 +236,7 @@ gstar=xi2
 
 j=1
 do i=2,size(p),2
-gstar=gstar+(1._wp-xi2)*p(i-1)*shapeMollifier*&
-cos(2._wp*pi*10.*real(j)*xi1+p(i))
+gstar=gstar+(1._wp-xi2)*p(i-1)*shapeMollifier*cos(2._wp*pi*3*real(j)*xi1+p(i))
 j=j+1
 end do
 
@@ -274,13 +273,11 @@ dgdpVec=0._wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
 shapeMollifier=shapeMollifier/0.8_wp
 
-!dgstardpVec(1)=(1-xi2)*shapeMollifier*&
-!     cos(2._wp*pi*10._wp*xi1)*cos(2._wp*pi*15._wp*xi1+3._wp*pi/8._wp)*cos(2._wp*pi*5._wp*xi1)
 
 j=1
 do i=2,size(p),2
-dgstardpVec(i-1)=(1._wp-xi2)*shapeMollifier*cos(2._wp*pi*10.*real(j)*xi1+p(i))
-dgstardpVec(i)=-(1._wp-xi2)*p(i-1)*shapeMollifier*sin(2._wp*pi*10.*real(j)*xi1+p(i))
+dgstardpVec(i-1)=(1._wp-xi2)*shapeMollifier*cos(2._wp*pi*3._wp*real(j)*xi1+p(i))
+dgstardpVec(i)=-(1._wp-xi2)*p(i-1)*shapeMollifier*sin(2._wp*pi*3._wp*real(j)*xi1+p(i))
 j=j+1
 end do
 

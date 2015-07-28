@@ -55,7 +55,7 @@ subroutine setupWallActuator(this, region)
   end if
 
      this%controlIndex=0
-     this%numP=20
+     this%numP=30
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
      this%p(:)=0.00_wp 
@@ -69,15 +69,13 @@ subroutine setupWallActuator(this, region)
      seed_ = seed
      call random_seed(put = seed_)
      SAFE_DEALLOCATE(seed_)
-
      allocate(phases(this%numP/2))
      call random_number(phases)
      phases(:)=phases(:)*2._wp*pi 
  
      i=1
-     do j=2,size(this%p),2
-     CALL RANDOM_NUMBER(r)
-     this%po(j)=phases(i)
+     do j=1,size(this%p),2
+     this%po(j+1)=0._wp !phases(i) !2._wp * pi *real(i) * 0.1
      i=i+1
      end do
 
@@ -521,7 +519,10 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   character(len = STRING_LENGTH) :: message
   character(len = STRING_LENGTH) :: griditeration
   character(len = STRING_LENGTH) :: filename,outputPrefix
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
+
+  integer :: j,iostat,n
+  SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
+  SCALAR_TYPE::phase,amplitude,shiftedPhase
 
   select case (mode)
 
@@ -530,7 +531,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      !assume steepest descent 
 
      case (FORWARD)
-     
+
      do g = 1, size(region%grids)
         this%p(:)=this%po(:)-region%states(g)%actuationAmount*this%gradient(:)
         call updateWallCoordinates(this,region%grids(g))
@@ -556,6 +557,37 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      call region%saveData(QOI_METRICS,trim(filename))  
      region%outputOn = .false.
      this%controlIndex=this%controlIndex+1
+
+    call MPI_Comm_rank(region%comm, procRank, ierror) 
+
+    outputPrefix = getOption("output_prefix", PROJECT_NAME)
+
+     write(filename, '(2A)') trim(outputPrefix),".phases.amplitudes."&
+          //(adjustl(trim(griditeration)))
+     if (procRank == 0) then
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action='write',          &
+             status = 'unknown', iostat = iostat)
+     end if
+
+     j=1
+     do i = 2,this%numP,2
+     amplitude = this%p(i-1)
+     phase =this%p(i)
+     n=int(phase/(2._wp*pi))
+     shiftedPhase=phase-2._wp*pi*real(n)
+     if (procRank == 0)&
+          write(fileUnit, '(I4,2(1X,SP,' // SCALAR_FORMAT // '))')&
+              j,amplitude,shiftedPhase,phase  
+     j=j+1
+     end do
+  
+     if (procRank == 0) close(fileUnit)
+
+     if (getOption("find_Optimal_Forcing",.true.))then
+          this%gradient(:)=0._wp
+          this%sensitivity=0._wp
+          this%po(:)=this%p(:)
+     end if
 
   end select
 

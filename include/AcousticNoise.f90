@@ -9,12 +9,11 @@ module AcousticNoise_mod
 
   type, private :: t_AcousticNoiseInternal
      SCALAR_TYPE, pointer :: meanPressure(:,:) => null()
+     SCALAR_TYPE::t1,t2,sigma,normalize
   end type t_AcousticNoiseInternal
 
   type, extends(t_Functional), public :: t_AcousticNoise
-
      type(t_AcousticNoiseInternal), allocatable :: data_(:)
-
    contains
 
      procedure, pass :: setup => setupAcousticNoise
@@ -72,8 +71,8 @@ module AcousticNoise_mod
   interface
 
      subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags,                    &
-          solverOptions, grid, state, patch)
-
+          solverOptions, region, grid, state, patch)
+       use Region_mod, only : t_Region
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
@@ -85,6 +84,7 @@ module AcousticNoise_mod
        class(t_AcousticNoise) :: this
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_Region), intent(in) :: region
        class(t_Grid), intent(in) :: grid
        class(t_State), intent(in) :: state
        class(t_CostTargetPatch) :: patch

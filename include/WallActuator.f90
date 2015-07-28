@@ -11,7 +11,7 @@ module WallActuator_mod
  
      integer::numP
      integer::controlIndex 
-     real(SCALAR_KIND),allocatable,dimension(:)::p  !wall-shape parameterization
+     real(SCALAR_KIND),allocatable,dimension(:)::p,po  !wall-shape parameterization
      real(SCALAR_KIND),allocatable,dimension(:)::instantaneousGradient    
      real(SCALAR_KIND),allocatable,dimension(:)::gradient
      !real(SCALAR_KIND)::sensitivity

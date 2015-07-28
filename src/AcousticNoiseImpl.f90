@@ -25,6 +25,8 @@ subroutine setupAcousticNoise(this, region)
   ! <<< Local variables >>>
   integer :: i, j, ierror
   character(len = STRING_LENGTH) :: filename
+  SCALAR_TYPE :: endTime
+  integer, parameter :: wp = SCALAR_KIND
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
@@ -64,6 +66,17 @@ subroutine setupAcousticNoise(this, region)
      end if
   end if
 
+do i = 1, size(region%states)
+j = region%grids(i)%index
+!load necessary time dependent acoustic source stuff here (the \Omega_t(t))
+this%data_(j)%t1=getOption("cost_functional_timeHorizon/startTime",0._wp)
+endTime=region%getTimeStepSize()*real(getOption("number_of_timesteps", 1000))
+this%data_(j)%t2=getOption("cost_functional_timeHorizon/stopTime",endTime)
+this%data_(j)%sigma=getOption("cost_functional_MollifierStrength",40._wp)
+this%data_(j)%normalize=getOption("cost_functional_normalizeTimeMollifier",1._wp)
+assert(getOption("use_constant_CFL_mode")==.false.)
+end do
+
 end subroutine setupAcousticNoise
 
 subroutine cleanupAcousticNoise(this)
@@ -100,6 +113,9 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   use Region_mod, only : t_Region
   use AcousticNoise_mod, only : t_AcousticNoise
 
+  ! <<< Internal modules >>>
+  use InputHelper, only : getFreeUnit,getOption
+
   ! <<< Arguments >>>
   class(t_AcousticNoise) :: this
   class(t_Region), intent(in) :: region
@@ -111,6 +127,9 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
+
+  integer :: fileUnit, iostat, procRank
+  character(len = STRING_LENGTH) :: filename, message,outputPrefix
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -136,8 +155,13 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
      F = region%states(i)%pressure - this%data_(j)%meanPressure
+
      instantaneousFunctional = instantaneousFunctional +                                     &
-          region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
+          region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))*&
+              0.5_wp*(tanh(this%data_(j)%sigma*(region%states(j)%time-this%data_(j)%t1))-&
+              tanh(this%data_(j)%sigma*(region%states(j)%time-this%data_(j)%t2)))/&
+              this%data_(j)%normalize
+
      SAFE_DEALLOCATE(F)
 
   end do
@@ -153,12 +177,37 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
   this%cachedValue = instantaneousFunctional
 
+
+!  outputPrefix = getOption("output_prefix", PROJECT_NAME)
+!  call MPI_Comm_rank(region%comm, procRank, ierror)
+!
+!  write(filename, '(2A)') trim(outputPrefix), ".computeAcousticNoise.txt"
+!  if (procRank == 0) then
+!        open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='readwrite',      &
+!             position = 'append', iostat = iostat)
+!  end if
+!
+!  call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+!  if (iostat /= 0) then
+!     write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
+!     call gracefulExit(region%comm, message)
+!  end if
+!
+!  if (procRank == 0)&
+!          write(fileUnit, '(2(1X,SP,' // SCALAR_FORMAT // '))') region%states(1)%time,&
+!               0.5_wp*(tanh(this%data_(1)%sigma*(region%states(1)%time-this%data_(1)%t1))-&
+!               tanh(this%data_(1)%sigma*(region%states(1)%time-this%data_(1)%t2)))/&
+!               this%data_(1)%normalize
+!
+!  if (procRank == 0) close(fileUnit)
+
 end function computeAcousticNoise
 
 subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptions,          &
-     grid, state, patch)
+     region, grid, state, patch)
 
   ! <<< Derived types >>>
+  use Region_mod, only: t_Region
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
   use AcousticNoise_mod, only : t_AcousticNoise
@@ -166,12 +215,17 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use SimulationFlags_mod, only : t_SimulationFlags
 
+  ! <<< Internal modules >>>
+  use InputHelper, only : getFreeUnit,getOption
+  use MPI
+
   implicit none
 
   ! <<< Arguments >>>
   class(t_AcousticNoise) :: this
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
+  class(t_Region), intent(in) :: region
   class(t_Grid), intent(in) :: grid
   class(t_State), intent(in) :: state
   class(t_CostTargetPatch) :: patch
@@ -181,6 +235,13 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: meanPressure(:)
   SCALAR_TYPE :: F
+
+  integer :: fileUnit, iostat, procRank,ierror
+  character(len = STRING_LENGTH) :: filename, message,outputPrefix
+
+
+  !debugging
+  integer::firstProcMatch
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -202,7 +263,10 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
 
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
                 (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
-                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
+                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))*&
+               0.5_wp*(tanh(this%data_(grid%index)%sigma*(state%time-this%data_(grid%index)%t1))&
+               -tanh(this%data_(grid%index)%sigma*(state%time-this%data_(grid%index)%t2)))/&
+               this%data_(grid%index)%normalize
 
            patch%adjointForcing(patchIndex,nDimensions+2) = F
            patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
@@ -215,6 +279,25 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
   SAFE_DEALLOCATE(meanPressure)
+
+
+!  outputPrefix = getOption("output_prefix", PROJECT_NAME)
+!  call MPI_Comm_rank(region%comm, procRank, ierror)
+!
+!  write(filename, '(2A)') trim(outputPrefix),".computeAcousticNoiseAdjointForcing.txt"
+!  if (procRank == 8) then
+!       open(unit = getFreeUnit(fileUnit), file = trim(filename), action='readwrite',      &
+!             position = 'append', iostat = iostat)
+!  end if
+!
+!  if (procRank == 8)&
+!          write(fileUnit, '(2(1X,SP,' // SCALAR_FORMAT // '))')state%time,&
+!               0.5_wp*(tanh(this%data_(grid%index)%sigma*(state%time-this%data_(grid%index)%t1))&
+!               -tanh(this%data_(grid%index)%sigma*(state%time-this%data_(grid%index)%t2)))/&
+!               this%data_(grid%index)%normalize
+!
+!  if (procRank == 8) close(fileUnit)
+
 
 end subroutine computeAcousticNoiseAdjointForcing
 
