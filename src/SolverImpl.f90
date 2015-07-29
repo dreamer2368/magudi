@@ -994,10 +994,12 @@ subroutine checkGradientAccuracy(this, region)
      costFunctional = this%runForward(region, actuationAmount = actuationAmount)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
           costSensitivity
-     if (procRank == 0)                                                                      &
-          write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,       &
-          costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &
-          gradientError
+     if (procRank == 0) then
+        write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,         &
+             costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,   &
+             gradientError
+        flush(fileUnit)
+     end if
   end do
 
   if (procRank == 0) close(fileUnit)
