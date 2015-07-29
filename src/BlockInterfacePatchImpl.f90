@@ -194,7 +194,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
         else
            do i = 1, nDimensions
               interfaceCartesianViscousFluxes(:,:,i) = receivedData(:, nUnknowns +           &
-                   (i - 1) * (nUnknowns - 1) + 1 : 2 * nUnknowns + i * (nUnknowns - 1))
+                   (i - 1) * (nUnknowns - 1) + 1 : nUnknowns + i * (nUnknowns - 1))
            end do
         end if
      end if
