@@ -13,7 +13,7 @@ contains
     implicit none
 
     ! <<< Arguments >>>
-    real(SCALAR_KIND), intent(in) :: time, timeStart, timeDuration, amplitude, radius,       &
+    real(SCALAR_KIND), intent(in) :: time, timeStart, timeDuration, amplitude, radius(:),    &
          location(:), ratioOfSpecificHeats, heatRelease
     SCALAR_TYPE, intent(in) :: coordinates(:,:)
     integer, intent(in) :: iblank(:)
@@ -23,15 +23,18 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, nDimensions
     real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-    real(wp) :: r, power, timePortion, referenceTemperature, flameTemperature, gaussianFactor
+    real(wp) :: power, timePortion, referenceTemperature, flameTemperature,               &
+         gaussianFactor(3)
 
     nDimensions = size(coordinates,2)
     assert_key(nDimensions, (1, 2, 3))
     assert(size(location) >= nDimensions)
+    assert(size(radius) >= nDimensions)
     assert(size(coordinates,1) == size(ignitionSource))
 
     if (timeDuration > 0.0_wp) then
-       timePortion = exp( -0.5_wp * (time - timeStart)**2 / timeDuration**2) / timeDuration
+       timePortion = exp( -0.5_wp * (time - timeStart)**2 / timeDuration**2 ) /              &
+            timeDuration / sqrt(2.0_wp * pi)
     else
        timePortion = 1.0_wp
     end if
@@ -40,9 +43,10 @@ contains
 
     flameTemperature = referenceTemperature / (1.0_wp - heatRelease)
 
-    power = 0.5_wp * amplitude * heatRelease * flameTemperature  / sqrt(2.0_wp * pi)
+    power = 0.5_wp * amplitude * heatRelease * flameTemperature
 
-    gaussianFactor = 0.5_wp / radius**2
+    gaussianFactor = 0.0_wp
+    gaussianFactor(1:nDimensions) = 0.5_wp / radius(1:nDimensions)**2
 
     ignitionSource = 0.0_wp
 
@@ -50,9 +54,8 @@ contains
 
        if (iblank(i) == 0) cycle
 
-       r = real(sum((coordinates(i,:) - location(1:nDimensions)) ** 2), wp)
-
-       ignitionSource(i) = power * timePortion * exp(- gaussianFactor * r)
+       ignitionSource(i) = power * timePortion * exp(- sum(gaussianFactor(1:nDimensions) *   &
+            (coordinates(i,:) - location(1:nDimensions)) ** 2) )
 
     end do
 
@@ -93,13 +96,15 @@ subroutine setupIgnitionActuator(this, region)
   call getRequiredOption(trim(key) // "sensitivity_dependence",                              &
        this%sensitivityDependence, region%comm)
 
+  call getRequiredOption(trim(key) // "amplitude", this%amplitude, region%comm)
+  call getRequiredOption(trim(key) // "radius_x", this%radius(1), region%comm)
+  this%radius(2) =  getOption(trim(key) // "radius_y",0.0_wp)
+  this%radius(3) =  getOption(trim(key) // "radius_z",0.0_wp)
   this%location(1) =  getOption(trim(key) // "x",0.0_wp)
   this%location(2) =  getOption(trim(key) // "y",0.0_wp)
   this%location(3) =  getOption(trim(key) // "z",0.0_wp)
   this%timeStart = getOption(trim(key) // "time_start",0.0_wp)
   this%timeDuration = getOption(trim(key) // "time_duration",0.0_wp)
-  call getRequiredOption(trim(key) // "amplitude", this%amplitude, region%comm)
-  call getRequiredOption(trim(key) // "radius", this%radius, region%comm)
 
 end subroutine setupIgnitionActuator
 
@@ -141,7 +146,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
-  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius, location(3)
+  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius(3), location(3)
   SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:)
 
   assert(allocated(region%grids))
@@ -184,28 +189,41 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
      case ('AMPLITUDE')
         F(:,2) = ignitionSource / this%amplitude
 
-     case ('POSITION_1')
-
+     case ('POSITION_X')
         F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,1) - this%location(1)) / this%radius**2
+             (region%grids(i)%coordinates(:,1) - this%location(1)) / this%radius(1)**2
 
-     case ('POSITION_2')
-
+     case ('POSITION_Y')
         F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,2) - this%location(2)) / this%radius**2
+             (region%grids(i)%coordinates(:,2) - this%location(2)) / this%radius(2)**2
 
-     case ('POSITION_3')
-
+     case ('POSITION_Z')
         F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,3) - this%location(3)) / this%radius**2
+             (region%grids(i)%coordinates(:,3) - this%location(3)) / this%radius(3)**2
+
+     case ('RADIUS_X')
+        F(:,2) = ignitionSource *                                                            &
+             (region%grids(i)%coordinates(:,1) - this%location(1))**2 / this%radius(1)**3
+
+     case ('RADIUS_Y')
+        F(:,2) = ignitionSource *                                                            &
+             (region%grids(i)%coordinates(:,2) - this%location(2))**2 / this%radius(2)**3
+
+     case ('RADIUS_Z')
+        F(:,2) = ignitionSource *                                                            &
+             (region%grids(i)%coordinates(:,3) - this%location(3))**2 / this%radius(3)**3
 
      case ('INITIAL_TIME')
-
         F(:,2) = ignitionSource *                                                            &
              (region%states(i)%time - this%timeStart) / this%timeDuration**2
 
-     case default
+     case ('DURATION')
+        F(:,2) = - ignitionSource *                                                          &
+             (this%timeDuration + region%states(i)%time - this%timeStart) *                  &
+             (this%timeDuration - region%states(i)%time + this%timeStart) /                  &
+             this%timeDuration**3
 
+     case default
         F(:,2) = 1.0_wp
 
      end select
@@ -252,7 +270,7 @@ subroutine updateIgnitionActuatorForcing(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, m, n, nDimensions, nUnknowns, nSpecies, gridIndex, patchIndex
-  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius, location(3)
+  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius(3), location(3)
   SCALAR_TYPE, allocatable :: ignitionSource(:)
   class(t_Patch), pointer :: patch => null()
 
@@ -289,24 +307,44 @@ subroutine updateIgnitionActuatorForcing(this, region)
               amplitude = amplitude - region%states(n)%actuationAmount *                     &
                    region%states(n)%controlGradient
 
-           case ('POSITION_1')
+           case ('POSITION_X')
 
               location(1) = location(1) - region%states(n)%actuationAmount *                 &
                    region%states(n)%controlGradient
 
-           case ('POSITION_2')
+           case ('POSITION_Y')
 
               location(2) = location(2) - region%states(n)%actuationAmount *                 &
                    region%states(n)%controlGradient
 
-           case ('POSITION_3')
+           case ('POSITION_Z')
 
               location(3) = location(3) - region%states(n)%actuationAmount *                 &
+                   region%states(n)%controlGradient
+
+           case ('RADIUS_X')
+
+              radius(1) = radius(1) - region%states(n)%actuationAmount *                     &
+                   region%states(n)%controlGradient
+
+           case ('RADIUS_Y')
+
+              radius(2) = radius(2) - region%states(n)%actuationAmount *                     &
+                   region%states(n)%controlGradient
+
+           case ('RADIUS_Z')
+
+              radius(3) = radius(3) - region%states(n)%actuationAmount *                     &
                    region%states(n)%controlGradient
 
            case ('INITIAL_TIME')
 
               timeStart = timeStart - region%states(n)%actuationAmount *                     &
+                   region%states(n)%controlGradient
+
+           case ('DURATION')
+
+              timeDuration = timeDuration - region%states(n)%actuationAmount *               &
                    region%states(n)%controlGradient
 
            end select

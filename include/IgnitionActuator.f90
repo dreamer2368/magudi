@@ -10,7 +10,7 @@ module IgnitionActuator_mod
   type, extends(t_Controller), public :: t_IgnitionActuator
 
      character(len = STRING_LENGTH) :: sensitivityDependence
-     real(SCALAR_KIND) :: location(3), amplitude, radius, timeStart, timeDuration
+     real(SCALAR_KIND) :: location(3), amplitude, radius(3), timeStart, timeDuration
 
    contains
 
