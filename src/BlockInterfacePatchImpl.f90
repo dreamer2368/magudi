@@ -29,13 +29,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: key
-  integer :: nExchangedVariables, nDimensions, nUnknowns, procRank, ierror
-
-  nDimensions = grid%nDimensions
-  assert_key(nDimensions, (1, 2, 3))
-
-  nUnknowns = solverOptions%nUnknowns
-  assert(nUnknowns >= nDimensions + 2)
+  integer :: nExchangedVariables, procRank, ierror
 
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
@@ -44,11 +38,11 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
 
      assert(this%nPatchPoints > 0)
 
-     nExchangedVariables = nUnknowns
+     nExchangedVariables = solverOptions%nUnknowns
 
      if (simulationFlags%viscosityOn) then
-        allocate(this%viscousFluxes(this%nPatchPoints, nUnknowns - 1))
-        nExchangedVariables = nExchangedVariables + nDimensions * (nUnknowns - 1)
+        allocate(this%viscousFluxes(this%nPatchPoints, solverOptions%nUnknowns - 1))
+        nExchangedVariables = nExchangedVariables + solverOptions%nUnknowns - 1
      end if
 
      call MPI_Comm_rank(this%comm, procRank, ierror)
@@ -135,7 +129,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   integer :: i, j, k, l, nDimensions, nUnknowns, direction,                                  &
        incomingDirection, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: receivedData(:,:), interfaceConservedVariables(:,:),           &
-       interfaceAdjointVariables(:,:), interfaceCartesianViscousFluxes(:,:,:),               &
+       interfaceAdjointVariables(:,:), interfaceViscousFluxes(:,:),                          &
        localConservedVariables(:), localInterfaceConservedVariables(:), localRoeAverage(:),  &
        localMetricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),             &
        deltaIncomingJacobianOfInviscidFlux(:,:,:), deltaRoeAverage(:,:)
@@ -160,18 +154,15 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
 
      allocate(interfaceConservedVariables(this%nPatchPoints, nUnknowns))
      if (simulationFlags%viscosityOn)                                                        &
-          allocate(interfaceCartesianViscousFluxes(this%nPatchPoints,                        &
-          nUnknowns - 1, nDimensions))
+          allocate(interfaceViscousFluxes(this%nPatchPoints, nUnknowns - 1))
      if (mode == ADJOINT)                                                                    &
           allocate(interfaceAdjointVariables(this%nPatchPoints, nUnknowns))
 
      if (simulationFlags%viscosityOn) then
         if (mode == ADJOINT) then
-           allocate(receivedData(this%nPatchPoints,                                          &
-                2 * nUnknowns + nDimensions * (nUnknowns - 1)))
+           allocate(receivedData(this%nPatchPoints, 3 * nUnknowns - 1))
         else
-           allocate(receivedData(this%nPatchPoints,                                          &
-                nUnknowns + nDimensions * (nUnknowns - 1)))
+           allocate(receivedData(this%nPatchPoints, 2 * nUnknowns - 1))
         end if
      else
         if (mode == ADJOINT) then
@@ -187,15 +178,9 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
      if (mode == ADJOINT) interfaceAdjointVariables = receivedData(:,nUnknowns+1:2*nUnknowns)
      if (simulationFlags%viscosityOn) then
         if (mode == ADJOINT) then
-           do i = 1, nDimensions
-              interfaceCartesianViscousFluxes(:,:,i) = receivedData(:, 2 * nUnknowns +       &
-                   (i - 1) * (nUnknowns - 1) + 1 : 2 * nUnknowns + i * (nUnknowns - 1))
-           end do
+           interfaceViscousFluxes = receivedData(:,2*nUnknowns+1:)
         else
-           do i = 1, nDimensions
-              interfaceCartesianViscousFluxes(:,:,i) = receivedData(:, nUnknowns +           &
-                   (i - 1) * (nUnknowns - 1) + 1 : nUnknowns + i * (nUnknowns - 1))
-           end do
+           interfaceViscousFluxes = receivedData(:,nUnknowns+1:)
         end if
      end if
 
@@ -276,8 +261,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       state%rightHandSide(gridIndex,2:nUnknowns) +                           &
                       this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
                       (this%viscousFluxes(patchIndex,:) -                                    &
-                      matmul(interfaceCartesianViscousFluxes(patchIndex,:,:),                &
-                      localMetricsAlongNormalDirection))
+                      interfaceViscousFluxes(patchIndex,:))
               end if
 
            case (ADJOINT)
@@ -373,7 +357,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   SAFE_DEALLOCATE(localRoeAverage)
   SAFE_DEALLOCATE(localInterfaceConservedVariables)
   SAFE_DEALLOCATE(localConservedVariables)
-  SAFE_DEALLOCATE(interfaceCartesianViscousFluxes)
+  SAFE_DEALLOCATE(interfaceViscousFluxes)
   SAFE_DEALLOCATE(interfaceConservedVariables)
 
   call endTiming("addBlockInterfacePenalty")
@@ -463,7 +447,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   ! <<< Local variables >>>
   integer :: i, direction, nDimensions, nUnknowns, procRank, ierror
   SCALAR_TYPE, dimension(:,:), allocatable :: velocity, stressTensor, heatFlux,              &
-       dataToBeSent, metricsAlongNormalDirection
+       metricsAlongNormalDirection, dataToBeSent
   SCALAR_TYPE, allocatable :: viscousFluxes(:,:,:)
 
   if (this%comm == MPI_COMM_NULL) return
@@ -480,10 +464,9 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
 
   if (simulationFlags%viscosityOn) then
      if (mode == ADJOINT) then
-        allocate(dataToBeSent(this%nPatchPoints,                                             &
-             2 * nUnknowns + nDimensions * (nUnknowns - 1)))
+        allocate(dataToBeSent(this%nPatchPoints, 3 * nUnknowns - 1))
      else
-        allocate(dataToBeSent(this%nPatchPoints, nUnknowns + nDimensions * (nUnknowns - 1)))
+        allocate(dataToBeSent(this%nPatchPoints, 2 * nUnknowns - 1))
      end if
   else
      if (mode == ADJOINT) then
@@ -530,19 +513,13 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      end do
 
      if (mode == ADJOINT) then
-        do i = 1, nDimensions
-           dataToBeSent(:,2*nUnknowns+(i-1)*(nUnknowns-1)+1:2*nUnknowns+i*(nUnknowns-1)) =   &
-                viscousFluxes(:,2:nUnknowns,i)
-        end do
+        dataToBeSent(:,2*nUnknowns+1:) = this%viscousFluxes
      else
-        do i = 1, nDimensions
-           dataToBeSent(:,nUnknowns+(i-1)*(nUnknowns-1)+1:nUnknowns+i*(nUnknowns-1)) =       &
-                viscousFluxes(:,2:nUnknowns,i)
-        end do
+        dataToBeSent(:,nUnknowns+1:) = this%viscousFluxes
      end if
 
-     SAFE_DEALLOCATE(metricsAlongNormalDirection)
      SAFE_DEALLOCATE(viscousFluxes)
+     SAFE_DEALLOCATE(metricsAlongNormalDirection)
      SAFE_DEALLOCATE(heatFlux)
      SAFE_DEALLOCATE(stressTensor)
      SAFE_DEALLOCATE(velocity)
