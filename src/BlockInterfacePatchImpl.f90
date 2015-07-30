@@ -56,8 +56,9 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
   ! Inviscid penalty amount.
+  this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount", 1.0_wp)
   this%inviscidPenaltyAmount = getOption(trim(key) //                                        &
-       "inviscid_penalty_amount", 1.0_wp) !... default value => dual-consistent.
+       "inviscid_penalty_amount", this%inviscidPenaltyAmount)
   this%inviscidPenaltyAmount = sign(this%inviscidPenaltyAmount,                              &
        real(this%normalDirection, wp))
   this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                                  &
@@ -65,8 +66,9 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
 
   ! Viscous penalty amount.
   if (simulationFlags%viscosityOn) then
+     this%viscousPenaltyAmount = getOption("defaults/viscous_penalty_amount", 0.5_wp)
      this%viscousPenaltyAmount = getOption(trim(key) //                                      &
-          "viscous_penalty_amount", 0.5_wp)
+          "viscous_penalty_amount", this%viscousPenaltyAmount)
      this%viscousPenaltyAmount = sign(this%viscousPenaltyAmount,                             &
           real(this%normalDirection, wp))
      this%viscousPenaltyAmount = this%viscousPenaltyAmount /                                 &
@@ -281,17 +283,20 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                     call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
                          solverOptions%ratioOfSpecificHeats, incomingDirection,              &
-                         incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux)
+                         incomingJacobianOfInviscidFlux,                                     &
+                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  case (2)
                     call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
                          solverOptions%ratioOfSpecificHeats, incomingDirection,              &
-                         incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux)
+                         incomingJacobianOfInviscidFlux,                                     &
+                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  case (3)
                     call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
                          solverOptions%ratioOfSpecificHeats, incomingDirection,              &
-                         incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux)
+                         incomingJacobianOfInviscidFlux,                                     &
+                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  end select !... nDimensions
 
                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
@@ -300,12 +305,11 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       state%adjointVariables(gridIndex,:))
 
                  do l = 1, nUnknowns
-                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
+                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
                          this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *          &
-                         matmul(transpose(matmul(deltaIncomingJacobianOfInviscidFlux(l,:,:), &
-                         deltaRoeAverage)), localConservedVariables -                        &
-                         localInterfaceConservedVariables) *                                 &
-                         state%adjointVariables(gridIndex,l)
+                         sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
+                         localConservedVariables - localInterfaceConservedVariables) *       &
+                         state%adjointVariables(gridIndex,:))
                  end do
 
                  select case (nDimensions)
@@ -313,17 +317,20 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                     call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
                          solverOptions%ratioOfSpecificHeats, -incomingDirection,             &
-                         incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux)
+                         incomingJacobianOfInviscidFlux,                                     &
+                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  case (2)
                     call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
                          solverOptions%ratioOfSpecificHeats, -incomingDirection,             &
-                         incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux)
+                         incomingJacobianOfInviscidFlux,                                     &
+                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  case (3)
                     call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
                          solverOptions%ratioOfSpecificHeats, -incomingDirection,             &
-                         incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux)
+                         incomingJacobianOfInviscidFlux,                                     &
+                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  end select !... nDimensions
 
                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
@@ -332,12 +339,11 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       interfaceAdjointVariables(patchIndex,:))
 
                  do l = 1, nUnknowns
-                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
+                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
                          this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *          &
-                         matmul(transpose(matmul(deltaIncomingJacobianOfInviscidFlux(l,:,:), &
-                         deltaRoeAverage)), localConservedVariables -                        &
-                         localInterfaceConservedVariables) *                                 &
-                         interfaceAdjointVariables(patchIndex,:)
+                         sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
+                         localConservedVariables - localInterfaceConservedVariables) *       &
+                         interfaceAdjointVariables(patchIndex,:))
                  end do
 
               end if
