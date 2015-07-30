@@ -3,9 +3,9 @@ import numpy as np
 import plot3dnasa as p3d
 
 def ShapeMollifierFunction(xNormalized):
-	MollifierFunction = lambda x: np.where(np.logical_or(x < 0., x > 1.), 0., np.tanh(40. * (x - 0.3)) - np.tanh(40. * (x - 0.7)))
+	MollifierFunction = lambda x: 0.5*(np.tanh(40. * (x - 35./150.)) - np.tanh(40. * (x - 75./150.))) #np.where(np.logical_or(x < 0., x > 60), 0., np.tanh(40. * (x - 10)) - np.tanh(40. * (x - 50)))
 	Mollifier = MollifierFunction(xNormalized)
-	Mollifier /= 0.8 #np.trapz(Mollifier, xNormalized) # normalized to have unit area
+	#Mollifier /= 0.8 #np.trapz(Mollifier, xNormalized) # normalized to have unit area
 
 	return Mollifier
 
@@ -16,17 +16,12 @@ def wallProfile(xNormalized, amplitude, nModes):
 	wallHeight = np.zeros_like(xNormalized)
 	shapeMollifier = ShapeMollifierFunction(xNormalized)
 
-	#    controlParameters = rand(nModes)
-	#    phaseAngles = 2. * np.pi * rand(nModes)
-	#    waveNumbers = 2. * np.pi * np.arange(1, nModes + 1)
+	controlParameters = rand(nModes)
+	phaseAngles = 2. * np.pi * rand(nModes)
+	waveNumbers = 2. * np.pi * np.arange(1, nModes + 1)
 
-	phaseAngles = 0. #3.*np.pi/8.
-	waveNumbers = 2. * np.pi * 10. #*np.arange(1, nModes + 1)
-
-	#    for i in range(nModes):
-	#        wallHeight += amplitude * shapeMollifier * controlParameters[i] * np.cos(waveNumbers[i] * xNormalized + phaseAngles[i])
-
-	wallHeight += amplitude * shapeMollifier * np.cos(waveNumbers * xNormalized + phaseAngles)
+	for i in range(nModes):
+		wallHeight += amplitude * shapeMollifier * np.cos(waveNumbers[i] * xNormalized + phaseAngles[i])
 
 	return wallHeight
 
@@ -35,7 +30,7 @@ def grid(size,xMin,xMax,yMin,yMax):
 		x = np.linspace(xMin,xMax,size[0])
 		s = np.linspace(0., 1., size[1])
 		background_y=np.linspace(yMin,yMax,size[1])
-		wallHeight = wallProfile(np.linspace(0., 1., size[0]), 0.00,20)
+		wallHeight = wallProfile(np.linspace(0., 1., size[0]),0.0,30)
 	
 		for i in range(size[0]):
 			g.xyz[0][i,:,0,0] = x[i]
@@ -55,29 +50,29 @@ def grid(size,xMin,xMax,yMin,yMax):
 					#g.xyz[0][k,j,0,1] = xi2+((1-xi2)*0.1e-1)*(12*(1/10))*(tanh(40*(xi1-.2))-tanh(40*(xi1-.8)))*cos((2*np.pi*10)*xi1+3*np.p*(1/8))
 		return g
 
-def ambient_state(g, gamma=1.4):
-	s = p3d.Solution().copy_from(g).quiescent(gamma)
-	return s.fromprimitive(gamma)
 
+def ambient_state(g, gamma=1.4):
+     s = p3d.Solution().copy_from(g).quiescent(gamma)
+     return s.fromprimitive(gamma)
 
 def target_state(g, u1, u2, S,yCenter, gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     x = g.xyz[0][:,:,:,0]
     s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
-        1. + np.tanh(100. * (g.xyz[0][:,:,:,1]-yCenter) / \
-                     (1. + S * np.where(x > 0., x, np.zeros_like(x)))))
+        1. + np.tanh(2. * (g.xyz[0][:,:,:,1]-yCenter) / \
+                     (1. + S * np.where((x) > 0.,x, np.zeros_like(x)))))
     return s.fromprimitive(gamma)
 
 def initial_condition(g, u1, u2,S,yCenter, gamma=1.4):
-#    s = p3d.Solution().copy_from(g).quiescent(gamma)
-#    s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
-#        1. + np.tanh(100. * (g.xyz[0][:,:,:,1]-yCenter)))
-    s = p3d.Solution().copy_from(g).quiescent(gamma)
-    x = g.xyz[0][:,:,:,0]
-    s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
-        1. + np.tanh(100. * (g.xyz[0][:,:,:,1]-yCenter) / \
-                     (1. + S * np.where(x > 0., x, np.zeros_like(x)))))
-    return s.fromprimitive(gamma)
+#	s = p3d.Solution().copy_from(g).quiescent(gamma)
+#	x = g.xyz[0][:,:,:,0]
+#	s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
+#	1. + np.tanh(2. * (g.xyz[0][:,:,:,1]-yCenter) / \
+#			 (1. + S * np.where((x) > 0.,x, np.zeros_like(x)))))
+	s = p3d.Solution().copy_from(g).quiescent(gamma)
+	s.q[0][:,:,:,1] = u2 + 0.5 * (u1 - u2) * (
+	   1. + np.tanh(2. * (g.xyz[0][:,:,:,1]-yCenter)))
+	return s.fromprimitive(gamma)
 
 def target_mollifier(g,x_min,x_max,y_min,y_max):
     f = p3d.Function().copy_from(g)
@@ -111,35 +106,34 @@ def mean_pressure(s):
     return f
 
 def ambient_pressure(s):
-	f = p3d.Function().copy_from(s)
-	f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
-	return f
+     f = p3d.Function().copy_from(s)
+     f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
+     return f
+
 
 if __name__ == '__main__':
 
 		outputPrefix = 'ShearLayerWavyWall'
         
-		xMin = 0.
-		xMax = 2.5
-		yMin = 0.
-		yMax = 1.5
+		xMin = -25.
+		xMax = 100.
+		yMin = -6.
+		yMax = 54
 
-		g = grid([1001,601],xMin,xMax,yMin,yMax)
+		g = grid([900,430],xMin,xMax,yMin,yMax)
 		g.save(outputPrefix+'.xyz')
 	
-		yShearMax=0.25
-
-		initial_condition(g, u1=0.9, u2=0.2,S=2.5,yCenter=yShearMax).save(outputPrefix+'.ic.q')
-		target_state(g, u1=0.9, u2=0.2, S=2.5,yCenter=yShearMax).save(outputPrefix+'.target.q')
+		yShearMax=0.0
+		initial_condition(g, u1=1.1, u2=0.4,S=0.05,yCenter=yShearMax).save(outputPrefix+'.ic.q')
+		target_state(g, u1=1.1, u2=0.4, S=0.05,yCenter=yShearMax).save(outputPrefix+'.target.q')
 
 		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
 		ambient_pressure(p3d.fromfile(outputPrefix+'.ambient.q')).save(outputPrefix+'.ambient_pressure.f')
 
-
-		xMinTarget = 0.5
-		xMaxTarget = 2.0
-		yMinTarget = 0.5
-		yMaxTarget = 0.7
+		xMinTarget = 0.
+		xMaxTarget = 75.
+		yMinTarget = 20.
+		yMaxTarget = 30.
 		target_mollifier(g,xMinTarget,xMaxTarget,yMinTarget,yMaxTarget).save(outputPrefix+'.target_mollifier.f')
 
 		xMinControl =  xMin
@@ -150,10 +144,14 @@ if __name__ == '__main__':
 
 		#IMPLEMENTING THE BOUNDARY CONDITION FILE
 
+		spongeLeft=25.
+		spongeRight=25.
+		spongeTop=10.
+
 		#SPONGE INDICES
-		left_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMin+0.2))) + 1
-		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-0.5)) ) + 1
-		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-0.5))) + 1
+		left_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMin+spongeLeft))) + 1
+		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-spongeRight)) ) + 1
+		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-spongeTop))) + 1
 
 		#TARGET INDICES
 		left_target=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMinTarget)) ) + 1
@@ -169,10 +167,10 @@ if __name__ == '__main__':
 
 		#EXCITATION INDICES
 
-		xMinExcite =  0.0
-		xMaxExcite =  1.
-		yMinExcite =  0.
-		yMaxExcite =  1.
+		xMinExcite =  xMin
+		xMaxExcite =  xMax
+		yMinExcite =  yMin
+		yMaxExcite =  yMax
 
 		left_excite=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMinExcite)) ) + 1
 		right_excite=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMaxExcite))) + 1
