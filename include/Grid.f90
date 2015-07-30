@@ -26,7 +26,6 @@ module Grid_mod
   use StencilOperator_mod, only : t_StencilOperator
 
   implicit none
-  private
 
   type, public :: t_Grid
 

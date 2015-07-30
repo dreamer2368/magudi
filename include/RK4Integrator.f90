@@ -5,7 +5,6 @@ module RK4Integrator_mod
   use TimeIntegrator_mod, only : t_TimeIntegrator
 
   implicit none
-  private
 
   type, private :: t_RK4IntegratorInternal
      SCALAR_TYPE, allocatable :: buffer1(:,:), buffer2(:,:)

@@ -5,7 +5,6 @@ module FlameTemperature_mod
   use Functional_mod, only : t_Functional
 
   implicit none
-  private
 
   type, private :: t_FlameTemperatureInternal
      SCALAR_TYPE, pointer :: flameTemperature(:,:) => null()

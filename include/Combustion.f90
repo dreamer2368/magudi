@@ -3,7 +3,6 @@
 module Combustion_mod
 
   implicit none
-  private
 
   type, public :: t_Combustion
 

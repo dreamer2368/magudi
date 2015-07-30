@@ -5,7 +5,6 @@ module MappingFunction_factory
   use MappingFunction_mod, only : t_MappingFunction
 
   implicit none
-  private
 
   type, public :: t_MappingFunctionFactory
 

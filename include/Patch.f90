@@ -5,7 +5,6 @@ module Patch_mod
   use MPI, only : MPI_COMM_NULL, MPI_DATATYPE_NULL
 
   implicit none
-  private
 
   type, abstract, public :: t_Patch
 

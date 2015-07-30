@@ -5,7 +5,6 @@ module Functional_factory
   use Functional_mod, only : t_Functional
 
   implicit none
-  private
 
   type, public :: t_FunctionalFactory
 

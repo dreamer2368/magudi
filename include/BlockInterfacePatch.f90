@@ -5,7 +5,6 @@ module BlockInterfacePatch_mod
   use Patch_mod, only : t_Patch
 
   implicit none
-  private
 
   type, extends(t_Patch), public :: t_BlockInterfacePatch
 

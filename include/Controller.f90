@@ -3,7 +3,6 @@
 module Controller_mod
 
   implicit none
-  private
 
   type, abstract, public :: t_Controller
 

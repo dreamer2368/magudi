@@ -24,7 +24,6 @@ module State_mod
   use Combustion_mod, only : t_Combustion
 
   implicit none
-  private
 
   integer, parameter, private :: wp = SCALAR_KIND
 

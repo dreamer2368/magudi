@@ -3,7 +3,6 @@
 module Functional_mod
 
   implicit none
-  private
 
   type, abstract, public :: t_Functional
 

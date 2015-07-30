@@ -3,7 +3,6 @@
 module MappingFunction_mod
 
   implicit none
-  private
 
   type, abstract, public :: t_MappingFunction
 

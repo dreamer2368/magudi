@@ -3,7 +3,6 @@
 module SimulationFlags_mod
 
   implicit none
-  private
 
   type, public :: t_SimulationFlags
 

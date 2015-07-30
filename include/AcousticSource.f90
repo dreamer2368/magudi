@@ -3,7 +3,6 @@
 module AcousticSource_mod
 
   implicit none
-  private
 
   type, public :: t_AcousticSource
 

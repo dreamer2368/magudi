@@ -5,7 +5,6 @@ module AcousticNoise_mod
   use Functional_mod, only : t_Functional
 
   implicit none
-  private
 
   type, private :: t_AcousticNoiseInternal
      SCALAR_TYPE, pointer :: meanPressure(:,:) => null()

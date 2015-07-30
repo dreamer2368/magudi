@@ -5,7 +5,6 @@ module ThermalActuator_mod
   use Controller_mod, only : t_Controller
 
   implicit none
-  private
 
   type, extends(t_Controller), public :: t_ThermalActuator
 
