@@ -269,13 +269,13 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
      deltaRoeAverage(1,:) = deltaSqrtDensity * sqrtDensityR
      do i = 1, nDimensions
         deltaRoeAverage(i+1,:) = (sqrtDensityR * deltaConservedVariablesL_(i+1,:) +          &
-             deltaSqrtDensity * (conservedVariablesR(i+1) - roeAverage(i+1))) /              &
-             (sqrtDensityL + sqrtDensityR)
+             deltaSqrtDensity * (conservedVariablesR(i+1) - roeAverage(i+1) /                &
+             (sqrtDensityL + sqrtDensityR))) / (sqrtDensityL + sqrtDensityR)
      end do
 
      deltaRoeAverage(nDimensions+2,:) = (sqrtDensityR * deltaEnthalpy +                      &
-          deltaSqrtDensity * (enthalpyR - roeAverage(nDimensions+2))) /                      &
-          (sqrtDensityL + sqrtDensityR)
+          deltaSqrtDensity * (enthalpyR - roeAverage(nDimensions+2) /                        &
+          (sqrtDensityL + sqrtDensityR))) / (sqrtDensityL + sqrtDensityR)
 
   end if
 
