@@ -282,22 +282,30 @@ class MultiBlockCommon(object):
                    dtype.itemsize, 1)
         return a
 
-    def write_header(self, f, ncomponents = 0):
-        f.write(pack(self._format.reclength_dtype.str, 4))
+    def write_header(self, f, form, ncomponents=0):
+        if form == 'F':
+            f.write(pack(self._format.reclength_dtype.str, 4))
         f.write(pack(self._format.endianness + 'i', self.nblocks))
-        f.write(pack(self._format.reclength_dtype.str, 4))
+        if form == 'F':
+            f.write(pack(self._format.reclength_dtype.str, 4))
         if ncomponents == 0:
-            f.write(pack(self._format.reclength_dtype.str, 4 * self.size.size))
+            if form == 'F':
+                f.write(pack(self._format.reclength_dtype.str,
+                             4 * self.size.size))
             f.write(self.size.tostring())
-            f.write(pack(self._format.reclength_dtype.str, 4 * self.size.size))
+            if form == 'F':
+                f.write(pack(self._format.reclength_dtype.str,
+                             4 * self.size.size))
         else:
             s = np.empty([self.nblocks, 4], dtype=np.dtype(
                     np.int32).newbyteorder(self._format.endianness))
             s[:,:-1] = self.size
             s[:,-1] = ncomponents
-            f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
+            if form == 'F':
+                f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
             f.write(s.tostring())
-            f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
+            if form == 'F':
+                f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
 
     def copy_from(self, a):
         self.filename = ''
@@ -367,21 +375,23 @@ class Grid(MultiBlockCommon):
         self.filename = filename
         return self
 
-    def save(self, filename=''):
+    def save(self, filename='', form='F'):
         if not filename:
             filename = self.filename
         with open(filename, 'wb') as f:
-            self.write_header(f)
+            self.write_header(f, form)
             for i in range(self.nblocks):
                 s = 3 * self._format.real_dtype.itemsize
                 if self.has_iblank:
                     s += self._format.integer_dtype.itemsize
                 s *= np.prod(self.size[i,:])
-                f.write(pack(self._format.reclength_dtype.str, s))
-                f.write(self.xyz[i].tostring(order = 'F'))
+                if form == 'F':
+                    f.write(pack(self._format.reclength_dtype.str, s))
+                f.write(self.xyz[i].tostring(order='F'))
                 if self.has_iblank:
-                    f.write(self.iblank[i].tostring(order = 'F'))
-                f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(self.iblank[i].tostring(order='F'))
+                if form == 'F':
+                    f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
     def save_h5(self, filename=''):
@@ -505,11 +515,11 @@ class Solution(MultiBlockCommon):
         self.filename = filename
         return self
 
-    def save(self, filename=''):
+    def save(self, filename='', form='F'):
         if not filename:
             filename = self.filename
         with open(filename, 'wb') as f:
-            self.write_header(f)
+            self.write_header(f, form)
             if self._format.aux_header is not None:
                 aux_header = self._format.aux_header
             else:
@@ -517,14 +527,18 @@ class Solution(MultiBlockCommon):
             aux_header[-1] = self.time
             for i in range(self.nblocks):
                 s = 4 * self._format.real_dtype.itemsize
-                f.write(pack(self._format.reclength_dtype.str, s))
+                if form == 'F':
+                    f.write(pack(self._format.reclength_dtype.str, s))
                 f.write(aux_header.tostring())
-                f.write(pack(self._format.reclength_dtype.str, s))
+                if form == 'F':
+                    f.write(pack(self._format.reclength_dtype.str, s))
                 s = 5 * self._format.real_dtype.itemsize
                 s *= np.prod(self.size[i,:])
-                f.write(pack(self._format.reclength_dtype.str, s))
-                f.write(self.q[i].tostring(order = 'F'))
-                f.write(pack(self._format.reclength_dtype.str, s))
+                if form == 'F':
+                    f.write(pack(self._format.reclength_dtype.str, s))
+                f.write(self.q[i].tostring(order='F'))
+                if form == 'F':
+                    f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
     def save_h5(self, filename='', prefix='cv'):
@@ -667,17 +681,19 @@ class Function(MultiBlockCommon):
         self.filename = filename
         return self
 
-    def save(self, filename=''):
+    def save(self, filename='', form='F'):
         if not filename:
             filename = self.filename
         with open(filename, 'wb') as f:
-            self.write_header(f, self.ncomponents)
+            self.write_header(f, form, self.ncomponents)
             for i in range(self.nblocks):
                 s = self.ncomponents * self._format.real_dtype.itemsize
                 s *= np.prod(self.size[i,:])
-                f.write(pack(self._format.reclength_dtype.str, s))
-                f.write(self.f[i].tostring(order = 'F'))
-                f.write(pack(self._format.reclength_dtype.str, s))
+                if form == 'F':
+                    f.write(pack(self._format.reclength_dtype.str, s))
+                f.write(self.f[i].tostring(order='F'))
+                if form == 'F':
+                    f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
     def save_h5(self, filename='', prefix='f'):
