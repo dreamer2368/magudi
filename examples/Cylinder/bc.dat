@@ -4,4 +4,5 @@
   farField             SAT_FAR_FIELD            1      -1   -1   -1    1   -1    1   -1
   sponge               SPONGE                   1      -1  -57   -1    1   -1    1   -1
   targetRegion         COST_TARGET              1       0  326  347    1   -1    1   -1
-  controlRegion        ACTUATOR                 1       0    1   51  125  377    1   -1  
+  controlRegion.N      ACTUATOR                 1       0    1   86  355  397    1   -1
+  controlRegion.S      ACTUATOR                 1       0    1   86  105  147    1   -1  

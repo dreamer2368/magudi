@@ -31,7 +31,6 @@ def radial_coordinate(n, mapping_type='geom', r_buffer=800., dr_min=0.005):
 
 def grid(grid_size):
     r = radial_coordinate(grid_size[0], r_buffer=300.)
-    print r[-57]
     theta = np.linspace(-np.pi, np.pi, grid_size[1])
     g = p3d.Grid().set_size([r.size, theta.size, 1], True)
     r, theta = np.meshgrid(r, theta)
@@ -60,47 +59,27 @@ def target_mollifier(g):
 
 def control_mollifier(g):
     r_min =  0.5
-    r_max =  0.6
-    theta_min = np.pi / 4
-    theta_max = 3. * np.pi / 4
+    r_max =  1.
+    theta_min = np.pi / 2 - np.pi / 12
+    theta_max = np.pi / 2 + np.pi / 12
     r = np.sqrt(g.xyz[0][:,:,0,0] ** 2 + g.xyz[0][:,:,0,1] ** 2)
     theta = np.arctan2(g.xyz[0][:,:,0,1], g.xyz[0][:,:,0,0])
     f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
-    f.f[0][:,:,0,0] *= p3d.cubic_bspline_support(r, r_min, r_max)
-    f.f[0][:,:,0,0] *= (p3d.tanh_support(theta, +0.25 * np.pi,
-                                         +0.75 * np.pi, 15., 0.5) +
-                        p3d.tanh_support(theta, -0.75 * np.pi,
-                                         -0.25 * np.pi, 15., 0.5))
+    f.f[0][:,:,0,0] *= p3d.tanh_support(r, r_min - (r_max - r_min), r_max,
+                                        20., 0.2, False)
+    f.f[0][:,:,0,0] *= (p3d.tanh_support(theta, theta_min, theta_max,
+                                         10., 0.3) +
+                        p3d.tanh_support(theta, -theta_max, -theta_min,
+                                         10., 0.3))
     imin, imax = p3d.find_extents(r[:,0], r_min, r_max)
+    jmin, jmax = p3d.find_extents(theta[0,:], theta_min, theta_max)
     print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-        'controlRegion', 'ACTUATOR', 1, 0, imin, imax, 1, -1, 1, -1)
-    return f
-
-def antisound_control_mollifier(g):
-    x_min = 0.6
-    x_max = 1.8
-    y_min = -0.35
-    y_max = 0.35
-    r_min =  x_min
-    r_max =  np.sqrt(x_max ** 2 + y_max ** 2)
-    theta_min = np.arctan2(y_min, x_min)
-    theta_max = np.arctan2(y_max, x_min)
-    r = np.sqrt(g.xyz[0][:,:,0,0] ** 2 + g.xyz[0][:,:,0,1] ** 2)
-    theta = np.arctan2(g.xyz[0][:,:,0,1], g.xyz[0][:,:,0,0])
-    f = p3d.Function().copy_from(g)
-    f.f[0].fill(1.)
-    n = f.get_size(0)
-    f.f[0][:,:,0,0] *= p3d.tanh_support(g.xyz[0][:,:,0,0], x_min, x_max,
-                                        10., 0.3)
-    f.f[0][:,:,0,0] *= p3d.tanh_support(g.xyz[0][:,:,0,1], y_min, y_max,
-                                        10., 0.3)
-    imin, imax = p3d.find_extents(r[:,0], r_min, r_max)
-    jmin = np.argmin(np.abs(theta[0,:] - theta_min))
-    jmax = np.argmin(np.abs(theta[0,:] - theta_max)) + 2
+        'controlRegion.N', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)
+    jmin, jmax = p3d.find_extents(theta[0,:], -theta_max, -theta_min)
     print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-        'controlRegion', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)
+        'controlRegion.S', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)    
     return f
 
 def mean_pressure(s):
