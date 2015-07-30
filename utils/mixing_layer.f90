@@ -127,14 +127,14 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, n
+    integer :: i, j, k
     integer :: nx, ny, nz, nx_, ny_, nz_
     real(wp) :: xmini, xmaxi, ymini, ymaxi
     real(wp) :: xmino, xmaxo, ymino, ymaxo
     real(wp) :: zmin, zmax
-    real(wp) :: g0, b, c, sig, dy_min, dy_max, y1, y2
+    real(wp) :: b, c, sigma, min_meshsize, max_meshsize, y1, y2
     real(wp), allocatable, dimension(:) :: s, g
-    logical :: stretch_y
+    logical :: stretch_x, stretch_y
 
     ! Read in grid size and dimensions.
     nx = getOption("nx", 1025)
@@ -171,6 +171,7 @@ contains
     nz_ = region%grids(1)%localSize(3)
 
     ! Should we stretch the mesh?
+    stretch_x = getOption('stretch_x',.false.)
     stretch_y = getOption('stretch_y',.false.)
 
     ! Generate the grid.
@@ -178,7 +179,7 @@ contains
        do j = 1, ny_
           do i = 1, nx_
              ! Create X
-             region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1) =                          &
+             if (.not.stretch_x) region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1) =      &
                   (xmaxo - xmino)*real(i-1,wp)/real(nx-1) + xmino
 
              ! Create Y
@@ -193,58 +194,101 @@ contains
     end do
 
     ! Stretch the grid.
+    if (stretch_x) then
+       ! Parameters
+       sigma=0.07_wp
+       b=80.0_wp
+       c=0.58_wp
+
+       ! Create uniform spacing.
+       allocate(s(nx_))
+       do i = 1, nx_
+          s(i) = real(i-1,wp) / (nx_ - 1)
+       end do
+
+       ! Compute g(s).
+       allocate(g(nx_))
+       call mapping_function(s, b, c, sigma, g)
+
+       ! Find min/max spacing.
+       min_meshsize=huge(1.0_wp)
+       max_meshsize=-huge(1.0_wp)
+
+       ! Compute x.
+       do k = 1, nz_
+          do j = 1, ny_
+             do i = 1, nx_
+                ! Create x.
+                region%grids(1)%coordinates(i + nx_ * (j - 1 + ny_ * (k-1)), 1)              &
+                     = xmino + 0.5_wp * (xmaxo - xmino) * (1.0_wp + g(i))
+
+                ! Find min/max spacing.
+                if (i.gt.1) then
+                   y1 = region%grids(1)%coordinates(i + nx_ * (j - 1 + ny_ * (k - 1)), 1)
+                   y2 = region%grids(1)%coordinates(i - 1 + nx_ * (j - 1 + ny_ * (k - 1)), 1)
+                   min_meshsize=min(min_meshsize, abs(y2 - y1))
+                   max_meshsize=max(max_meshsize, abs(y2 - y1))
+                end if
+             end do
+          end do
+       end do
+       print *
+       print *, 'min/max x-spacing:',min_meshsize,max_meshsize
+       print *
+
+       deallocate(s, g)
+    end if
+
     if (stretch_y) then
        ! Parameters
-       sig=0.2_wp
+       sigma=0.2_wp
        b=20.0_wp
        c=0.62_wp
-       n=100
 
        ! Create uniform spacing.
        allocate(s(ny_))
        do j = 1, ny_
-          s(j) = real(j-1,wp)/real(ny-1,wp)
+          s(j) = real(j-1,wp) / (ny_ - 1)
        end do
 
        ! Compute g(s).
        allocate(g(ny_))
-       call g_of_s(1.0_wp,b,c,sig,n,g0)
-       do j=1,ny_
-          call g_of_s(s(j),b,c,sig,n,g(j))
-       end do
+       call mapping_function(s, b, c, sigma, g)
 
        ! Find min/max spacing.
-       dy_min=huge(1.0_wp)
-       dy_max=-huge(1.0_wp)
+       min_meshsize=huge(1.0_wp)
+       max_meshsize=-huge(1.0_wp)
 
        ! Compute y.
        do k = 1, nz_
           do j = 1, ny_
              do i = 1, nx_
                 ! Create y.
-                region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2)                         &
-                     = 0.5_wp*(ymaxo-ymino)*g(j)/g0
+                region%grids(1)%coordinates(i + nx_ * (j - 1 + ny_ * (k-1)), 2)              &
+                     = ymino + 0.5_wp * (ymaxo - ymino) * (1.0_wp + g(j))
 
                 ! Find min/max spacing.
                 if (j.gt.1) then
-                   y1 = region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2)
-                   y2 = region%grids(1)%coordinates(i+nx_*(j-2+ny_*(k-1)),2)
-                   dy_min=min(dy_min,abs(y2-y1))
-                   dy_max=max(dy_max,abs(y2-y1))
+                   y1 = region%grids(1)%coordinates(i + nx_ * (j - 1 + ny_ * (k - 1)), 2)
+                   y2 = region%grids(1)%coordinates(i + nx_ * (j - 2 + ny_ * (k - 1)), 2)
+                   min_meshsize=min(min_meshsize, abs(y2 - y1))
+                   max_meshsize=max(max_meshsize, abs(y2 - y1))
                 end if
              end do
           end do
        end do
        print *
-       print *, 'min/max y-spacing:',dy_min,dy_max
+       print *, 'min/max y-spacing:',min_meshsize,max_meshsize
        print *
+
+       deallocate(s, g)
     end if
 
     ! Find extents of outer region.
     j=1; k=1;
     i1=1
     do i = 1, nx
-       if (region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1) <= xmini) i1=i
+       if (region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),1) <= xmini) i1=i+1
     end do
     i2=nx
     do i = nx,1,-1
@@ -253,7 +297,7 @@ contains
     i=1; k=1;
     j1=1
     do j = 1, ny
-       if (region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2) <= ymini) j1=j
+       if (region%grids(1)%coordinates(i+nx_*(j-1+ny_*(k-1)),2) <= ymini) j1=j+1
     end do
     j2=ny
     do j = ny,1,-1
@@ -271,37 +315,26 @@ contains
   ! ======================== !
   ! Grid stretching function !
   ! ======================== !
-  Subroutine g_of_s(s,b,c,sig,n,g)
+  Subroutine mapping_function(s, b, c, sigma, g)
     implicit none
 
     integer, parameter :: wp = SCALAR_KIND
-    integer, intent(in) :: n
-    real(wp), intent(in) :: s,b,c,sig
-    real(wp), intent(out) :: g
+    real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
+    real(wp), intent(in) :: s(:), b, c, sigma
+    real(wp), intent(out) :: g(size(s))
 
-    integer :: i
-    real(wp) :: dx1,dx2,int1,int2
-    real(wp), dimension(n) :: x1,x2
-
-    ! Compute stretched grid for mixing layer.
-    do i=1,n
-       x1(i) = ((s-0.5_wp)/sig)*real(i-1,wp)/real(n-1,wp) - c/sig
-       x2(i) = ((s-0.5_wp)/sig)*real(i-1,wp)/real(n-1,wp) + c/sig
-    end do
-    dx1=x1(2)-x1(1)
-    dx2=x2(2)-x2(1)
-
-    int1=0.0_wp
-    int2=0.0_wp
-    do i=1,n
-       int1 = int1 + erf(x1(i))*dx1
-       int2 = int2 + erf(x2(i))*dx2
-    end do
-
-    g = (s-0.5_wp)*(1.0_wp+2.0_wp*b)+b*sig*(int1-int2)
+    g = ((s - 0.5_wp) * (1.0_wp + 2.0_wp * b) - b * sigma *                                  &
+         (exp(- ((s - 0.5_wp + c) / sigma) ** 2) / sqrt(pi) +                                &
+         ((s - 0.5_wp + c) / sigma) * erf((s - 0.5_wp + c) / sigma) -                        &
+         exp(- ((s - 0.5_wp - c) / sigma) ** 2) / sqrt(pi) -                                 &
+         ((s - 0.5_wp - c) / sigma) * erf((s - 0.5_wp - c) / sigma))) /                      &
+         (0.5_wp + b - b * sigma * (exp(- ((0.5_wp + c) / sigma) ** 2) /                     &
+         sqrt(pi) + ((0.5_wp + c) / sigma) * erf((0.5_wp + c) / sigma) -                     &
+         exp(- ((0.5_wp - c) / sigma) ** 2) / sqrt(pi) - ((0.5_wp - c) / sigma) *            &
+         erf((0.5_wp - c) / sigma)))
 
     return
-  end subroutine g_of_s
+  end subroutine mapping_function
 
 
   ! =================== !
@@ -509,6 +542,7 @@ contains
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
     real(wp) :: ratioOfSpecificHeats, upperVelocity, lowerVelocity,                          &
          density, velocity, temperature, Z, fuel, oxidizer, YF0, YO0, Z0
+    real(wp), parameter :: growthRate = 0.1_wp
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -543,7 +577,8 @@ contains
     do i = 1, grid%nGridPoints
 
        ! Mixture fraction
-       Z = 0.5_wp * Z0 * ( 1.0_wp - erf(grid%coordinates(i,2)) )
+       Z = 0.5_wp * Z0 * ( 1.0_wp - erf(grid%coordinates(i,2) /                              &
+            (1.0_wp + growthRate*max(0.0_wp, grid%coordinates(i,1)))) )
 
        ! Components
        fuel = YF0 * Z
@@ -559,7 +594,8 @@ contains
        ! Velocity
        velocity = lowerVelocity +                                                          &
             0.5_wp * (upperVelocity - lowerVelocity) * (1.0_wp + tanh(2.0_wp *             &
-            grid%coordinates(i,2)))
+            grid%coordinates(i,2) /                                                        &
+            (1.0_wp + growthRate*max(0.0_wp, grid%coordinates(i,1)))))
 
        ! Temperature
        temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
