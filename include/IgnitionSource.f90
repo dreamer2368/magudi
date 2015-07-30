@@ -7,7 +7,7 @@ module IgnitionSource_mod
 
   type, public :: t_IgnitionSource
 
-     real(SCALAR_KIND) :: location(3), amplitude, radius(3), timeStart, timeDuration
+     real(SCALAR_KIND) :: location(3), amplitude, radius, timeStart, timeDuration
 
      SCALAR_TYPE, allocatable :: strength(:)
 
