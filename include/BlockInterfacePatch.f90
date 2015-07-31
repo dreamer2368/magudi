@@ -11,7 +11,7 @@ module BlockInterfacePatch_mod
      real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
      SCALAR_TYPE, allocatable :: conservedVariablesL(:,:), conservedVariablesR(:,:),         &
           adjointVariablesL(:,:), adjointVariablesR(:,:),                                    &
-          viscousFluxesL(:,:), viscousFluxesR(:,:)
+          cartesianViscousFluxesL(:,:,:), viscousFluxesL(:,:), viscousFluxesR(:,:)
      SCALAR_TYPE, allocatable :: sendBuffer(:,:), receiveBuffer(:,:)
 
    contains
@@ -110,8 +110,9 @@ module BlockInterfacePatch_mod
 
   interface
 
-     subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, state)
+     subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid, state)
 
+       use Grid_mod, only : t_Grid
        use State_mod, only : t_State
        use SolverOptions_mod, only : t_SolverOptions
        use SimulationFlags_mod, only : t_SimulationFlags
@@ -122,6 +123,7 @@ module BlockInterfacePatch_mod
        integer, intent(in) :: mode
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_Grid), intent(in) :: grid
        class(t_State), intent(in) :: state
 
      end subroutine collectInterfaceData

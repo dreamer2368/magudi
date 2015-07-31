@@ -1273,7 +1273,7 @@ subroutine computeRhs(this, mode)
            select type (patch)
            class is (t_BlockInterfacePatch)
               call patch%collectInterfaceData(mode, this%simulationFlags,                    &
-                   this%solverOptions, this%states(j))
+                   this%solverOptions, this%grids(j), this%states(j))
            end select
         end do
      end do

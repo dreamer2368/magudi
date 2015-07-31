@@ -53,6 +53,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
      end if
 
      if (simulationFlags%viscosityOn) then
+        allocate(this%cartesianViscousFluxesL(this%nPatchPoints, nUnknowns, nDimensions))
         allocate(this%viscousFluxesL(this%nPatchPoints, nUnknowns))
         allocate(this%viscousFluxesR(this%nPatchPoints, nUnknowns))
      end if
@@ -111,6 +112,7 @@ subroutine cleanupBlockInterfacePatch(this)
   SAFE_DEALLOCATE(this%conservedVariablesR)
   SAFE_DEALLOCATE(this%adjointVariablesL)
   SAFE_DEALLOCATE(this%adjointVariablesR)
+  SAFE_DEALLOCATE(this%cartesianViscousFluxesL)
   SAFE_DEALLOCATE(this%viscousFluxesL)
   SAFE_DEALLOCATE(this%viscousFluxesR)
   SAFE_DEALLOCATE(this%sendBuffer)
@@ -449,19 +451,20 @@ function verifyBlockInterfacePatchUsage(this, patchDescriptor, gridSize, normalD
 
 end function verifyBlockInterfacePatchUsage
 
-subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, state)
+subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid, state)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
   use State_mod, only : t_State
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
   ! <<< Enumerations >>>
-  use Region_enum, only : ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT
 
   implicit none
 
@@ -470,15 +473,24 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, stat
   integer, intent(in) :: mode
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
+  class(t_Grid), intent(in) :: grid
   class(t_State), intent(in) :: state
 
   ! <<< Local variables >>>
-  integer :: nUnknowns
-  SCALAR_TYPE, dimension(:,:), allocatable :: dataToBeSent
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions, nUnknowns, direction
+  SCALAR_TYPE, dimension(:,:), allocatable :: metricsAlongNormalDirection, dataToBeSent
 
   if (this%comm == MPI_COMM_NULL) return
 
+  nDimensions = grid%nDimensions
+  assert_key(nDimensions, (1, 2, 3))
+
+  direction = abs(this%normalDirection)
+  assert(direction >= 1 .and. direction <= nDimensions)
+
   nUnknowns = solverOptions%nUnknowns
+  assert(nUnknowns >= nDimensions + 2)
 
   assert(this%nPatchPoints > 0)
 
@@ -491,7 +503,24 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, stat
      return
   end if
 
+  if (mode == FORWARD .and. simulationFlags%viscosityOn) then
+
+     allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
+     call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
+          metricsAlongNormalDirection)
+
+     this%viscousFluxesL = 0.0_wp
+     do j = 1, nDimensions
+        do i = 2, nUnknowns
+           this%viscousFluxesL(:,i) = this%viscousFluxesL(:,i) +                             &
+                this%cartesianViscousFluxesL(:,i,j) * metricsAlongNormalDirection(:,j)
+        end do
+     end do
+
+  end if
+
   allocate(dataToBeSent(this%nPatchPoints, 2 * nUnknowns))
+
   dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
   if (mode == ADJOINT) then
      dataToBeSent(:,nUnknowns+1:) = this%adjointVariablesL
@@ -500,6 +529,8 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, stat
   end if
 
   call this%gatherData(dataToBeSent, this%sendBuffer)
+
+  SAFE_DEALLOCATE(metricsAlongNormalDirection)
   SAFE_DEALLOCATE(dataToBeSent)
 
 end subroutine collectInterfaceData

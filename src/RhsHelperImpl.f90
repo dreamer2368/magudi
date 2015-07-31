@@ -147,35 +147,26 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
 
-  ! Send viscous fluxes to far-field patches.
+  ! Send viscous fluxes to patches that will use it.
   if (simulationFlags%viscosityOn .and. allocated(patchFactories)) then
      do i = 1, size(patchFactories)
         call patchFactories(i)%connect(patch)
         if (.not. associated(patch)) cycle
         if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
+
         select type (patch)
         class is (t_FarFieldPatch)
            call patch%collect(fluxes2, patch%viscousFluxes)
+        class is (t_BlockInterfacePatch)
+           call patch%collect(fluxes2, patch%cartesianViscousFluxesL)
         end select
+
      end do
   end if
 
   ! Transform fluxes from Cartesian to contravariant form: `fluxes1` has the Cartesian form of
   ! total fluxes... upon return, `fluxes2` has the contravariant form.
   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
-
-  ! Send viscous fluxes to block interface patches.
-  if (simulationFlags%viscosityOn .and. allocated(patchFactories)) then
-     do i = 1, size(patchFactories)
-        call patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
-        select type (patch)
-        class is (t_BlockInterfacePatch)
-           call patch%collect(fluxes2(:,:,abs(patch%normalDirection)), patch%viscousFluxesL)
-        end select
-     end do
-  end if
 
   SAFE_DEALLOCATE(fluxes1) !... no longer needed.
 
