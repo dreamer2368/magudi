@@ -1251,6 +1251,40 @@ subroutine computeRhs(this, mode)
 
   call startTiming("computeRhs")
 
+  ! Exchange data at block interfaces.
+  if (allocated(this%patchFactories)) then
+     do i = 1, size(this%patchFactories)
+        call this%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(this%states)
+           if (patch%gridIndex /= this%grids(j)%index) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              call patch%collectInterfaceData(mode, this%simulationFlags,                    &
+                   this%solverOptions, this%states(j))
+           end select
+        end do
+     end do
+  end if
+
+  call exchangeInterfaceData(this, mode)
+
+  ! Disperse received data at block interfaces.
+  if (allocated(this%patchFactories)) then
+     do i = 1, size(this%patchFactories)
+        call this%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(this%states)
+           if (patch%gridIndex /= this%grids(j)%index) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              call patch%disperseInterfaceData(mode, this%simulationFlags,                   &
+                   this%solverOptions)
+           end select
+        end do
+     end do
+  end if
+
   ! Semi-discrete right-hand-side operator.
   do i = 1, size(this%states)
      select case (mode)
@@ -1270,23 +1304,6 @@ subroutine computeRhs(this, mode)
                 this%grids(i)%jacobian(:,1)
      end do
   end do
-
-  ! Exchange data at block interfaces.
-  if (allocated(this%patchFactories)) then
-     do i = 1, size(this%patchFactories)
-        call this%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        do j = 1, size(this%states)
-           if (patch%gridIndex /= this%grids(j)%index) cycle
-           select type (patch)
-           class is (t_BlockInterfacePatch)
-              call patch%collectInterfaceData(mode, this%simulationFlags,                    &
-                   this%solverOptions, this%grids(j), this%states(j))
-           end select
-        end do
-     end do
-  end if
-  call exchangeInterfaceData(this, mode)
 
   ! Add patch penalties.
   if (allocated(this%patchFactories)) then

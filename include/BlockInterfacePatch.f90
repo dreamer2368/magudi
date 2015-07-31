@@ -9,7 +9,9 @@ module BlockInterfacePatch_mod
   type, extends(t_Patch), public :: t_BlockInterfacePatch
 
      real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
-     SCALAR_TYPE, allocatable :: viscousFluxes(:,:)
+     SCALAR_TYPE, allocatable :: conservedVariablesL(:,:), conservedVariablesR(:,:),         &
+          adjointVariablesL(:,:), adjointVariablesR(:,:),                                    &
+          viscousFluxesL(:,:), viscousFluxesR(:,:)
      SCALAR_TYPE, allocatable :: sendBuffer(:,:), receiveBuffer(:,:)
 
    contains
@@ -19,6 +21,7 @@ module BlockInterfacePatch_mod
      procedure, pass :: verifyUsage => verifyBlockInterfacePatchUsage
      procedure, pass :: updateRhs => addBlockInterfacePenalty
      procedure, pass :: collectInterfaceData
+     procedure, pass :: disperseInterfaceData
      procedure, pass :: reshapeReceivedData
 
   end type t_BlockInterfacePatch
@@ -55,28 +58,6 @@ module BlockInterfacePatch_mod
        class(t_BlockInterfacePatch) :: this
 
      end subroutine cleanupBlockInterfacePatch
-
-  end interface
-
-  interface
-
-     subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid, state)
-
-       use Grid_mod, only : t_Grid
-       use State_mod, only : t_State
-       use SolverOptions_mod, only : t_SolverOptions
-       use SimulationFlags_mod, only : t_SimulationFlags
-
-       import :: t_BlockInterfacePatch
-
-       class(t_BlockInterfacePatch) :: this
-       integer, intent(in) :: mode
-       type(t_SimulationFlags), intent(in) :: simulationFlags
-       type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid), intent(in) :: grid
-       class(t_State), intent(in) :: state
-
-     end subroutine collectInterfaceData
 
   end interface
 
@@ -124,6 +105,44 @@ module BlockInterfacePatch_mod
        class(t_State) :: state
 
      end subroutine addBlockInterfacePenalty
+
+  end interface
+
+  interface
+
+     subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, state)
+
+       use State_mod, only : t_State
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_BlockInterfacePatch
+
+       class(t_BlockInterfacePatch) :: this
+       integer, intent(in) :: mode
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+       class(t_State), intent(in) :: state
+
+     end subroutine collectInterfaceData
+
+  end interface
+
+  interface
+
+     subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
+
+       use SolverOptions_mod, only : t_SolverOptions
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_BlockInterfacePatch
+
+       class(t_BlockInterfacePatch) :: this
+       integer, intent(in) :: mode
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       type(t_SolverOptions), intent(in) :: solverOptions
+
+     end subroutine disperseInterfaceData
 
   end interface
 
