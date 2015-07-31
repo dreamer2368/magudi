@@ -296,7 +296,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       this%adjointVariablesL(patchIndex,:) -                                 &
                       this%adjointVariablesR(patchIndex,:))
-                 
+
               else
 
                  select case (nDimensions)
@@ -535,9 +535,9 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
 
   assert(this%nPatchPoints > 0)
 
-  nExchangedVariables = solverOptions%nUnknowns
+  nExchangedVariables = nUnknowns
   if (simulationFlags%viscosityOn .or. .not. simulationFlags%predictionOnly)                 &
-       nExchangedVariables = nExchangedVariables + solverOptions%nUnknowns
+       nExchangedVariables = nExchangedVariables + nUnknowns
 
   allocate(receivedData(this%nPatchPoints, nExchangedVariables))
 

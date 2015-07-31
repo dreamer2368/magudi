@@ -1234,7 +1234,7 @@ subroutine computeRhs(this, mode)
   use Region_enum, only : FORWARD, ADJOINT
 
   ! <<< Internal modules >>>
-  use RhsHelper, only : computeRhsForward, computeRhsAdjoint
+  use RhsHelper, only : computeRhsForward, computeRhsAdjoint, addInterfaceAdjointPenalty
   use InterfaceHelper, only : exchangeInterfaceData
   use MPITimingsHelper, only : startTiming, endTiming
 
@@ -1250,6 +1250,18 @@ subroutine computeRhs(this, mode)
   class(t_Patch), pointer :: patch => null()
 
   call startTiming("computeRhs")
+
+  ! Semi-discrete right-hand-side operator.
+  do i = 1, size(this%states)
+     select case (mode)
+     case (FORWARD)
+        call computeRhsForward(this%simulationFlags, this%solverOptions,                     &
+             this%grids(i), this%states(i), this%patchFactories)
+     case (ADJOINT)
+        call computeRhsAdjoint(this%simulationFlags, this%solverOptions,                     &
+             this%grids(i), this%states(i), this%patchFactories)
+     end select
+  end do
 
   ! Exchange data at block interfaces.
   if (allocated(this%patchFactories)) then
@@ -1285,17 +1297,13 @@ subroutine computeRhs(this, mode)
      end do
   end if
 
-  ! Semi-discrete right-hand-side operator.
-  do i = 1, size(this%states)
-     select case (mode)
-     case (FORWARD)
-        call computeRhsForward(this%simulationFlags, this%solverOptions,                     &
+  ! Viscous adjoint penalties at block interfaces.
+  if (mode == ADJOINT .and. this%simulationFlags%viscosityOn) then
+     do i = 1, size(this%states)
+        call addInterfaceAdjointPenalty(this%simulationFlags, this%solverOptions,            &
              this%grids(i), this%states(i), this%patchFactories)
-     case (ADJOINT)
-        call computeRhsAdjoint(this%simulationFlags, this%solverOptions,                     &
-             this%grids(i), this%states(i), this%patchFactories)
-     end select
-  end do
+     end do
+  end if
 
   ! Multiply by Jacobian.
   do i = 1, size(this%states)
