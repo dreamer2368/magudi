@@ -28,7 +28,7 @@ program shear_layer
   call MPI_Init(ierror)
 
   ! Parse options from the input file.
-  filename = "shear_layer.inp"
+  filename = PROJECT_NAME // ".inp"
   call parseInputFile(filename)
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
@@ -138,14 +138,14 @@ contains
 
        if (generateTargetState_) then
 
-       velocity = lowerFluidVelocity +                                                       &
-            0.5_wp * velocityDifference * (1.0_wp +                                          &
-            tanh(2.0_wp * real(grid%coordinates(i,2), wp) / (1.0_wp +                        &
-            slopeOfVorticityThickness * max(0.0_wp, real(grid%coordinates(i,1), wp)))))
-       temperature = (lowerFluidTemperature * (upperFluidVelocity - velocity) +              &
-            upperFluidTemperature * (velocity - lowerFluidVelocity)) /                       &
-            (upperFluidVelocity - lowerFluidVelocity) +                                      &
-            0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity)
+          velocity = lowerFluidVelocity +                                                    &
+               0.5_wp * velocityDifference * (1.0_wp +                                       &
+               tanh(2.0_wp * real(grid%coordinates(i,2), wp) / (1.0_wp +                     &
+               slopeOfVorticityThickness * max(0.0_wp, real(grid%coordinates(i,1), wp)))))
+          temperature = (lowerFluidTemperature * (upperFluidVelocity - velocity) +           &
+               upperFluidTemperature * (velocity - lowerFluidVelocity)) /                    &
+               (upperFluidVelocity - lowerFluidVelocity) +                                   &
+               0.5_wp * (upperFluidVelocity - velocity) * (velocity - lowerFluidVelocity)
 
           state%targetState(i,1) = 1.0_wp / ((ratioOfSpecificHeats - 1.0_wp) * temperature)
           state%targetState(i,2) = state%targetState(i,1) * velocity

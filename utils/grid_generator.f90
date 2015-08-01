@@ -33,7 +33,7 @@ program grid_generator
   call MPI_Init(ierror)
 
   ! Parse options from the input file.
-  filename = "grid_generator.inp"
+  filename = PROJECT_NAME // ".inp"
   call parseInputFile(filename)
 
   nBlocks = getOption("number_of_blocks", 1)

@@ -370,7 +370,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                  end do
 
                  if (simulationFlags%viscosityOn) then
-                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -    &
+                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
                          this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *           &
                          matmul(transpose(localViscousFluxJacobian),                         &
                          this%adjointVariablesL(patchIndex,:) +                              &
