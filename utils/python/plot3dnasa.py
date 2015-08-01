@@ -771,32 +771,32 @@ def cartesian_grid(filename, block_index=0):
 
 def cubic_bspline_support(x, x_min, x_max, strict=True):
     from scipy.signal import cubic
-    if x_min >= x.max() or x_max <= x.min():
+    if x.max() < x_min or x.min() > x_max:
         return np.zeros_like(x)
-    if not strict:
-        return cubic(4. * (x - x_min) / (x_max - x_min) - 2.)
-    imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
-    imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
-    return cubic(4. * (x - x[imin]) / (x[imax] - x[imin]) - 2.)
+    if strict:
+        imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
+        imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
+        return cubic_bspline_support(x, x[imin], x[imax], False)
+    return np.where(np.logical_or(x < x_min, x > x_max), np.zeros_like(x),
+                    cubic(4. * (x - x_min) / (x_max - x_min) - 2.))
 
 def tanh_support(x, x_min, x_max, sigma, xi, strict=True):
-    if x_min >= x.max() or x_max <= x.min():
+    if x.max() < x_min or x.min() > x_max:
         return np.zeros_like(x)
+    if strict:
+        imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
+        imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
+        return tanh_support(x, x[imin], x[imax], sigma, xi, False)
     f = lambda x: \
         np.tanh(sigma * (x + 1. - 0.5 * xi)) - \
-        np.tanh(sigma * (x - 1. + 0.5 * xi))    
-    if not strict:
-        y = f(2. * (x - x_min) / (x_max - x_min) - 1.)
-        return y - y.min()
-    imin = np.unravel_index(np.argmin(np.abs(x - x_min)), x.shape)
-    imax = np.unravel_index(np.argmin(np.abs(x - x_max)), x.shape)
-    y = f(2. * (x - x[imin]) / (x[imax] - x[imin]) - 1.)
-    return y - y.min()
+        np.tanh(sigma * (x - 1. + 0.5 * xi))
+    return np.where(np.logical_or(x < x_min, x > x_max), np.zeros_like(x),
+                    f(2. * (x - x_min) / (x_max - x_min) - 1.) - f(-1))
 
 def find_extents(x, x_min, x_max):
     try:
-        return max(1, np.where(x >= x_min)[0][0]), \
-            min(len(x), np.where(x <= x_max)[0][-1] + 2)
+        return max(1, np.where(x >= x_min)[0][0] + 1), \
+            min(len(x), np.where(x <= x_max)[0][-1] + 1)
     except IndexError:
         return None, None
 
