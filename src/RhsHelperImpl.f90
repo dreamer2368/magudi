@@ -488,7 +488,7 @@ subroutine addInterfaceAdjointPenalty(simulationFlags, solverOptions,           
         assert(direction >= 1 .and. direction <= nDimensions)
 
         select type (patch)
-           class is (t_BlockInterfacePatch)
+        class is (t_BlockInterfacePatch)
 
            do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
               do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -564,10 +564,10 @@ subroutine addInterfaceAdjointPenalty(simulationFlags, solverOptions,           
           state%velocity(:,i) * temp2(:,nDimensions+1)
   end do
 
-  state%rightHandSide(:,2:nUnknowns) = state%rightHandSide(:,2:nUnknowns) - temp2
-  state%rightHandSide(:,1) = state%rightHandSide(:,1) +                                      &
+  state%rightHandSide(:,2:nUnknowns) = state%rightHandSide(:,2:nUnknowns) + temp2
+  state%rightHandSide(:,1) = state%rightHandSide(:,1) -                                      &
        state%specificVolume(:,1) * state%conservedVariables(:,nDimensions+2) *               &
-       temp2(:,nDimensions+1) + sum(state%velocity * temp2(:,1:nDimensions), dim = 2)
+       temp2(:,nDimensions+1) - sum(state%velocity * temp2(:,1:nDimensions), dim = 2)
 
   SAFE_DEALLOCATE(temp2)
   SAFE_DEALLOCATE(temp1)
