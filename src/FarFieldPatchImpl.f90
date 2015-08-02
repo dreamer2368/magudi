@@ -120,8 +120,9 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nUnknowns, direction,                                     &
        incomingDirection, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: localTargetState(:), metricsAlongNormalDirection(:),           &
-       incomingJacobianOfInviscidFlux(:,:)
+  SCALAR_TYPE, allocatable :: localTargetState(:), localConservedVariables(:),               &
+       localMetricsAlongNormalDirection(:), localVelocity(:), localStressTensor(:),          &
+       localHeatFlux(:), incomingJacobianOfInviscidFlux(:,:), localViscousFluxJacobian(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -147,8 +148,16 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
   end if
 
   allocate(localTargetState(nUnknowns))
-  allocate(metricsAlongNormalDirection(nDimensions))
+  allocate(localMetricsAlongNormalDirection(nDimensions))
   allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
+
+  if (mode == ADJOINT .and. simulationFlags%viscosityOn) then
+     allocate(localConservedVariables(nUnknowns))
+     allocate(localVelocity(nDimensions))
+     allocate(localStressTensor(nDimensions ** 2))
+     allocate(localHeatFlux(nDimensions))
+     allocate(localViscousFluxJacobian(nUnknowns, nUnknowns))
+  end if
 
   do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
      do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -162,23 +171,53 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                 (k - 1 - this%offset(3)))
 
            localTargetState = state%targetState(gridIndex,:)
-           metricsAlongNormalDirection =                                                     &
+           localMetricsAlongNormalDirection =                                                &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
            select case (nDimensions)
            case (1)
               call computeIncomingJacobianOfInviscidFlux1D(localTargetState,                 &
-                   metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
+                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
                    incomingDirection, incomingJacobianOfInviscidFlux)
            case (2)
               call computeIncomingJacobianOfInviscidFlux2D(localTargetState,                 &
-                   metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
+                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
                    incomingDirection, incomingJacobianOfInviscidFlux)
            case (3)
               call computeIncomingJacobianOfInviscidFlux3D(localTargetState,                 &
-                   metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
+                   localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,     &
                    incomingDirection, incomingJacobianOfInviscidFlux)
            end select !... nDimensions
+
+           if (mode == ADJOINT .and. simulationFlags%viscosityOn) then
+
+              localConservedVariables = state%conservedVariables(gridIndex,:)
+              localVelocity = state%velocity(gridIndex,:)
+              localStressTensor = state%stressTensor(gridIndex,:)
+              localHeatFlux = state%heatFlux(gridIndex,:)
+
+              select case (nDimensions)
+              case (1)
+                 call computeFirstPartialViscousJacobian1D(localConservedVariables,          &
+                      localMetricsAlongNormalDirection, localStressTensor, localHeatFlux,    &
+                      solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,    &
+                      localViscousFluxJacobian, state%specificVolume(gridIndex,1),           &
+                      localVelocity, state%temperature(gridIndex,1))
+              case (2)
+                 call computeFirstPartialViscousJacobian2D(localConservedVariables,          &
+                      localMetricsAlongNormalDirection, localStressTensor, localHeatFlux,    &
+                      solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,    &
+                      localViscousFluxJacobian, state%specificVolume(gridIndex,1),           &
+                      localVelocity, state%temperature(gridIndex,1))
+              case (3)
+                 call computeFirstPartialViscousJacobian3D(localConservedVariables,          &
+                      localMetricsAlongNormalDirection, localStressTensor, localHeatFlux,    &
+                      solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,    &
+                      localViscousFluxJacobian, state%specificVolume(gridIndex,1),           &
+                      localVelocity, state%temperature(gridIndex,1))
+              end select !... nDimensions
+
+           end if
 
            select case (mode)
 
@@ -193,7 +232,7 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +     &
                    this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *                 &
                    matmul(this%viscousFluxes(patchIndex,:,:) -                               &
-                   this%targetViscousFluxes(patchIndex,:,:), metricsAlongNormalDirection)
+                   this%targetViscousFluxes(patchIndex,:,:), localMetricsAlongNormalDirection)
 
            case (ADJOINT)
 
@@ -209,14 +248,26 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                       state%adjointVariables(gridIndex,:))
               end if
 
+              if (simulationFlags%viscosityOn) then
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                      this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
+                      matmul(transpose(localViscousFluxJacobian),                            &
+                      state%adjointVariables(gridIndex,:))
+              end if
+
            end select !... mode
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
   end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
 
+  SAFE_DEALLOCATE(localViscousFluxJacobian)
+  SAFE_DEALLOCATE(localHeatFlux)
+  SAFE_DEALLOCATE(localStressTensor)
+  SAFE_DEALLOCATE(localVelocity)
   SAFE_DEALLOCATE(incomingJacobianOfInviscidFlux)
-  SAFE_DEALLOCATE(metricsAlongNormalDirection)
+  SAFE_DEALLOCATE(localMetricsAlongNormalDirection)
+  SAFE_DEALLOCATE(localConservedVariables)
   SAFE_DEALLOCATE(localTargetState)
 
   call endTiming("addFarFieldPenalty")

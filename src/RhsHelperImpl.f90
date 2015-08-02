@@ -82,6 +82,169 @@ contains
 
   end subroutine addDissipation
 
+  subroutine addFarFieldAdjointPenalty(simulationFlags, solverOptions,                       &
+       grid, state, patchFactories)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+    use State_mod, only : t_State
+    use Patch_mod, only : t_Patch
+    use Patch_factory, only : t_PatchFactory
+    use SolverOptions_mod, only : t_SolverOptions
+    use SimulationFlags_mod, only : t_SimulationFlags
+    use FarFieldPatch_mod, only : t_FarFieldPatch
+
+    ! <<< Internal modules >>>
+    use CNSHelper
+    use Patch_factory, only : queryPatchTypeExists
+
+    implicit none
+
+    ! <<< Arguments >>>
+    type(t_SimulationFlags), intent(in) :: simulationFlags
+    type(t_SolverOptions), intent(in) :: solverOptions
+    class(t_Grid), intent(in) :: grid
+    class(t_State) :: state
+    type(t_PatchFactory), allocatable :: patchFactories(:)
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    logical :: farFieldPatchesExist
+    integer :: i, j, k, l, iPatchFactory, nDimensions, nUnknowns,                            &
+         direction, gridIndex, patchIndex, ierror
+    SCALAR_TYPE, allocatable :: localConservedVariables(:), localVelocity(:),                &
+         localMetricsAlongDirection1(:), localMetricsAlongDirection2(:),                     &
+         localViscousFluxJacobian(:,:), temp1(:,:,:), temp2(:,:)
+    class(t_Patch), pointer :: patch => null()
+
+    farFieldPatchesExist = queryPatchTypeExists(patchFactories,                              &
+         'SAT_FAR_FIELD', grid%index)
+    call MPI_Allreduce(MPI_IN_PLACE, farFieldPatchesExist, 1, MPI_LOGICAL,                   &
+         MPI_LOR, grid%comm, ierror) !... reduce across grid-level processes.
+    if (.not. farFieldPatchesExist) return
+
+    nDimensions = grid%nDimensions
+    assert_key(nDimensions, (1, 2, 3))
+
+    nUnknowns = solverOptions%nUnknowns
+    assert(nUnknowns >= nDimensions + 2)
+
+    allocate(localConservedVariables(nUnknowns))
+    allocate(localVelocity(nDimensions))
+    allocate(localMetricsAlongDirection1(nDimensions))
+    allocate(localMetricsAlongDirection2(nDimensions))
+    allocate(localViscousFluxJacobian(nUnknowns - 1, nUnknowns - 1))
+    allocate(temp1(grid%nGridPoints, nUnknowns - 1, nDimensions))
+    allocate(temp2(grid%nGridPoints, nUnknowns - 1))
+
+    temp1 = 0.0_wp
+
+    if (allocated(patchFactories)) then
+       do iPatchFactory = 1, size(patchFactories)
+          call patchFactories(iPatchFactory)%connect(patch)
+          if (.not. associated(patch)) cycle
+          if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
+
+          assert(all(grid%offset == patch%gridOffset))
+          assert(all(grid%localSize == patch%gridLocalSize))
+
+          direction = abs(patch%normalDirection)
+          assert(direction >= 1 .and. direction <= nDimensions)
+
+          select type (patch)
+             class is (t_FarFieldPatch)
+
+             do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+                do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+                   do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                      gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *         &
+                           (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *           &
+                           (k - 1 - patch%gridOffset(3)))
+                      if (grid%iblank(gridIndex) == 0) cycle
+                      patchIndex = i - patch%offset(1) + patch%localSize(1) *                &
+                           (j - 1 - patch%offset(2) + patch%localSize(2) *                   &
+                           (k - 1 - patch%offset(3)))
+
+                      localConservedVariables = state%conservedVariables(gridIndex,:)
+                      localVelocity = state%velocity(gridIndex,:)
+                      localMetricsAlongDirection1 = grid%metrics(gridIndex,                  &
+                           1 + nDimensions * (direction - 1) : nDimensions * direction)
+
+                      do l = 1, nDimensions
+
+                         localMetricsAlongDirection2 =                                       &
+                              grid%metrics(gridIndex,1+nDimensions*(l-1):nDimensions*l)
+
+                         select case (nDimensions)
+                         case (1)
+                            call computeSecondPartialViscousJacobian1D(localVelocity,        &
+                                 state%dynamicViscosity(gridIndex,1),                        &
+                                 state%secondCoefficientOfViscosity(gridIndex,1),            &
+                                 state%thermalDiffusivity(gridIndex,1),                      &
+                                 grid%jacobian(gridIndex,1), localMetricsAlongDirection1(1), &
+                                 localViscousFluxJacobian)
+                         case (2)
+                            call computeSecondPartialViscousJacobian2D(localVelocity,        &
+                                 state%dynamicViscosity(gridIndex,1),                        &
+                                 state%secondCoefficientOfViscosity(gridIndex,1),            &
+                                 state%thermalDiffusivity(gridIndex,1),                      &
+                                 grid%jacobian(gridIndex,1), localMetricsAlongDirection1,    &
+                                 localMetricsAlongDirection2, localViscousFluxJacobian)
+                         case (3)
+                            call computeSecondPartialViscousJacobian3D(localVelocity,        &
+                                 state%dynamicViscosity(gridIndex,1),                        &
+                                 state%secondCoefficientOfViscosity(gridIndex,1),            &
+                                 state%thermalDiffusivity(gridIndex,1),                      &
+                                 grid%jacobian(gridIndex,1), localMetricsAlongDirection1,    &
+                                 localMetricsAlongDirection2, localViscousFluxJacobian)
+                         end select !... nDimensions
+
+                         temp1(gridIndex,:,l) = temp1(gridIndex,:,l) -                       &
+                              patch%viscousPenaltyAmount *                                   &
+                              matmul(transpose(localViscousFluxJacobian),                    &
+                              state%adjointVariables(gridIndex,2:nUnknowns))
+
+                      end do !... l = 1, nDimensions
+
+                   end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+             end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+
+          end select !... type (patch)
+
+       end do !... iPatchFactory = 1, size(patchFactories)
+    end if !... allocated(patchFactories)
+
+    do i = 1, nDimensions
+       call grid%adjointFirstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
+    end do
+    temp2 = sum(temp1, dim = 3)
+
+    temp2(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                            &
+         state%specificVolume(:,1) * temp2(:,nDimensions+1)
+    do i = 1, nDimensions
+       temp2(:,i) = state%specificVolume(:,1) * temp2(:,i) -                                 &
+            state%velocity(:,i) * temp2(:,nDimensions+1)
+    end do
+
+    state%rightHandSide(:,2:nUnknowns) = state%rightHandSide(:,2:nUnknowns) + temp2
+    state%rightHandSide(:,1) = state%rightHandSide(:,1) -                                    &
+         state%specificVolume(:,1) * state%conservedVariables(:,nDimensions+2) *             &
+         temp2(:,nDimensions+1) - sum(state%velocity * temp2(:,1:nDimensions), dim = 2)
+
+    SAFE_DEALLOCATE(temp2)
+    SAFE_DEALLOCATE(temp1)
+    SAFE_DEALLOCATE(localViscousFluxJacobian)
+    SAFE_DEALLOCATE(localMetricsAlongDirection2)
+    SAFE_DEALLOCATE(localMetricsAlongDirection1)
+    SAFE_DEALLOCATE(localVelocity)
+    SAFE_DEALLOCATE(localConservedVariables)
+
+  end subroutine addFarFieldAdjointPenalty
+
 end module RhsHelperImpl
 
 subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchFactories)
@@ -203,7 +366,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
   use Region_enum, only : ADJOINT
 
   ! <<< Private members >>>
-  use RhsHelperImpl, only : addDissipation
+  use RhsHelperImpl, only : addDissipation, addFarFieldAdjointPenalty
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -410,6 +573,11 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
   ! Add dissipation if required.
   if (simulationFlags%dissipationOn)                                                         &
        call addDissipation(ADJOINT, simulationFlags, solverOptions, grid, state)
+
+  ! Viscous penalties on far-field patches.
+  if (simulationFlags%viscosityOn)                                                           &
+       call addFarFieldAdjointPenalty(simulationFlags, solverOptions,                        &
+       grid, state, patchFactories)
 
   call endTiming("computeRhsAdjoint")
 
