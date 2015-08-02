@@ -106,8 +106,8 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
 
   timeRampFactor = 1.0_wp
   if (this%useTimeRamp)                                                                      &
-       timeRampFactor = this%rampFunction((region%states(1)%time - this%onsetTime) /         &
-       this%duration, this%rampWidthInverse, this%rampOffset)
+       timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
+       this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
 
   do i = 1, size(region%grids)
 
@@ -171,8 +171,8 @@ subroutine updateThermalActuatorForcing(this, region)
 
   timeRampFactor = 1.0_wp
   if (this%useTimeRamp)                                                                      &
-       timeRampFactor = this%rampFunction((region%states(1)%time - this%onsetTime) /         &
-       this%duration, this%rampWidthInverse, this%rampOffset)
+       timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
+       this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
