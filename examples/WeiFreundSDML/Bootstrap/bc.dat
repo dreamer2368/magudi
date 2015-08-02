@@ -1,11 +1,11 @@
 # Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
 # ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
   inflow               SAT_FAR_FIELD            1       1    1    1    1   -1    1   -1
-  inflowSponge         SPONGE                   1       1    1  186    1   -1    1   -1
+  inflowSponge         SPONGE                   1       1    1  185    1   -1    1   -1
   outflow              SAT_FAR_FIELD            1      -1   -1   -1    1   -1    1   -1
-  outflowSponge        SPONGE                   1      -1 -186   -1    1   -1    1   -1
+  outflowSponge        SPONGE                   1      -1 -185   -1    1   -1    1   -1
   farfield.S           SAT_FAR_FIELD            1       2    1   -1    1    1    1   -1
-  sponge.S             SPONGE                   1       2    1   -1    1   20    1   -1
+  sponge.S             SPONGE                   1       2    1   -1    1   18    1   -1
   farfield.N           SAT_FAR_FIELD            1      -2    1   -1   -1   -1    1   -1
-  sponge.N             SPONGE                   1      -2    1   -1  -20   -1    1   -1
+  sponge.N             SPONGE                   1      -2    1   -1  -18   -1    1   -1
   excitationSupport    SOLENOIDAL_EXCITATION    1       0   69  186  248  393    1   -1
