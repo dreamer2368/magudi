@@ -161,12 +161,18 @@ subroutine updateThermalActuatorForcing(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions
+  real(SCALAR_KIND) :: timeRampFactor
   class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
+
+  timeRampFactor = 1.0_wp
+  if (this%useTimeRamp)                                                                      &
+       timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
+       this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
@@ -187,6 +193,7 @@ subroutine updateThermalActuatorForcing(this, region)
            patch%controlForcing(:,1:nDimensions+1) = 0.0_wp
            patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
                 patch%gradientBuffer(:,1,patch%iGradientBuffer)
+           patch%controlForcing = timeRampFactor * patch%controlForcing
 
            if (patch%iGradientBuffer == 1)                                                   &
                 patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
