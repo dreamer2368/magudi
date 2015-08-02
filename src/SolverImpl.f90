@@ -299,15 +299,13 @@ contains
 
     case (ADJOINT) !... initialize adjoint variables.
 
-       if (.not. region%simulationFlags%predictionOnly) then
-          filename = getOption("adjoint_initial_condition_file", "")
-          if (len_trim(filename) == 0) then
-             do i = 1, size(region%states)
-                region%states(i)%adjointVariables = 0.0_wp
-             end do
-          else
-             call region%loadData(QOI_ADJOINT_STATE, filename)
-          end if
+       filename = getOption("adjoint_initial_condition_file", "")
+       if (len_trim(filename) == 0) then
+          do i = 1, size(region%states)
+             region%states(i)%adjointVariables = 0.0_wp
+          end do
+       else
+          call region%loadData(QOI_ADJOINT_STATE, filename)
        end if
 
        if (allocated(region%patchFactories) .and.                                            &
