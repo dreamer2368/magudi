@@ -19,7 +19,7 @@ subroutine setupMomentumActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, gradientBufferSize
+  integer :: i, nDimensions, nActuatorComponents, gradientBufferSize
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
@@ -28,9 +28,15 @@ subroutine setupMomentumActuator(this, region)
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
   gradientBufferSize = getOption("gradient_buffer_size", 1)
 
-  this%direction = getOption("actuator_momentum_component", 1)
+  this%direction = getOption("actuator_momentum_component", 0)
+
+  this%nActuatorComponents = 1
+  if (this%direction == 0) this%nActuatorComponents = nDimensions
 
   if (allocated(region%patchFactories)) then
      do i = 1, size(region%patchFactories)
@@ -41,7 +47,8 @@ subroutine setupMomentumActuator(this, region)
            if (patch%nPatchPoints <= 0) cycle
 
            SAFE_DEALLOCATE(patch%gradientBuffer)
-           allocate(patch%gradientBuffer(patch%nPatchPoints, 1, gradientBufferSize))
+           allocate(patch%gradientBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
+                gradientBufferSize))
            patch%gradientBuffer = 0.0_wp
 
         end select
@@ -84,7 +91,7 @@ function computeMomentumActuatorSensitivity(this, region) result(instantaneousSe
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, ierror
+  integer :: i, j, nDimensions, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
 
   assert(allocated(region%grids))
@@ -98,6 +105,12 @@ function computeMomentumActuatorSensitivity(this, region) result(instantaneousSe
      nDimensions = region%grids(i)%nDimensions
      assert_key(nDimensions, (1, 2, 3))
 
+#ifdef DEBUG
+     if (this%direction /= 0) then
+        assert(this%direction >= 1 .and. this%direction <= nDimensions)
+     end if
+#endif
+
      assert(region%grids(i)%nGridPoints > 0)
      assert(allocated(region%grids(i)%controlMollifier))
      assert(size(region%grids(i)%controlMollifier, 1) == region%grids(i)%nGridPoints)
@@ -106,11 +119,21 @@ function computeMomentumActuatorSensitivity(this, region) result(instantaneousSe
      assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
 
-     allocate(F(region%grids(i)%nGridPoints, 1))
-     F(:,1) = region%states(i)%adjointVariables(:,this%direction+1) *                        &
-          region%grids(i)%controlMollifier(:,1)
+     allocate(F(region%grids(i)%nGridPoints, this%nActuatorComponents))
+
+     if (this%direction == 0) then
+        do j = 1, nDimensions
+           F(:,j) = region%states(i)%adjointVariables(:,j+1) *                               &
+                region%grids(i)%controlMollifier(:,1)
+        end do
+     else
+        F(:,1) = region%states(i)%adjointVariables(:,this%direction+1) *                     &
+             region%grids(i)%controlMollifier(:,1)
+     end if
+
      instantaneousSensitivity = instantaneousSensitivity +                                   &
           region%grids(i)%computeInnerProduct(F, F)
+
      SAFE_DEALLOCATE(F)
 
   end do
@@ -169,8 +192,14 @@ subroutine updateMomentumActuatorForcing(this, region)
                 call patch%loadGradient()
 
            patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
-           patch%controlForcing(:,this%direction+1) = - region%states(j)%actuationAmount *   &
-                patch%gradientBuffer(:,1,patch%iGradientBuffer)
+           if (this%direction == 0) then
+              patch%controlForcing(:,2:nDimensions+1) = - region%states(j)%actuationAmount * &
+                   patch%gradientBuffer(:,:,patch%iGradientBuffer)
+           else
+              patch%controlForcing(:,this%direction+1) =                                     &
+                   - region%states(j)%actuationAmount *                                      &
+                   patch%gradientBuffer(:,1,patch%iGradientBuffer)
+           end if
 
            if (patch%iGradientBuffer == 1)                                                   &
                 patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
@@ -197,7 +226,7 @@ subroutine updateMomentumActuatorGradient(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions
+  integer :: i, j, k, nDimensions
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: F(:,:)
 
@@ -219,9 +248,18 @@ subroutine updateMomentumActuatorGradient(this, region)
            assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
 
            allocate(F(patch%nPatchPoints, 2))
-           call patch%collect(region%states(j)%adjointVariables(:,this%direction+1), F(:,1))
-           call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,2))
-           patch%gradientBuffer(:,1,patch%iGradientBuffer) = product(F, dim = 2)
+
+           call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,1))
+           do k = 1, nDimensions
+              if (this%direction == 0 .or. k == this%direction)                              &
+                   call patch%collect(region%states(j)%adjointVariables(:,k+1), F(:,2))
+              if (this%direction /= 0 .and. k == this%direction) then
+                 patch%gradientBuffer(:,1,patch%iGradientBuffer) = product(F, dim = 2)
+              else
+                 patch%gradientBuffer(:,k,patch%iGradientBuffer) = product(F, dim = 2)
+              end if
+           end do
+
            SAFE_DEALLOCATE(F)
 
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3)) then

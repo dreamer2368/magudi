@@ -8,7 +8,7 @@ module MomentumActuator_mod
 
   type, extends(t_Controller), public :: t_MomentumActuator
 
-     integer :: direction
+     integer :: direction, nActuatorComponents
 
    contains
 
