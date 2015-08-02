@@ -586,8 +586,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
        abs(region%states(1)%actuationAmount) > 0.0_wp) then
      controller%onsetTime = startTime
-     controller%duration = controller%onsetTime + this%nTimesteps *                          &
-          region%solverOptions%timeStepSize
+     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
      call controller%hookBeforeTimemarch(region, FORWARD)
   end if
 
@@ -756,8 +755,7 @@ function runAdjoint(this, region) result(costSensitivity)
   ! Load the initial condition.
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
   controller%onsetTime = region%states(1)%time
-  controller%duration = controller%onsetTime + this%nTimesteps *                             &
-       region%solverOptions%timeStepSize
+  controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
   if (region%simulationFlags%steadyStateSimulation) then
