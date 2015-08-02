@@ -445,7 +445,7 @@ PURE_FUNCTION thermalActuatorRampFunction(t, sigma, xi) result(timeRampFactor)
   if (t <= 0.0_wp .or. t >= 1.0_wp) then
      timeRampFactor = 0.0_wp
   else
-     timeRampFactor = tanh(sigma * (t + xi)) - tanh(sigma * (t - xi))
+     timeRampFactor = 0.5_wp * (tanh(sigma * (t + xi)) - tanh(sigma * (t - xi)))
   end if
 
 end function thermalActuatorRampFunction
