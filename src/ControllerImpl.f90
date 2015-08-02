@@ -31,6 +31,8 @@ subroutine cleanupController(this)
 
   this%cachedValue = 0.0_wp
   this%runningTimeQuadrature = 0.0_wp
+  this%onsetTime = 0.0_wp
+  this%duration = 0.0_wp
 
 end subroutine cleanupController
 

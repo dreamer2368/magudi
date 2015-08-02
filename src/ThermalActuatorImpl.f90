@@ -9,7 +9,7 @@ subroutine setupThermalActuator(this, region)
   use ThermalActuator_mod, only : t_ThermalActuator
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption
+  use InputHelper, only : getOption, getRequiredOption
 
   implicit none
 
@@ -19,6 +19,7 @@ subroutine setupThermalActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  character(len = STRING_LENGTH) :: key
   integer :: i, gradientBufferSize
   class(t_Patch), pointer :: patch => null()
 
@@ -27,6 +28,17 @@ subroutine setupThermalActuator(this, region)
   if (region%simulationFlags%predictionOnly) return
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
+
+  write(key, '(A)') "thermal_actuator/"
+
+  this%useTimeRamp = getOption(trim(key) // "use_time_ramp", .false.)
+
+  if (this%useTimeRamp) then
+     call getRequiredOption(trim(key) // "ramp_width", this%rampWidthInverse)
+     this%rampWidthInverse = 1.0_wp / this%rampWidthInverse
+     call getRequiredOption(trim(key) // "ramp_offset", this%rampOffset)
+     this%rampOffset = 1.0_wp - 0.5_wp * this%rampOffset
+  end if
 
   gradientBufferSize = getOption("gradient_buffer_size", 1)
 
@@ -84,12 +96,18 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
+  real(SCALAR_KIND) :: timeRampFactor
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
 
   instantaneousSensitivity = 0.0_wp
+
+  timeRampFactor = 1.0_wp
+  if (this%useTimeRamp)                                                                      &
+       timeRampFactor = this%rampFunction((region%states(1)%time - this%onsetTime) /         &
+       this%duration, this%rampWidthInverse, this%rampOffset)
 
   do i = 1, size(region%grids)
 
@@ -106,7 +124,7 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
 
      allocate(F(region%grids(i)%nGridPoints, 1))
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                           &
-          region%grids(i)%controlMollifier(:,1)
+          region%grids(i)%controlMollifier(:,1) * timeRampFactor
      instantaneousSensitivity = instantaneousSensitivity +                                   &
           region%grids(i)%computeInnerProduct(F, F)
      SAFE_DEALLOCATE(F)
@@ -143,12 +161,18 @@ subroutine updateThermalActuatorForcing(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions
+  real(SCALAR_KIND) :: timeRampFactor
   class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
+
+  timeRampFactor = 1.0_wp
+  if (this%useTimeRamp)                                                                      &
+       timeRampFactor = this%rampFunction((region%states(1)%time - this%onsetTime) /         &
+       this%duration, this%rampWidthInverse, this%rampOffset)
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
@@ -169,6 +193,7 @@ subroutine updateThermalActuatorForcing(this, region)
            patch%controlForcing(:,1:nDimensions+1) = 0.0_wp
            patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
                 patch%gradientBuffer(:,1,patch%iGradientBuffer)
+           if (this%useTimeRamp) patch%controlForcing = timeRampFactor * patch%controlForcing
 
            if (patch%iGradientBuffer == 1)                                                   &
                 patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
@@ -403,3 +428,24 @@ subroutine hookThermalActuatorAfterTimemarch(this, region, mode)
   end do
 
 end subroutine hookThermalActuatorAfterTimemarch
+
+PURE_FUNCTION thermalActuatorRampFunction(t, sigma, xi) result(timeRampFactor)
+
+  implicit none
+
+  ! <<< Arguments >>>
+  real(SCALAR_KIND), intent(in) :: t, sigma, xi
+
+  ! <<< Result >>>
+  real(SCALAR_KIND) :: timeRampFactor
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+
+  if (t <= 0.0_wp .or. t >= 1.0_wp) then
+     timeRampFactor = 0.0_wp
+  else
+     timeRampFactor = tanh(sigma * (t + xi)) - tanh(sigma * (t - xi))
+  end if
+
+end function thermalActuatorRampFunction

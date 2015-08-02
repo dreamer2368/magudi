@@ -8,6 +8,9 @@ module ThermalActuator_mod
 
   type, extends(t_Controller), public :: t_ThermalActuator
 
+     logical :: useTimeRamp
+     real(SCALAR_KIND) :: rampWidthInverse, rampOffset
+
    contains
 
      procedure, pass :: setup => setupThermalActuator
@@ -18,6 +21,7 @@ module ThermalActuator_mod
      procedure, pass :: isPatchValid => isThermalActuatorPatchValid
      procedure, pass :: hookBeforeTimemarch => hookThermalActuatorBeforeTimemarch
      procedure, pass :: hookAfterTimemarch => hookThermalActuatorAfterTimemarch
+     procedure, nopass :: rampFunction => thermalActuatorRampFunction
 
   end type t_ThermalActuator
 
@@ -146,6 +150,18 @@ module ThermalActuator_mod
        integer, intent(in) :: mode
 
      end subroutine hookThermalActuatorAfterTimemarch
+
+  end interface
+
+  interface
+
+     pure function thermalActuatorRampFunction(t, sigma, xi) result(timeRampFactor)
+
+       real(SCALAR_KIND), intent(in) :: t, sigma, xi
+
+       real(SCALAR_KIND) :: timeRampFactor
+
+     end function thermalActuatorRampFunction
 
   end interface
 
