@@ -120,20 +120,23 @@ if __name__ == '__main__':
 		yMin = -6.
 		yMax = 54
 
-		g = grid([900,430],xMin,xMax,yMin,yMax)
+		g = grid([901,431],xMin,xMax,yMin,yMax)
 		g.save(outputPrefix+'.xyz')
 	
 		yShearMax=0.0
 		initial_condition(g, u1=1.1, u2=0.4,S=0.05,yCenter=yShearMax).save(outputPrefix+'.ic.q')
 		target_state(g, u1=1.1, u2=0.4, S=0.05,yCenter=yShearMax).save(outputPrefix+'.target.q')
 
+		#initial_condition(g, u1=0., u2=0.,S=0.05,yCenter=yShearMax).save(outputPrefix+'.ic.q')
+		#target_state(g, u1=0., u2=0., S=0.05,yCenter=yShearMax).save(outputPrefix+'.target.q')
+
 		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
 		ambient_pressure(p3d.fromfile(outputPrefix+'.ambient.q')).save(outputPrefix+'.ambient_pressure.f')
 
-		xMinTarget = 0.
+		xMinTarget = 25.
 		xMaxTarget = 75.
-		yMinTarget = 20.
-		yMaxTarget = 30.
+		yMinTarget = 15
+		yMaxTarget = 25
 		target_mollifier(g,xMinTarget,xMaxTarget,yMinTarget,yMaxTarget).save(outputPrefix+'.target_mollifier.f')
 
 		xMinControl =  xMin
@@ -146,7 +149,7 @@ if __name__ == '__main__':
 
 		spongeLeft=25.
 		spongeRight=25.
-		spongeTop=10.
+		spongeTop=20.
 
 		#SPONGE INDICES
 		left_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMin+spongeLeft))) + 1
@@ -167,10 +170,10 @@ if __name__ == '__main__':
 
 		#EXCITATION INDICES
 
-		xMinExcite =  xMin
-		xMaxExcite =  xMax
-		yMinExcite =  yMin
-		yMaxExcite =  yMax
+		xMinExcite =  -17.5
+		xMaxExcite =  12.5
+		yMinExcite =  -3.
+		yMaxExcite =  3.
 
 		left_excite=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMinExcite)) ) + 1
 		right_excite=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMaxExcite))) + 1
