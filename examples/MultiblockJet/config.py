@@ -386,31 +386,11 @@ def grid(num_radial_nozzle, num_radial_near_field, num_azimuthal,
     # plot_jacobian_continuity(g)
     return g
 
-def convective_mach_number(M_j, M_inf, temperature_ratio):
-    u_j = M_j * np.sqrt(temperature_ratio)
-    u_inf = M_inf
-    u_c = (u_j + u_inf * np.sqrt(temperature_ratio)) / \
-          (1. + np.sqrt(temperature_ratio))
-    return u_c - u_inf
-
-def crocco_busemann(u, u_j, temperature_ratio, u_inf, gamma=1.4):
-    M_j = u_j / np.sqrt(temperature_ratio)
-    c_1 = (1. / temperature_ratio + 0.5 * (gamma - 1.) * M_j ** 2 *
-           ((u_inf / u_j) ** 2 - 1.) - 1.) / (u_inf / u_j - 1.)
-    c_2 = 1. + 0.5 * (gamma - 1.) * M_j ** 2 - c_1
-    return -0.5 * (gamma - 1.) * M_j ** 2 * u ** 2 + c_1 * u + c_2
-
-def target_state(g, M_j=1.3, M_inf=0., gamma=1.4):
+def target_state(g, mach_number=1.3, gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
-    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * M_j ** 2)
-    f = lambda M: np.abs(convective_mach_number(M, M_inf,
-                                                temperature_ratio) -
-                         convective_mach_number(M_j, 0.,
-                                                temperature_ratio))
-    M_j = fsolve(f, M_j)
-    T_inf = 1. / (gamma - 1.)
-    u_j = M_j * np.sqrt(temperature_ratio)
-    u_inf = M_inf
+    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
+    T_inf = 1./ (gamma - 1.)
+    u_j = mach_number * np.sqrt(temperature_ratio)
     for i, xyz in enumerate(g.xyz):
         z = xyz[0,0,:,2]
         r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2)
@@ -424,33 +404,32 @@ def target_state(g, M_j=1.3, M_inf=0., gamma=1.4):
         rho = np.where(z <= 0., 1. / temperature_ratio + np.zeros_like(z),
                        1. + (1. / temperature_ratio - 1.) * np.exp(-0.078 * z))
         for k in range(z.size):
-            s.q[i][:,:,k,3] = 0.5 * (u[k] - u_inf) * (1. + np.tanh(
-                0.25 / theta[k] * (r0[k] / r - r / r0[k]))) + u_inf
-            s.q[i][:,:,k,0] = rho[k] / crocco_busemann(
-                s.q[i][:,:,k,3] / u[k], u[k], 1. / rho[k], M_inf, gamma)
+            s.q[i][:,:,k,3] = 0.5 * u[k] * (1. + np.tanh(
+                0.25 / theta[k] * (r0[k] / r - r / r0[k])))
+            s.q[i][:,:,k,0] = rho[k] / (0.5 * (gamma - 1.) * s.q[i][:,:,k,3] /
+                                        u[k] * (1. - s.q[i][:,:,k,3] / u[k]) *
+                                        rho[k] * u[k] ** 2 + s.q[i][:,:,k,3] /
+                                        u[k] + rho[k] *
+                                        (1. - s.q[i][:,:,k,3] / u[k]))
     return s.fromprimitive(gamma)
 
-def initial_condition(g, M_j=1.3, gamma=1.4):
+def initial_condition(g, mach_number=1.3, gamma=1.4):
     s = p3d.Solution().copy_from(g).quiescent(gamma)
-    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * M_j ** 2)
-    f = lambda M_j: np.abs(convective_mach_number(M_j, M_inf,
-                                                  temperature_ratio) -
-                           convective_mach_number(M_j, 0.,
-                                                  temperature_ratio))
-    M_j = fsolve(f, M_j)
-    T_inf = 1. / (gamma - 1.)
-    u_j = M_j * np.sqrt(temperature_ratio)
-    u_inf = M_inf
+    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
+    u_j = mach_number * np.sqrt(temperature_ratio)
     for i, xyz in enumerate(g.xyz):
         z = xyz[0,0,:,2]
         r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2) / 0.5
         condlist = [z <= 0., np.logical_and(z > 0., z < 24.), z >= 24.]
         theta = 0.04 + np.where(z <= 0., np.zeros_like(z), 0.46 * z / 34.)
         for k in range(z.size):
-            s.q[i][:,:,k,3] = 0.5 * (u_j - u_inf) * (1. + np.tanh(
-                0.25 / theta[k] * (1. / r - r))) + u_inf
-        s.q[i][:,:,:,0] = 1. / crocco_busemann(s.q[i][:,:,k,3],
-                                               M_j, M_inf, gamma)
+            s.q[i][:,:,k,3] = 0.5 * u_j * (1. + np.tanh(
+                0.25 / theta[k] * (1. / r - r)))
+        s.q[i][:,:,:,0] = 1. / (0.5 * (gamma - 1.) * s.q[i][:,:,:,3] / u_j *
+                                (1. - s.q[i][:,:,:,3] / u_j) *
+                                mach_number ** 2 + s.q[i][:,:,:,3] / u_j +
+                                (1. - s.q[i][:,:,:,3] / u_j) /
+                                temperature_ratio) / temperature_ratio
     return s.fromprimitive(gamma)
 
 def plot_eigenvalues(St, alpha, u_j, theta_j):
@@ -619,5 +598,3 @@ if __name__ == '__main__':
         sr, si = inflow_perturbations(gi, mode)
         sr.save('MultiblockJet-%02d.eigenmode_real.q' % (i + 1))
         si.save('MultiblockJet-%02d.eigenmode_imag.q' % (i + 1))
-    control_mollifier(g).save('MultiblockJet.control_mollifier.f')
-    target_mollifier(g).save('MultiblockJet.target_mollifier.f')
