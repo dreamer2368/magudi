@@ -23,9 +23,9 @@ def grid(size):
     y_max =  100.
     g = p3d.Grid().set_size(size, True)
     x = x_min + 0.5 * (x_max - x_min) * (1. + mapping_function(
-        np.linspace(0., 1., g.size[0,0]), 80., 0.58, 0.07))
+        np.linspace(0., 1., size[0]), 80., 0.58, 0.07))
     y = y_min + 0.5 * (y_max - y_min) * (1. + mapping_function(
-        np.linspace(0., 1., g.size[0,1]), 20., 0.62, 0.2))
+        np.linspace(0., 1., size[1]), 20., 0.62, 0.2))
     g.xyz[0][:,:,0,:2] = np.transpose(np.meshgrid(x, y))
     return g
 

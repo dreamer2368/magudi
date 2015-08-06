@@ -59,14 +59,14 @@ def target_mollifier(g):
 
 def control_mollifier(g):
     r_min =  0.5
-    r_max =  0.55
+    r_max =  0.7
     r = np.sqrt(g.xyz[0][:,:,0,0] ** 2 + g.xyz[0][:,:,0,1] ** 2)
     theta = np.arctan2(g.xyz[0][:,:,0,1], g.xyz[0][:,:,0,0])
     f = p3d.Function().copy_from(g)
     f.f[0].fill(1.)
     n = f.get_size(0)
-    f.f[0][:,:,0,0] *= p3d.cubic_bspline_support(r, r_min - (r_max - r_min),
-                                                 r_max, False)
+    f.f[0][:,:,0,0] *= p3d.tanh_support(r, r_min - (r_max - r_min),
+                                        r_max, 20., 0.3, False)
     imin, imax = p3d.find_extents(r[:,0], r_min, r_max)
     print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
         'controlRegion', 'ACTUATOR', 1, 0, imin, imax, 1, -1, 1, -1)
@@ -77,10 +77,21 @@ def mean_pressure(s):
     f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
     return f
 
+def testing(g, f):
+    import matplotlib.pyplot as plt
+    r = np.sqrt(np.sum(g.xyz[0][:,0,0,0:2] ** 2, -1))
+    plt.plot(r, f.f[0][:,0,0,0], 'ko-')
+    plt.xlim(0.5, 0.7)
+    plt.xlabel('$r$')
+    plt.ylabel('$W_{\Gamma}$')    
+    plt.show()
+
 if __name__ == '__main__':
     g = grid([408, 501])
     g.save('Cylinder.xyz')
     target_state(g, mach_number=0.2).save('Cylinder.target.q')
-    f = target_mollifier(g)
-    f.save('Cylinder.target_mollifier.f')
-    control_mollifier(g).save('Cylinder.control_mollifier.f')
+    target_mollifier(g).save('Cylinder.target_mollifier.f')
+    f = control_mollifier(g)
+    f.save('Cylinder.control_mollifier.f')
+    testing(g, f)
+    
