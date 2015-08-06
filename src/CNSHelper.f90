@@ -6,7 +6,7 @@ module CNSHelper
   private
 
   interface computeIncomingInviscidJacobian
-     module procedure :: computeIncomingInviscidJacobianEqual,                               &
+     module procedure computeIncomingInviscidJacobianEqual,                                  &
           computeIncomingInviscidJacobianRoe
   end interface computeIncomingInviscidJacobian
 

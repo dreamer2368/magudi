@@ -120,7 +120,7 @@ contains
 
     if (.not. simulationFlags%predictionOnly) then
        this%controllerType = getOption("controller_type", "THERMAL_ACTUATOR")
-       this%costFunctionalType = getOption("cost_functional_type", "SOUND")
+       this%costFunctionalType = getOption("cost_functional_type", "ACOUSTIC_NOISE")
        this%checkpointingScheme = getOption("checkpointing_scheme", "UNIFORM_CHECKPOINTING")
     end if
 

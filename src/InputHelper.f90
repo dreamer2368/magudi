@@ -16,12 +16,12 @@ module InputHelper
   type(t_DictElement), allocatable :: dict(:)
 
   interface getOption
-     module procedure :: getOptionInteger_, getOptionLogical_,                               &
+     module procedure getOptionInteger_, getOptionLogical_,                                  &
           getOptionScalar_, getOptionString_
   end interface getOption
 
   interface getRequiredOption
-     module procedure :: getRequiredOptionInteger_, getRequiredOptionLogical_,               &
+     module procedure getRequiredOptionInteger_, getRequiredOptionLogical_,                  &
           getRequiredOptionScalar_, getRequiredOptionString_
   end interface getRequiredOption
 

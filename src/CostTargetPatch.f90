@@ -66,7 +66,7 @@ contains
     direction = abs(this%normalDirection)
 
     if (simulationFlags%predictionOnly) then
-       write(message, '(A)') "Patch '", trim(name), "' will not be used!"
+       write(message, '(3A)') "Patch '", trim(name), "' will not be used!"
        call issueWarning(grid%comm, message)
     end if
 

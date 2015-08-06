@@ -29,11 +29,11 @@ module PLOT3DHelper
   public
 
   interface swapEndianness
-     module procedure :: swapIntegerEndianness_, swapScalarEndianness_
+     module procedure swapIntegerEndianness_, swapScalarEndianness_
   end interface swapEndianness
 
   interface plot3dGetOffset
-     module procedure :: plot3dGetOffsetFromGridSizes_, plot3dGetOffsetFromFile_
+     module procedure plot3dGetOffsetFromGridSizes_, plot3dGetOffsetFromFile_
   end interface plot3dGetOffset
 
   character(len = STRING_LENGTH) :: plot3dErrorMessage

@@ -1089,7 +1089,6 @@ contains
        assert(size(this%norm) == this%nPatchPoints)
     end if
 #endif
-    assert(this%comm /= MPI_COMM_NULL)
 
     innerProduct = 0.0_wp
 
@@ -1163,7 +1162,6 @@ contains
        assert(size(this%norm) == this%nPatchPoints)
     end if
 #endif
-    assert(this%comm /= MPI_COMM_NULL)
 
     innerProduct = 0.0_wp
 
