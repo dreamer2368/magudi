@@ -1,0 +1,437 @@
+#include "config.h"
+
+module MPITimingsHelper
+
+  use, intrinsic :: iso_fortran_env, only : real64
+
+  implicit none
+  private
+
+  type :: t_MPITimer
+     character(len = STRING_LENGTH) :: name
+     real(kind = real64) :: numCalls = 0.0_real64, startTimeOfLastCall = 0.0_real64,         &
+          accumulatedTime = 0.0_real64
+     type(t_MPITimer), pointer :: left => null(), right => null()
+  end type t_MPITimer
+
+  real(kind = real64) :: programStartTime
+  type(t_MPITimer), pointer :: timings => null()
+
+  public :: startTiming, endTiming, reportTimings, cleanupTimers
+
+contains
+
+  subroutine startTiming(name)
+
+    !> Starts the timer labeled `name`. Creates a new timer if no timer with label `name`
+    !> exists. The timers are internally stored as a sorted binary tree to minimize the
+    !> overhead of starting and stopping them.
+
+    ! <<< External modules >>>
+    use MPI
+
+    implicit none
+
+    ! <<< Arguments >>>
+    character(len = *), intent(in) :: name
+
+    ! <<< Local variables >>>
+    type(t_MPITimer), pointer :: current => null()
+
+    if (.not. associated(timings)) then
+
+       allocate(timings)
+       timings%name = trim(name)
+       timings%startTimeOfLastCall = MPI_Wtime()
+       programStartTime = timings%startTimeOfLastCall
+
+    else
+
+       current => timings
+
+       do
+          if (trim(current%name) == trim(name)) then
+             current%startTimeOfLastCall = MPI_Wtime()
+             exit
+          else if (trim(name) < trim(current%name)) then
+             if (.not. associated(current%left)) then
+                allocate(current%left)
+                current%left%name = trim(name)
+                current%left%startTimeOfLastCall = MPI_Wtime()
+                exit
+             else
+                current => current%left
+             end if
+          else
+             if (.not. associated(current%right)) then
+                allocate(current%right)
+                current%right%name = trim(name)
+                current%right%startTimeOfLastCall = MPI_Wtime()
+                exit
+             else
+                current => current%right
+             end if
+          end if
+       end do
+
+    end if
+
+  end subroutine startTiming
+
+  subroutine endTiming(name)
+
+    !> Stops the timer labeled `name`. Does nothing if no timer lebeled `name` exists. The
+    !> number of calls is incremented by 1, and the accumulated time is incremented by the
+    !> time elapsed since the most recent call to `startTiming` with `name` as the argument.
+
+    ! <<< External modules >>>
+    use MPI
+    use, intrinsic :: iso_fortran_env, only : real64
+
+    implicit none
+
+    ! <<< Arguments >>>
+    character(len = *), intent(in) :: name
+
+    ! <<< Local variables >>>
+    type(t_MPITimer), pointer :: current => null()
+
+    current => timings
+
+    do while(associated(current))
+       if (trim(current%name) == trim(name)) then
+          current%accumulatedTime = current%accumulatedTime +                                &
+               MPI_Wtime() - current%startTimeOfLastCall
+          current%numCalls = current%numCalls + 1.0_real64
+          exit
+       else if (trim(name) < trim(current%name)) then
+          current => current%left
+       else
+          current => current%right
+       end if
+    end do
+
+  end subroutine endTiming
+
+  subroutine reportTimings(comm, outputUnit)
+
+    !> Reports timings. This subroutine must be called collectively by all processes in the
+    !> MPI communicator `comm`. The master process in `comm` gathers the timers from all other
+    !> processes. The timers are then sorted by their labels. Timers from different processes
+    !> with the same label are clubbed together by adding their number of calls and
+    !> accumulated time. The total program time is counted as the time elapsed since the first
+    !> call to `startTiming`.
+
+    ! <<< External modules >>>
+    use MPI
+    use, intrinsic :: iso_fortran_env, only : output_unit, int64, real64
+
+    implicit none
+
+    ! <<< Arguments >>>
+    integer, intent(in), optional :: comm, outputUnit
+
+    ! <<< Local variables >>>
+    integer :: i, j, comm_, outputUnit_, nTimings, procRank, numProcs, ierror
+    real(kind = real64) :: programTotalTime
+    type(t_MPITimer), allocatable :: timingsArray(:)
+    integer, allocatable :: nTimingsAllProcesses(:)
+    type(t_MPITimer), pointer :: globalTimings => null()
+    type(t_MPITimer) :: temp
+
+    comm_ = MPI_COMM_WORLD
+    if (present(comm)) comm_ = comm
+
+    outputUnit_ = output_unit
+    if (present(outputUnit)) outputUnit_ = outputUnit
+
+    ! Get rank and size of the MPI communicator `comm_`.
+    call MPI_Comm_rank(comm_, procRank, ierror)
+    call MPI_Comm_size(comm_, numProcs, ierror)
+
+    ! Find the total time taken by the program.
+    programTotalTime = (MPI_Wtime() - programStartTime) * real(numProcs, real64)
+
+    ! Serialize the timings from each process.
+    call serializeTree(timings, timingsArray)
+
+    ! Find the number of timers on each process.
+    nTimings = 0
+    if (allocated(timingsArray)) nTimings = size(timingsArray)
+
+    ! Not all processes may have timed the same number of subroutines... gather the number of
+    ! timers from all processes.
+    allocate(nTimingsAllProcesses(numProcs))
+    call MPI_Allgather(nTimings, 1, MPI_INTEGER, nTimingsAllProcesses,                       &
+         1, MPI_INTEGER, comm_, ierror)
+
+    ! Master process adds all its timers to the `globalTimings` tree.
+    if (procRank == 0) then
+       do i = 1, nTimings
+          call addNode(globalTimings, timingsArray(i))
+       end do
+    end if
+
+    do i = 1, numProcs - 1
+
+       if (procRank == i) then
+
+          ! All other processes send their timings data to master.
+          do j = 1, nTimings
+             call MPI_Send(timingsArray(j)%name, STRING_LENGTH, MPI_CHARACTER,               &
+                  0, i * 3 + 0, comm_, ierror)
+             call MPI_Send(timingsArray(j)%numCalls, 1, MPI_REAL8, 0,                        &
+                  i * 3 + 1, comm_, ierror)
+             call MPI_Send(timingsArray(j)%accumulatedTime, 1, MPI_REAL8,                    &
+                  0, i * 3 + 2, comm_, ierror)
+          end do
+
+       else if (procRank == 0) then
+
+          ! Master process received the data and adds them to `globalTimings` tree.
+          do j = 1, nTimingsAllProcesses(i + 1)
+             call MPI_Recv(temp%name, STRING_LENGTH, MPI_CHARACTER,                          &
+                  i, i * 3 + 0, comm_, MPI_STATUS_IGNORE, ierror)
+             call MPI_Recv(temp%numCalls, 1, MPI_REAL8,                                      &
+                  i, i * 3 + 1, comm_, MPI_STATUS_IGNORE, ierror)
+             call MPI_Recv(temp%accumulatedTime, 1, MPI_REAL8,                               &
+                  i, i * 3 + 2, comm_, MPI_STATUS_IGNORE, ierror)
+             call addNode(globalTimings, temp)
+          end do
+
+       end if
+
+    end do
+
+    SAFE_DEALLOCATE(nTimingsAllProcesses)
+    SAFE_DEALLOCATE(timingsArray)
+
+    if (procRank == 0) then
+
+       call serializeTree(globalTimings, timingsArray)
+
+       if (allocated(timingsArray)) then
+
+          call sortTimings(timingsArray)
+
+          write(outputUnit_, '(A)') ""
+          write(outputUnit_, '(2A)') PROJECT_NAME,                                           &
+               " profile (timers may not be mutually exclusive):"
+          write(outputUnit_, '(A)') repeat("=", 80)
+          write(outputUnit_, '(A25,5X,A6,2X,A13,2X,A13,2X,A12)')                             &
+               "name", "% time", "calls", "total seconds", "seconds/call"
+          write(outputUnit_, '(A)') repeat("-", 80)
+
+          do i = 1, size(timingsArray)
+             write(outputUnit_, '(A25,5X,F6.2,2X,I13,2X,F13.4,2X,ES12.4)')                   &
+                  trim(timingsArray(i)%name),                                                &
+                  timingsArray(i)%accumulatedTime / programTotalTime * 100.0_real64,         &
+                  nint(timingsArray(i)%numCalls, int64), timingsArray(i)%accumulatedTime,    &
+                  timingsArray(i)%accumulatedTime / timingsArray(i)%numCalls
+          end do
+
+          write(outputUnit_, '(A)') repeat("=", 80)
+          write(outputUnit_, '(A)') ""
+
+          ! Flush `unit` from master process.
+          flush(outputUnit_)
+
+       end if
+
+    end if
+
+    ! Ensure that no writes are executed from other processes in `comm` before master process
+    ! has flushed `unit`.
+    call MPI_Barrier(comm_, ierror)
+
+  end subroutine reportTimings
+
+  subroutine cleanupTimers()
+
+    !> Frees memory that was used to internally store the timers.
+
+    implicit none
+
+    call deleteSubtree(timings)
+
+  end subroutine cleanupTimers
+
+  subroutine addNode(root, node)
+
+    ! <<< Arguments >>>
+    type(t_MPITimer), pointer :: root
+    type(t_MPITimer) :: node
+
+    ! <<< Local variables >>>
+    type(t_MPITimer), pointer :: current => null()
+
+    if (.not. associated(root)) then
+
+       allocate(root)
+       root%name = trim(node%name)
+       root%numCalls = node%numCalls
+       root%accumulatedTime = node%accumulatedTime
+
+    else
+
+       current => root
+
+       do
+          if (trim(current%name) == trim(node%name)) then
+             current%numCalls = current%numCalls + node%numCalls
+             current%accumulatedTime = current%accumulatedTime + node%accumulatedTime
+             exit
+          else if (trim(node%name) > trim(current%name)) then
+             if (.not. associated(current%left)) then
+                allocate(current%left)
+                current%left%name = trim(node%name)
+                current%left%numCalls = node%numCalls
+                current%left%accumulatedTime = node%accumulatedTime
+                exit
+             else
+                current => current%left
+             end if
+          else
+             if (.not. associated(current%right)) then
+                allocate(current%right)
+                current%right%name = trim(node%name)
+                current%right%numCalls = node%numCalls
+                current%right%accumulatedTime = node%accumulatedTime
+                exit
+             else
+                current => current%right
+             end if
+          end if
+       end do
+
+    end if
+
+  end subroutine addNode
+
+  recursive subroutine deleteSubtree(node)
+
+    ! <<< Arguments >>>
+    type(t_MPITimer), pointer :: node
+
+    if (.not. associated(node)) return
+    if (associated(node%left)) call deleteSubtree(node%left)
+    if (associated(node%right)) call deleteSubtree(node%right)
+    deallocate(node)
+    nullify(node)
+
+  end subroutine deleteSubtree
+
+  recursive function getNumberOfLeaves(node) result(nLeaves)
+
+    ! <<< Arguments >>>
+    type(t_MPITimer), pointer, intent(in) :: node
+
+    ! <<< Result >>>
+    integer :: nLeaves
+
+    nLeaves = 0
+
+    if (associated(node%left)) then
+       nLeaves = nLeaves + getNumberOfLeaves(node%left) + 1
+    end if
+
+    if (associated(node%right)) then
+       nLeaves = nLeaves + getNumberOfLeaves(node%right) + 1
+    end if
+
+  end function getNumberOfLeaves
+
+  subroutine serializeTree(root, array)
+
+    ! <<< Arguments >>>
+    type(t_MPITimer), pointer :: root
+    type(t_MPITimer), allocatable, intent(out) :: array(:)
+
+    ! <<< Local variables >>>
+    integer :: i, nNodes
+    type(t_MPITimer), pointer :: current => null(), pre => null()
+
+    nNodes = getNumberOfLeaves(root) + 1
+    if (nNodes == 0) return
+
+    allocate(array(nNodes))
+
+    i = 0
+
+    current => root
+
+    do while (associated(current))
+
+       if (.not. associated(current%left)) then
+
+          i = i + 1
+          array(i)%name = current%name
+          array(i)%numCalls = current%numCalls
+          array(i)%accumulatedTime = current%accumulatedTime
+          current => current%right
+
+       else
+
+          pre => current%left
+
+          do while (associated(pre%right))
+             if (trim(pre%right%name) == trim(current%name)) exit
+             pre => pre%right
+          end do
+
+          if (.not. associated(pre%right)) then
+
+             pre%right => current
+             current => current%left
+
+          else
+
+             nullify(pre%right)
+             i = i + 1
+             array(i)%name = current%name
+             array(i)%numCalls = current%numCalls
+             array(i)%accumulatedTime = current%accumulatedTime
+             current => current%right
+
+          end if
+
+       end if
+
+    end do
+
+  end subroutine serializeTree
+
+  subroutine sortTimings(timingsArray)
+
+    ! <<< Arguments >>>
+    type(t_MPITimer), intent(inout) :: timingsArray(:)
+    type(t_MPITimer) :: temp
+
+    ! <<< Local variables >>>
+    integer :: i, j
+
+    do i = 2, size(timingsArray)
+
+       j = i - 1
+
+       temp%name = timingsArray(i)%name
+       temp%numCalls = timingsArray(i)%numCalls
+       temp%accumulatedTime = timingsArray(i)%accumulatedTime
+
+       do while (timingsArray(j)%accumulatedTime < temp%accumulatedTime)
+          timingsArray(j+1)%name = timingsArray(j)%name
+          timingsArray(j+1)%numCalls = timingsArray(j)%numCalls
+          timingsArray(j+1)%accumulatedTime = timingsArray(j)%accumulatedTime
+          j = j - 1
+          if (j < 1) exit
+       end do
+
+       timingsArray(j+1)%name = temp%name
+       timingsArray(j+1)%numCalls = temp%numCalls
+       timingsArray(j+1)%accumulatedTime = temp%accumulatedTime
+
+    end do
+
+  end subroutine sortTimings
+
+end module MPITimingsHelper

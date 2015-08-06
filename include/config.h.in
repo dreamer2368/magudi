@@ -6,9 +6,14 @@
 #define PROJECT_NAME "@PROJECT_NAME@"
 #define STRING_LENGTH 256
 
+#ifdef __GFORTRAN__
 #define STRINGIFY(x) "x"
+#else
+#define XSTRINGIFY(s) STRINGIFY(s)
+#define STRINGIFY(s) #s
+#endif
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #define assert(x) call assertImpl((x), STRINGIFY(x), __FILE__, __LINE__)
 #define assert_key(x, y) \
   select case (x); \
@@ -22,14 +27,6 @@
 #define assert_key(x, y) if (.false.) then; end if
 #endif
 
-#ifdef DEBUG
-#define PURE_SUBROUTINE subroutine
-#define PURE_FUNCTION function
-#else
-#define PURE_SUBROUTINE pure subroutine
-#define PURE_FUNCTION pure function
-#endif
-
 #ifdef USE_EXTENDED_PLOT3D
 #define _LARGEFILE64_SOURCE  1
 #define _FILE_OFFSET_BITS   64
@@ -38,53 +35,25 @@
 #define SIZEOF_PLOT3D_OFF    4
 #endif
 
-#define @SCALAR_TYPE_MACRO@
-
 #ifdef SCALAR_TYPE_IS_real32_iso
 #define SCALAR_KIND     selected_real_kind(6)
-#define SCALAR_TYPE     real(SCALAR_KIND)
 #define SIZEOF_SCALAR   4
 #define SCALAR_FORMAT   "(SP,ES13.6E2)"
 #define SCALAR_TYPE_MPI MPI_REAL
-#define REAL_TYPE_MPI   SCALAR_TYPE_MPI
 #endif
 
 #ifdef SCALAR_TYPE_IS_real64_iso
 #define SCALAR_KIND     selected_real_kind(15)
-#define SCALAR_TYPE     real(SCALAR_KIND)
 #define SIZEOF_SCALAR   8
 #define SCALAR_FORMAT   "(SP,ES23.15E3)"
 #define SCALAR_TYPE_MPI MPI_REAL8
-#define REAL_TYPE_MPI   SCALAR_TYPE_MPI
 #endif
 
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
 #define SCALAR_KIND     selected_real_kind(33)
-#define SCALAR_TYPE     real(SCALAR_KIND)
 #define SIZEOF_SCALAR   16
 #define SCALAR_FORMAT   "(SP,ES42.33E4)"
 #define SCALAR_TYPE_MPI MPI_REAL16
-#define REAL_TYPE_MPI   SCALAR_TYPE_MPI
-#endif
-
-#ifdef SCALAR_TYPE_IS_complex
-#define SCALAR_KIND     selected_real_kind(6)
-#define SCALAR_TYPE     complex(SCALAR_KIND)
-#define SIZEOF_SCALAR   8
-#define SCALAR_FORMAT   "('(',SS,ES13.6E2,SP,ES13.6E2,'j)')"
-#define SCALAR_TYPE_MPI MPI_COMPLEX
-#define REAL_TYPE_MPI   MPI_REAL4
-#define SCALAR_IS_COMPLEX
-#endif
-
-#ifdef SCALAR_TYPE_IS_double_complex
-#define SCALAR_KIND     selected_real_kind(15)
-#define SCALAR_TYPE     complex(SCALAR_KIND)
-#define SIZEOF_SCALAR   16
-#define SCALAR_FORMAT   "('(',SS,ES23.15E3,SP,ES23.15E3,'j)')"
-#define SCALAR_TYPE_MPI MPI_DOUBLE_COMPLEX
-#define REAL_TYPE_MPI   MPI_REAL8
-#define SCALAR_IS_COMPLEX
 #endif
 
 #endif
