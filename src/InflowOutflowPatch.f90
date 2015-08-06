@@ -180,8 +180,8 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, l, nDimensions, nUnknowns, direction,                                &
-         incomingDirection, gridIndex, patchIndex, depthIndex, depthBlockSize(3)
+    integer :: i, j, k, l, nDimensions, nUnknowns, direction, incomingDirection,             &
+         gridIndex, patchIndex, depthIndex, depthBlockOffset(3), depthBlockSize(3)
     real(SCALAR_KIND), allocatable :: fluxJacobian(:,:), temp1(:,:), temp2(:,:)
 
     assert_key(mode, (FORWARD, ADJOINT))
@@ -292,17 +292,19 @@ contains
 
     SAFE_DEALLOCATE(fluxJacobian)
 
-    if (mode == ADJOINT .and. simulationFlags%viscosityOn) then
+    if (mode == ADJOINT .and. simulationFlags%viscosityOn .and. this%nPatchPoints > 0) then
 
        allocate(fluxJacobian(nUnknowns - 1, nUnknowns - 1))
 
        depthBlockSize = this%localSize
        depthBlockSize(direction) = grid%adjointFirstDerivative(direction)%boundaryDepth
 
-       if (this%nPatchPoints > 0) then
-          allocate(temp1(product(depthBlockSize), nUnknowns - 1), source = 0.0_wp)
-          allocate(temp2(product(depthBlockSize), nUnknowns), source = 0.0_wp)
-       end if
+       depthBlockOffset = this%offset
+       if (this%normalDirection < 0) depthBlockOffset(direction) =                           &
+            depthBlockOffset(direction) + 1 - depthBlockSize(direction)
+
+       allocate(temp1(product(depthBlockSize), nUnknowns - 1), source = 0.0_wp)
+       allocate(temp2(product(depthBlockSize), nUnknowns), source = 0.0_wp)
 
        do l = 1, nDimensions
 
@@ -313,9 +315,9 @@ contains
                         (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                &
                         (k - 1 - this%gridOffset(3)))
                    if (grid%iblank(gridIndex) == 0) cycle
-                   depthIndex = i - this%offset(1) + depthBlockSize(1) *                     &
-                        (j - 1 - this%offset(2) + depthBlockSize(2) *                        &
-                        (k - 1 - this%offset(3)))
+                   depthIndex = i - depthBlockOffset(1) + depthBlockSize(1) *                &
+                        (j - 1 - depthBlockOffset(2) + depthBlockSize(2) *                   &
+                        (k - 1 - depthBlockOffset(3)))
 
                    call computeSecondPartialViscousJacobian(nDimensions, gridIndex,          &
                         state%velocity, state%dynamicViscosity(:,1),                         &
@@ -333,20 +335,20 @@ contains
 
           call grid%adjointFirstDerivative(l)%projectOnBoundaryAndApply(temp1,               &
                depthBlockSize, this%normalDirection)
-          if (this%nPatchPoints > 0) temp2(:,2:nUnknowns) = temp2(:,2:nUnknowns) - temp1
+          temp2(:,2:nUnknowns) = temp2(:,2:nUnknowns) - temp1
 
        end do !... l = 1, nDimensions
 
-       do k = this%offset(3) + 1, this%offset(3) + depthBlockSize(3)
-          do j = this%offset(2) + 1, this%offset(2) + depthBlockSize(2)
-             do i = this%offset(1) + 1, this%offset(1) + depthBlockSize(1)
+       do k = depthBlockOffset(3) + 1, depthBlockOffset(3) + depthBlockSize(3)
+          do j = depthBlockOffset(2) + 1, depthBlockOffset(2) + depthBlockSize(2)
+             do i = depthBlockOffset(1) + 1, depthBlockOffset(1) + depthBlockSize(1)
                 gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                 &
                      (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                   &
                      (k - 1 - this%gridOffset(3)))
                 if (grid%iblank(gridIndex) == 0) cycle
-                depthIndex = i - this%offset(1) + depthBlockSize(1) *                        &
-                     (j - 1 - this%offset(2) + depthBlockSize(2) *                           &
-                     (k - 1 - this%offset(3)))
+                depthIndex = i - depthBlockOffset(1) + depthBlockSize(1) *                   &
+                     (j - 1 - depthBlockOffset(2) + depthBlockSize(2) *                      &
+                     (k - 1 - depthBlockOffset(3)))
 
                 temp2(depthIndex,nDimensions+2) = solverOptions%ratioOfSpecificHeats *       &
                      state%specificVolume(gridIndex,1) * temp2(depthIndex,nDimensions+2)
