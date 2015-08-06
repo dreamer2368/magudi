@@ -135,7 +135,7 @@ contains
 
           call region%patchFactories(j)%connect(patch)
           if (.not. associated(patch)) cycle
-          if (patch%gridIndex /= region%grids(i)%index .or. patch%nPatchPoints <= 0) cycle
+          if (patch%gridIndex /= region%grids(i)%index) cycle
 
           nullify(costTargetPatch)
           select type (patch)

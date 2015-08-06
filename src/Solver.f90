@@ -735,7 +735,7 @@ contains
              call region%patchFactories(i)%connect(patch)
              if (.not. associated(patch)) cycle
              select type (patch)
-                class is (t_CostTargetPatch)
+             class is (t_CostTargetPatch)
                 do j = 1, size(region%states)
                    if (patch%gridIndex /= region%grids(j)%index) cycle
                    call patch%updateRhs(ADJOINT, region%simulationFlags,                     &

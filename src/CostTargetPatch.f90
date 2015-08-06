@@ -70,6 +70,9 @@ contains
        call issueWarning(grid%comm, message)
     end if
 
+    if (.not. simulationFlags%predictionOnly .and. this%nPatchPoints >= 0)                   &
+         allocate(this%adjointForcing(this%nPatchPoints, nUnknowns))
+
   end subroutine setup
 
   subroutine cleanup(this)
@@ -112,7 +115,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, l, gridIndex, patchIndex
+    integer :: i, j, k, l, nDimensions, nUnknowns, gridIndex, patchIndex
     real(SCALAR_KIND) :: forcingFactor
 
     assert_key(mode, (FORWARD, ADJOINT))
@@ -127,7 +130,13 @@ contains
        forcingFactor = state%adjointForcingFactor
     end if
 
-    do l = 1, solverOptions%nUnknowns
+    nDimensions = grid%nDimensions
+    assert_key(nDimensions, (1, 2, 3))
+
+    nUnknowns = solverOptions%nUnknowns
+    assert(nUnknowns >= nDimensions + 2)
+
+    do l = 1, nUnknowns
        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
           do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
              do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
@@ -145,7 +154,7 @@ contains
              end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
           end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
-    end do !... l = 1, solverOptions%nUnknowns
+    end do !... l = 1, nUnknowns
 
     call endTiming("addCostTargetPenalty")
 
