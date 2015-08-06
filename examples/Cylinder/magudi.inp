@@ -15,15 +15,14 @@ mean_pressure_file = "Cylinder.mean_pressure.f"
 # Simulation flags
 include_viscous_terms = true
 use_constant_CFL_mode = false
-use_target_state = true
-compute_time_average = false
+compute_time_average = true
 
 # Adjoint optimization flags                                                                                                                                                                   
-disable_adjoint_solver = false
+disable_adjoint_solver = true
 baseline_prediction_available = false
 cost_functional_type = "SOUND"
 use_continuous_adjoint = false
-gradient_buffer_size = 100
+gradient_buffer_size = 500
 
 # Gradient accuracy options
 check_gradient_accuracy = false
@@ -46,8 +45,8 @@ defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_step_size = 0.002
-number_of_timesteps = 400000
-report_interval = 100
+number_of_timesteps = 60000
+report_interval = 200
 save_interval = 500
 
 # Artificial dissipation
@@ -56,7 +55,7 @@ composite_dissipation = false
 dissipation_amount = 0.005
 
 # Sponge options
-defaults/sponge_amount = 2.
+defaults/sponge_amount = 0.5
 
 # Solution limits
 enable_solution_limits = true
@@ -65,11 +64,7 @@ minimum_temperature = 0.05
 maximum_density = 5.
 maximum_temperature = 4.
 
-# Penalty parameters
-defaults/viscous_penalty_amount = 0.
-patches/cylinder/viscous_penalty_amount1 = 1.
-
 # Vorticity dilatation options
 vorticity_dilatation/start_timestep = 1000000
-vorticity_dilatation/end_timestep = 1400000
+vorticity_dilatation/end_timestep = 1060000
 vorticity_dilatation/save_interval = 500
