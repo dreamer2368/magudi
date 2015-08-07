@@ -826,13 +826,19 @@ def sbp(n, interior_accuracy=4, order=1, periodic=False, dtype=np.float64):
         a[-d:,:] = -a[-d:,:]
     return a.tocsr()
 
-def mesh_stats(x):
+def mesh_stats(x, centered=False):
     print 'Number of grid points: %i' % x.size
     print 'Grid extent: %+.4E, %+.4E' % (x[0], x[-1])
-    dx = np.abs(x[1:] - x[:-1])
-    print 'Minimum spacing: %+.4E' % dx.min()
-    print 'Maximum spacing: %+.4E' % dx.max()
-    s = np.abs(dx[1:] - dx[:-1]) / dx[:-1]
+    if centered:
+        dx = 0.5 * np.abs(x[2:] - x[:-2])
+    else:
+        dx = np.abs(x[1:] - x[:-1])
+    print 'Minimum spacing: %+.4E at %+.4E' % (dx.min(), x[dx.argmin()])
+    print 'Maximum spacing: %+.4E at %+.4E' % (dx.max(), x[dx.argmax()])
+    if centered:
+        s = np.abs(x[2:] - 2. * x[1:-1] + x[:-2]) / dx
+    else:
+        s = np.abs(dx[1:] - dx[:-1]) / dx[:-1]
     i = s.argmax()
     print 'Maximum point-to-point stretching: %g%% at %+.4E' % \
         (s[i] * 100., x[i+1])
