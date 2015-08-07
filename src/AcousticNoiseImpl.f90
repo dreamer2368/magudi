@@ -158,7 +158,7 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
      instantaneousFunctional = instantaneousFunctional +                                     &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))*&
-              0.5_wp*(tanh(this%data_(j)%sigma*(region%states(j)%time-this%data_(j)%t1))-&
+              (tanh(this%data_(j)%sigma*(region%states(j)%time-this%data_(j)%t1))-&
               tanh(this%data_(j)%sigma*(region%states(j)%time-this%data_(j)%t2)))/&
               this%data_(j)%normalize
 
@@ -204,10 +204,10 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 end function computeAcousticNoise
 
 subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptions,          &
-     region, grid, state, patch)
+     grid, state, patch)
 
   ! <<< Derived types >>>
-  use Region_mod, only: t_Region
+  !use Region_mod, only: t_Region
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
   use AcousticNoise_mod, only : t_AcousticNoise
@@ -225,7 +225,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   class(t_AcousticNoise) :: this
   type(t_SimulationFlags), intent(in) :: simulationFlags
   type(t_SolverOptions), intent(in) :: solverOptions
-  class(t_Region), intent(in) :: region
+  !class(t_Region), intent(in) :: region
   class(t_Grid), intent(in) :: grid
   class(t_State), intent(in) :: state
   class(t_CostTargetPatch) :: patch
@@ -264,7 +264,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
                 (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
                 (state%pressure(gridIndex, 1) - meanPressure(patchIndex))*&
-               0.5_wp*(tanh(this%data_(grid%index)%sigma*(state%time-this%data_(grid%index)%t1))&
+               (tanh(this%data_(grid%index)%sigma*(state%time-this%data_(grid%index)%t1))&
                -tanh(this%data_(grid%index)%sigma*(state%time-this%data_(grid%index)%t2)))/&
                this%data_(grid%index)%normalize
 

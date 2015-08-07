@@ -43,6 +43,7 @@ subroutine addRandomFluctuationSource(this, time, iblank, rightHandSide)
      if (iblank(i) == 0) cycle
           do j=1,size(rightHandSide,2)
           call random_number(r)
+          r=1.+(1.)*r
           fluctuation = this%amplitude*r
           rightHandSide(i,j) = rightHandSide(i,j)+fluctuation
           end do

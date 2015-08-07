@@ -55,7 +55,7 @@ subroutine setupWallActuator(this, region)
   end if
 
      this%controlIndex=0
-     this%numP=30
+     this%numP=10
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
      this%p(:)=0.00_wp 
@@ -63,23 +63,14 @@ subroutine setupWallActuator(this, region)
      allocate(this%po(this%numP))
      this%po(:)=0.00_wp
 
-     seed=12345
-     call random_seed(size = n)
-     allocate(seed_(n))
-     seed_ = seed
-     call random_seed(put = seed_)
-     SAFE_DEALLOCATE(seed_)
-     allocate(phases(this%numP/2))
-     call random_number(phases)
-     phases(:)=phases(:)*2._wp*pi 
- 
      i=1
      do j=1,size(this%p),2
+     this%po(j)=0.00075_wp !
      this%po(j+1)=0._wp !phases(i) !2._wp * pi *real(i) * 0.1
      i=i+1
      end do
 
-     SAFE_DEALLOCATE(phases)
+     this%p=this%po
 
      SAFE_DEALLOCATE(this%gradient)
      allocate(this%gradient(this%numP))
