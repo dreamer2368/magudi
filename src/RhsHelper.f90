@@ -199,6 +199,8 @@ contains
 
        do k = 1, grid%nGridPoints
 
+          localAdjointDiffusion = 0.0_wp
+
           do j = 1, nDimensions
              do i = 1, nDimensions
                 call computeSecondPartialViscousJacobian(nDimensions, k, state%velocity,     &
