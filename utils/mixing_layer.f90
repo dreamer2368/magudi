@@ -541,7 +541,8 @@ contains
     logical :: generateTargetState_
     integer :: i, nSpecies, H2, O2, nDimensions, ierror
     real(wp) :: ratioOfSpecificHeats, upperVelocity, lowerVelocity,                          &
-         density, velocity, temperature, Z, fuel, oxidizer, YF0, YO0, Z0
+         density, velocity, temperature, Z, fuel, oxidizer, YF0, YO0, Z0,                    &
+         x, y, xmini, xmaxi, ymini, ymaxi, xmaxo, xmino, ymaxo, ymino
     real(wp), parameter :: growthRate = 0.1_wp
 
     generateTargetState_ = .false.
@@ -562,6 +563,16 @@ contains
     upperVelocity = getOption("upper_velocity", 0.0_wp)
     lowerVelocity = getOption("lower_velocity", 0.0_wp)
 
+    ! Domain extents
+    xmini = getOption("xmin_interior", 0.0_wp)
+    xmaxi = getOption("xmax_interior", 120.0_wp)
+    ymini = getOption("ymin_interior", -30.0_wp)
+    ymaxi = getOption("ymax_interior", 30.0_wp)
+    xmino = getOption("xmin_outer", -40.0_wp)
+    xmaxo = getOption("xmax_outer", 160.0_wp)
+    ymino = getOption("ymin_outer", -50.0_wp)
+    ymaxo = getOption("ymax_outer", 50.0_wp)
+
     ! Species indeces.
     H2 = nDimensions+2+1
     O2 = H2 + 1
@@ -571,36 +582,44 @@ contains
     call getRequiredOption("initial_fuel_mass_fraction", Yf0)
     call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
 
-    ! Gamma
+    ! Specific heat ration (gamma).
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
 
     do i = 1, grid%nGridPoints
 
-       ! Mixture fraction
-       Z = 0.5_wp * Z0 * ( 1.0_wp - erf(grid%coordinates(i,2) /                              &
-            (1.0_wp + growthRate*max(0.0_wp, grid%coordinates(i,1)))) )
+       ! Local coordinates.
+       x = grid%coordinates(i,1)
+       y = grid%coordinates(i,2)
 
-       ! Components
+       ! Mixture fraction.
+       Z = 0.5_wp * Z0 * ( 1.0_wp - erf(y / (1.0_wp +                                        &
+            growthRate * max(0.0_wp, min(x, xmaxi) - xmini))) )
+
+       ! Mixture components.
        fuel = YF0 * Z
-       oxidizer = YO0 * (1.0_wp-Z)
+       oxidizer = YO0 * (1.0_wp - Z)
 
-       ! Density
+       ! Species decay at the outflow.
+       fuel = fuel - fuel * max( 0.0_wp, (x - xmaxi) / (xmaxo - xmaxi) )
+       oxidizer = oxidizer - oxidizer * max( 0.0_wp, (x - xmaxi) / (xmaxo - xmaxi) )
+
+       ! Density.
        if (nspecies.gt.0) then
           density = 1.0_wp
        else
           density = 1.0_wp
        end if
 
-       ! Velocity
-       velocity = lowerVelocity +                                                          &
-            0.5_wp * (upperVelocity - lowerVelocity) * (1.0_wp + tanh(2.0_wp *             &
-            grid%coordinates(i,2) /                                                        &
-            (1.0_wp + growthRate*max(0.0_wp, grid%coordinates(i,1)))))
+       ! Velocity.
+       velocity = lowerVelocity +                                                            &
+            0.5_wp * (upperVelocity - lowerVelocity) * (1.0_wp + tanh(2.0_wp *               &
+            grid%coordinates(i,2) /                                                          &
+            (1.0_wp + growthRate*max(0.0_wp, grid%coordinates(i,1)-xmini))))
 
-       ! Temperature
+       ! Temperature.
        temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
 
-       ! State variables
+       ! State variables.
        state%conservedVariables(i,1) = density
        state%conservedVariables(i,2) = state%conservedVariables(i,1) * velocity
        state%conservedVariables(i,3:nDimensions+1) = 0.0_wp
@@ -612,7 +631,7 @@ contains
        if (nSpecies.gt.1) state%conservedVariables(i,O2) = oxidizer *                        &
             state%conservedVariables(i,1)
 
-       ! Target solution
+       ! Target solution.
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)
 
     end do
