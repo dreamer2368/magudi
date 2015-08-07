@@ -6,7 +6,7 @@ module RandomNumber
   private
 
   interface random
-     module procedure :: randomInteger_, randomReal_
+     module procedure randomInteger_, randomReal_
   end interface random
 
   public :: initializeRandomNumberGenerator, random
