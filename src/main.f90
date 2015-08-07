@@ -208,6 +208,8 @@ program main
      else
         dummyValue = solver%runForward(region)
      end if
+  else if (getOption("check_gradient_accuracy", .false.)) then !... verify gradient is exact.
+     call solver%checkGradientAccuracy(region)
   else if (getOption("single_controlled_prediction", .false.)) then
      dummyValue = solver%runForward(region, actuationAmount =                                &
           getOption("actuation_amount", 1.0_wp))
