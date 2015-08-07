@@ -75,18 +75,23 @@ def initial_condition(g, u1, u2, gamma=1.4):
     return s.fromprimitive(gamma)
 
 def target_mollifier(g,x_min,x_max,y_min,y_max):
-    f = p3d.Function().copy_from(g)
-    f.f[0].fill(1.)
-    n = f.get_size(0)
-    for j in range(n[1]):
-        f.f[0][:,j,0,0] *= p3d.tanh_support(
-            g.xyz[0][:,j,0,0], x_min, x_max, 40., 0.2)    
-    for i in range(n[0]):
-        #f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(
-        #    g.xyz[0][i,:,0,1], y_min, y_max)
+	f = p3d.Function().copy_from(g)
+	f.f[0].fill(1.)
+	x = g.xyz[0][:,:,:,0]
+	n = f.get_size(0)
+	for j in range(n[1]):
+		f.f[0][:,j,0,0] *= p3d.tanh_support(
+		g.xyz[0][:,j,0,0], x_min, x_max, 40., 0.2)    
+	for i in range(n[0]):
+	#f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(
+	#    g.xyz[0][i,:,0,1], y_min, y_max)
 		f.f[0][i,:,0,0] *= p3d.tanh_support(
-        	g.xyz[0][i,:,0,1], y_min, y_max,40., 0.2)	
-    return f
+		g.xyz[0][i,:,0,1], y_min, y_max,40., 0.2)	
+	
+	f.f[0][:,:,:,0]=np.where(x > x_min+2./3.*(x_max-x_min),f.f[0][:,:,:,0]*100.,f.f[0][:,:,:,0])
+	f.f[0][:,:,:,0]=np.where(x < x_min+1./3.*(x_max-x_min),f.f[0][:,:,:,0]*100.,f.f[0][:,:,:,0])
+	return f
+
 
 def control_mollifier(g,x_min,x_max,y_min,y_max):
 	n = g.get_size(0)
@@ -126,11 +131,17 @@ if __name__ == '__main__':
  		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
 		ambient_pressure(p3d.fromfile(outputPrefix+'.ambient.q')).save(outputPrefix+'.ambient_pressure.f')
 
-		xMinTarget = 0.05
-		xMaxTarget = 0.95
-		yMinTarget = 0.55
-		yMaxTarget = 0.65
+		xMinTarget = 0.1
+		xMaxTarget = 0.90
+		yMinTarget = 0.35
+		yMaxTarget = 0.40
 		target_mollifier(g,xMinTarget,xMaxTarget,yMinTarget,yMaxTarget).save(outputPrefix+'.target_mollifier.f')
+
+		xMinTarget=xMin
+		xMaxTarget=xMax
+		yMinTarget=0.3
+		yMaxTarget=yMax
+
 
 		xMinControl =  xMin
 		xMaxControl =  xMax
@@ -155,7 +166,7 @@ if __name__ == '__main__':
 		left_c=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMinControl))) + 1
 		right_c=np.argmin(abs(g.xyz[0][:,0,0,0] - (xMaxControl))) + 1
 		bottom_c=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMinControl))) + 1
-		top_c=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMinControl))) + 1
+		top_c=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMaxControl))) + 1
 
 		with open(outputPrefix+'_bc.dat', "wt") as fp:
 				fp.write("# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax\n")
