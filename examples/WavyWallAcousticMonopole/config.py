@@ -3,7 +3,7 @@ import numpy as np
 import plot3dnasa as p3d
 
 def ShapeMollifierFunction(xNormalized):
-	MollifierFunction = lambda x: np.where(np.logical_or(x < 0., x > 1.), 0., np.tanh(40. * (x - 0.3)) - np.tanh(40. * (x - 0.7)))
+	MollifierFunction = lambda x: np.where(np.logical_or(x < 0., x > 1.), 0., np.tanh(50. * (x - 0.3)) - np.tanh(50. * (x - 0.7)))
 	Mollifier = MollifierFunction(xNormalized)
 	Mollifier /= 0.8 #np.trapz(Mollifier, xNormalized) # normalized to have unit area
 
@@ -76,20 +76,22 @@ def initial_condition(g, u1, u2, gamma=1.4):
 
 def target_mollifier(g,x_min,x_max,y_min,y_max):
 	f = p3d.Function().copy_from(g)
-	f.f[0].fill(1.)
+	f.f[0].fill(0.)
 	x = g.xyz[0][:,:,:,0]
 	n = f.get_size(0)
 	for j in range(n[1]):
-		f.f[0][:,j,0,0] *= p3d.tanh_support(
-		g.xyz[0][:,j,0,0], x_min, x_max, 40., 0.2)    
+		f.f[0][:,j,0,0] += p3d.tanh_support(
+          g.xyz[0][:,j,0,0], x_min,x_max,50, 0.2)
+		#f.f[0][:,j,0,0] += p3d.tanh_support(
+		#g.xyz[0][:,j,0,0], x_min,x_min+1./4.*(x_max-x_min), 40., 0.01)    
+		#f.f[0][:,j,0,0] += p3d.tanh_support(
+		#g.xyz[0][:,j,0,0],x_min+3./4.*(x_max-x_min), x_max, 40., 0.01)
+		#f.f[0][:,j,0,0] += p3d.tanh_support(
+		#g.xyz[0][:,j,0,0],x_min+3./8.*(x_max-x_min),x_min+5./8.*(x_max-x_min), 40., 0.01)
 	for i in range(n[0]):
-	#f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(
-	#    g.xyz[0][i,:,0,1], y_min, y_max)
 		f.f[0][i,:,0,0] *= p3d.tanh_support(
-		g.xyz[0][i,:,0,1], y_min, y_max,40., 0.2)	
+		g.xyz[0][i,:,0,1], y_min, y_max,50., 0.01)	
 	
-	f.f[0][:,:,:,0]=np.where(x > x_min+2./3.*(x_max-x_min),f.f[0][:,:,:,0]*100.,f.f[0][:,:,:,0])
-	f.f[0][:,:,:,0]=np.where(x < x_min+1./3.*(x_max-x_min),f.f[0][:,:,:,0]*100.,f.f[0][:,:,:,0])
 	return f
 
 
@@ -131,10 +133,10 @@ if __name__ == '__main__':
  		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
 		ambient_pressure(p3d.fromfile(outputPrefix+'.ambient.q')).save(outputPrefix+'.ambient_pressure.f')
 
-		xMinTarget = 0.1
-		xMaxTarget = 0.90
+		xMinTarget = 0.3
+		xMaxTarget = 0.7
 		yMinTarget = 0.35
-		yMaxTarget = 0.40
+		yMaxTarget = 0.55
 		target_mollifier(g,xMinTarget,xMaxTarget,yMinTarget,yMaxTarget).save(outputPrefix+'.target_mollifier.f')
 
 		xMinTarget=xMin
