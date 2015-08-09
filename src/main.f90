@@ -216,8 +216,7 @@ program main
   else
      if (.not. region%simulationFlags%isBaselineAvailable)                                   &
           dummyValue = solver%runForward(region)
-     if (.not. getOption("gradient_available", .false.))                                     &
-          dummyValue = solver%runAdjoint(region)
+     dummyValue = solver%runAdjoint(region)
   end if
 
   call solver%cleanup()
