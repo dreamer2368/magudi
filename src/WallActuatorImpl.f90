@@ -65,7 +65,7 @@ subroutine setupWallActuator(this, region)
 
      i=1
      do j=1,size(this%p),2
-     this%po(j)=0.00075_wp !
+     this%po(j)=0.00_wp !
      this%po(j+1)=0._wp !phases(i) !2._wp * pi *real(i) * 0.1
      i=i+1
      end do

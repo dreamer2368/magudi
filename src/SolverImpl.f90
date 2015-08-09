@@ -1101,7 +1101,7 @@ if (procRank == 0) &
           minValSet=.true.
        end if
 
-       actuationAmount=0.5*actuationAmount 
+       actuationAmount=0.75*actuationAmount 
 
      end do
      if (procRank == 0) &

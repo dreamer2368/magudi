@@ -15,7 +15,32 @@ module WavywallHelperImpl
   implicit none
   public
 
+  !enforce a maximum value of sum of squares outside of any penalty
+  SCALAR_TYPE,parameter::MAX_WAVY_WALL_SUM_SQUARES=1.e-5
+
 contains
+
+subroutine checkAmplitudes(this)
+use WallActuator_mod, only : t_WallActuator
+implicit none
+SCALAR_TYPE::sumOfSquares
+integer, parameter :: wp = SCALAR_KIND
+integer::i
+class(t_WallActuator) :: this
+
+sumOfSquares=0._wp
+do i=2,size(this%p),2
+sumOfSquares=sumOfSquares+this%p(i-1)*this%p(i-1)
+end do
+
+if (sumOfSquares.gt. MAX_WAVY_WALL_SUM_SQUARES)then
+do i=2,size(this%p),2
+this%p(i-1)=this%p(i-1)/sqrt(sumOfSquares)*sqrt(MAX_WAVY_WALL_SUM_SQUARES)
+end do
+end if
+
+
+end subroutine
 
 subroutine updateWallCoordinates(this,grid)
   ! <<< Derived types >>>
@@ -38,6 +63,8 @@ subroutine updateWallCoordinates(this,grid)
 
   allocate(unitCoordinates(size(grid%coordinates(:,1)),size(grid%coordinates(1,:))))
   call computeUnitCubeCoordinates(grid,unitCoordinates)
+
+  call checkAmplitudes(this)
  
   !with an updated list of p remake the physical coordinates 
      do k = 1, grid%localSize(3)
@@ -229,8 +256,8 @@ SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
 assert(mod(size(p),2)==0)
 
 width=0.2_wp
-shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
-shapeMollifier=shapeMollifier/0.8_wp
+shapeMollifier=tanh(100._wp * (xi1 - 0.3_wp)) - tanh(100._wp * (xi1 - 0.7_wp))
+!shapeMollifier=shapeMollifier/0.8_wp
 
 gstar=xi2
 j=1
@@ -240,7 +267,7 @@ j=j+1
 end do
 
 if (xi2 .le. width) then
-chi=tanh(5._wp *xi2/width)
+chi=tanh(10._wp *xi2/width)
 else
 chi=1._wp
 end if
@@ -269,8 +296,8 @@ allocate(dgstardpVec(size(dgdpVec)))
 
 width=0.2_wp
 dgdpVec=0._wp
-shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
-shapeMollifier=shapeMollifier/0.8_wp
+shapeMollifier=tanh(100._wp * (xi1 - 0.3_wp)) - tanh(100._wp * (xi1 - 0.7_wp))
+!shapeMollifier=shapeMollifier/0.8_wp
 
 
 j=1
@@ -281,7 +308,7 @@ j=j+1
 end do
 
 if (xi2 .le. width) then
-chi=tanh(5._wp *xi2/width)
+chi=tanh(10._wp *xi2/width)
 else
 chi=1._wp
 end if
