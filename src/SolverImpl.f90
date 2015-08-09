@@ -1005,18 +1005,23 @@ subroutine findOptimalForcing(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDescents,restartIteration,fileUnit, iostat, procRank,ierror
+  integer :: i, j,k, nDescents,nLineSearches,restartIteration,fileUnit,fileUnit2, iostat, procRank,ierror
   character(len = STRING_LENGTH) :: filename, message
-  real(wp) :: lambda
+  real(wp) :: lambda,tempCost,minVal
+  logical::minValSet
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional,costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError,dummyValue,&
        radientAccuracyPrecision
 
-  call getRequiredOption("initial_amplitude_of_descent", lambda)
-
   call getRequiredOption("number_of_descents", nDescents)
   if (nDescents < 0) then
-     write(message, '(A)') "Number of control iterations must be a non-negativenumber!"
+     write(message, '(A)') "Number of descents must be a non-negativenumber!"
+     call gracefulExit(region%comm, message)
+  end if
+
+  call getRequiredOption("number_of_lineSearches", nLineSearches)
+  if (nDescents < 0) then
+     write(message, '(A)') "Number of line searched must be a non-negativenumber!"
      call gracefulExit(region%comm, message)
   end if
 
@@ -1034,36 +1039,80 @@ subroutine findOptimalForcing(this, region)
      end if
   end if
 
+  write(filename, '(2A)') trim(this%outputPrefix),".cost_optimization_allIterations.txt"
+  if (procRank == 0) then
+     if (restartIteration == 0 .and..not.region%simulationFlags%isBaselineAvailable) then
+        open(unit = getFreeUnit(fileUnit2), file = trim(filename), action='write',          &
+             status = 'unknown', iostat = iostat)
+     else
+        open(unit = getFreeUnit(fileUnit2), file = trim(filename), action='readwrite',      &
+             status = 'old', position = 'rewind', iostat = iostat)
+     end if
+  end if
+
   call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
   if (iostat /= 0) then
      write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
      call gracefulExit(region%comm, message)
   end if
 
-     baselineCostFunctional = this%runForward(region)
-     costSensitivity = this%runAdjoint(region)
+  baselineCostFunctional = this%runForward(region)
 
-  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable)&
-       write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,&
-       baselineCostFunctional,costSensitivity, 0.0_wp
+if (procRank == 0) &
+          write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'))')0,       &
+          baselineCostFunctional,baselineCostFunctional,0._wp,0._wp
 
   if (nDescents == 0) return
+  if (nLineSearches == 0) return
 
   ! Turn off output for controlled predictions.
   region%outputOn = .false.
 
+  ! We have at this point a baseline cost and the first gradient with respect to
+  ! po
+  tempCost=baselineCostFunctional
+  k=1
   do i = 1,nDescents
-     actuationAmount = lambda 
-     costFunctional = this%runForward(region, actuationAmount=actuationAmount)
+     region%states(:)%LINESEARCHING=.false.
+     costFunctional = this%runForward(region)
      costSensitivity = this%runAdjoint(region)
-     if (procRank == 0)&
-          write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i,actuationAmount,       &
-          costFunctional,costSensitivity,&
+     region%states(:)%LINESEARCHING=.true.
+
+     !line search here
+     minVal=baselineCostFunctional
+     minValSet=.false.
+     actuationAmount=10._wp/sqrt(costSensitivity) !problem dependent trial error
+     do j=1,nLineSearches
+
+       costFunctional = this%runForward(region, actuationAmount=actuationAmount)
+
+       if (minValSet .and. (costFunctional.ge.minVal)) then
+          exit
+       end if
+
+       if (procRank == 0) &
+          write(fileUnit2, '(I4,1x,I4,I4,1x,5(1X,SP,' // SCALAR_FORMAT//'))')i,j,k,region%states(1)%actuationAmount,       &
+          baselineCostFunctional,costFunctional,costSensitivity,&
+          abs(costFunctional - baselineCostFunctional) /baselineCostFunctional
+       k=k+1
+
+       if (costFunctional.lt.minVal) then
+          minVal=costFunctional
+          minValSet=.true.
+       end if
+
+       actuationAmount=0.5*actuationAmount 
+
+     end do
+     if (procRank == 0) &
+          write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'))')i,       &
+          baselineCostFunctional,costFunctional,costSensitivity,&
           abs(costFunctional - baselineCostFunctional) /baselineCostFunctional
   end do
 
-  if (procRank == 0) close(fileUnit)
 
+  if (procRank == 0) close(fileUnit2)
+  if (procRank == 0) close(fileUnit)
 
 end subroutine findOptimalForcing
 

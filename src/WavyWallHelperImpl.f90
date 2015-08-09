@@ -275,7 +275,7 @@ shapeMollifier=shapeMollifier/0.8_wp
 
 j=1
 do i=2,size(p),2
-dgstardpVec(i-1)=0._wp*(1._wp-xi2)*shapeMollifier*cos(2._wp*pi*6._wp*real(j, wp)*xi1+p(i))
+dgstardpVec(i-1)=(1._wp-xi2)*shapeMollifier*cos(2._wp*pi*6._wp*real(j, wp)*xi1+p(i))
 dgstardpVec(i)=(-(1._wp-xi2)*p(i-1)*shapeMollifier*sin(2._wp*pi*6._wp*real(j, wp)*xi1+p(i)))
 j=j+1
 end do
