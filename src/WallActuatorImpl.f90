@@ -56,6 +56,9 @@ subroutine setupWallActuator(this, region)
 
      this%controlIndex=0
      this%numP=10
+     
+     this%MAX_WAVY_WALL_SUM_SQUARES=1.e-4
+
      SAFE_DEALLOCATE(this%p)
      allocate(this%p(this%numP))
      this%p(:)=0.00_wp 
@@ -65,8 +68,8 @@ subroutine setupWallActuator(this, region)
 
      i=1
      do j=1,size(this%p),2
-     this%po(j)=0.00_wp !
-     this%po(j+1)=0._wp !phases(i) !2._wp * pi *real(i) * 0.1
+     this%po(j)=0.0_wp !
+     this%po(j+1)=2._wp * pi *real(i) * 0.1
      i=i+1
      end do
 
@@ -75,6 +78,13 @@ subroutine setupWallActuator(this, region)
      SAFE_DEALLOCATE(this%gradient)
      allocate(this%gradient(this%numP))
      this%gradient=0._wp
+     SAFE_DEALLOCATE(this%previousGradient)
+     allocate(this%previousGradient(this%numP))
+     this%previousGradient=0._wp
+ 
+     SAFE_DEALLOCATE(this%stepDirection)
+     allocate(this%stepDirection(this%numP))
+     this%stepDirection=0._wp
 
      SAFE_DEALLOCATE(this%instantaneousGradient)
      allocate(this%instantaneousGradient(this%numP))
@@ -112,6 +122,10 @@ subroutine cleanupWallActuator(this)
 
   call this%cleanupBase()
 
+  SAFE_DEALLOCATE(this%stepDirection)
+  SAFE_DEALLOCATE(this%gradient)
+  SAFE_DEALLOCATE(this%previousGradient)
+  SAFE_DEALLOCATE(this%instantaneousGradient)
   SAFE_DEALLOCATE(this%dJacobiandp)
   SAFE_DEALLOCATE(this%dMijdp)
 
@@ -145,7 +159,6 @@ subroutine computeWallActuatorSensitivity(this,timeIntegrator, region)
     assert(size(this%gradient,1)==this%numP)
     this%sensitivity=this%sensitivity+dot_product(this%gradient(:),this%gradient(:))
   end do
-
 
   do i = 1, size(region%grids)
   call MPI_Bcast(this%sensitivity, 1, SCALAR_TYPE_MPI,                            &
@@ -188,14 +201,13 @@ SCALAR_TYPE, allocatable::dQdxi(:,:,:),viscousFluxes(:,:,:),&
           inviscidFluxes(:,:,:),transformedFluxes(:,:,:)
 class(t_Patch), pointer :: patch => null()
 character(len = STRING_LENGTH) :: key
-
 integer::gridIndex,direction
 SCALAR_TYPE, allocatable :: localConservedVariables(:),dmetricsdp(:),metricsAlongNormalDirection(:),&
 inviscidPenalty(:), deltaPressure(:), deltaInviscidPenalty(:,:)
 SCALAR_TYPE :: normalMomentum,inviscidPenaltyAmount
-
-
 SCALAR_TYPE, allocatable ::dissipationTerm(:,:,:)
+
+
 
 assert(allocated(region%grids))
 assert(allocated(region%states))
@@ -385,6 +397,36 @@ end do !over grids
 
 end subroutine computeWallActuatorGradient
 
+subroutine addWallPenalty(this,cost,region, mode)
+
+  use Region_mod, only : t_Region
+  use InputHelper, only : getOption
+  use WallActuator_mod, only : t_WallActuator
+  use WavywallHelperImpl
+  class(t_WallActuator) :: this
+  class(t_Region) :: region
+  SCALAR_TYPE::cost
+  integer, intent(in) :: mode
+  
+  SCALAR_TYPE::alpha
+  SCALAR_TYPE::sumSquares
+  SCALAR_TYPE::epsilon
+  integer::i
+  integer, parameter :: wp = SCALAR_KIND
+
+  
+  alpha=getOption("cost_functional/wallPenalty",0.0_wp)
+  epsilon=0.5_wp
+ 
+  sumSquares=0._wp
+  do i=2,this%numP,2
+     sumSquares=sumSquares+this%p(i-1)*this%p(i-1)
+  end do
+  
+  cost=alpha*(sumSquares-this%MAX_WAVY_WALL_SUM_SQUARES*epsilon)
+ 
+end subroutine
+
 
 subroutine updateWallActuatorForcing(this, region)
 
@@ -514,17 +556,41 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   integer :: j,iostat,n
   SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
   SCALAR_TYPE::phase,amplitude,shiftedPhase
-
+  SCALAR_TYPE::beta
+  SCALAR_TYPE,allocatable::conjugateDirection
+  SCALAR_TYPE::alpha
   select case (mode)
 
      !case (OPTIMIZE)
      !Read previously written g if one doesn't exist then
      !assume steepest descent 
 
+     case (ADJOINT)
+     alpha=getOption("cost_functional/wallPenalty",0.0_wp)
+     do j=2,this%numP,2
+     this%gradient(j-1)=2._wp*alpha*this%p(j-1)
+     end do
+
      case (FORWARD)
 
      do g = 1, size(region%grids)
-        this%p(:)=this%po(:)-region%states(g)%actuationAmount*this%gradient(:)
+
+        if (getOption("find_Optimal_Forcing",.true.)) then
+          if (this%controlIndex.eq.0) then
+               this%stepDirection=-this%gradient
+          else
+               if (.not.region%states(g)%LINESEARCHING) then
+               beta=dot_product(-this%gradient,-this%gradient)/&
+                    dot_product(-this%previousGradient,-this%previousGradient)
+               beta=max(0._wp,beta) !automatic direction reset if necessary
+               !beta=0._wp
+               this%stepDirection=-this%gradient+beta*this%stepDirection
+               end if
+          end if
+           this%p(:)=this%po(:)+region%states(g)%actuationAmount*this%stepDirection 
+        else
+          this%p(:)=this%po(:)-region%states(g)%actuationAmount*this%gradient(:)
+        end if
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
         call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
@@ -575,6 +641,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      if (procRank == 0) close(fileUnit)
 
      if (getOption("find_Optimal_Forcing",.true.))then
+          this%previousGradient=this%gradient
           this%gradient(:)=0._wp
           this%sensitivity=0._wp
           this%po(:)=this%p(:)
@@ -642,7 +709,7 @@ subroutine hookWallActuatorAfterTimemarch(this, region, mode)
   ! <<< Internal modules >>>
   use InputHelper, only : getFreeUnit
   use ErrorHandler, only : gracefulExit
-
+  use InputHelper, only : getOption
   implicit none
 
   ! <<< Arguments >>>
@@ -653,6 +720,8 @@ subroutine hookWallActuatorAfterTimemarch(this, region, mode)
   ! <<< Local variables >>>
   integer :: i, procRank, ierror
   class(t_Patch), pointer :: patch => null()
+  integer::j
+  integer, parameter :: wp = SCALAR_KIND
 
   if (.not. allocated(region%patchFactories)) return
 
@@ -667,8 +736,11 @@ subroutine hookWallActuatorAfterTimemarch(this, region, mode)
 
         select case (mode)
 
+        case(FORWARD)
+
         case (ADJOINT)
-           call patch%saveGradient()
+
+          call patch%saveGradient()
 
         end select
 

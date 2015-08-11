@@ -585,6 +585,10 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
        abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
        call controller%hookBeforeTimemarch(region, FORWARD)
 
+  if (.not.region%simulationFlags%predictionOnly)then
+     call controller%addPenalty(costFunctional,region,FORWARD)
+  end if
+
   time = startTime
   do i = 1, size(region%states) !... update state
      call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
@@ -621,7 +625,9 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
            instantaneousCostFunctional = functional%compute(region)
            costFunctional = costFunctional +                                                 &
                 timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
+
         end if
+
 
         ! Update the time average.
         if (region%simulationFlags%computeTimeAverage) then
@@ -649,12 +655,12 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      end if
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
-
+  
   ! Call controller hooks after time marching ends.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
        abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
        call controller%hookAfterTimemarch(region, FORWARD)
-
+ 
   call this%residualManager%cleanup()
 
   if (region%simulationFlags%computeTimeAverage) then
@@ -1009,10 +1015,8 @@ subroutine findOptimalForcing(this, region)
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: lambda,tempCost,minVal
   logical::minValSet
-  real(wp) :: actuationAmount, baselineCostFunctional, costFunctional,costSensitivity,      &
-       initialActuationAmount, geometricGrowthFactor, gradientError,dummyValue,&
-       radientAccuracyPrecision
-
+  real(wp) :: actuationAmount,tempCostFunctional, baselineCostFunctional, costFunctional,costSensitivity,      &
+       initialActuationAmount, geometricGrowthFactor, gradientError,dummyValue
   call getRequiredOption("number_of_descents", nDescents)
   if (nDescents < 0) then
      write(message, '(A)') "Number of descents must be a non-negativenumber!"
@@ -1074,40 +1078,43 @@ if (procRank == 0) &
   k=1
   do i = 1,nDescents
      region%states(:)%LINESEARCHING=.false.
-     costFunctional = this%runForward(region)
+     tempCostFunctional = this%runForward(region)
      costSensitivity = this%runAdjoint(region)
      region%states(:)%LINESEARCHING=.true.
 
      !line search here
-     minVal=baselineCostFunctional
+     minVal=tempCostFunctional
      minValSet=.false.
-     actuationAmount=10._wp/sqrt(costSensitivity) !problem dependent trial error
      do j=1,nLineSearches
 
+       actuationAmount = (tempCostFunctional/sqrt(costSensitivity))**real(j - 1, wp)
        costFunctional = this%runForward(region, actuationAmount=actuationAmount)
-
-       if (minValSet .and. (costFunctional.ge.minVal)) then
-          exit
-       end if
 
        if (procRank == 0) &
           write(fileUnit2, '(I4,1x,I4,I4,1x,5(1X,SP,' // SCALAR_FORMAT//'))')i,j,k,region%states(1)%actuationAmount,       &
-          baselineCostFunctional,costFunctional,costSensitivity,&
-          abs(costFunctional - baselineCostFunctional) /baselineCostFunctional
+          baselineCostFunctional,costFunctional,costFunctional-tempCostFunctional,&
+          (baselineCostFunctional-costFunctional) /baselineCostFunctional
        k=k+1
+
+       !Armijo-Golstein condition where d=G and c=0.5
+       !if (costFunctional-tempCostFunctional .le. -actuationAmount*0.999_wp*costSensitivity) then
+       !   exit
+       !end if
+
+       if (minValSet .and. (costFunctional.ge.minVal)) then
+          if (procRank == 0) &
+          write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'))')i,       &
+          baselineCostFunctional,minVal,costSensitivity,&
+          (baselineCostFunctional-minVal) /baselineCostFunctional
+          exit
+       end if
 
        if (costFunctional.lt.minVal) then
           minVal=costFunctional
           minValSet=.true.
        end if
 
-       actuationAmount=0.75*actuationAmount 
-
      end do
-     if (procRank == 0) &
-          write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'))')i,       &
-          baselineCostFunctional,costFunctional,costSensitivity,&
-          abs(costFunctional - baselineCostFunctional) /baselineCostFunctional
   end do
 
 

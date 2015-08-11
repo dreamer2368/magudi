@@ -144,7 +144,6 @@ if __name__ == '__main__':
 		yMinTarget=0.3
 		yMaxTarget=yMax
 
-
 		xMinControl =  xMin
 		xMaxControl =  xMax
 		yMinControl =  yMin

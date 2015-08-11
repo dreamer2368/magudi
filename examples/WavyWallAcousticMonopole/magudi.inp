@@ -27,7 +27,8 @@ disable_adjoint_solver = false
 baseline_prediction_available = false
 cost_functional_type = "SOUND"
 controller_type="PASSIVE_WALL_ACTUATOR"
-cost_functional_timeHorizon/startTime=-1.
+cost_functional/wallPenalty=1e-2
+cost_functional_timeHorizon/startTime=0.75
 cost_functional_timeHorizon/stopTime=2.
 cost_functional_MollifierStrength=1000.
 cost_functional_normalizeTimeMollifier=1.
@@ -35,16 +36,16 @@ use_continuous_adjoint = false
 gradient_buffer_size = 20
 
 # Gradient accuracy options
-check_gradient_accuracy = true
+check_gradient_accuracy = false
 number_of_control_iterations = 32
-initial_actuation_amount =10.
+initial_actuation_amount =1e2
 restart_control_iteration = 0
 actuation_amount_geometric_growth = 0.5623413251903491
 
 # Optimization
-find_Optimal_Forcing = false
+find_Optimal_Forcing = true
 number_of_descents = 10
-number_of_lineSearches=20
+number_of_lineSearches=32
 #control_algorithm = "STEEPEST_DESCENT"
 control_algorithm = "CONJUGATE_GRADIENT"
 
@@ -73,7 +74,7 @@ maximum_temperature = 4.
 # Acoustic source
 number_of_acoustic_sources = 1
 acoustic_source01/amplitude =2.
-acoustic_source01/frequency = 9.54
+acoustic_source01/frequency = 4.77 #9.54
 acoustic_source01/y = 0.3
 acoustic_source01/x = 0.4
 acoustic_source01/radius = 0.1

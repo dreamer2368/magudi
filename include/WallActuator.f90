@@ -13,12 +13,11 @@ module WallActuator_mod
      integer::controlIndex 
      real(SCALAR_KIND),allocatable,dimension(:)::p,po  !wall-shape parameterization
      real(SCALAR_KIND),allocatable,dimension(:)::instantaneousGradient    
-     real(SCALAR_KIND),allocatable,dimension(:)::gradient
+     real(SCALAR_KIND),allocatable,dimension(:)::gradient,previousGradient,stepDirection
      !real(SCALAR_KIND)::sensitivity
  
-     !this may be getting moved to their own patch
-     !at this point I am using the controller to know everything about grid
-     
+     SCALAR_TYPE::MAX_WAVY_WALL_SUM_SQUARES    
+ 
      real(SCALAR_KIND),allocatable,dimension(:,:)::dJacobiandp    
      real(SCALAR_KIND),allocatable,dimension(:,:,:)::dMijdp
    
@@ -33,10 +32,22 @@ module WallActuator_mod
      procedure, pass :: isPatchValid => isWallActuatorPatchValid
      procedure, pass :: hookBeforeTimemarch => hookWallActuatorBeforeTimemarch
      procedure, pass :: hookAfterTimemarch => hookWallActuatorAfterTimemarch
-   
+     procedure, pass :: addPenalty => addWallPenalty 
   end type t_WallActuator
 
   interface
+
+     subroutine addWallPenalty(this,cost,region, mode)
+
+       use Region_mod, only : t_Region
+
+       import :: t_WallActuator
+
+       class(t_WallActuator) :: this       
+       class(t_Region) :: region
+       SCALAR_TYPE::cost
+       integer, intent(in) :: mode
+     end subroutine
 
      subroutine setupWallActuator(this, region)
 
