@@ -30,6 +30,7 @@ subroutine cleanupController(this)
   integer, parameter :: wp = SCALAR_KIND
 
   this%cachedValue = 0.0_wp
+  this%runningTimeQuadrature = 0.0_wp
 
 end subroutine cleanupController
 
