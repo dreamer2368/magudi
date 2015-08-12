@@ -106,6 +106,9 @@ subroutine setupIgnitionActuator(this, region)
   this%timeStart = getOption(trim(key) // "time_start",0.0_wp)
   this%timeDuration = getOption(trim(key) // "time_duration",0.0_wp)
 
+  allocate(this%cachedValues(8)); this%cachedValues = 0.0_wp
+  allocate(this%runningTimeQuadratures(8)); this%runningTimeQuadratures = 0.0_wp
+
 end subroutine setupIgnitionActuator
 
 subroutine cleanupIgnitionActuator(this)
@@ -145,14 +148,18 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, ierror
+  integer :: i, nDimensions, nSensitivities, ierror
   real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius(3), location(3)
-  SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:)
+  SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:), instantaneousSensitivities(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
 
+  nSensitivities = size(this%cachedValues)
+  assert(nSensitivities == 8)
+  allocate(instantaneousSensitivities(nSensitivities))
+  instantaneousSensitivities = 0.0_wp
   instantaneousSensitivity = 0.0_wp
 
   timeStart = this%timeStart
@@ -184,69 +191,105 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
           region%solverOptions%ratioOfSpecificHeats,                                         &
           region%states(i)%combustion%heatRelease, ignitionSource)
 
-     select case (this%sensitivityDependence)
+     ! Partial sensitivity with respect to amplitude.
+     F(:,2) = ignitionSource / this%amplitude
 
-     case ('AMPLITUDE')
-        F(:,2) = ignitionSource / this%amplitude
-
-     case ('POSITION_X')
-        F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,1) - this%location(1)) / this%radius(1)**2
-
-     case ('POSITION_Y')
-        F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,2) - this%location(2)) / this%radius(2)**2
-
-     case ('POSITION_Z')
-        F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,3) - this%location(3)) / this%radius(3)**2
-
-     case ('RADIUS_X')
-        F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,1) - this%location(1))**2 / this%radius(1)**3
-
-     case ('RADIUS_Y')
-        F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,2) - this%location(2))**2 / this%radius(2)**3
-
-     case ('RADIUS_Z')
-        F(:,2) = ignitionSource *                                                            &
-             (region%grids(i)%coordinates(:,3) - this%location(3))**2 / this%radius(3)**3
-
-     case ('INITIAL_TIME')
-        F(:,2) = ignitionSource *                                                            &
-             (region%states(i)%time - this%timeStart) / this%timeDuration**2
-
-     case ('DURATION')
-        F(:,2) = - ignitionSource *                                                          &
-             (this%timeDuration + region%states(i)%time - this%timeStart) *                  &
-             (this%timeDuration - region%states(i)%time + this%timeStart) /                  &
-             this%timeDuration**3
-
-     case default
-        F(:,2) = 1.0_wp
-
-     end select
-
-     instantaneousSensitivity = instantaneousSensitivity +                                   &
+     instantaneousSensitivities(1) = instantaneousSensitivities(1) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
           region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'AMPLITUDE')                                    &
+          instantaneousSensitivity = instantaneousSensitivities(1)
+
+     ! Partial sensitivity with respect to position in x.
+     F(:,2) = ignitionSource *                                                               &
+          (region%grids(i)%coordinates(:,1) - this%location(1)) / this%radius(1)**2
+
+     instantaneousSensitivities(2) = instantaneousSensitivities(2) +                         &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'POSITION_X')                                   &
+          instantaneousSensitivity = instantaneousSensitivities(2)
+
+     ! Partial sensitivity with respect to position in y.
+     F(:,2) = ignitionSource *                                                               &
+          (region%grids(i)%coordinates(:,2) - this%location(2)) / this%radius(2)**2
+
+     instantaneousSensitivities(3) = instantaneousSensitivities(3) +                         &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'POSITION_Y')                                   &
+          instantaneousSensitivity = instantaneousSensitivities(3)
+
+     ! Partial sensitivity with respect to radius in x.
+     F(:,2) = ignitionSource *                                                               &
+          (region%grids(i)%coordinates(:,1) - this%location(1))**2 / this%radius(1)**3
+
+     instantaneousSensitivities(4) = instantaneousSensitivities(4) +                         &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'RADIUS_X')                                     &
+          instantaneousSensitivity = instantaneousSensitivities(4)
+
+     ! Partial sensitivity with respect to radius in y.
+     F(:,2) = ignitionSource *                                                               &
+          (region%grids(i)%coordinates(:,2) - this%location(2))**2 / this%radius(2)**3
+
+     instantaneousSensitivities(5) = instantaneousSensitivities(5) +                         &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'RADIUS_Y')                                     &
+          instantaneousSensitivity = instantaneousSensitivities(5)
+
+     ! Partial sensitivity with respect to initial time.
+     F(:,2) = ignitionSource *                                                               &
+          (region%states(i)%time - this%timeStart) / this%timeDuration**2
+
+     instantaneousSensitivities(6) = instantaneousSensitivities(6) +                         &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'INITIAL_TIME')                                 &
+          instantaneousSensitivity = instantaneousSensitivities(6)
+
+     ! Partial sensitivity with respect to duration.
+     F(:,2) = - ignitionSource *                                                             &
+          (this%timeDuration + region%states(i)%time - this%timeStart) *                     &
+          (this%timeDuration - region%states(i)%time + this%timeStart) /                     &
+          this%timeDuration**3
+
+     instantaneousSensitivities(7) = instantaneousSensitivities(7) +                         &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'DURATION')                                     &
+          instantaneousSensitivity = instantaneousSensitivities(7)
 
      SAFE_DEALLOCATE(ignitionSource)
      SAFE_DEALLOCATE(F)
 
   end do
 
-  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-       call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                         &
-       SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  if (region%commGridMasters /= MPI_COMM_NULL) then
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                           &
+          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivities, nSensitivities,            &
+          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  end if
 
   do i = 1, size(region%grids)
      call MPI_Bcast(instantaneousSensitivity, 1, SCALAR_TYPE_MPI,                            &
           0, region%grids(i)%comm, ierror)
+     call MPI_Bcast(instantaneousSensitivities, nSensitivities, SCALAR_TYPE_MPI,             &
+          0, region%grids(i)%comm, ierror)
   end do
 
   this%cachedValue = instantaneousSensitivity
+  this%cachedValues = instantaneousSensitivities
 
 end function computeIgnitionActuatorSensitivity
 

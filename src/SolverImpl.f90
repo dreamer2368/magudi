@@ -873,6 +873,9 @@ function runAdjoint(this, region) result(costSensitivity)
         instantaneousCostSensitivity = controller%computeSensitivity(region)
         controller%runningTimeQuadrature = controller%runningTimeQuadrature +                &
              timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
+        if (allocated(controller%runningTimeQuadratures))                                    &
+             controller%runningTimeQuadratures = controller%runningTimeQuadratures +         &
+             timeIntegrator%norm(i) * timeStepSize * controller%cachedValues
 
         ! Update adjoint forcing on cost target patches.
         call functional%updateAdjointForcing(region)

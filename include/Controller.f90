@@ -8,6 +8,7 @@ module Controller_mod
 
      SCALAR_TYPE :: cachedValue = real(0.0, SCALAR_KIND),                                    &
           runningTimeQuadrature = real(0.0, SCALAR_KIND)
+     SCALAR_TYPE, allocatable :: cachedValues(:), runningTimeQuadratures(:)
 
    contains
 

@@ -31,6 +31,8 @@ subroutine cleanupController(this)
 
   this%cachedValue = 0.0_wp
   this%runningTimeQuadrature = 0.0_wp
+  SAFE_DEALLOCATE(this%cachedValues)
+  SAFE_DEALLOCATE(this%runningTimeQuadratures)
 
 end subroutine cleanupController
 
@@ -56,7 +58,7 @@ subroutine writeSensitivityToFile(this, comm, filename, timestep, time, append)
 
   ! <<< Local variables >>>
   logical :: append_
-  integer :: fileUnit, ostat, procRank, ierror
+  integer :: i, fileUnit, ostat, procRank, ierror
   character(len = STRING_LENGTH) :: message
 
   append_ = .false.
@@ -81,8 +83,14 @@ subroutine writeSensitivityToFile(this, comm, filename, timestep, time, append)
   end if
 
   if (procRank == 0) then
-     write(fileUnit, '(I8,1X,E13.6,2(1X,SP,' // SCALAR_FORMAT // '))')                       &
-          timestep, time, this%cachedValue, this%runningTimeQuadrature
+     if (allocated(this%runningTimeQuadratures)) then
+        write(fileUnit, '(I8,1X,E13.6,100(1X,SP,' // SCALAR_FORMAT // '))')                  &
+             timestep, time, this%cachedValue,                                               &
+             (this%runningTimeQuadratures(i), i=1,size(this%runningTimeQuadratures))
+     else
+        write(fileUnit, '(I8,1X,E13.6,2(1X,SP,' // SCALAR_FORMAT // '))')                    &
+             timestep, time, this%cachedValue, this%runningTimeQuadrature
+     end if
   end if
 
   call MPI_Bcast(ostat, 1, MPI_INTEGER, 0, comm, ierror)
