@@ -100,9 +100,16 @@ contains
           case (FORWARD)
              call this%functionalFactory%connect(functional)
              assert(associated(functional))
-             call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
-                  ".cost_functional.txt", timestep, time,                                    &
-                  timestep - startTimestep > this%reportInterval)
+             if (controlIteration_ > 0) then
+                write(filename, '(2A,I2.2,A)') trim(this%outputPrefix), ".cost_functional_", &
+                     controlIteration_, ".txt"
+                call functional%writeToFile(region%comm, filename, timestep, time,           &
+                     timestep - startTimestep > this%reportInterval)
+             else
+                call functional%writeToFile(region%comm, trim(this%outputPrefix) //          &
+                     ".cost_functional.txt", timestep, time,                                 &
+                     timestep - startTimestep > this%reportInterval)
+             end if
 
           case (ADJOINT)
              call this%controllerFactory%connect(controller)
@@ -121,8 +128,14 @@ contains
 
        select case (mode)
        case (FORWARD)
-          write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
-          call region%saveData(QOI_FORWARD_STATE, filename)
+          if (controlIteration_ > 0) then
+             write(filename, '(2A,I8.8,A,I2.2,A)') trim(this%outputPrefix), "_",             &
+                  controlIteration, "-", timestep, ".q"
+             call region%saveData(QOI_FORWARD_STATE, filename)
+          else
+             write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
+             call region%saveData(QOI_FORWARD_STATE, filename)
+          end if
        case (ADJOINT)
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adjoint.q"
           call region%saveData(QOI_ADJOINT_STATE, filename)
