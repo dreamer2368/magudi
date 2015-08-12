@@ -23,39 +23,47 @@ function deleteOption() {
 }
 
 PREFIX=WavyWallAcousticMonopole
-rm -f ${PREFIX}* Bootstrap/${PREFIX}*
+rm -f ${PREFIX}* 
 python config.py
 
-#get rid of the initial transient
-cp ${PREFIX}.xyz magudi.inp ${PREFIX}.ambient_pressure.f ${PREFIX}_bc.dat Bootstrap/
-cd Bootstrap
+DIR=1em8
+AMP=1.e-8
+mkdir $DIR
+cp ${PREFIX}* *.inp $DIR/
+cd $DIR
 ln -sf /gscratch/dbuchta/magudi_target/magudi ./
-NUMSTEPS=500
-setOption "number_of_timesteps" $NUMSTEPS
-deleteOption "initial_condition_file"
-deleteOption "control_mollifier_file"
-deleteOption "target_mollifier_file"
-setOption "disable_adjoint_solver" true
-setOption "compute_time_average" false
+setOption "cost_functional_wallPenalty" "${AMP}"
 ${MAGUDI_MPIRUN} ../magudi
+cd ../
 
-echo 'ran magudi'
+DIR=1em4
+AMP=1.e-4
+mkdir $DIR
+cp ${PREFIX}* *.inp $DIR/
+cd $DIR
+ln -sf /gscratch/dbuchta/magudi_target/magudi ./
+setOption "cost_functional_wallPenalty" "${AMP}"
+${MAGUDI_MPIRUN} ../magudi
+cd ../
 
-#computing the pressure average over the horizon of interest
-cp ${PREFIX}-00000${NUMSTEPS}.q ../${PREFIX}.ic.q
-cd ..
 
-#setOption "disable_adjoint_solver" true
-#setOption "compute_time_average" true
-#$MAGUDI_MPIRUN ./magudi
+DIR=1em2
+AMP=1.e-2
+mkdir $DIR
+cp ${PREFIX}* *.inp $DIR/
+cd $DIR
+ln -sf /gscratch/dbuchta/magudi_target/magudi ./
+setOption "cost_functional_wallPenalty" "${AMP}"
+${MAGUDI_MPIRUN} ../magudi
+cd ../
 
-#using that average compute adjoint over that same horizon of interest
-#instead of the mean let's write an ambient pressure file
-#python -c "from config import *; mean_pressure(p3d.fromfile('${PREFIX}.mean.q')).save('${PREFIX}.mean_pressure.f')"
-#python -c "from config import *; ambient_pressure(p3d.fromfile('${PREFIX}.ambient.q')).save('${PREFIX}.ambient_pressure.f')"
+DIR=1em1
+AMP=1.e-1
+mkdir $DIR
+cp ${PREFIX}* *.inp $DIR/
+cd $DIR
+ln -sf /gscratch/dbuchta/magudi_target/magudi ./
+setOption "cost_functional_wallPenalty" "${AMP}"
+${MAGUDI_MPIRUN} ../magudi
+cd ../
 
-setOption "disable_adjoint_solver" false
-setOption "compute_time_average" false
-NUMSTEPS=100
-setOption "number_of_timesteps" $NUMSTEPS
-$MAGUDI_MPIRUN ./magudi

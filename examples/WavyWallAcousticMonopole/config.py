@@ -81,7 +81,7 @@ def target_mollifier(g,x_min,x_max,y_min,y_max):
 	n = f.get_size(0)
 	for j in range(n[1]):
 		f.f[0][:,j,0,0] += p3d.tanh_support(
-          g.xyz[0][:,j,0,0], x_min,x_max,50, 0.2)
+          g.xyz[0][:,j,0,0], x_min,x_max,50, 0.01)
 		#f.f[0][:,j,0,0] += p3d.tanh_support(
 		#g.xyz[0][:,j,0,0], x_min,x_min+1./4.*(x_max-x_min), 40., 0.01)    
 		#f.f[0][:,j,0,0] += p3d.tanh_support(
