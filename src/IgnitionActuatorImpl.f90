@@ -106,8 +106,11 @@ subroutine setupIgnitionActuator(this, region)
   this%timeStart = getOption(trim(key) // "time_start",0.0_wp)
   this%timeDuration = getOption(trim(key) // "time_duration",0.0_wp)
 
-  allocate(this%cachedValues(8)); this%cachedValues = 0.0_wp
-  allocate(this%runningTimeQuadratures(8)); this%runningTimeQuadratures = 0.0_wp
+  this%nSensitivities = 9
+  allocate(this%cachedValues(this%nSensitivities))
+  allocate(this%runningTimeQuadratures(this%nSensitivities))
+  this%cachedValues = 0.0_wp
+  this%runningTimeQuadratures = 0.0_wp
 
 end subroutine setupIgnitionActuator
 
@@ -148,17 +151,17 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, nSensitivities, ierror
+  integer :: i, nDimensions, ierror
   real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius(3), location(3)
   SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:), instantaneousSensitivities(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
+  assert(this%nSensitivities > 0)
+  assert(size(this%cachedValues) == this%nSensitivities)
 
-  nSensitivities = size(this%cachedValues)
-  assert(nSensitivities == 8)
-  allocate(instantaneousSensitivities(nSensitivities))
+  allocate(instantaneousSensitivities(this%nSensitivities))
   instantaneousSensitivities = 0.0_wp
   instantaneousSensitivity = 0.0_wp
 
@@ -269,6 +272,26 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
      if (trim(this%sensitivityDependence) == 'DURATION')                                     &
           instantaneousSensitivity = instantaneousSensitivities(7)
 
+     ! Partial sensitivity with respect to Damköhler number.
+     !F(:,2) = - ignitionSource *                                                             &
+
+     !instantaneousSensitivities(8) = instantaneousSensitivities(8) +                         &
+     !     region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+     !     region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'DAMKOHLER')                                    &
+          instantaneousSensitivity = instantaneousSensitivities(8)
+
+     ! Partial sensitivity with respect to Activation energy.
+     !F(:,2) = - ignitionSource *                                                             &
+
+     !instantaneousSensitivities(9) = instantaneousSensitivities(9) +                         &
+     !     region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+     !     region%grids(i)%controlMollifier(:,1))
+
+     if (trim(this%sensitivityDependence) == 'ACTIVATION_ENERGY')                            &
+          instantaneousSensitivity = instantaneousSensitivities(9)
+
      SAFE_DEALLOCATE(ignitionSource)
      SAFE_DEALLOCATE(F)
 
@@ -277,14 +300,14 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   if (region%commGridMasters /= MPI_COMM_NULL) then
      call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                           &
           SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
-     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivities, nSensitivities,            &
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivities, this%nSensitivities,       &
           SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
   end if
 
   do i = 1, size(region%grids)
      call MPI_Bcast(instantaneousSensitivity, 1, SCALAR_TYPE_MPI,                            &
           0, region%grids(i)%comm, ierror)
-     call MPI_Bcast(instantaneousSensitivities, nSensitivities, SCALAR_TYPE_MPI,             &
+     call MPI_Bcast(instantaneousSensitivities, this%nSensitivities, SCALAR_TYPE_MPI,        &
           0, region%grids(i)%comm, ierror)
   end do
 
