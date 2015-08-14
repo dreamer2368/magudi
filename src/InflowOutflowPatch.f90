@@ -297,7 +297,7 @@ contains
        allocate(fluxJacobian(nUnknowns - 1, nUnknowns - 1))
 
        depthBlockSize = this%localSize
-       depthBlockSize(direction) = grid%adjointFirstDerivative(direction)%boundaryDepth
+       depthBlockSize(direction) = grid%firstDerivative(direction)%boundaryDepth
 
        depthBlockOffset = this%offset
        if (this%normalDirection < 0) depthBlockOffset(direction) =                           &
