@@ -26,22 +26,22 @@ module StencilOperator_mod
 
    contains
 
-     procedure, pass :: setup => setupOperator
-     procedure, pass :: update => updateOperator
-     procedure, pass :: cleanup => cleanupOperator
-     procedure, pass :: getAdjoint => getAdjointOperator
-     procedure, pass :: apply => applyOperator
-     procedure, pass :: applyAtInteriorPoints => applyOperatorAtInteriorPoints
-     procedure, pass :: applyNorm => applyOperatorNorm
-     procedure, pass :: applyNormInverse => applyOperatorNormInverse
-     procedure, pass :: applyAndProjectOnBoundary => applyOperatorAndProjectOnBoundary
-     procedure, pass :: projectOnBoundaryAndApply => projectOnBoundaryAndApplyOperator
+     procedure, pass :: setup
+     procedure, pass :: update
+     procedure, pass :: cleanup
+     procedure, pass :: getAdjoint
+     procedure, pass :: apply
+     procedure, pass :: applyAtInteriorPoints
+     procedure, pass :: applyNorm
+     procedure, pass :: applyNormInverse
+     procedure, pass :: applyAndProjectOnBoundary
+     procedure, pass :: projectOnBoundaryAndApply
 
   end type t_StencilOperator
 
 contains
 
-  subroutine setupOperator(this, stencilScheme)
+  subroutine setup(this, stencilScheme)
 
     !> Sets up a stencil operator.
 
@@ -1110,13 +1110,12 @@ contains
        end select
     end if
 
-  end subroutine setupOperator
+  end subroutine setup
 
-  subroutine updateOperator(this, cartesianCommunicator,                                     &
-       direction, isPeriodicityOverlapping)
+  subroutine update(this, cartesianCommunicator, direction, isPeriodicityOverlapping)
 
     !> Attaches a Cartesian communicator to a stencil operator and specifies the direction
-    !> along which it will be applied using `applyOperator`.
+    !> along which it will be applied using `apply`.
 
     ! <<< External modules >>>
     use MPI
@@ -1174,9 +1173,9 @@ contains
             processDistribution(direction) - 1) this%periodicOffset(1) = 1
     end if
 
-  end subroutine updateOperator
+  end subroutine update
 
-  subroutine cleanupOperator(this)
+  subroutine cleanup(this)
 
     !> Deallocates stencil operator data.
 
@@ -1200,9 +1199,9 @@ contains
          call MPI_Comm_free(this%cartesianCommunicator, ierror)
     this%cartesianCommunicator = MPI_COMM_NULL
 
-  end subroutine cleanupOperator
+  end subroutine cleanup
 
-  subroutine getAdjointOperator(this, adjointOperator)
+  subroutine getAdjoint(this, adjoint)
 
     !> Sets up the adjoint of a stencil operator.
 
@@ -1210,7 +1209,7 @@ contains
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
-    class(t_StencilOperator) :: adjointOperator
+    class(t_StencilOperator) :: adjoint
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -1221,71 +1220,69 @@ contains
     assert(this%boundaryWidth > 0)
     assert(this%boundaryDepth > 0)
 
-    call adjointOperator%cleanup()
+    call adjoint%cleanup()
 
     ! Copy basic information.
-    adjointOperator%symmetryType = this%symmetryType
-    adjointOperator%interiorWidth = this%interiorWidth
-    adjointOperator%boundaryDepth = this%boundaryWidth
-    adjointOperator%boundaryWidth = this%boundaryWidth + this%interiorWidth / 2
-    call allocateData(adjointOperator)
+    adjoint%symmetryType = this%symmetryType
+    adjoint%interiorWidth = this%interiorWidth
+    adjoint%boundaryDepth = this%boundaryWidth
+    adjoint%boundaryWidth = this%boundaryWidth + this%interiorWidth / 2
+    call allocateData(adjoint)
 
     ! Reverse the interior stencil.
     assert(allocated(this%rhsInterior))
     assert(lbound(this%rhsInterior, 1) == - this%interiorWidth / 2)
     assert(ubound(this%rhsInterior, 1) == + this%interiorWidth / 2)
     do i = - this%interiorWidth / 2, this%interiorWidth / 2
-       adjointOperator%rhsInterior(i) = this%rhsInterior(-i)
+       adjoint%rhsInterior(i) = this%rhsInterior(-i)
     end do
 
     ! Copy `normBoundary`.
     assert(allocated(this%normBoundary))
     assert(size(this%normBoundary) == this%boundaryDepth)
     assert(all(this%normBoundary > 0))
-    SAFE_DEALLOCATE(adjointOperator%normBoundary)
-    allocate(adjointOperator%normBoundary(this%boundaryDepth))
-    adjointOperator%normBoundary = this%normBoundary
+    SAFE_DEALLOCATE(adjoint%normBoundary)
+    allocate(adjoint%normBoundary(this%boundaryDepth))
+    adjoint%normBoundary = this%normBoundary
 
     ! Transpose the left-boundary coefficients.
     assert(allocated(this%rhsBoundary1))
     assert(size(this%rhsBoundary1, 1) == this%boundaryWidth)
     assert(size(this%rhsBoundary1, 2) == this%boundaryDepth)
-    adjointOperator%rhsBoundary1 = 0.0_wp
-    adjointOperator%rhsBoundary1(1:this%boundaryDepth,:) = transpose(this%rhsBoundary1)
+    adjoint%rhsBoundary1 = 0.0_wp
+    adjoint%rhsBoundary1(1:this%boundaryDepth,:) = transpose(this%rhsBoundary1)
     do i = this%boundaryDepth + 1, this%boundaryWidth + this%interiorWidth / 2
        do j = - this%interiorWidth / 2, this%interiorWidth / 2
           if (i + j > this%boundaryWidth) exit
-          adjointOperator%rhsBoundary1(i,i+j) = this%rhsInterior(j)
+          adjoint%rhsBoundary1(i,i+j) = this%rhsInterior(j)
        end do
     end do
 
     ! Pre-multiply by the inverse of the norm matrix.
-    do i = 1, adjointOperator%boundaryWidth
-       adjointOperator%rhsBoundary1(i,1:size(adjointOperator%normBoundary)) =                &
-            adjointOperator%rhsBoundary1(i,1:size(adjointOperator%normBoundary)) /           &
-            adjointOperator%normBoundary
+    do i = 1, adjoint%boundaryWidth
+       adjoint%rhsBoundary1(i,1:size(adjoint%normBoundary)) =                                &
+            adjoint%rhsBoundary1(i,1:size(adjoint%normBoundary)) / adjoint%normBoundary
     end do
 
     ! Post-multiply by the norm matrix.
-    do i = 1, adjointOperator%boundaryDepth
-       adjointOperator%rhsBoundary1(1:size(adjointOperator%normBoundary),i) =                &
-            adjointOperator%rhsBoundary1(1:size(adjointOperator%normBoundary),i) *           &
-            adjointOperator%normBoundary
+    do i = 1, adjoint%boundaryDepth
+       adjoint%rhsBoundary1(1:size(adjoint%normBoundary),i) =                                &
+            adjoint%rhsBoundary1(1:size(adjoint%normBoundary),i) * adjoint%normBoundary
     end do
 
     ! Fill the right-boundary coefficients.
-    select case (adjointOperator%symmetryType)
+    select case (adjoint%symmetryType)
     case (SYMMETRIC)
-       adjointOperator%rhsBoundary2(1:adjointOperator%boundaryWidth,:) =                     &
-            +adjointOperator%rhsBoundary1(adjointOperator%boundaryWidth:1:-1,:)
+       adjoint%rhsBoundary2(1:adjoint%boundaryWidth,:) =                                     &
+            +adjoint%rhsBoundary1(adjoint%boundaryWidth:1:-1,:)
     case (SKEW_SYMMETRIC)
-       adjointOperator%rhsBoundary2(1:adjointOperator%boundaryWidth,:) =                     &
-            -adjointOperator%rhsBoundary1(adjointOperator%boundaryWidth:1:-1,:)
+       adjoint%rhsBoundary2(1:adjoint%boundaryWidth,:) =                                     &
+            -adjoint%rhsBoundary1(adjoint%boundaryWidth:1:-1,:)
     end select
 
-  end subroutine getAdjointOperator
+  end subroutine getAdjoint
 
-  subroutine applyOperator(this, x, gridSize)
+  subroutine apply(this, x, gridSize)
 
     !> Applies a stencil operator to a real/complex semidiscrete vector.
 
@@ -1308,21 +1305,21 @@ contains
 
     select case (this%direction)
     case (1)
-       call applyOperator_1(this, x, gridSize)
+       call apply_1(this, x, gridSize)
     case (2)
-       call applyOperator_2(this, x, gridSize)
+       call apply_2(this, x, gridSize)
     case (3)
-       call applyOperator_3(this, x, gridSize)
+       call apply_3(this, x, gridSize)
     end select
 
     call endTiming("Apply operator")
 
-  end subroutine applyOperator
+  end subroutine apply
 
-  pure subroutine applyOperatorAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
+  pure subroutine applyAtInteriorPoints(this, xWithGhostPoints, x, gridSize)
 
     !> Applies a stencil operator to a real/complex semidiscrete vector at interior points
-    !> only. This is equivalent to calling `applyOperator` if the direction is
+    !> only. This is equivalent to calling `apply` if the direction is
     !> periodic. However, note the difference in call signatures.
 
     implicit none
@@ -1335,16 +1332,16 @@ contains
 
     select case (this%direction)
     case (1)
-       call applyOperatorAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
+       call applyAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
     case (2)
-       call applyOperatorAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
+       call applyAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
     case (3)
-       call applyOperatorAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
+       call applyAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
     end select
 
-  end subroutine applyOperatorAtInteriorPoints
+  end subroutine applyAtInteriorPoints
 
-  pure subroutine applyOperatorAndProjectOnBoundary(this, x, gridSize, faceOrientation)
+  pure subroutine applyAndProjectOnBoundary(this, x, gridSize, faceOrientation)
 
     !> Applies a stencil operator to a real/complex semidiscrete vector followed by zeroing
     !> the result at all points except points that lie on the left (right) boundary of the
@@ -1359,16 +1356,16 @@ contains
 
     select case (this%direction)
     case (1)
-       call applyOperatorAndProjectOnBoundary_1(this, x, gridSize, faceOrientation)
+       call applyAndProjectOnBoundary_1(this, x, gridSize, faceOrientation)
     case (2)
-       call applyOperatorAndProjectOnBoundary_2(this, x, gridSize, faceOrientation)
+       call applyAndProjectOnBoundary_2(this, x, gridSize, faceOrientation)
     case (3)
-       call applyOperatorAndProjectOnBoundary_3(this, x, gridSize, faceOrientation)
+       call applyAndProjectOnBoundary_3(this, x, gridSize, faceOrientation)
     end select
 
-  end subroutine applyOperatorAndProjectOnBoundary
+  end subroutine applyAndProjectOnBoundary
 
-  pure subroutine projectOnBoundaryAndApplyOperator(this, x, gridSize, faceOrientation)
+  pure subroutine projectOnBoundaryAndApply(this, x, gridSize, faceOrientation)
 
     !> Zeros a real/complex semidiscrete vector at all points except points that lie on the
     !> left (right) boundary of the computational domain if `faceOrientation` is greater
@@ -1383,16 +1380,16 @@ contains
 
     select case (this%direction)
     case (1)
-       call projectOnBoundaryAndApplyOperator_1(this, x, gridSize, faceOrientation)
+       call projectOnBoundaryAndApply_1(this, x, gridSize, faceOrientation)
     case (2)
-       call projectOnBoundaryAndApplyOperator_2(this, x, gridSize, faceOrientation)
+       call projectOnBoundaryAndApply_2(this, x, gridSize, faceOrientation)
     case (3)
-       call projectOnBoundaryAndApplyOperator_3(this, x, gridSize, faceOrientation)
+       call projectOnBoundaryAndApply_3(this, x, gridSize, faceOrientation)
     end select
 
-  end subroutine projectOnBoundaryAndApplyOperator
+  end subroutine projectOnBoundaryAndApply
 
-  pure subroutine applyOperatorNorm(this, x, gridSize)
+  pure subroutine applyNorm(this, x, gridSize)
 
     !> Multiplies a real/complex semidiscrete vector by the diagonal norm matrix in the
     !> direction along which the stencil operator is applied.
@@ -1406,16 +1403,16 @@ contains
 
     select case (this%direction)
     case (1)
-       call applyOperatorNorm_1(this, x, gridSize)
+       call applyNorm_1(this, x, gridSize)
     case (2)
-       call applyOperatorNorm_2(this, x, gridSize)
+       call applyNorm_2(this, x, gridSize)
     case (3)
-       call applyOperatorNorm_3(this, x, gridSize)
+       call applyNorm_3(this, x, gridSize)
     end select
 
-  end subroutine applyOperatorNorm
+  end subroutine applyNorm
 
-  pure subroutine applyOperatorNormInverse(this, x, gridSize)
+  pure subroutine applyNormInverse(this, x, gridSize)
 
     !> Multiplies a real/complex semidiscrete vector by the inverse of the diagonal norm
     !> matrix in the direction along which the stencil operator is applied.
@@ -1429,14 +1426,14 @@ contains
 
     select case (this%direction)
     case (1)
-       call applyOperatorNormInverse_1(this, x, gridSize)
+       call applyNormInverse_1(this, x, gridSize)
     case (2)
-       call applyOperatorNormInverse_2(this, x, gridSize)
+       call applyNormInverse_2(this, x, gridSize)
     case (3)
-       call applyOperatorNormInverse_3(this, x, gridSize)
+       call applyNormInverse_3(this, x, gridSize)
     end select
 
-  end subroutine applyOperatorNormInverse
+  end subroutine applyNormInverse
 
   subroutine allocateData(this)
 
@@ -1455,7 +1452,7 @@ contains
 
   end subroutine allocateData
 
-  subroutine applyOperator_1(this, x, gridSize)
+  subroutine apply_1(this, x, gridSize)
 
     ! <<< Internal modules >>>
     use MPIHelper, only : fillGhostPoints
@@ -1485,7 +1482,7 @@ contains
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
          1, this%nGhost, this%periodicOffset)
-    call applyOperatorAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
+    call applyAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
 
     n = this%boundaryWidth
 
@@ -1523,9 +1520,9 @@ contains
 
     SAFE_DEALLOCATE(xWithGhostPoints)
 
-  end subroutine applyOperator_1
+  end subroutine apply_1
 
-  subroutine applyOperator_2(this, x, gridSize)
+  subroutine apply_2(this, x, gridSize)
 
     ! <<< Internal modules >>>
     use MPIHelper, only : fillGhostPoints
@@ -1555,7 +1552,7 @@ contains
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
          2, this%nGhost, this%periodicOffset)
-    call applyOperatorAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
+    call applyAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
 
     n = this%boundaryWidth
 
@@ -1593,9 +1590,9 @@ contains
 
     SAFE_DEALLOCATE(xWithGhostPoints)
 
-  end subroutine applyOperator_2
+  end subroutine apply_2
 
-  subroutine applyOperator_3(this, x, gridSize)
+  subroutine apply_3(this, x, gridSize)
 
     ! <<< Internal modules >>>
     use MPIHelper, only : fillGhostPoints
@@ -1625,7 +1622,7 @@ contains
 
     call fillGhostPoints(this%cartesianCommunicator, xWithGhostPoints,                       &
          3, this%nGhost, this%periodicOffset)
-    call applyOperatorAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
+    call applyAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
 
     n = this%boundaryWidth
 
@@ -1663,9 +1660,9 @@ contains
 
     SAFE_DEALLOCATE(xWithGhostPoints)
 
-  end subroutine applyOperator_3
+  end subroutine apply_3
 
-  pure subroutine applyOperatorAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
+  pure subroutine applyAtInteriorPoints_1(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -1728,9 +1725,9 @@ contains
 
     end select
 
-  end subroutine applyOperatorAtInteriorPoints_1
+  end subroutine applyAtInteriorPoints_1
 
-  pure subroutine applyOperatorAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
+  pure subroutine applyAtInteriorPoints_2(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -1793,9 +1790,9 @@ contains
 
     end select
 
-  end subroutine applyOperatorAtInteriorPoints_2
+  end subroutine applyAtInteriorPoints_2
 
-  pure subroutine applyOperatorAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
+  pure subroutine applyAtInteriorPoints_3(this, xWithGhostPoints, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -1859,9 +1856,9 @@ contains
 
     end select
 
-  end subroutine applyOperatorAtInteriorPoints_3
+  end subroutine applyAtInteriorPoints_3
 
-  pure subroutine applyOperatorAndProjectOnBoundary_1(this, x, gridSize, faceOrientation)
+  pure subroutine applyAndProjectOnBoundary_1(this, x, gridSize, faceOrientation)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -1910,9 +1907,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAndProjectOnBoundary_1
+  end subroutine applyAndProjectOnBoundary_1
 
-  pure subroutine applyOperatorAndProjectOnBoundary_2(this, x, gridSize, faceOrientation)
+  pure subroutine applyAndProjectOnBoundary_2(this, x, gridSize, faceOrientation)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -1963,9 +1960,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAndProjectOnBoundary_2
+  end subroutine applyAndProjectOnBoundary_2
 
-  pure subroutine applyOperatorAndProjectOnBoundary_3(this, x, gridSize, faceOrientation)
+  pure subroutine applyAndProjectOnBoundary_3(this, x, gridSize, faceOrientation)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2016,9 +2013,9 @@ contains
 
     end if
 
-  end subroutine applyOperatorAndProjectOnBoundary_3
+  end subroutine applyAndProjectOnBoundary_3
 
-  pure subroutine projectOnBoundaryAndApplyOperator_1(this, x, gridSize, faceOrientation)
+  pure subroutine projectOnBoundaryAndApply_1(this, x, gridSize, faceOrientation)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2084,9 +2081,9 @@ contains
 
     SAFE_DEALLOCATE(x_)
 
-  end subroutine projectOnBoundaryAndApplyOperator_1
+  end subroutine projectOnBoundaryAndApply_1
 
-  pure subroutine projectOnBoundaryAndApplyOperator_2(this, x, gridSize, faceOrientation)
+  pure subroutine projectOnBoundaryAndApply_2(this, x, gridSize, faceOrientation)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2152,9 +2149,9 @@ contains
 
     SAFE_DEALLOCATE(x_)
 
-  end subroutine projectOnBoundaryAndApplyOperator_2
+  end subroutine projectOnBoundaryAndApply_2
 
-  pure subroutine projectOnBoundaryAndApplyOperator_3(this, x, gridSize, faceOrientation)
+  pure subroutine projectOnBoundaryAndApply_3(this, x, gridSize, faceOrientation)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2220,9 +2217,9 @@ contains
 
     SAFE_DEALLOCATE(x_)
 
-  end subroutine projectOnBoundaryAndApplyOperator_3
+  end subroutine projectOnBoundaryAndApply_3
 
-  pure subroutine applyOperatorNorm_1(this, x, gridSize)
+  pure subroutine applyNorm_1(this, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2262,9 +2259,9 @@ contains
        end do
     end if
 
-  end subroutine applyOperatorNorm_1
+  end subroutine applyNorm_1
 
-  pure subroutine applyOperatorNorm_2(this, x, gridSize)
+  pure subroutine applyNorm_2(this, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2304,9 +2301,9 @@ contains
        end do
     end if
 
-  end subroutine applyOperatorNorm_2
+  end subroutine applyNorm_2
 
-  pure subroutine applyOperatorNorm_3(this, x, gridSize)
+  pure subroutine applyNorm_3(this, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2346,9 +2343,9 @@ contains
        end do
     end if
 
-  end subroutine applyOperatorNorm_3
+  end subroutine applyNorm_3
 
-  pure subroutine applyOperatorNormInverse_1(this, x, gridSize)
+  pure subroutine applyNormInverse_1(this, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2389,9 +2386,9 @@ contains
        end do
     end if
 
-  end subroutine applyOperatorNormInverse_1
+  end subroutine applyNormInverse_1
 
-  pure subroutine applyOperatorNormInverse_2(this, x, gridSize)
+  pure subroutine applyNormInverse_2(this, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2431,9 +2428,9 @@ contains
        end do
     end if
 
-  end subroutine applyOperatorNormInverse_2
+  end subroutine applyNormInverse_2
 
-  pure subroutine applyOperatorNormInverse_3(this, x, gridSize)
+  pure subroutine applyNormInverse_3(this, x, gridSize)
 
     ! <<< Arguments >>>
     class(t_StencilOperator), intent(in) :: this
@@ -2473,6 +2470,6 @@ contains
        end do
     end if
 
-  end subroutine applyOperatorNormInverse_3
+  end subroutine applyNormInverse_3
 
 end module StencilOperator_mod
