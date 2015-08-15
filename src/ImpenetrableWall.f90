@@ -133,7 +133,7 @@ contains
     assert_key(mode, (FORWARD, ADJOINT))
     assert(allocated(state%targetState))
 
-    call startTiming("addImpenetrableWallPenalty")
+    call startTiming("Impermeable wall SAT")
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -252,7 +252,7 @@ contains
     SAFE_DEALLOCATE(localMetricsAlongNormalDirection)
     SAFE_DEALLOCATE(localPenalty)
 
-    call endTiming("addImpenetrableWallPenalty")
+    call endTiming("Impermeable wall SAT")
 
   end subroutine updateRhs
 

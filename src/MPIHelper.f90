@@ -180,7 +180,7 @@ contains
 
     if (all(numGhostPoints <= 0)) return
 
-    call startTiming("fillGhostPoints")
+    call startTiming("Halo exchange")
 
     ! Get process distribution, coordinates and periodicity.
     processDistribution = 1
@@ -418,7 +418,7 @@ contains
     SAFE_DEALLOCATE(receivedFromPreviousProcess)
     SAFE_DEALLOCATE(receivedFromNextProcess)
 
-    call endTiming("fillGhostPoints")
+    call endTiming("Halo exchange")
 
   end subroutine fillGhostPoints
 

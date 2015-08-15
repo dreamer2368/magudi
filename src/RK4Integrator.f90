@@ -122,7 +122,7 @@ contains
     end if
 #endif
 
-    call startTiming("substepForward")
+    call startTiming("Forward sub-step")
 
     stageLastCall = stage
 
@@ -180,7 +180,7 @@ contains
 
     end select
 
-    call endTiming("substepForward")
+    call endTiming("Forward sub-step")
 
   end subroutine substepForward
 
@@ -218,7 +218,7 @@ contains
     end if
 #endif
 
-    call startTiming("substepAdjoint")
+    call startTiming("Adjoint sub-step")
 
     stageLastCall = stage
 
@@ -280,7 +280,7 @@ contains
 
     end select
 
-    call endTiming("substepAdjoint")
+    call endTiming("Adjoint sub-step")
 
   end subroutine substepAdjoint
 

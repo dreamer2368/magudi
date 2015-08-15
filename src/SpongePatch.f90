@@ -150,7 +150,7 @@ contains
 
     assert_key(mode, (FORWARD, ADJOINT))
 
-    call startTiming("addDamping")
+    call startTiming("Damping on sponges")
 
     select case (mode)
 
@@ -196,7 +196,7 @@ contains
 
     end select
 
-    call endTiming("addDamping")
+    call endTiming("Damping on sponges")
 
   end subroutine updateRhs
 

@@ -122,7 +122,7 @@ contains
 
     if (mode == FORWARD) return
 
-    call startTiming("addCostTargetPenalty")
+    call startTiming("Adjoint forcing")
 
     if (simulationFlags%useContinuousAdjoint .or. simulationFlags%steadyStateSimulation) then
        forcingFactor = 1.0_wp
@@ -156,7 +156,7 @@ contains
        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
     end do !... l = 1, nUnknowns
 
-    call endTiming("addCostTargetPenalty")
+    call endTiming("Adjoint forcing")
 
   end subroutine updateRhs
 

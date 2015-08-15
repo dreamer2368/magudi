@@ -463,7 +463,7 @@ contains
 
     if (useTargetState_ .and. haveTargetUpdate) return
 
-    call startTiming("updateState")
+    call startTiming("Update state")
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -513,7 +513,7 @@ contains
 
     haveTargetUpdate = useTargetState_
 
-    call endTiming("updateState")
+    call endTiming("Update state")
 
   end subroutine update
 
@@ -665,7 +665,7 @@ contains
     ! <<< Local variables >>>
     integer :: i
 
-    call startTiming("addSources")
+    call startTiming("Source terms")
 
     if (allocated(this%acousticSources)) then
        do i = 1, size(this%acousticSources)
@@ -674,7 +674,7 @@ contains
        end do
     end if
 
-    call endTiming("addSources")
+    call endTiming("Source terms")
 
   end subroutine addSources
 

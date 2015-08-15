@@ -341,9 +341,6 @@ contains
 
   subroutine collectScalar(this, gridArray, patchArray)
 
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
-
     ! <<< Arguments >>>
     class(t_Patch) :: this
     real(SCALAR_KIND), intent(in) :: gridArray(:)
@@ -351,8 +348,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, patchIndex, localIndex
-
-    call startTiming("collect")
 
     do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
        do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -368,14 +363,9 @@ contains
        end do
     end do
 
-    call endTiming("collect")
-
   end subroutine collectScalar
 
   subroutine collectVector(this, gridArray, patchArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -384,8 +374,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, l, patchIndex, localIndex
-
-    call startTiming("collect")
 
     do l = 1, size(patchArray, 2)
        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
@@ -397,27 +385,15 @@ contains
                 localIndex = i - this%gridOffset(1) +                                        &
                      this%gridLocalSize(1) * (j - 1 - this%gridOffset(2) +                   &
                      this%gridLocalSize(2) * (k - 1 - this%gridOffset(3)))
-                if (localIndex > size(gridArray, 1)) then
-                   print *, "Indices: ", i, j, k
-                   print *, "Offset: ", this%offset
-                   print *, "Local size: ", this%localSize
-                   print *, "Grid offset: ", this%gridOffset
-                   print *, "Grid local size: ", this%gridLocalSize
-                end if
                 patchArray(patchIndex,l) = gridArray(localIndex,l)
              end do
           end do
        end do
     end do
 
-    call endTiming("collect")
-
   end subroutine collectVector
 
   subroutine collectTensor(this, gridArray, patchArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -426,8 +402,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, l, m, patchIndex, localIndex
-
-    call startTiming("collect")
 
     do m = 1, size(patchArray, 3)
        do l = 1, size(patchArray, 2)
@@ -447,14 +421,9 @@ contains
        end do
     end do
 
-    call endTiming("collect")
-
   end subroutine collectTensor
 
   subroutine collectMultiplyScalar(this, gridArray, patchArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -463,8 +432,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, patchIndex, localIndex
-
-    call startTiming("collectMultiply")
 
     do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
        do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -480,14 +447,9 @@ contains
        end do
     end do
 
-    call endTiming("collectMultiply")
-
   end subroutine collectMultiplyScalar
 
   subroutine collectMultiplyVector(this, gridArray, patchArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -496,8 +458,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, l, patchIndex, localIndex
-
-    call startTiming("collect")
 
     do l = 1, size(patchArray, 2)
        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
@@ -515,14 +475,9 @@ contains
        end do
     end do
 
-    call endTiming("collectMultiply")
-
   end subroutine collectMultiplyVector
 
   subroutine collectMultiplyTensor(this, gridArray, patchArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -531,8 +486,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, l, m, patchIndex, localIndex
-
-    call startTiming("collectMultiply")
 
     do m = 1, size(patchArray, 3)
        do l = 1, size(patchArray, 2)
@@ -553,14 +506,9 @@ contains
        end do
     end do
 
-    call endTiming("collectMultiply")
-
   end subroutine collectMultiplyTensor
 
   subroutine disperseScalar(this, patchArray, gridArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -570,8 +518,6 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, patchIndex, localIndex
-
-    call startTiming("disperse")
 
     gridArray = 0.0_wp
 
@@ -589,14 +535,9 @@ contains
        end do
     end do
 
-    call endTiming("disperse")
-
   end subroutine disperseScalar
 
   subroutine disperseVector(this, patchArray, gridArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -606,8 +547,6 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, l, patchIndex, localIndex
-
-    call startTiming("disperse")
 
     gridArray = 0.0_wp
 
@@ -627,14 +566,9 @@ contains
        end do
     end do
 
-    call endTiming("disperse")
-
   end subroutine disperseVector
 
   subroutine disperseTensor(this, patchArray, gridArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -644,8 +578,6 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, l, m, patchIndex, localIndex
-
-    call startTiming("disperse")
 
     gridArray = 0.0_wp
 
@@ -667,14 +599,9 @@ contains
        end do
     end do
 
-    call endTiming("disperse")
-
   end subroutine disperseTensor
 
   subroutine disperseAddScalar(this, patchArray, gridArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -683,8 +610,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, patchIndex, localIndex
-
-    call startTiming("disperseAdd")
 
     do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
        do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -700,14 +625,9 @@ contains
        end do
     end do
 
-    call endTiming("disperseAdd")
-
   end subroutine disperseAddScalar
 
   subroutine disperseAddVector(this, patchArray, gridArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -716,8 +636,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, l, patchIndex, localIndex
-
-    call startTiming("disperseAdd")
 
     do l = 1, size(patchArray, 2)
        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
@@ -735,14 +653,9 @@ contains
        end do
     end do
 
-    call endTiming("disperseAdd")
-
   end subroutine disperseAddVector
 
   subroutine disperseAddTensor(this, patchArray, gridArray)
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     ! <<< Arguments >>>
     class(t_Patch) :: this
@@ -751,8 +664,6 @@ contains
 
     ! <<< Local variables >>>
     integer :: i, j, k, l, m, patchIndex, localIndex
-
-    call startTiming("disperseAdd")
 
     do m = 1, size(patchArray, 3)
        do l = 1, size(patchArray, 2)
@@ -772,8 +683,6 @@ contains
           end do
        end do
     end do
-
-    call endTiming("disperseAdd")
 
   end subroutine disperseAddTensor
 

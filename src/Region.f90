@@ -78,7 +78,7 @@ contains
     logical :: verbose_
     character(len = STRING_LENGTH) :: decompositionMapFilename
 
-    call startTiming("setupRegion")
+    call startTiming("Setup region")
 
     ! Clean slate.
     call this%cleanup()
@@ -160,7 +160,7 @@ contains
     call MPI_Comm_rank(this%comm, procRank, ierror)
     call MPI_Comm_split(this%comm, color, procRank, this%commGridMasters, ierror)
 
-    call endTiming("setupRegion")
+    call endTiming("Setup region")
 
   end subroutine setup
 
@@ -252,7 +252,7 @@ contains
     class(t_Patch), pointer :: patch => null()
     integer :: extent(6)
 
-    call startTiming("setupBoundaryConditions")
+    call startTiming("Setup BCs")
 
     ! Cleanup previously allocated patch information.
     if (allocated(this%patchFactories)) then
@@ -316,7 +316,7 @@ contains
 
     SAFE_DEALLOCATE(patchIndices)
 
-    call endTiming("setupBoundaryConditions")
+    call endTiming("Setup BCs")
 
   end subroutine setupBoundaryConditions
 
@@ -355,7 +355,7 @@ contains
     logical :: isSolutionFile
     real(wp) :: solutionHeader(4)
 
-    call startTiming("loadRegionData")
+    call startTiming("I/O (load)")
 
     isSolutionFile = .false.
     speciesFilename_ = ""
@@ -461,7 +461,7 @@ contains
        call gracefulExit(this%comm, plot3dErrorMessage)
     end if
 
-    call endTiming("loadRegionData")
+    call endTiming("I/O (load)")
 
   end subroutine loadData
 
@@ -500,7 +500,7 @@ contains
 
     if (.not. this%OutputOn) return
 
-    call startTiming("saveRegionData")
+    call startTiming("I/O (save)")
 
     isSolutionFile = .false.
     speciesFilename = ""
@@ -635,7 +635,7 @@ contains
        call gracefulExit(this%comm, plot3dErrorMessage)
     end if
 
-    call endTiming("saveRegionData")
+    call endTiming("I/O (save)")
 
   end subroutine saveData
 
@@ -789,7 +789,7 @@ contains
     integer :: i, j
     class(t_Patch), pointer :: patch => null()
 
-    call startTiming("computeRhs")
+    call startTiming("Compute RHS")
 
     ! Semi-discrete right-hand-side operator.
     do i = 1, size(this%states)
@@ -842,7 +842,7 @@ contains
        end do
     end do
 
-    call endTiming("computeRhs")
+    call endTiming("Compute RHS")
 
   end subroutine computeRhs
 
@@ -953,9 +953,6 @@ contains
     use Patch_mod, only : t_Patch
     use ProbePatch_mod, only : t_ProbePatch
     use ActuatorPatch_mod, only : t_ActuatorPatch
-
-    ! <<< Internal modules >>>
-    use MPITimingsHelper, only : startTiming, endTiming
 
     implicit none
 

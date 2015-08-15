@@ -1076,7 +1076,7 @@ contains
     integer :: nDimensions
     real(SCALAR_KIND), allocatable :: temp(:,:)
 
-    call startTiming("computeGradient")
+    call startTiming("Gradient of scalar-field")
 
     nDimensions = this%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -1154,7 +1154,7 @@ contains
 
     SAFE_DEALLOCATE(temp)
 
-    call endTiming("computeGradient")
+    call endTiming("Gradient of scalar-field")
 
   end subroutine computeGradientOfScalar
 
@@ -1175,7 +1175,7 @@ contains
     integer :: nDimensions
     real(SCALAR_KIND), allocatable :: temp(:,:)
 
-    call startTiming("computeGradient")
+    call startTiming("Gradient of vector-field")
 
     nDimensions = this%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -1300,7 +1300,7 @@ contains
 
     SAFE_DEALLOCATE(temp)
 
-    call endTiming("computeGradient")
+    call endTiming("Gradient of vector-field")
 
   end subroutine computeGradientOfVector
 

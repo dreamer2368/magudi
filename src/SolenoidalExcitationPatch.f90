@@ -247,7 +247,7 @@ contains
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (2, 3))
 
-    call startTiming("addSolenoidalExcitation")
+    call startTiming("Solenoidal excitation")
 
     if (this%nModes > 0) then
        allocate(temporalFunctions(this%nModes, 4))
@@ -306,7 +306,7 @@ contains
     SAFE_DEALLOCATE(temp)
     SAFE_DEALLOCATE(temporalFunctions)
 
-    call endTiming("addSolenoidalExcitation")
+    call endTiming("Solenoidal excitation")
 
   end subroutine updateRhs
 

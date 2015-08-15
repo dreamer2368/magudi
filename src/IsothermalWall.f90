@@ -165,7 +165,7 @@ contains
 
     call this%t_ImpenetrableWall%updateRhs(mode, simulationFlags, solverOptions, grid, state)
 
-    call startTiming("addIsothermalWallPenalty")
+    call startTiming("Isothermal wall SAT")
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -214,7 +214,7 @@ contains
 
     SAFE_DEALLOCATE(localPenalty)
 
-    call endTiming("addIsothermalWallPenalty")
+    call endTiming("Isothermal wall SAT")
 
   end subroutine updateRhs
 

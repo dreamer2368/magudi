@@ -1299,7 +1299,7 @@ contains
     real(SCALAR_KIND), intent(inout) :: x(:,:)
     integer, intent(in) :: gridSize(3)
 
-    call startTiming("applyOperator")
+    call startTiming("Apply operator")
 
     assert(size(x, 2) > 0)
     assert(all(gridSize > 0))
@@ -1315,7 +1315,7 @@ contains
        call applyOperator_3(this, x, gridSize)
     end select
 
-    call endTiming("applyOperator")
+    call endTiming("Apply operator")
 
   end subroutine applyOperator
 

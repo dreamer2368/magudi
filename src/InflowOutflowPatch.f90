@@ -187,7 +187,7 @@ contains
     assert_key(mode, (FORWARD, ADJOINT))
     assert(allocated(state%targetState))
 
-    call startTiming("addInflowOutflowPenalty")
+    call startTiming("Inflow/outflow SAT")
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -374,7 +374,7 @@ contains
 
     end if
 
-    call endTiming("addInflowOutflowPenalty")
+    call endTiming("Inflow/outflow SAT")
 
   end subroutine updateRhs
 

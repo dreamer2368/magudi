@@ -50,7 +50,7 @@ contains
     real(SCALAR_KIND), allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
     class(t_Patch), pointer :: patch => null()
 
-    call startTiming("computeRhsForward")
+    call startTiming("Compute forward RHS")
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -105,7 +105,7 @@ contains
     if (simulationFlags%dissipationOn)                                                       &
          call addDissipation(FORWARD, simulationFlags, solverOptions, grid, state)
 
-    call endTiming("computeRhsForward")
+    call endTiming("Compute forward RHS")
 
   end subroutine computeRhsForward
 
@@ -141,7 +141,7 @@ contains
     real(SCALAR_KIND), allocatable :: adjointGradient(:,:,:), fluxJacobian1(:,:),            &
          fluxJacobian2(:,:), localAdjointDiffusion(:,:), adjointDiffusion(:,:)
 
-    call startTiming("computeRhsAdjoint")
+    call startTiming("Compute adjoint RHS")
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -252,7 +252,7 @@ contains
     if (simulationFlags%dissipationOn)                                                       &
          call addDissipation(ADJOINT, simulationFlags, solverOptions, grid, state)
 
-    call endTiming("computeRhsAdjoint")
+    call endTiming("Compute adjoint RHS")
 
   end subroutine computeRhsAdjoint
 
@@ -284,7 +284,7 @@ contains
 
     if (.not. simulationFlags%dissipationOn) return
 
-    call startTiming("addDissipation")
+    call startTiming("Artificial dissipation")
 
     assert_key(mode, (FORWARD, ADJOINT))
 
@@ -325,7 +325,7 @@ contains
 
     SAFE_DEALLOCATE(dissipationTerm)
 
-    call endTiming("addDissipation")
+    call endTiming("Artificial dissipation")
 
   end subroutine addDissipation
 

@@ -179,7 +179,7 @@ contains
 
     assert_key(mode, (FORWARD, ADJOINT))
 
-    call startTiming("addBlockInterfacePenalty")
+    call startTiming("Interface penalty")
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -417,7 +417,7 @@ contains
 
     end if
 
-    call endTiming("addBlockInterfacePenalty")
+    call endTiming("Interface penalty")
 
   end subroutine updateRhs
 
@@ -577,7 +577,7 @@ contains
     assert(indexReordering(3) == 3)
     if (indexReordering(1) == 1 .and. indexReordering(2) == 2) return
 
-    call startTiming("reshapeReceivedData")
+    call startTiming("Reshape interface buffer")
 
     if (allocated(this%receiveBuffer)) then
 
@@ -672,7 +672,7 @@ contains
 
     call MPI_Barrier(this%comm, ierror)
 
-    call endTiming("reshapeReceivedData")
+    call endTiming("Reshape interface buffer")
 
   end subroutine reshapeReceiveBuffer
 

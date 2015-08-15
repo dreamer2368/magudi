@@ -134,7 +134,7 @@ contains
     character(len = STRING_LENGTH) :: filename
     real(SCALAR_KIND) :: instantaneousFunctional
 
-    call startTiming("runForward")
+    call startTiming("Compute functional")
 
     functional = 0.0_wp
 
@@ -266,7 +266,7 @@ contains
     if (.not. region%simulationFlags%predictionOnly)                                         &
          functional = this%functional%runningTimeQuadrature
 
-    call endTiming("runForward")
+    call endTiming("Compute functional")
 
   end function runForward
 
@@ -298,6 +298,8 @@ contains
     real(wp) :: time, startTime, timeStepSize, instantaneousSensitivity
 
     assert(.not. region%simulationFlags%predictionOnly)
+
+    call startTiming("Compute sensitivity")
 
     sensitivity = 0.0_wp
     this%controller%runningTimeQuadrature = 0.0_wp
@@ -423,7 +425,7 @@ contains
 
     sensitivity = this%controller%runningTimeQuadrature
 
-    call endTiming("runAdjoint")
+    call endTiming("Compute sensitivity")
 
   end function runAdjoint
 

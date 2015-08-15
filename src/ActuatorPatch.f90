@@ -134,7 +134,7 @@ contains
     if (mode == ADJOINT .or. (mode == FORWARD .and.                                          &
          abs(state%actuationAmount) <= 0.0_wp)) return
 
-    call startTiming("updateActuatorPatch")
+    call startTiming("Actuator forcing")
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
@@ -162,7 +162,7 @@ contains
        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
     end do !... l = 1, nUnknowns
 
-    call endTiming("updateActuatorPatch")
+    call endTiming("Actuator forcing")
 
   end subroutine updateRhs
 
