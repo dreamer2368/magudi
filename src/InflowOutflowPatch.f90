@@ -326,25 +326,29 @@ contains
           end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
 
           call grid%adjointFirstDerivative(l)%apply(temp1, grid%localSize)
-          temp2(:,2:nUnknowns) = temp2(:,2:nUnknowns) - temp1
+          if (this%nPatchPoints > 0) temp2(:,2:nUnknowns) = temp2(:,2:nUnknowns) - temp1
 
        end do
 
-       do i = 1, grid%nGridPoints
+       if (this%nPatchPoints > 0) then
 
-          temp2(i,nDimensions+2) = solverOptions%ratioOfSpecificHeats *                      &
-               state%specificVolume(i,1) * temp2(i,nDimensions+2)
-          temp2(i,2:nDimensions+1) = state%specificVolume(i,1) * temp2(i,2:nDimensions+1) -  &
-               state%velocity(i,:) * temp2(i,nDimensions+2)
-          temp2(i,1) = - state%specificVolume(i,1) *                                         &
-               state%conservedVariables(i,nDimensions+2) * temp2(i,nDimensions+2) -          &
-               sum(state%velocity(i,:) * temp2(i,2:nDimensions+1))
+          do i = 1, grid%nGridPoints
 
-          state%rightHandSide(i,:) = state%rightHandSide(i,:) +                              &
-               sign(this%viscousPenaltyAmount, real(incomingDirection, wp)) *                &
-               grid%jacobian(i, 1) * temp2(i,:)
+             temp2(i,nDimensions+2) = solverOptions%ratioOfSpecificHeats *                   &
+                  state%specificVolume(i,1) * temp2(i,nDimensions+2)
+             temp2(i,2:nDimensions+1) = state%specificVolume(i,1) *                          &
+                  temp2(i,2:nDimensions+1) - state%velocity(i,:) * temp2(i,nDimensions+2)
+             temp2(i,1) = - state%specificVolume(i,1) *                                      &
+                  state%conservedVariables(i,nDimensions+2) * temp2(i,nDimensions+2) -       &
+                  sum(state%velocity(i,:) * temp2(i,2:nDimensions+1))
 
-       end do
+             state%rightHandSide(i,:) = state%rightHandSide(i,:) +                           &
+                  sign(this%viscousPenaltyAmount, real(incomingDirection, wp)) *             &
+                  grid%jacobian(i, 1) * temp2(i,:)
+
+          end do
+
+       end if
 
        SAFE_DEALLOCATE(temp2)
        SAFE_DEALLOCATE(temp1)
