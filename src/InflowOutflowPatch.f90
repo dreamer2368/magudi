@@ -330,31 +330,21 @@ contains
 
        end do
 
-       do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
-          do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
-             do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
-                gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                 &
-                     (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                   &
-                     (k - 1 - this%gridOffset(3)))
-                if (grid%iblank(gridIndex) == 0) cycle
+       do i = 1, grid%nGridPoints
 
-                temp2(gridIndex,nDimensions+2) = solverOptions%ratioOfSpecificHeats *        &
-                     state%specificVolume(gridIndex,1) * temp2(gridIndex,nDimensions+2)
-                temp2(gridIndex,2:nDimensions+1) = state%specificVolume(gridIndex,1) *       &
-                     temp2(gridIndex,2:nDimensions+1) - state%velocity(gridIndex,:) *        &
-                     temp2(gridIndex,nDimensions+2)
-                temp2(gridIndex,1) = - state%specificVolume(gridIndex,1) *                   &
-                     state%conservedVariables(gridIndex,nDimensions+2) *                     &
-                     temp2(gridIndex,nDimensions+2) - sum(state%velocity(gridIndex,:) *      &
-                     temp2(gridIndex,2:nDimensions+1))
+          temp2(i,nDimensions+2) = solverOptions%ratioOfSpecificHeats *                      &
+               state%specificVolume(i,1) * temp2(i,nDimensions+2)
+          temp2(i,2:nDimensions+1) = state%specificVolume(i,1) * temp2(i,2:nDimensions+1) -  &
+               state%velocity(i,:) * temp2(i,nDimensions+2)
+          temp2(i,1) = - state%specificVolume(i,1) *                                         &
+               state%conservedVariables(i,nDimensions+2) * temp2(i,nDimensions+2) -          &
+               sum(state%velocity(i,:) * temp2(i,2:nDimensions+1))
 
-                state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +        &
-                     sign(this%viscousPenaltyAmount, real(incomingDirection, wp)) *          &
-                     grid%jacobian(gridIndex, 1) * temp2(gridIndex,:)
+          state%rightHandSide(i,:) = state%rightHandSide(i,:) +                              &
+               sign(this%viscousPenaltyAmount, real(incomingDirection, wp)) *                &
+               grid%jacobian(i, 1) * temp2(i,:)
 
-             end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
-          end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
-       end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+       end do
 
        SAFE_DEALLOCATE(temp2)
        SAFE_DEALLOCATE(temp1)
