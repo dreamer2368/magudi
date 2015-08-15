@@ -297,7 +297,7 @@ contains
        allocate(fluxJacobian(nUnknowns - 1, nUnknowns - 1))
 
        depthBlockSize = this%localSize
-       depthBlockSize(direction) = grid%firstDerivative(direction)%boundaryDepth
+       depthBlockSize(direction) = grid%adjointFirstDerivative(direction)%boundaryDepth
 
        depthBlockOffset = this%offset
        if (this%normalDirection < 0) depthBlockOffset(direction) =                           &
@@ -357,7 +357,7 @@ contains
                      temp2(depthIndex,nDimensions+2)
                 temp2(depthIndex,1) = - state%specificVolume(gridIndex,1) *                  &
                      state%conservedVariables(gridIndex,nDimensions+2) *                     &
-                     temp2(depthIndex,nDimensions+2) + sum(state%velocity(gridIndex,:) *     &
+                     temp2(depthIndex,nDimensions+2) - sum(state%velocity(gridIndex,:) *     &
                      temp2(depthIndex,2:nDimensions+1))
 
                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +        &
