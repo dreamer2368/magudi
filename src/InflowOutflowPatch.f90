@@ -180,7 +180,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, nDimensions, nUnknowns, direction,                                   &
+    integer :: i, j, k, l, nDimensions, nUnknowns, direction,                                &
          incomingDirection, gridIndex, patchIndex
     real(SCALAR_KIND), allocatable :: fluxJacobian(:,:), temp1(:,:), temp2(:,:)
 
@@ -292,30 +292,40 @@ contains
 
     SAFE_DEALLOCATE(fluxJacobian)
 
-    if (mode == ADJOINT .and. simulationFlags%viscosityOn .and. this%nPatchPoints > 0) then
+    if (mode == ADJOINT .and. simulationFlags%viscosityOn) then
 
        allocate(fluxJacobian(nUnknowns - 1, nUnknowns - 1))
 
-       allocate(temp1(grid%nGridPoints, nUnknowns - 1), source = 0.0_wp)
+       allocate(temp1(grid%nGridPoints, nUnknowns - 1))
        allocate(temp2(grid%nGridPoints, nUnknowns), source = 0.0_wp)
 
-       do j = 1, nDimensions
+       do l = 1, nDimensions
 
-          do i = 1, grid%nGridPoints
-             if (grid%iblank(i) == 0) cycle
+          temp1 = 0.0_wp
 
-             call computeSecondPartialViscousJacobian(nDimensions, i, state%velocity,        &
-                  state%dynamicViscosity(:,1), state%secondCoefficientOfViscosity(:,1),      &
-                  state%thermalDiffusivity(:,1), grid%jacobian(:,1),                         &
-                  grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),         &
-                  grid%metrics(:,1+nDimensions*(j-1):nDimensions*j), fluxJacobian)
+          do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+             do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+                do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+                   gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *              &
+                        (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                &
+                        (k - 1 - this%gridOffset(3)))
+                   if (grid%iblank(gridIndex) == 0) cycle
 
-             temp1(i,:) = matmul(transpose(fluxJacobian),                                    &
-                  state%adjointVariables(i,2:nUnknowns))
+                   call computeSecondPartialViscousJacobian(nDimensions, gridIndex,          &
+                        state%velocity, state%dynamicViscosity(:,1),                         &
+                        state%secondCoefficientOfViscosity(:,1),                             &
+                        state%thermalDiffusivity(:,1), grid%jacobian(:,1),                   &
+                        grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),   &
+                        grid%metrics(:,1+nDimensions*(l-1):nDimensions*l), fluxJacobian)
 
-          end do
+                   temp1(gridIndex,:) = matmul(transpose(fluxJacobian),                      &
+                        state%adjointVariables(gridIndex,2:nUnknowns))
 
-          call grid%adjointFirstDerivative(j)%apply(temp1, grid%localSize)
+                end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+             end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+          end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+
+          call grid%adjointFirstDerivative(l)%apply(temp1, grid%localSize)
           temp2(:,2:nUnknowns) = temp2(:,2:nUnknowns) - temp1
 
        end do
