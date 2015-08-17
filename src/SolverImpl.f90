@@ -512,6 +512,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
   if (.not. region%simulationFlags%predictionOnly) then
 
+     region%states(:)%gradientExponent = 1
      call this%controllerFactory%connect(controller,                                         &
           trim(region%solverOptions%controllerType))
      assert(associated(controller))
@@ -948,7 +949,8 @@ subroutine checkGradientAccuracy(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
+  integer :: i, j, nIterations, restartIteration, gradientExponent, fileUnit, iostat,        &
+       procRank, ierror
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
@@ -1043,6 +1045,9 @@ subroutine checkGradientAccuracy(this, region)
   outputControl = getOption("output_control_iterations", .false.)
   if (.not. outputControl) region%outputOn = .false.
 
+  ! Gradient exponent when computing error.
+  gradientExponent = region%states(1)%gradientExponent
+
   if (restartIteration == 0) restartIteration = restartIteration + 1
 
   do i = 1, restartIteration - 1
@@ -1062,7 +1067,7 @@ subroutine checkGradientAccuracy(this, region)
      costFunctional = this%runForward(region, actuationAmount = actuationAmount,             &
           controlIteration = i)
      gradientError = abs( (costFunctional - baselineCostFunctional) / actuationAmount +      &
-          costSensitivity ** 2 )
+          costSensitivity ** gradientExponent )
      if (procRank == 0) then
         write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,         &
           costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,      &

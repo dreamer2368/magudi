@@ -112,6 +112,8 @@ subroutine setupIgnitionActuator(this, region)
   this%cachedValues = 0.0_wp
   this%runningTimeQuadratures = 0.0_wp
 
+  region%states(:)%gradientExponent = 2
+
 end subroutine setupIgnitionActuator
 
 subroutine cleanupIgnitionActuator(this)
@@ -271,6 +273,24 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      if (trim(this%sensitivityDependence) == 'DURATION')                                     &
           instantaneousSensitivity = instantaneousSensitivities(7)
+
+     ! Partial sensitivity with respect to Damköhler number.
+     !F(:,2) = - ignitionSource *                                                             &
+
+     !instantaneousSensitivities(8) = instantaneousSensitivities(8) +                         &
+     !     region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+     !     region%grids(i)%controlMollifier(:,1))
+
+     !F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+region%states(i)%combustion%H2)
+
+    ! Partial sensitivity with respect to Damköhler number.
+     !F(:,2) = - ignitionSource *                                                             &
+
+     !instantaneousSensitivities(8) = instantaneousSensitivities(8) +                         &
+     !     region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+     !     region%grids(i)%controlMollifier(:,1))
+
+     !F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+region%states(i)%combustion%O2)
 
      ! Partial sensitivity with respect to Damköhler number.
      !F(:,2) = - ignitionSource *                                                             &
