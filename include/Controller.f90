@@ -24,8 +24,25 @@ module Controller_mod
      procedure(isPatchValid), pass, deferred :: isPatchValid
      procedure(hookBeforeTimemarch), pass, deferred :: hookBeforeTimemarch
      procedure(hookAfterTimemarch), pass, deferred :: hookAfterTimemarch
+     procedure(addPenalty),pass,deferred::addPenalty
 
   end type t_Controller
+
+  abstract interface
+
+     subroutine addPenalty(this,cost,region, mode)
+
+       use Region_mod, only : t_Region
+
+       import :: t_Controller
+
+       class(t_Controller) :: this
+       class(t_Region) :: region
+       SCALAR_TYPE::cost
+       integer, intent(in) :: mode
+     end subroutine
+
+  end interface
 
   abstract interface
 

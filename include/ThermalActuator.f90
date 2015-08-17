@@ -20,11 +20,23 @@ module ThermalActuator_mod
      procedure, pass :: isPatchValid => isThermalActuatorPatchValid
      procedure, pass :: hookBeforeTimemarch => hookThermalActuatorBeforeTimemarch
      procedure, pass :: hookAfterTimemarch => hookThermalActuatorAfterTimemarch
-
+     procedure, pass :: addPenalty => addThermalPenalty
 
   end type t_ThermalActuator
 
   interface
+
+     subroutine addThermalPenalty(this,cost,region, mode)
+
+       use Region_mod, only : t_Region
+
+       import :: t_ThermalActuator
+
+       class(t_ThermalActuator) :: this
+       class(t_Region) :: region
+       SCALAR_TYPE::cost
+       integer, intent(in) :: mode
+     end subroutine
 
      subroutine setupThermalActuator(this, region)
 

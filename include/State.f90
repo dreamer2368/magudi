@@ -66,6 +66,8 @@ module State_mod
 
      SCALAR_TYPE, dimension(:,:), pointer :: dummyFunction => null()
 
+     logical::LINESEARCHING
+
    contains
 
      procedure, pass :: setup => setupState

@@ -1077,6 +1077,7 @@ if (procRank == 0) &
   tempCost=baselineCostFunctional
   k=1
   do i = 1,nDescents
+     
      region%states(:)%LINESEARCHING=.false.
      tempCostFunctional = this%runForward(region)
      costSensitivity = this%runAdjoint(region)
@@ -1085,10 +1086,15 @@ if (procRank == 0) &
      !line search here
      minVal=tempCostFunctional
      minValSet=.false.
+     actuationAmount=100._wp*(tempCostFunctional/sqrt(costSensitivity))!0.5623413251903491**real(j - 1, wp)
      do j=1,nLineSearches
 
-       actuationAmount = (tempCostFunctional/sqrt(costSensitivity))**real(j - 1, wp)
+       !actuationAmount = (tempCostFunctional/sqrt(costSensitivity))!0.5623413251903491**real(j - 1, wp)
        costFunctional = this%runForward(region, actuationAmount=actuationAmount)
+
+       if (costFunctional-tempCostFunctional>0.) then
+          exit
+       else
 
        if (procRank == 0) &
           write(fileUnit2, '(I4,1x,I4,I4,1x,5(1X,SP,' // SCALAR_FORMAT//'))')i,j,k,region%states(1)%actuationAmount,       &
@@ -1096,22 +1102,30 @@ if (procRank == 0) &
           (baselineCostFunctional-costFunctional) /baselineCostFunctional
        k=k+1
 
-       !Armijo-Golstein condition where d=G and c=0.5
-       !if (costFunctional-tempCostFunctional .le. -actuationAmount*0.999_wp*costSensitivity) then
-       !   exit
-       !end if
-
        if (minValSet .and. (costFunctional.ge.minVal)) then
           if (procRank == 0) &
-          write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'))')i,       &
+          write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'),1x,A)')i,       &
           baselineCostFunctional,minVal,costSensitivity,&
-          (baselineCostFunctional-minVal) /baselineCostFunctional
+          (baselineCostFunctional-minVal) /baselineCostFunctional,'M'
+          exit
+       end if
+
+       !Armijo-Golstein condition where d=G and c=0.5
+       if (costFunctional-tempCostFunctional .le. -actuationAmount*0.999_wp*(costSensitivity)) then
+          if (procRank == 0) &
+          write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'),1x,A)')i,       &
+          baselineCostFunctional,costFunctional,costSensitivity,&
+          (baselineCostFunctional-costFunctional) /baselineCostFunctional,'A'
           exit
        end if
 
        if (costFunctional.lt.minVal) then
           minVal=costFunctional
           minValSet=.true.
+       end if
+     
+       actuationAmount=actuationAmount*0.5623413251903491**real(j - 1, wp)
+
        end if
 
      end do

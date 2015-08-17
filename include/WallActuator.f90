@@ -16,7 +16,7 @@ module WallActuator_mod
      real(SCALAR_KIND),allocatable,dimension(:)::gradient,previousGradient,stepDirection
      !real(SCALAR_KIND)::sensitivity
  
-     SCALAR_TYPE::MAX_WAVY_WALL_SUM_SQUARES    
+     SCALAR_TYPE::MAX_WAVY_WALL_SUM_SQUARES,MAX_PENALTY
  
      real(SCALAR_KIND),allocatable,dimension(:,:)::dJacobiandp    
      real(SCALAR_KIND),allocatable,dimension(:,:,:)::dMijdp

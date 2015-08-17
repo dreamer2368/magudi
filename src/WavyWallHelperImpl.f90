@@ -17,6 +17,30 @@ module WavywallHelperImpl
 
 contains
 
+subroutine verifyActuationAmount(this,actuationAmount,direction)
+use WallActuator_mod, only : t_WallActuator
+implicit none
+
+class(t_WallActuator) :: this
+integer, parameter :: wp = SCALAR_KIND
+SCALAR_TYPE::sumOfSquares,actuationAmount
+SCALAR_TYPE,dimension(:)::direction
+integer::i
+SCALAR_TYPE::dummyAmplitude
+
+sumOfSquares=0._wp
+do i=2,size(this%p),2
+dummyAmplitude=this%po(i-1)+actuationAmount*direction(i-1)
+sumOfSquares=sumOfSquares+dummyAmplitude
+end do
+
+if (sumOfSquares .gt. this%MAX_WAVY_WALL_SUM_SQUARES) then
+actuationAmount=actuationAmount/sumOfSquares*this%MAX_WAVY_WALL_SUM_SQUARES
+end if
+
+
+end subroutine
+
 subroutine checkAmplitudes(this)
 use WallActuator_mod, only : t_WallActuator
 implicit none
@@ -61,7 +85,7 @@ subroutine updateWallCoordinates(this,grid)
   allocate(unitCoordinates(size(grid%coordinates(:,1)),size(grid%coordinates(1,:))))
   call computeUnitCubeCoordinates(grid,unitCoordinates)
 
-  call checkAmplitudes(this)
+  !call checkAmplitudes(this)
  
   !with an updated list of p remake the physical coordinates 
      do k = 1, grid%localSize(3)

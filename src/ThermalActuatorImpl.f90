@@ -141,6 +141,20 @@ SCALAR_TYPE :: instantaneousGradient
 end function computeThermalActuatorGradient
 
 
+subroutine addThermalPenalty(this,cost,region, mode)
+
+  use Region_mod, only : t_Region
+  use InputHelper, only : getOption
+  use ThermalActuator_mod, only : t_ThermalActuator
+  class(t_ThermalActuator) :: this
+  class(t_Region) :: region
+  SCALAR_TYPE::cost
+  integer, intent(in) :: mode
+
+  cost=cost+0.
+
+end subroutine
+
 subroutine updateThermalActuatorForcing(this, region)
 
   ! <<< Derived types >>>
