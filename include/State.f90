@@ -53,7 +53,8 @@ module State_mod
      type(t_AcousticSource), allocatable :: acousticSources(:)
 
      integer :: nSpecies
-     real(wp) :: time, adjointForcingFactor = 1.0_wp, actuationAmount = 0.0_wp
+     real(wp) :: time, timeProgressive, adjointForcingFactor = 1.0_wp,                       &
+          actuationAmount = 0.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &

@@ -109,6 +109,7 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
         this%data_(i)%buffer1 = region%states(i)%conservedVariables
      end do
 
+     region%states(:)%timeProgressive = time + timeStepSize / 2.0_wp
      call region%computeRhs(FORWARD)
 
      do i = 1, size(region%states)
@@ -121,6 +122,7 @@ subroutine substepForwardJamesonRK3(this, region, time, timeStepSize, timestep, 
 
      time = time + timeStepSize / 2.0_wp
      region%states(:)%time = time
+     region%states(:)%timeProgressive = time + timeStepSize / 2.0_wp
      call region%computeRhs(FORWARD)
 
      do i = 1, size(region%states)

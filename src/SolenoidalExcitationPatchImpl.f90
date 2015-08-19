@@ -180,29 +180,35 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
-  real(SCALAR_KIND) :: excitationAmount
+  real(SCALAR_KIND) :: time, excitationAmount
   real(SCALAR_KIND), allocatable :: temporalFunctions(:,:)
   SCALAR_TYPE, allocatable :: temp(:,:,:)
+  SCALAR_TYPE :: localForcing(2)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
 
-  if (mode == ADJOINT) return
-
   call startTiming("addSolenoidalExcitation")
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (2, 3))
 
+  select case (mode)
+  case (FORWARD)
+     time = state%time
+  case (ADJOINT)
+     time = state%timeProgressive
+  end select
+
   if (this%nModes > 0) then
      allocate(temporalFunctions(this%nModes, 4))
      do i = 1, this%nModes
-        temporalFunctions(i,1) = sin(this%angularFrequencies(i) * this%speed(1) * state%time)
-        temporalFunctions(i,2) = cos(this%angularFrequencies(i) * this%speed(1) * state%time)
-        temporalFunctions(i,3) = sin(this%angularFrequencies(i) * this%speed(2) * state%time)
-        temporalFunctions(i,4) = cos(this%angularFrequencies(i) * this%speed(2) * state%time)
+        temporalFunctions(i,1) = sin(this%angularFrequencies(i) * this%speed(1) * time)
+        temporalFunctions(i,2) = cos(this%angularFrequencies(i) * this%speed(1) * time)
+        temporalFunctions(i,3) = sin(this%angularFrequencies(i) * this%speed(2) * time)
+        temporalFunctions(i,4) = cos(this%angularFrequencies(i) * this%speed(2) * time)
      end do
   end if
 
@@ -233,14 +239,29 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
 
            excitationAmount = this%strength(patchIndex)
 
-           state%rightHandSide(gridIndex, 2) = state%rightHandSide(gridIndex, 2) +           &
-                excitationAmount * sum(temp(patchIndex,:,1) * (this%angularFrequencies *     &
-                temp(patchIndex,:,4) - 2.0_wp * this%gaussianFactor *                        &
-                (grid%coordinates(gridIndex, 2) - this%origin(2)) * temp(patchIndex,:,3)))
-           state%rightHandSide(gridIndex, 3) = state%rightHandSide(gridIndex, 3) +           &
-                excitationAmount * sum(temp(patchIndex,:,3) * (this%angularFrequencies *     &
-                temp(patchIndex,:,2) - 2.0_wp * this%gaussianFactor *                        &
-                (grid%coordinates(gridIndex, 1) - this%origin(1)) * temp(patchIndex,:,1)))
+           localForcing(1) = excitationAmount * sum(temp(patchIndex,:,1) *                   &
+                (this%angularFrequencies * temp(patchIndex,:,4) -                            &
+                2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 2) -             &
+                this%origin(2)) * temp(patchIndex,:,3)))
+           localForcing(2) = excitationAmount * sum(temp(patchIndex,:,3) *                   &
+                (this%angularFrequencies * temp(patchIndex,:,2) -                            &
+                2.0_wp * this%gaussianFactor * (grid%coordinates(gridIndex, 1) -             &
+                this%origin(1)) * temp(patchIndex,:,1)))
+
+           select case (mode)
+           case (FORWARD)
+              state%rightHandSide(gridIndex,2:3) = state%rightHandSide(gridIndex,2:3) +      &
+                   localForcing
+              state%rightHandSide(gridIndex,nDimensions+2) =                                 &
+                   state%rightHandSide(gridIndex,nDimensions+2) +                            &
+                   sum(state%velocity(gridIndex,1:2) * localForcing)
+           case (ADJOINT)
+              state%rightHandSide(gridIndex,1) = state%rightHandSide(gridIndex,1) -          &
+                   state%specificVolume(gridIndex,1) *                                       &
+                   sum(state%velocity(gridIndex,1:2) * localForcing)
+              state%rightHandSide(gridIndex,2:3) = state%rightHandSide(gridIndex,2:3) +      &
+                   state%specificVolume(gridIndex,1) * localForcing
+           end select
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)

@@ -109,6 +109,7 @@ subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
         this%data_(i)%buffer1 = region%states(i)%conservedVariables
      end do
 
+     region%states(:)%timeProgressive = time + timeStepSize / 2.0_wp
      call region%computeRhs(FORWARD)
 
      do i = 1, size(region%states)
@@ -133,6 +134,7 @@ subroutine substepForwardRK4(this, region, time, timeStepSize, timestep, stage)
 
   case (3)
 
+     region%states(:)%timeProgressive = time + timeStepSize / 2.0_wp
      call region%computeRhs(FORWARD)
 
      do i = 1, size(region%states)
@@ -207,6 +209,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
      end do
 
      region%states(:)%adjointForcingFactor = 2.0_wp
+     region%states(:)%timeProgressive = time - timeStepSize / 2.0_wp
      call region%computeRhs(ADJOINT)
 
      do i = 1, size(region%states)
@@ -221,6 +224,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
      time = time - timeStepSize / 2.0_wp
      region%states(:)%time = time
      region%states(:)%adjointForcingFactor = 1.0_wp
+     region%states(:)%timeProgressive = time
      call region%computeRhs(ADJOINT)
 
      do i = 1, size(region%states)
@@ -233,6 +237,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
   case (2)
 
      region%states(:)%adjointForcingFactor = 0.5_wp
+     region%states(:)%timeProgressive = time - timeStepSize / 2.0_wp
      call region%computeRhs(ADJOINT)
 
      do i = 1, size(region%states)
@@ -247,6 +252,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
      time = time - timeStepSize / 2.0_wp
      region%states(:)%time = time
      region%states(:)%adjointForcingFactor = 1.0_wp
+     region%states(:)%timeProgressive = time
      call region%computeRhs(ADJOINT)
 
      do i = 1, size(region%states)
