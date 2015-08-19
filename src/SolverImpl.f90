@@ -861,9 +861,10 @@ function runAdjoint(this, region) result(costSensitivity)
         if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
            if (i == 1) then
               call reverseMigrator%migrateTo(region, timeIntegrator,                         &
-                   timestep, timeIntegrator%nStages)
+                   timestep, timeIntegrator%nStages, controller)
            else
-              call reverseMigrator%migrateTo(region, timeIntegrator, timestep + 1, i - 1)
+              call reverseMigrator%migrateTo(region, timeIntegrator,                         &
+                   timestep + 1, i - 1, controller)
            end if
         end if
 
