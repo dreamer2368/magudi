@@ -197,7 +197,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
           region%states(i)%combustion%heatRelease, ignitionSource)
 
      ! Partial sensitivity with respect to amplitude.
-     F(:,2) = ignitionSource / this%amplitude
+     F(:,2) = ignitionSource / amplitude
 
      instantaneousSensitivities(1) = instantaneousSensitivities(1) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
@@ -208,7 +208,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      ! Partial sensitivity with respect to position in x.
      F(:,2) = ignitionSource *                                                               &
-          (region%grids(i)%coordinates(:,1) - this%location(1)) / this%radius(1)**2
+          (region%grids(i)%coordinates(:,1) - location(1)) / radius(1)**2
 
      instantaneousSensitivities(2) = instantaneousSensitivities(2) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
@@ -219,7 +219,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      ! Partial sensitivity with respect to position in y.
      F(:,2) = ignitionSource *                                                               &
-          (region%grids(i)%coordinates(:,2) - this%location(2)) / this%radius(2)**2
+          (region%grids(i)%coordinates(:,2) - location(2)) / radius(2)**2
 
      instantaneousSensitivities(3) = instantaneousSensitivities(3) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
@@ -230,7 +230,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      ! Partial sensitivity with respect to radius in x.
      F(:,2) = ignitionSource *                                                               &
-          (region%grids(i)%coordinates(:,1) - this%location(1))**2 / this%radius(1)**3
+          (region%grids(i)%coordinates(:,1) - location(1))**2 / radius(1)**3
 
      instantaneousSensitivities(4) = instantaneousSensitivities(4) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
@@ -241,7 +241,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      ! Partial sensitivity with respect to radius in y.
      F(:,2) = ignitionSource *                                                               &
-          (region%grids(i)%coordinates(:,2) - this%location(2))**2 / this%radius(2)**3
+          (region%grids(i)%coordinates(:,2) - location(2))**2 / radius(2)**3
 
      instantaneousSensitivities(5) = instantaneousSensitivities(5) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
@@ -252,7 +252,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      ! Partial sensitivity with respect to initial time.
      F(:,2) = ignitionSource *                                                               &
-          (region%states(i)%time - this%timeStart) / this%timeDuration**2
+          (region%states(i)%time - timeStart) / timeDuration**2
 
      instantaneousSensitivities(6) = instantaneousSensitivities(6) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
@@ -263,9 +263,8 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      ! Partial sensitivity with respect to duration.
      F(:,2) = - ignitionSource *                                                             &
-          (this%timeDuration + region%states(i)%time - this%timeStart) *                     &
-          (this%timeDuration - region%states(i)%time + this%timeStart) /                     &
-          this%timeDuration**3
+          (this%timeDuration + region%states(i)%time - timeStart) *                          &
+          (this%timeDuration - region%states(i)%time + timeStart) / timeDuration**3
 
      instantaneousSensitivities(7) = instantaneousSensitivities(7) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
