@@ -93,9 +93,6 @@ subroutine setupIgnitionActuator(this, region)
 
   write(key, '(A)') "ignition_actuator/"
 
-  call getRequiredOption(trim(key) // "sensitivity_dependence",                              &
-       this%sensitivityDependence, region%comm)
-
   call getRequiredOption(trim(key) // "amplitude", this%amplitude, region%comm)
   call getRequiredOption(trim(key) // "radius_x", this%radius(1), region%comm)
   this%radius(2) =  getOption(trim(key) // "radius_y",0.0_wp)
@@ -105,6 +102,9 @@ subroutine setupIgnitionActuator(this, region)
   this%location(3) =  getOption(trim(key) // "z",0.0_wp)
   this%timeStart = getOption(trim(key) // "time_start",0.0_wp)
   this%timeDuration = getOption(trim(key) // "time_duration",0.0_wp)
+
+  call getRequiredOption(trim(key) // "sensitivity_dependence",                              &
+       this%sensitivityDependence, region%comm)
 
   this%nSensitivities = 9
   allocate(this%cachedValues(this%nSensitivities))
@@ -191,7 +191,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
 
-     call computeSource(region%states(i)%time, region%grids(i)%coordinates,                  &
+     call computeSource(region%states(i)%adjointCoefficientTime, region%grids(i)%coordinates,&
           region%grids(i)%iblank, timeStart, timeDuration, amplitude, radius, location,      &
           region%solverOptions%ratioOfSpecificHeats,                                         &
           region%states(i)%combustion%heatRelease, ignitionSource)
@@ -386,7 +386,7 @@ subroutine updateIgnitionActuatorForcing(this, region)
 
            allocate(ignitionSource(region%grids(n)%nGridPoints))
 
-           select case (this%sensitivityDependence)
+           select case (trim(this%sensitivityDependence))
 
            case ('AMPLITUDE')
               amplitude = amplitude - region%states(n)%actuationAmount *                     &
