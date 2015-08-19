@@ -29,9 +29,8 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, gridIndex, ierror
-    SCALAR_TYPE :: equivalenceRatio, YF, YO
+    SCALAR_TYPE :: YF, YO, YF0, YO0, s, phi, Z, Zst, sigma_z, gaussianFactor
     SCALAR_TYPE, allocatable :: mask(:)
-    real(wp) :: weightNorm 
     logical :: hasNegativeWeight
     character(len = STRING_LENGTH) :: str
 
@@ -42,6 +41,13 @@ contains
     mask = 0.0_wp
 
     W = 0.0_wp
+    YF0 = combustion%YF0
+    YO0 = combustion%YO0
+    s = combustion%stoichiometricRatio
+    phi = s * YF0 / YO0
+    Zst = 1.0_wp / (1.0_wp + phi)
+    sigma_z = 0.001_wp
+    gaussianFactor = -0.5_wp / sigma_z**2
 
     ! Compute weight dynamically based on local equivalence ratio
     ! Be careful, requires including dW/dQ terms...
@@ -56,14 +62,11 @@ contains
               mask(i - grid%offset(1) + grid%localSize(1) * (j - 1 - grid%offset(2) +        &
                    grid%localSize(2) * (k - 1 - grid%offset(3)))) = 1.0_wp
 
-              YF = max(massFraction(gridIndex, combustion%H2), 0.0_wp)
-              YF = min(YF, 1.0_wp)
-              YO = max(massFraction(gridIndex, combustion%O2), 0.0_wp)
-              YO = min(YO, 1.0_wp)
-              equivalenceRatio = combustion%stoichiometricRatio * YF /                       &
-                   (YO + epsilon(0.0_wp))
-              W(gridIndex) = min(equivalenceRatio, 1.0_wp /                                  &
-                   (equivalenceRatio + epsilon(0.0_wp)) )
+              YF = massFraction(gridIndex, combustion%H2)
+              YO = massFraction(gridIndex, combustion%O2)
+              Z = (YF - YO / s  + YO0 / s) / (YF0 + YO0 / s)
+
+              W(gridIndex) = exp(gaussianFactor * (Z - Zst) **2)
 
           end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
        end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -76,22 +79,6 @@ contains
        write(str, '(A)') "Target weight is not non-negative!"
        call gracefulExit(grid%comm, str)
     end if
-
-    weightNorm = grid%computeInnerProduct(mask, W)
-
-!!$    if (this%commGridMasters /= MPI_COMM_NULL)                                               &
-!!$         call MPI_Allreduce(MPI_IN_PLACE, weightNorm, 1, REAL_TYPE_MPI,                      &
-!!$         MPI_SUM, this%commGridMasters, ierror)
-!!$
-!!$    do i = 1, size(this%grids)
-!!$       call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, this%grids(i)%comm, ierror)
-!!$    end do
-
-    if (weightNorm <= 0.0_wp)                                                                &
-         call issueWarning(grid%comm,                                                        &
-         "Target weight is trivial! Is a cost target patch present?")
-
-    W = W / weightNorm
 
   end subroutine computeWeight
 
