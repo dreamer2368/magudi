@@ -3,9 +3,9 @@ import numpy as np
 import plot3dnasa as p3d
 
 def ShapeMollifierFunction(xNormalized):
-	MollifierFunction = lambda x: np.where(np.logical_or(x < 0., x > 1.), 0., np.tanh(50. * (x - 0.3)) - np.tanh(50. * (x - 0.7)))
+	MollifierFunction = lambda x: np.where(np.logical_or(x < 0., x > 1.), 0., np.tanh(100. * (x - 0.3)) - np.tanh(100. * (x - 0.7)))
 	Mollifier = MollifierFunction(xNormalized)
-	Mollifier /= 0.8 #np.trapz(Mollifier, xNormalized) # normalized to have unit area
+	#Mollifier /= 0.8 #np.trapz(Mollifier, xNormalized) # normalized to have unit area
 
 	return Mollifier
 
@@ -35,24 +35,24 @@ def grid(size,xMin,xMax,yMin,yMax):
 		x = np.linspace(xMin,xMax,size[0])
 		s = np.linspace(0., 1., size[1])
 		background_y=np.linspace(yMin,yMax,size[1])
-		wallHeight = wallProfile(np.linspace(0., 1., size[0]), 0.00,20)
+		wallHeight = wallProfile(np.linspace(0., 1., size[0]), 0.01,20)
 	
 		for i in range(size[0]):
 			g.xyz[0][i,:,0,0] = x[i]
 
 		for j in range(size[1]):
 				yo=background_y[j]
-				width=1./5.
+				width=0.0
 			
-				if s[j] <= width:
-					xi=np.tanh(5.*s[j]/width)
+				if s[j] <= 0.3:
+					#xi=np.tanh(5.*s[j]/width)
+					xi=.5*np.tanh(25.*(s[j]-width))+.5
 				else:
 					xi=1.
 
 				for k in range(size[0]):
 					allege_y=s[j] * yMax + (1. - s[j]) * (yMin + wallHeight[k])
 					g.xyz[0][k,j,0,1] = allege_y - xi*(allege_y-yo)
-					#g.xyz[0][k,j,0,1] = xi2+((1-xi2)*0.1e-1)*(12*(1/10))*(tanh(40*(xi1-.2))-tanh(40*(xi1-.8)))*cos((2*np.pi*10)*xi1+3*np.p*(1/8))
 		return g
 
 def ambient_state(g, gamma=1.4):
@@ -81,16 +81,10 @@ def target_mollifier(g,x_min,x_max,y_min,y_max):
 	n = f.get_size(0)
 	for j in range(n[1]):
 		f.f[0][:,j,0,0] += p3d.tanh_support(
-          g.xyz[0][:,j,0,0], x_min,x_max,50, 0.01)
-		#f.f[0][:,j,0,0] += p3d.tanh_support(
-		#g.xyz[0][:,j,0,0], x_min,x_min+1./4.*(x_max-x_min), 40., 0.01)    
-		#f.f[0][:,j,0,0] += p3d.tanh_support(
-		#g.xyz[0][:,j,0,0],x_min+3./4.*(x_max-x_min), x_max, 40., 0.01)
-		#f.f[0][:,j,0,0] += p3d.tanh_support(
-		#g.xyz[0][:,j,0,0],x_min+3./8.*(x_max-x_min),x_min+5./8.*(x_max-x_min), 40., 0.01)
+          g.xyz[0][:,j,0,0], x_min,x_max,60., 0.001)
 	for i in range(n[0]):
 		f.f[0][i,:,0,0] *= p3d.tanh_support(
-		g.xyz[0][i,:,0,1], y_min, y_max,50., 0.01)	
+		g.xyz[0][i,:,0,1], y_min, y_max,60., 0.001)	
 	
 	return f
 
@@ -125,7 +119,7 @@ if __name__ == '__main__':
 		xMax = 1.
 		yMin = 0.
 		yMax = 1.
-
+	
 		g = grid([201,201],xMin,xMax,yMin,yMax)
 		g.save(outputPrefix+'.xyz')
 		initial_condition(g, u1=0.0, u2=0.0).save(outputPrefix+'.ic.q')
@@ -133,15 +127,15 @@ if __name__ == '__main__':
  		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
 		ambient_pressure(p3d.fromfile(outputPrefix+'.ambient.q')).save(outputPrefix+'.ambient_pressure.f')
 
-		xMinTarget = 0.3
+		xMinTarget = 0.6
 		xMaxTarget = 0.7
-		yMinTarget = 0.35
+		yMinTarget = 0.45
 		yMaxTarget = 0.55
 		target_mollifier(g,xMinTarget,xMaxTarget,yMinTarget,yMaxTarget).save(outputPrefix+'.target_mollifier.f')
 
 		xMinTarget=xMin
 		xMaxTarget=xMax
-		yMinTarget=0.3
+		yMinTarget=0.25
 		yMaxTarget=yMax
 
 		xMinControl =  xMin
