@@ -272,13 +272,19 @@ integer::i,j
 integer, parameter :: wp = SCALAR_KIND
 SCALAR_TYPE::amplitude,shapeMollifier,gstar,width,chi
 SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
+SCALAR_TYPE::ymin,ymax
+SCALAR_TYPE::ystar,y
+SCALAR_TYPE::h
+
+ymin=0._wp; ymax=1._wp
+y=ymin+(ymax-ymin)*xi2
 
 !assert(size(p) == 1)
 assert(mod(size(p),2)==0)
 
 width=0.2_wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
-!shapeMollifier=shapeMollifier/0.8_wp
+shapeMollifier=shapeMollifier/0.8_wp
 
 gstar=xi2
 j=1
@@ -288,7 +294,7 @@ j=j+1
 end do
 
 if (xi2 .le. width) then
-chi=tanh(5._wp *xi2/width)
+chi=tanh(50._wp *xi2)
 else
 chi=1._wp
 end if
@@ -308,6 +314,12 @@ integer::i,j
 integer, parameter :: wp = SCALAR_KIND
 SCALAR_TYPE::amplitude,shapeMollifier,gstar,width,chi
 SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
+SCALAR_TYPE::ymin,ymax
+SCALAR_TYPE::ystar,y
+SCALAR_TYPE::h
+
+ymin=0._wp; ymax=1._wp
+y=ymin+(ymax-ymin)*xi2
 
 !assert(size(p) == 1)
 assert(mod(size(p),2)==0)
@@ -318,7 +330,7 @@ allocate(dgstardpVec(size(dgdpVec)))
 width=0.2_wp
 dgdpVec=0._wp
 shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
-!shapeMollifier=shapeMollifier/0.8_wp
+shapeMollifier=shapeMollifier/0.8_wp
 
 
 j=1
@@ -329,7 +341,7 @@ j=j+1
 end do
 
 if (xi2 .le. width) then
-chi=tanh(5._wp *xi2/width)
+chi=tanh(50._wp *xi2)
 else
 chi=1._wp
 end if

@@ -2,6 +2,8 @@
 
 subroutine setupWallActuator(this, region)
 
+use MPI
+
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
@@ -13,6 +15,8 @@ subroutine setupWallActuator(this, region)
   use InputHelper, only : getOption
   use WavywallHelperImpl,&
      only:compute_dMijdp,compute_dJacobiandp,updateWallCoordinates
+  use Grid_enum
+  use InputHelper, only : getOption, getRequiredOption
 
   implicit none
 
@@ -29,6 +33,8 @@ subroutine setupWallActuator(this, region)
   integer::seed,n
   integer, allocatable :: seed_(:)
   SCALAR_TYPE,allocatable::phases(:)
+  character(len = STRING_LENGTH) :: filename
+  integer :: ierror
 
   call this%cleanup()
 
@@ -55,7 +61,7 @@ subroutine setupWallActuator(this, region)
   end if
 
      this%controlIndex=0
-     this%numP=20
+     this%numP=10
      
      this%MAX_WAVY_WALL_SUM_SQUARES=1.e-2_wp/real(this%numP,wp)
 
@@ -67,10 +73,9 @@ subroutine setupWallActuator(this, region)
      this%po(:)=0.00_wp
 
      i=1
-     do j=1,size(this%p),2
-     this%po(j)=0.0_wp !
-     this%po(j+1)=0._wp!2._wp * pi *real(i) * 0.1
-     i=i+1
+     do j=2,size(this%p),2
+     this%po(j-1)=0.0005_wp !
+     this%po(j)=0. !2._wp * pi *real(i) * 0.1
      end do
 
      this%p=this%po
@@ -89,7 +94,6 @@ subroutine setupWallActuator(this, region)
      SAFE_DEALLOCATE(this%instantaneousGradient)
      allocate(this%instantaneousGradient(this%numP))
      this%instantaneousGradient=0._wp
-
      this%sensitivity=0._wp
  
      SAFE_DEALLOCATE(this%dJacobiandp) 
@@ -104,8 +108,9 @@ subroutine setupWallActuator(this, region)
      call compute_dJacobiandp(this,region%grids(1),this%dJacobiandp)
      call compute_dMijdp(this,region%grids(1),this%dMijdp)
 
-     !you could output mesh here so that you're not handcuffed by whatever was
-     !done to create the mesh
+     call getRequiredOption("grid_file", filename)
+     call region%saveData(QOI_GRID, filename)
+     call MPI_Barrier(region%comm, ierror)
 
  
 end subroutine setupWallActuator
@@ -290,6 +295,7 @@ do m = 1, size(region%patchFactories)
 call region%patchFactories(m)%connect(patch)
 if (.not. associated(patch)) cycle
 if (patch%gridIndex /= region%grids(i)%index) cycle
+
 select type (patch)
 class is (t_ActuatorPatch)
 
@@ -421,7 +427,7 @@ subroutine addWallPenalty(this,cost,region, mode)
      sumSquares=sumSquares+this%p(i-1)*this%p(i-1)
   end do
   
-  cost=alpha*(sumSquares) !-this%MAX_PENALTY)
+  cost=alpha*(sumSquares)
  
 end subroutine
 
@@ -570,31 +576,29 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
 
      do g = 1, size(region%grids)
 
-        if (getOption("find_Optimal_Forcing",.true.)) then
-          if (this%controlIndex.eq.0) then
-               this%stepDirection=-this%gradient
-          else
-               if (.not.region%states(g)%LINESEARCHING) then
-               beta=dot_product(-this%gradient,-this%gradient)/&
-                    dot_product(-this%previousGradient,-this%previousGradient)
-               beta=max(0._wp,beta) !automatic direction reset if necessary
-               !beta=0._wp
-               this%stepDirection=-this%gradient+beta*this%stepDirection
-               end if
-          end if
-           call verifyActuationAmount(this,region%states(g)%actuationAmount,this%stepDirection)
-           this%p(:)=this%po(:)+region%states(g)%actuationAmount*this%stepDirection 
-        else
-          call verifyActuationAmount(this,region%states(g)%actuationAmount,-this%gradient)
+        !if (getOption("find_Optimal_Forcing",.true.)) then
+        !  if (this%controlIndex.eq.0) then
+        !       this%stepDirection=-this%gradient
+        !  else
+        !       if (.not.region%states(g)%LINESEARCHING) then
+        !       beta=dot_product(-this%gradient,-this%gradient)/&
+        !            dot_product(-this%previousGradient,-this%previousGradient)
+        !       beta=max(0._wp,beta) !automatic direction reset if necessary
+        !       !beta=0._wp
+        !       this%stepDirection=-this%gradient+beta*this%stepDirection
+        !       end if
+        !  end if
+        !  call verifyActuationAmount(this,region%states(g)%actuationAmount,this%stepDirection)
+        !  this%p(:)=this%po(:)+region%states(g)%actuationAmount*this%stepDirection 
+        !else
+          !call verifyActuationAmount(this,region%states(g)%actuationAmount,-this%gradient)
           this%p(:)=this%po(:)-region%states(g)%actuationAmount*this%gradient(:)
-        end if
+        !end if
         call updateWallCoordinates(this,region%grids(g))
         call region%grids(g)%update()
         call compute_dJacobiandp(this,region%grids(g),this%dJacobiandp)
         call compute_dMijdp(this,region%grids(g),this%dMijdp)
      end do
-
-     !write out the sum of squares since its an implicit constraint
 
      if ((.not.region%states(g)%LINESEARCHING)) then
      write (griditeration, "(I4)") this%controlIndex
@@ -639,15 +643,34 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
   
      if (procRank == 0) close(fileUnit)
 
+     write(filename, '(2A)') trim(outputPrefix),".gradients."&
+          //(adjustl(trim(griditeration)))
+     if (procRank == 0) then
+        open(unit = getFreeUnit(fileUnit), file = trim(filename),action='write',          &
+             status = 'unknown', iostat = iostat)
+     end if
+     
+     j=1
+     do i = 2,this%numP,2
+     if (procRank == 0)&
+          write(fileUnit, '(I4,2(1X,SP,' // SCALAR_FORMAT // '))')&
+              j,this%gradient(i-1),this%gradient(i)
+     j=j+1
+     end do
+
+     if (procRank == 0) close(fileUnit)
+
+
      this%controlIndex=this%controlIndex+1
+     
      end if
 
      if (getOption("find_Optimal_Forcing",.true.).and.&
           (.not.region%states(g)%LINESEARCHING))then
           this%previousGradient=this%gradient
+          this%po(:)=this%p(:)
           this%gradient(:)=0._wp
           this%sensitivity=0._wp
-          this%po(:)=this%p(:)
      end if
 
   end select
