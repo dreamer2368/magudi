@@ -30,16 +30,19 @@ def wallProfile(xNormalized, amplitude, nModes):
 	wallHeight *=1.	
 	return wallHeight
 
-def grid(size,xMin,xMax,yMin,yMax):
+def grid(size,xMin,xMax,yMin,yMax,zMin,zMax):
 		g = p3d.Grid().set_size(size, True)
 		x = np.linspace(xMin,xMax,size[0])
+		z = np.linspace(zMin,zMax,size[2])
 		s = np.linspace(0., 1., size[1])
 		background_y=np.linspace(yMin,yMax,size[1])
 		#0.0006324555325
 		wallHeight = wallProfile(np.linspace(0., 1., size[0]),0.002,10)
-	
+
+		for i in range(size[2]):
+			g.xyz[0][:,:,i,2] = z[i]	
 		for i in range(size[0]):
-			g.xyz[0][i,:,0,0] = x[i]
+			g.xyz[0][i,:,:,0] = x[i]
 
 		for j in range(size[1]):
 				yo=background_y[j]
@@ -52,8 +55,7 @@ def grid(size,xMin,xMax,yMin,yMax):
 
 				for k in range(size[0]):
 					allege_y=s[j] * yMax + (1. - s[j]) * (yMin + wallHeight[k])
-					g.xyz[0][k,j,0,1] = allege_y - xi*(allege_y-yo)
-					#g.xyz[0][k,j,0,1] = xi2+((1-xi2)*0.1e-1)*(12*(1/10))*(tanh(40*(xi1-.2))-tanh(40*(xi1-.8)))*cos((2*np.pi*10)*xi1+3*np.p*(1/8))
+					g.xyz[0][k,j,:,1] = allege_y - xi*(allege_y-yo)
 		return g
 
 #z = np.linspace(z_min, z_max, g.size[0,2] + 1)[:-1]
@@ -125,11 +127,13 @@ if __name__ == '__main__':
 		xMax = 2.
 		yMin = 0.
 		yMax = 1.
-		#zMin=0.
-		#zMax=1.
+		zMin=0.
+		zMax=1.
 
-		g = grid([401,201,201],xMin,xMax,yMin,yMax)
+		g = grid([401,201,201],xMin,xMax,yMin,yMax,zMin,zMax)
 		g.save(outputPrefix+'.xyz')
+
+		sys.exit(0)
 	
 		yShearMax=-10.
 		initial_condition(g, u1=1.75, u2=0.0,S=0.0,yCenter=yShearMax).save(outputPrefix+'.ic.q')
