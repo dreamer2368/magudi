@@ -9,23 +9,36 @@ def ShapeMollifierFunction(xNormalized):
 
 	return Mollifier
 
-def wallProfile(xNormalized, amplitude, nModes):
+def wallProfile(size,xNormalized,zNormalized, amplitude, nModes):
+
 
 	from numpy.random import rand
 	from numpy.random import seed
+	from numpy import meshgrid
 
-	wallHeight = np.zeros_like(xNormalized)
-	shapeMollifier = ShapeMollifierFunction(xNormalized)
+	wallHeight = np.zeros((len(xNormalized), len(zNormalized)))
+	#shapeMollifier = ShapeMollifierFunction(xNormalized)
 
- 	#seeds=np.zeros_like(nModes)
-	#seeds=1986
-	seed(1986)
+	seed(1985)
 	controlParameters = rand(nModes)
 	phaseAngles = 2. * np.pi * rand(nModes)
-	waveNumbers = 2. * np.pi * np.arange(1, nModes + 1)
+	xwaveNumbers = 2. * np.pi * np.arange(1, nModes + 1)
+	zwaveNumbers=np.zeros((2*nModes+1))
+	for i in range(len(zwaveNumbers)):
+		zwaveNumbers[i]=2.*np.pi*(-nModes+i)
 
-	for i in range(nModes):
-		wallHeight += amplitude * shapeMollifier * np.cos(waveNumbers[i] * xNormalized + 2.*np.pi*rand())
+	phases=np.zeros((nModes,nModes*2+1))
+	for m in range(len(zwaveNumbers)):
+		for n in range(nModes):
+			phases[n,m]=2.*np.pi*rand()
+
+	for i in range(len(xNormalized)):
+		for j in range(len(zNormalized)):
+			mollx=0.5*(np.tanh(40. * (xNormalized[i] - 0.1)) - np.tanh(40. * (xNormalized[i] -0.8)))
+			mollz=0.5*(np.tanh(40. * (zNormalized[j] - 0.2)) - np.tanh(40. * (zNormalized[j] -0.8)))
+			for m in range(len(zwaveNumbers)):
+				for n in range(nModes):
+					wallHeight[i,j] += amplitude *mollx*mollz* np.cos(zwaveNumbers[m] * zNormalized[j] + xwaveNumbers[n]*xNormalized[i]+phases[n,m])
 
 	wallHeight *=1.	
 	return wallHeight
@@ -37,7 +50,7 @@ def grid(size,xMin,xMax,yMin,yMax,zMin,zMax):
 		s = np.linspace(0., 1., size[1])
 		background_y=np.linspace(yMin,yMax,size[1])
 		#0.0006324555325
-		wallHeight = wallProfile(np.linspace(0., 1., size[0]),0.002,10)
+		wallHeight = wallProfile(size,np.linspace(0., 1., size[0]),np.linspace(0.,1.,size[2]),0.0005,6)
 
 		for i in range(size[2]):
 			g.xyz[0][:,:,i,2] = z[i]	
@@ -53,18 +66,12 @@ def grid(size,xMin,xMax,yMin,yMax,zMin,zMax):
 				else:
 					xi=1.
 
-				for k in range(size[0]):
-					allege_y=s[j] * yMax + (1. - s[j]) * (yMin + wallHeight[k])
-					g.xyz[0][k,j,:,1] = allege_y - xi*(allege_y-yo)
+				for l in range(size[2]):
+					for k in range(size[0]):
+						allege_y=s[j] * yMax + (1. - s[j]) * (yMin + wallHeight[k,l])
+						g.xyz[0][k,j,l,1] = allege_y - xi*(allege_y-yo)
 		return g
 
-#z = np.linspace(z_min, z_max, g.size[0,2] + 1)[:-1]
-#    for i in range(x.size):
-#        g.xyz[0][i,:,:,0] = x[i]
-#    for j in range(y.size):
-#        g.xyz[0][:,j,:,1] = y[j]
-#    for k in range(z.size):
-#        g.xyz[0][:,:,k,2] = z[k]
 
 def ambient_state(g, gamma=1.4):
      s = p3d.Solution().copy_from(g).quiescent(gamma)
@@ -130,11 +137,9 @@ if __name__ == '__main__':
 		zMin=0.
 		zMax=1.
 
-		g = grid([401,201,201],xMin,xMax,yMin,yMax,zMin,zMax)
+		g = grid([201,101,101],xMin,xMax,yMin,yMax,zMin,zMax)
 		g.save(outputPrefix+'.xyz')
 
-		sys.exit(0)
-	
 		yShearMax=-10.
 		initial_condition(g, u1=1.75, u2=0.0,S=0.0,yCenter=yShearMax).save(outputPrefix+'.ic.q')
 		target_state(g, u1=1.75, u2=0.0, S=0.0,yCenter=yShearMax).save(outputPrefix+'.target.q')
@@ -158,7 +163,10 @@ if __name__ == '__main__':
 
 		 #SPONGE INDICES
 		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-0.1)) ) + 1
-		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-0.2))) + 1
+		left_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMin+0.1)) ) + 1
+		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-0.1))) + 1
+		front_sponge=np.argmin(abs(g.xyz[0][0,0,:,2] - (zMin+0.1))) + 1
+		back_sponge=np.argmin(abs(g.xyz[0][0,0,:,2] - (zMax-0.1))) + 1
 
 		#TARGET INDICES
 		left_target=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMinTarget)) ) + 1
@@ -177,10 +185,15 @@ if __name__ == '__main__':
 				fp.write("# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax\n")
 				fp.write("# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====\n")
 				fp.write("inflow               SAT_FAR_FIELD            1       1    1    1    1   -1    1   -1\n")
+				fp.write("inflowSponge         SPONGE            1       1    1    %i    1   -1    1   -1\n"% (left_sponge))
 				fp.write("outflow              SAT_FAR_FIELD            1      -1   -1   -1    1   -1    1   -1\n")
 				fp.write("outflowSponge        SPONGE                   1      -1   %i   -1    1   -1    1   -1\n"% (right_sponge))
+				fp.write("outflowFront              SAT_FAR_FIELD            1      3   1   -1    1   -1    1   1\n")
+				fp.write("outflowFrontSponge        SPONGE                   1      3   1   -1    1   -1    1   %i\n"% (front_sponge))
+				fp.write("outflowBack              SAT_FAR_FIELD            1      -3   1   -1    1   -1    -1   -1\n")
+				fp.write("outflowBackSponge        SPONGE                   1      -3   1   -1    1   -1    %i   -1\n"% (back_sponge))
 				fp.write("wall.S               SAT_SLIP_WALL            1       2    1   -1    1    1    1   -1\n")
 				fp.write("farfield.N           SAT_FAR_FIELD            1      -2    1   -1   -1   -1    1   -1\n")
 				fp.write("sponge.N             SPONGE                   1      -2    1   -1  %i   -1    1   -1\n"% (top_sponge))
-    				fp.write("targetRegion         COST_TARGET              1       0  %i %i  %i  %i    1   -1\n"%(left_target,right_target,bottom_target,top_target))
-				fp.write("controlRegion.p1        ACTUATOR                 1       2  %i  %i %i %i 1   -1\n"%(left_c,right_c,bottom_c,top_c))
+    				#fp.write("targetRegion         COST_TARGET              1       0  %i %i  %i  %i    1   -1\n"%(left_target,right_target,bottom_target,top_target))
+				#fp.write("controlRegion.p1        ACTUATOR                 1       2  %i  %i %i %i 1   -1\n"%(left_c,right_c,bottom_c,top_c))
