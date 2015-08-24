@@ -22,7 +22,7 @@ def wallProfile(size,xNormalized,zNormalized, amplitude, nModes):
 	seed(1985)
 	controlParameters = rand(nModes)
 	phaseAngles = 2. * np.pi * rand(nModes)
-	xwaveNumbers = 2. * np.pi * np.arange(1, nModes + 1)
+	xwaveNumbers = 2. * np.pi * np.arange(1, nModes+1)
 	zwaveNumbers=np.zeros((2*nModes+1))
 	for i in range(len(zwaveNumbers)):
 		zwaveNumbers[i]=2.*np.pi*(-nModes+i)
@@ -34,8 +34,8 @@ def wallProfile(size,xNormalized,zNormalized, amplitude, nModes):
 
 	for i in range(len(xNormalized)):
 		for j in range(len(zNormalized)):
-			mollx=0.5*(np.tanh(40. * (xNormalized[i] - 0.1)) - np.tanh(40. * (xNormalized[i] -0.8)))
-			mollz=0.5*(np.tanh(40. * (zNormalized[j] - 0.2)) - np.tanh(40. * (zNormalized[j] -0.8)))
+			mollx=0.5*(np.tanh(40. * (xNormalized[i] - 0.1)) - np.tanh(40. * (xNormalized[i] -0.6)))
+			mollz=0.5*(np.tanh(40. * (zNormalized[j] - 0.05)) - np.tanh(40. * (zNormalized[j] -0.95)))
 			for m in range(len(zwaveNumbers)):
 				for n in range(nModes):
 					wallHeight[i,j] += amplitude *mollx*mollz* np.cos(zwaveNumbers[m] * zNormalized[j] + xwaveNumbers[n]*xNormalized[i]+phases[n,m])
@@ -50,7 +50,7 @@ def grid(size,xMin,xMax,yMin,yMax,zMin,zMax):
 		s = np.linspace(0., 1., size[1])
 		background_y=np.linspace(yMin,yMax,size[1])
 		#0.0006324555325
-		wallHeight = wallProfile(size,np.linspace(0., 1., size[0]),np.linspace(0.,1.,size[2]),0.0005,6)
+		wallHeight = wallProfile(size,np.linspace(0., 1., size[0]),np.linspace(0.,1.,size[2]),0.001,6)
 
 		for i in range(size[2]):
 			g.xyz[0][:,:,i,2] = z[i]	
@@ -135,14 +135,14 @@ if __name__ == '__main__':
 		yMin = 0.
 		yMax = 1.
 		zMin=0.
-		zMax=1.
+		zMax=1.5
 
-		g = grid([201,101,101],xMin,xMax,yMin,yMax,zMin,zMax)
+		g = grid([201,101,151],xMin,xMax,yMin,yMax,zMin,zMax)
 		g.save(outputPrefix+'.xyz')
 
 		yShearMax=-10.
-		initial_condition(g, u1=1.75, u2=0.0,S=0.0,yCenter=yShearMax).save(outputPrefix+'.ic.q')
-		target_state(g, u1=1.75, u2=0.0, S=0.0,yCenter=yShearMax).save(outputPrefix+'.target.q')
+		initial_condition(g, u1=1.25, u2=0.0,S=0.0,yCenter=yShearMax).save(outputPrefix+'.ic.q')
+		target_state(g, u1=1.25, u2=0.0, S=0.0,yCenter=yShearMax).save(outputPrefix+'.target.q')
 
 		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
 		ambient_pressure(p3d.fromfile(outputPrefix+'.ambient.q')).save(outputPrefix+'.ambient_pressure.f')
