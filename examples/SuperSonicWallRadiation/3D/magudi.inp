@@ -1,0 +1,90 @@
+# magudi.inp
+# Written by Ramanathan Vishnampet
+
+# Filenames, etc.
+output_prefix = "SuperSonicWallRadiation"
+grid_file = "SuperSonicWallRadiation.xyz"
+target_state_file = "SuperSonicWallRadiation.target.q"
+boundary_condition_file = "SuperSonicWallRadiation_bc.dat"
+initial_condition_file = "SuperSonicWallRadiation.ic.q"
+control_mollifier_file = "SuperSonicWallRadiation.control_mollifier.f"
+target_mollifier_file = "SuperSonicWallRadiation.target_mollifier.f"
+
+#we are using ambient pressure so I compare my pressure field to a constant
+mean_pressure_file = "SuperSonicWallRadiation.ambient_pressure.f"
+
+curvilinear_domain = true
+
+# Simulation flags
+use_constant_CFL_mode = false
+use_target_state = true
+include_viscous_terms = true
+
+# Physical constants
+Reynolds_number =2500. #714.2857142857143
+Prandtl_number = 0.7
+viscosity_power_law_exponent = 0.
+bulk_viscosity_ratio = 0.
+
+# Adjoint optimization flags
+disable_adjoint_solver = true
+baseline_prediction_available = false
+cost_functional_type = "SOUND"
+controller_type="PASSIVE_WALL_ACTUATOR"
+cost_functional_timeHorizon/startTime=500.
+cost_functional_timeHorizon/stopTime=800.
+cost_functional_MollifierStrength=1000.
+cost_functional_normalizeTimeMollifier=600.
+use_continuous_adjoint = false
+gradient_buffer_size = 100
+
+# Gradient accuracy options
+check_gradient_accuracy = false
+precision_for_gradient_accuracy = 1e-15
+number_of_control_iterations = 16
+initial_actuation_amount = 1.
+restart_control_iteration = 0
+actuation_amount_geometric_growth = 0.1
+
+# Optimization
+find_Optimal_Forcing = false
+number_of_descents = 25
+initial_amplitude_of_descent=0.25 #0.1
+control_algorithm = "STEEPEST_DESCENT"
+
+# Discretization scheme
+defaults/discretization_scheme = "SBP 3-6"
+
+# Time stepping options
+time_integration_scheme = 'RK4'
+time_step_size = 0.00075 
+number_of_timesteps = 2000
+report_interval = 1
+save_interval = 100
+
+# Artificial dissipation
+add_dissipation = true
+dissipation_amount = 0.005
+composite_dissipation = false
+
+# Solution limits
+enable_solution_limits = true
+minimum_density = 0.1
+minimum_temperature = 0.05
+maximum_density = 5.
+maximum_temperature = 4.
+
+#Random Fluctuating Field
+random_fluctuation_source/amplitude=0.
+
+# Damping
+defaults/sponge_amount = 0.2
+
+# Penalty parameters
+defaults/inviscid_penalty_amount = 1.
+defaults/viscous_penalty_amount=1.
+
+
+# Periodicity
+grid001/dir3/periodicity_type = 'PLANE'
+grid001/dir3/periodic_length = 1.5
