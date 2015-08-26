@@ -3,7 +3,7 @@ import numpy as np
 import plot3dnasa as p3d
 
 def ShapeMollifierFunction(xNormalized):
-	MollifierFunction = lambda x: 0.5*(np.tanh(40. * (x - 0.1)) - np.tanh(40. * (x -0.6))) #np.where(np.logical_or(x < 0., x > 60), 0., np.tanh(40. * (x - 10)) - np.tanh(40. * (x - 50)))
+	MollifierFunction = lambda x: 0.5*(np.tanh(60. * (x - 0.05)) - np.tanh(60. * (x -0.6))) #np.where(np.logical_or(x < 0., x > 60), 0., np.tanh(40. * (x - 10)) - np.tanh(40. * (x - 50)))
 	Mollifier = MollifierFunction(xNormalized)
 	#Mollifier /= 0.8 #np.trapz(Mollifier, xNormalized) # normalized to have unit area
 
@@ -19,15 +19,22 @@ def wallProfile(xNormalized, amplitude, nModes):
 
  	#seeds=np.zeros_like(nModes)
 	#seeds=1986
-	seed(1900)
+	seed(1987)
 	controlParameters = rand(nModes)
 	phaseAngles = 2. * np.pi * rand(nModes)
-	waveNumbers = 2. * np.pi * np.arange(1, nModes + 1)
+	waveNumbers = 2. * np.pi * np.arange(4, nModes + 4)
 
 	for i in range(nModes):
-		wallHeight += amplitude * shapeMollifier * np.cos(waveNumbers[i] * xNormalized + 2.*np.pi*rand())
+	#t1=np.pi*0.5
+	#wallHeight += amplitude * shapeMollifier * np.cos(2.*np.pi*5. * xNormalized + t1)
+	#t2=3.*np.pi/8.
+	#wallHeight += amplitude * shapeMollifier * np.cos(2.*np.pi*6. * xNormalized + t2)
+	#t3=t1+t2
+	#wallHeight += amplitude * shapeMollifier * np.cos(2.*np.pi*11. * xNormalized + t3)
+	#t4=t2+t3
+		wallHeight += amplitude * shapeMollifier * np.cos(2.*np.pi*i * xNormalized+phaseAngles[i])
 
-	wallHeight *=1.	
+	wallHeight *=-1.	
 	return wallHeight
 
 def grid(size,xMin,xMax,yMin,yMax):
@@ -36,7 +43,7 @@ def grid(size,xMin,xMax,yMin,yMax):
 		s = np.linspace(0., 1., size[1])
 		background_y=np.linspace(yMin,yMax,size[1])
 		#0.0006324555325
-		wallHeight = wallProfile(np.linspace(0., 1., size[0]),0.002,10)
+		wallHeight = wallProfile(np.linspace(0., 1., size[0]),0.0005,15)
 	
 		for i in range(size[0]):
 			g.xyz[0][i,:,0,0] = x[i]
@@ -124,8 +131,8 @@ if __name__ == '__main__':
 		g.save(outputPrefix+'.xyz')
 	
 		yShearMax=-10.
-		initial_condition(g, u1=1.75, u2=0.0,S=0.0,yCenter=yShearMax).save(outputPrefix+'.ic.q')
-		target_state(g, u1=1.75, u2=0.0, S=0.0,yCenter=yShearMax).save(outputPrefix+'.target.q')
+		initial_condition(g, u1=VELOCITY, u2=0.0,S=0.0,yCenter=yShearMax).save(outputPrefix+'.ic.q')
+		target_state(g, u1=VELOCITY, u2=0.0, S=0.0,yCenter=yShearMax).save(outputPrefix+'.target.q')
 
 		ambient_state(g,gamma=1.4).save(outputPrefix+'.ambient.q')
 		ambient_pressure(p3d.fromfile(outputPrefix+'.ambient.q')).save(outputPrefix+'.ambient_pressure.f')
@@ -145,8 +152,8 @@ if __name__ == '__main__':
 		#IMPLEMENTING THE BOUNDARY CONDITION FILE
 
 		 #SPONGE INDICES
-		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-0.1)) ) + 1
-		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-0.2))) + 1
+		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-0.2)) ) + 1
+		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-0.1))) + 1
 
 		#TARGET INDICES
 		left_target=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMinTarget)) ) + 1

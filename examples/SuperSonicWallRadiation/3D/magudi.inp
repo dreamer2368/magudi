@@ -57,8 +57,8 @@ defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_integration_scheme = 'RK4'
-time_step_size = 0.00075 
-number_of_timesteps = 2000
+time_step_size = 0.00075 #0.001
+number_of_timesteps = 4000
 report_interval = 1
 save_interval = 100
 
@@ -78,7 +78,7 @@ maximum_temperature = 4.
 random_fluctuation_source/amplitude=0.
 
 # Damping
-defaults/sponge_amount = 0.2
+defaults/sponge_amount = 10.
 
 # Penalty parameters
 defaults/inviscid_penalty_amount = 1.
@@ -87,4 +87,4 @@ defaults/viscous_penalty_amount=1.
 
 # Periodicity
 grid001/dir3/periodicity_type = 'PLANE'
-grid001/dir3/periodic_length = 1.5
+grid001/dir3/periodic_length = 1.

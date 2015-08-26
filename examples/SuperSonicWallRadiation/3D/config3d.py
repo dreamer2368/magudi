@@ -3,45 +3,54 @@ import numpy as np
 import plot3dnasa as p3d
 
 def ShapeMollifierFunction(xNormalized):
-	MollifierFunction = lambda x: 0.5*(np.tanh(40. * (x - 0.1)) - np.tanh(40. * (x -0.6))) #np.where(np.logical_or(x < 0., x > 60), 0., np.tanh(40. * (x - 10)) - np.tanh(40. * (x - 50)))
+	MollifierFunction = lambda x: 0.5*(np.tanh(40. * (x - 0.05)) - np.tanh(40. * (x -0.6))) #np.where(np.logical_or(x < 0., x > 60), 0., np.tanh(40. * (x - 10)) - np.tanh(40. * (x - 50)))
 	Mollifier = MollifierFunction(xNormalized)
 	#Mollifier /= 0.8 #np.trapz(Mollifier, xNormalized) # normalized to have unit area
 
 	return Mollifier
 
 def wallProfile(size,xNormalized,zNormalized, amplitude, nModes):
-
-
-
-
-
-
 	from numpy.random import rand
 	from numpy.random import seed
 	from numpy import meshgrid
 
 	wallHeight = np.zeros((len(xNormalized), len(zNormalized)))
+	shapeMollifier = ShapeMollifierFunction(xNormalized)
 
-	seed(1900)
+	seed(1987)
 	controlParameters = rand(nModes)
 	phaseAngles = 2. * np.pi * rand(nModes)
-	xwaveNumbers = 2. * np.pi * np.arange(1, nModes+1)
-	zwaveNumbers=np.zeros((2*nModes+1))
-	for i in range(len(zwaveNumbers)):
-		zwaveNumbers[i]=2.*np.pi*(-nModes+i)
-
-	phases=np.zeros((nModes,nModes*2+1))
-	for m in range(len(zwaveNumbers)):
-		for n in range(nModes):
-			phases[n,m]=2.*np.pi*rand()
+	waveNumbers = 2. * np.pi * np.arange(4, nModes + 4)
 
 	for i in range(len(xNormalized)):
 		for j in range(len(zNormalized)):
-			mollx=0.5*(np.tanh(40. * (xNormalized[i] - 0.1)) - np.tanh(40. * (xNormalized[i] -0.6)))
-			mollz=0.5*(np.tanh(40. * (zNormalized[j] - 0.05)) - np.tanh(40. * (zNormalized[j] -0.95)))
-			for m in range(len(zwaveNumbers)):
-				for n in range(nModes):
-					wallHeight[i,j] += amplitude *mollx*mollz* np.cos(zwaveNumbers[m] * zNormalized[j] + xwaveNumbers[n]*xNormalized[i]+phases[n,m])
+			for m in range(nModes):
+				wallHeight[i,j] += amplitude * shapeMollifier[i] * np.cos(2.*np.pi*m *xNormalized[i]+phaseAngles[m])
+
+	wallHeight *=-1.
+	return wallHeight
+
+
+	#seed(1900)
+	#controlParameters = rand(nModes)
+	#phaseAngles = 2. * np.pi * rand(nModes)
+	#xwaveNumbers = 2. * np.pi * np.arange(1, nModes+1)
+	#zwaveNumbers=np.zeros((2*nModes+1))
+	#for i in range(len(zwaveNumbers)):
+#		zwaveNumbers[i]=2.*np.pi*(-nModes+i)
+#
+#	phases=np.zeros((nModes,nModes*2+1))
+#	for m in range(len(zwaveNumbers)):
+#		for n in range(nModes):
+#			phases[n,m]=2.*np.pi*rand()
+#
+#	for i in range(len(xNormalized)):
+#		for j in range(len(zNormalized)):
+#			mollx=0.5*(np.tanh(40. * (xNormalized[i] - 0.1)) - np.tanh(40. * (xNormalized[i] -0.6)))
+#			mollz=0.5*(np.tanh(40. * (zNormalized[j] - 0.05)) - np.tanh(40. * (zNormalized[j] -0.95)))
+#			for m in range(len(zwaveNumbers)):
+#				for n in range(nModes):
+#					wallHeight[i,j] += amplitude *mollx*mollz* np.cos(zwaveNumbers[m] * zNormalized[j] + xwaveNumbers[n]*xNormalized[i]+phases[n,m])
 
 	wallHeight *=1.	
 	return wallHeight
@@ -158,10 +167,10 @@ if __name__ == '__main__':
 		xMax = 2.
 		yMin = 0.
 		yMax = 1.
-		zMin=-0.75
-		zMax=0.75
+		zMin=-0.5
+		zMax=0.5
 
-		g = grid([201,101,150],xMin,xMax,yMin,yMax,zMin,zMax)
+		g = grid([401,201,201],xMin,xMax,yMin,yMax,zMin,zMax)
 		g.save(outputPrefix+'.xyz')
 
 		yShearMax=-10.
@@ -186,7 +195,7 @@ if __name__ == '__main__':
 		#IMPLEMENTING THE BOUNDARY CONDITION FILE
 
 		 #SPONGE INDICES
-		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-0.1)) ) + 1
+		right_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMax-0.2)) ) + 1
 		left_sponge=np.argmin(abs(g.xyz[0][:,0,0,0] -(xMin+0.1)) ) + 1
 		top_sponge=np.argmin(abs(g.xyz[0][0,:,0,1] - (yMax-0.1))) + 1
 		front_sponge=np.argmin(abs(g.xyz[0][0,0,:,2] - (zMin+0.1))) + 1
