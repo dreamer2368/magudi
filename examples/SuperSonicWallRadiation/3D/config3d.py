@@ -3,7 +3,7 @@ import numpy as np
 import plot3dnasa as p3d
 
 def ShapeMollifierFunction(xNormalized):
-	MollifierFunction = lambda x: 0.5*(np.tanh(40. * (x - 0.05)) - np.tanh(40. * (x -0.6))) #np.where(np.logical_or(x < 0., x > 60), 0., np.tanh(40. * (x - 10)) - np.tanh(40. * (x - 50)))
+	MollifierFunction = lambda x: 0.5*(np.tanh(60. * (x - 0.05)) - np.tanh(60. * (x -0.6))) #np.where(np.logical_or(x < 0., x > 60), 0., np.tanh(40. * (x - 10)) - np.tanh(40. * (x - 50)))
 	Mollifier = MollifierFunction(xNormalized)
 	#Mollifier /= 0.8 #np.trapz(Mollifier, xNormalized) # normalized to have unit area
 
@@ -83,7 +83,7 @@ def grid(size,xMin,xMax,yMin,yMax,zMin,zMax):
 		s = np.linspace(0., 1., size[1])
 		background_y=np.linspace(yMin,yMax,size[1])
 		#0.0006324555325
-		wallHeight = wallProfile(size,np.linspace(0., 1., size[0]),np.linspace(0.,1.,size[2]+1)[:-1],0.0003162,6)
+		wallHeight = wallProfile(size,np.linspace(0., 1., size[0]),np.linspace(0.,1.,size[2]+1)[:-1],0.0005,15)
 
 		for i in range(z.size):
 			g.xyz[0][:,:,i,2] = z[i]	
