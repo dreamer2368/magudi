@@ -196,9 +196,9 @@ contains
     ! Stretch the grid.
     if (stretch_x) then
        ! Parameters
-       sigma=0.07_wp
-       b=80.0_wp
-       c=0.58_wp
+       sigma=0.2_wp
+       b=20.0_wp
+       c=0.9_wp
 
        ! Create uniform spacing.
        allocate(s(nx_))
