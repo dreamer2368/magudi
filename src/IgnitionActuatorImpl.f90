@@ -153,9 +153,10 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, ierror
+  integer :: i, k, nDimensions, nSpecies, nUnknowns, ierror
   real(SCALAR_KIND) ::  time, timeStart, timeDuration, amplitude, radius(3), location(3)
-  SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:), instantaneousSensitivities(:)
+  SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:), combustionSource(:,:),              &
+       instantaneousSensitivities(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -176,10 +177,13 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   do i = 1, size(region%grids)
 
      time = region%states(i)%adjointCoefficientTime
-
      nDimensions = region%grids(i)%nDimensions
-     assert_key(nDimensions, (1, 2, 3))
+     nspecies = region%solverOptions%nSpecies
+     nUnknowns = region%solverOptions%nUnknowns
 
+     assert_key(nDimensions, (1, 2, 3))
+     assert(nSpecies >= 0)
+     assert(nUnknowns == nDimensions + 2 + nSpecies)
      assert(region%grids(i)%nGridPoints > 0)
      assert(allocated(region%grids(i)%controlMollifier))
      assert(size(region%grids(i)%controlMollifier, 1) == region%grids(i)%nGridPoints)
@@ -187,16 +191,24 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
      assert(allocated(region%states(i)%adjointVariables))
      assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%adjointVariables, 2) >= nDimensions + 2)
+     assert(region%states(i)%combustion%Damkohler > 0.0_wp)
 
      allocate(F(region%grids(i)%nGridPoints, 2))
      allocate(ignitionSource(region%grids(i)%nGridPoints))
-
-     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
+     allocate(combustionSource(region%grids(i)%nGridPoints, nUnknowns))
 
      call computeSource(time, region%grids(i)%coordinates, region%grids(i)%iblank,           &
           timeStart, timeDuration, amplitude, radius, location,                              &
           region%solverOptions%ratioOfSpecificHeats,                                         &
           region%states(i)%combustion%heatRelease, ignitionSource)
+
+     call region%states(i)%combustion%addForward(nDimensions,                                &
+          region%states(i)%conservedVariables(:,1), region%states(i)%temperature(:,1),       &
+          region%states(i)%massFraction, region%solverOptions%ratioOfSpecificHeats,          &
+          region%grids(i)%iblank, combustionSource)
+
+     ! Compute sensitivities of ignition parameters.
+     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
 
      ! Partial sensitivity with respect to amplitude.
      F(:,2) = ignitionSource / amplitude
@@ -275,45 +287,55 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
           instantaneousSensitivity = instantaneousSensitivities(7)
 
      ! Partial sensitivity with respect to Damköhler number.
-     !F(:,2) = - ignitionSource *                                                             &
+     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
+     F(:,2) = combustionSource(:,nDimensions+2) / region%states(i)%combustion%Damkohler
 
-     !instantaneousSensitivities(8) = instantaneousSensitivities(8) +                         &
-     !     region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
-     !     region%grids(i)%controlMollifier(:,1))
+     instantaneousSensitivities(8) = instantaneousSensitivities(8) +                         &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
 
-     !F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+region%states(i)%combustion%H2)
+     do k = 1, nSpecies
+        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+k)
+        F(:,2) = combustionSource(:,nDimensions+2+k) / region%states(i)%combustion%Damkohler
 
-    ! Partial sensitivity with respect to Damköhler number.
-     !F(:,2) = - ignitionSource *                                                             &
-
-     !instantaneousSensitivities(8) = instantaneousSensitivities(8) +                         &
-     !     region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
-     !     region%grids(i)%controlMollifier(:,1))
-
-     !F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+region%states(i)%combustion%O2)
-
-     ! Partial sensitivity with respect to Damköhler number.
-     !F(:,2) = - ignitionSource *                                                             &
-
-     !instantaneousSensitivities(8) = instantaneousSensitivities(8) +                         &
-     !     region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
-     !     region%grids(i)%controlMollifier(:,1))
+        instantaneousSensitivities(8) = instantaneousSensitivities(8) +                      &
+             region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                             &
+             region%grids(i)%controlMollifier(:,1))
+     end do
 
      if (trim(this%sensitivityDependence) == 'DAMKOHLER')                                    &
           instantaneousSensitivity = instantaneousSensitivities(8)
 
-     ! Partial sensitivity with respect to Activation energy.
-     !F(:,2) = - ignitionSource *                                                             &
+     ! Partial sensitivity with respect to the Zel Dovich number.
+     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
+     F(:,2) = - combustionSource(:,nDimensions+2) /                                          &
+          ( region%states(i)%combustion%heatRelease * region%states(i)%temperature(:,1) *    &
+          (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) *                             &
+          (1.0_wp - region%states(i)%combustion%heatRelease) )
 
-     !instantaneousSensitivities(9) = instantaneousSensitivities(9) +                         &
-     !     region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
-     !     region%grids(i)%controlMollifier(:,1))
+     instantaneousSensitivities(9) = instantaneousSensitivities(9) +                         &
+          region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
+          region%grids(i)%controlMollifier(:,1))
 
-     if (trim(this%sensitivityDependence) == 'ACTIVATION_ENERGY')                            &
+     do k = 1, nSpecies
+        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+k)
+        F(:,2) = - combustionSource(:,nDimensions+2+k) /                                     &
+             ( region%states(i)%combustion%heatRelease * region%states(i)%temperature(:,1) * &
+             (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) *                          &
+             (1.0_wp - region%states(i)%combustion%heatRelease) )
+
+        instantaneousSensitivities(9) = instantaneousSensitivities(9) +                      &
+             region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                             &
+             region%grids(i)%controlMollifier(:,1))
+     end do
+
+     if (trim(this%sensitivityDependence) == 'ZEL_DOVICH')                                   &
           instantaneousSensitivity = instantaneousSensitivities(9)
 
-     SAFE_DEALLOCATE(ignitionSource)
+     ! Clean up.
      SAFE_DEALLOCATE(F)
+     SAFE_DEALLOCATE(ignitionSource)
+     SAFE_DEALLOCATE(combustionSource)
 
   end do
 
