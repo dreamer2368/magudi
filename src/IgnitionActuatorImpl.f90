@@ -154,7 +154,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
-  real(SCALAR_KIND) ::  timeStart, timeDuration, amplitude, radius(3), location(3)
+  real(SCALAR_KIND) ::  time, timeStart, timeDuration, amplitude, radius(3), location(3)
   SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:), instantaneousSensitivities(:)
 
   assert(allocated(region%grids))
@@ -167,6 +167,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   instantaneousSensitivities = 0.0_wp
   instantaneousSensitivity = 0.0_wp
 
+  time = region%states(i)%adjointCoefficientTime
   timeStart = this%timeStart
   timeDuration = this%timeDuration
   amplitude = this%amplitude
@@ -191,8 +192,8 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
 
-     call computeSource(region%states(i)%adjointCoefficientTime, region%grids(i)%coordinates,&
-          region%grids(i)%iblank, timeStart, timeDuration, amplitude, radius, location,      &
+     call computeSource(time, region%grids(i)%coordinates, region%grids(i)%iblank,           &
+          timeStart, timeDuration, amplitude, radius, location,                              &
           region%solverOptions%ratioOfSpecificHeats,                                         &
           region%states(i)%combustion%heatRelease, ignitionSource)
 
@@ -251,8 +252,7 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
           instantaneousSensitivity = instantaneousSensitivities(5)
 
      ! Partial sensitivity with respect to initial time.
-     F(:,2) = ignitionSource *                                                               &
-          (region%states(i)%time - timeStart) / timeDuration**2
+     F(:,2) = ignitionSource * (time - timeStart) / timeDuration**2
 
      instantaneousSensitivities(6) = instantaneousSensitivities(6) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
@@ -263,8 +263,8 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
 
      ! Partial sensitivity with respect to duration.
      F(:,2) = - ignitionSource *                                                             &
-          (this%timeDuration + region%states(i)%time - timeStart) *                          &
-          (this%timeDuration - region%states(i)%time + timeStart) / timeDuration**3
+          (this%timeDuration + time - timeStart) *                                           &
+          (this%timeDuration - time + timeStart) / timeDuration**3
 
      instantaneousSensitivities(7) = instantaneousSensitivities(7) +                         &
           region%grids(i)%computeInnerProduct(F(:,1), F(:,2),                                &
