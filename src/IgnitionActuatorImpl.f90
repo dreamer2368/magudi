@@ -167,7 +167,6 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   instantaneousSensitivities = 0.0_wp
   instantaneousSensitivity = 0.0_wp
 
-  time = region%states(i)%adjointCoefficientTime
   timeStart = this%timeStart
   timeDuration = this%timeDuration
   amplitude = this%amplitude
@@ -175,6 +174,8 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   location = this%location
 
   do i = 1, size(region%grids)
+
+     time = region%states(i)%adjointCoefficientTime
 
      nDimensions = region%grids(i)%nDimensions
      assert_key(nDimensions, (1, 2, 3))
