@@ -1,0 +1,51 @@
+#!/bin/bash
+######PBS -A csc188
+#######PBS -N wavyWallAdjoint
+########PBS -l walltime=1:00:00,nodes=126
+#cd $SCRATCH
+rundir=$SCRATCH/csc188/magudi/examples/SuperSonicWallRadiation/3D
+
+speeds=("0.75" "1.25" "1.5" "1.75")
+dirspeeds=("0p75" "1p25" "1p5" "1p75")
+sign=("-1." "1.")
+dirsign=("m" "p")
+amp=(0.0001 0.00001) 
+diramp=("1em4" "1em5") 
+
+cd $rundir
+
+for ((k=0; k<${#amp[*]}; k++));
+do
+for ((j=0; j<${#sign[*]}; j++));
+do
+for ((i=0; i<${#speeds[*]}; i++));
+do
+dir=${dirspeeds[i]}_${dirsign[j]}_${diramp[k]}
+mkdir $dir
+cp configTemplate.py dummyConfig.py
+sed -i "s/THEVELOCITY/${speeds[i]}/g" dummyConfig.py
+sed -i "s/THESEED/1900/g" dummyConfig.py
+sed -i "s/MINUSORPLUSONE/${sign[j]}/g" dummyConfig.py
+sed -i "s/THEAMPLITUDE/${amp[k]}/g" dummyConfig.py
+mv dummyConfig.py $dir/
+
+rm $dir/submit.txt
+echo "#!/bin/bash
+#PBS -A csc188
+#PBS -N WW${dirspeeds[i]}_${dirsign[j]}_${diramp[k]}
+#PBS -l walltime=1:00:00,nodes=126
+cd $rundir/$dir
+module swap PrgEnv-pgi PrgEnv-gnu
+module load cmake/2.8.11.2
+ln -sf /lustre/atlas/scratch/buchtada/csc188/magudi/utils/python/plot3dnasa.py ./
+ln -sf /lustre/atlas/scratch/buchtada/csc188/magudi_target/magudi  ./
+ln  -sf /lustre/atlas/scratch/buchtada/csc188/magudi/examples/SuperSonicWallRadiation/3D/magudi.inp ./
+python dummyConfig.py
+aprun -n 2016 ./magudi" >> $dir/submit.txt
+
+cd $dir
+qsub submit.txt
+
+done
+done
+done
