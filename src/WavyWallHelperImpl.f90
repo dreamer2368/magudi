@@ -253,7 +253,8 @@ end subroutine
 real(SCALAR_KIND) function f(xi1)
 ! <<< Arguments >>>
 real(SCALAR_KIND)::xi1
-f=xi1 !2.*(xi1-0.5)
+integer, parameter :: wp = SCALAR_KIND
+f=xi1*1._wp 
 end function
 
 real(SCALAR_KIND) function h(xi3)
@@ -279,27 +280,28 @@ SCALAR_TYPE::h
 ymin=0._wp; ymax=1._wp
 y=ymin+(ymax-ymin)*xi2
 
-!assert(size(p) == 1)
 assert(mod(size(p),2)==0)
 
-width=0.2_wp
-shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
-shapeMollifier=shapeMollifier/0.8_wp
+width=0.3_wp
+shapeMollifier=tanh(60._wp*(xi1 - 0.3_wp))-tanh(60._wp*(xi1-0.7_wp))
+!shapeMollifier=shapeMollifier/0.8_wp
 
-gstar=xi2
+h=0._wp
 j=1
 do i=2,size(p),2
-gstar=gstar+(1._wp-xi2)*p(i-1)*shapeMollifier*cos(2._wp*pi*3._wp*real(j, wp)*xi1+p(i))
+h=h+p(i-1)*shapeMollifier*cos(2._wp*pi*3._wp*real(j, wp)*xi1+p(i))
 j=j+1
 end do
 
-if (xi2 .le. width) then
-chi=tanh(50._wp *xi2)
-else
-chi=1._wp
-end if
+ystar=ymax*xi2+(1._wp-xi2)*(ymin+h)
 
-g=gstar-chi*(gstar-xi2)
+!if (xi2 .le. width) then
+chi=tanh(50._wp *xi2)
+!else
+!chi=1._wp
+!end if
+
+g=ystar-chi*(ystar-y)
 
 end function
 
@@ -318,9 +320,6 @@ SCALAR_TYPE::ymin,ymax
 SCALAR_TYPE::ystar,y
 SCALAR_TYPE::h
 
-ymin=0._wp; ymax=1._wp
-y=ymin+(ymax-ymin)*xi2
-
 !assert(size(p) == 1)
 assert(mod(size(p),2)==0)
 assert(size(dgdpVec) == size(p))
@@ -329,9 +328,8 @@ allocate(dgstardpVec(size(dgdpVec)))
 
 width=0.2_wp
 dgdpVec=0._wp
-shapeMollifier=tanh(40._wp * (xi1 - 0.3_wp)) - tanh(40._wp * (xi1 - 0.7_wp))
-shapeMollifier=shapeMollifier/0.8_wp
-
+shapeMollifier=tanh(60._wp * (xi1 - 0.3_wp)) - tanh(60._wp * (xi1 - 0.7_wp))
+!shapeMollifier=shapeMollifier/0.8_wp
 
 j=1
 do i=2,size(p),2
@@ -340,11 +338,11 @@ dgstardpVec(i)=(-(1._wp-xi2)*p(i-1)*shapeMollifier*sin(2._wp*pi*3._wp*real(j, wp
 j=j+1
 end do
 
-if (xi2 .le. width) then
+!if (xi2 .le. width) then
 chi=tanh(50._wp *xi2)
-else
-chi=1._wp
-end if
+!else
+!chi=1._wp
+!end if
 
 dgdpVec=dgstardpVec-chi*(dgstardpVec)
 
