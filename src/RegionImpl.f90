@@ -578,8 +578,7 @@ contains
 
 end module RegionImpl
 
-subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptions,          &
-     combustion, verbose)
+subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptions, verbose)
 
   ! <<< External modules >>>
   use MPI
@@ -588,7 +587,6 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   use Region_mod, only : t_Region
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
-  use Combustion_mod, only : t_Combustion
 
   ! <<< Private members >>>
   use RegionImpl, only : readDecompositionMap, distributeGrids
@@ -604,7 +602,6 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   integer, intent(in) :: comm, globalGridSizes(:,:)
   type(t_SimulationFlags), intent(in), optional :: simulationFlags
   type(t_SolverOptions), intent(in), optional :: solverOptions
-  type(t_Combustion), intent(in), optional :: combustion
   logical, intent(in), optional :: verbose
 
   ! <<< Local variables >>>
@@ -643,13 +640,6 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   else
      call this%solverOptions%initialize(size(this%globalGridSizes, 1),                       &
           this%simulationFlags, this%comm)
-  end if
-
-  ! Initialize combustion options.
-  if (present(combustion)) then
-     this%combustion = combustion
-  else
-     call this%combustion%setup(this%solverOptions%nSpecies, this%comm)
   end if
 
   ! Distribute the grids between available MPI processes.
@@ -1269,7 +1259,7 @@ subroutine computeRhs(this, mode)
              this%states(i), this%patchFactories)
      case (ADJOINT)
         call computeRhsAdjoint(this%simulationFlags, this%solverOptions,                     &
-             this%combustion, this%grids(i), this%states(i), this%patchFactories)
+             this%states(i)%combustion, this%grids(i), this%states(i), this%patchFactories)
      end select
   end do
 

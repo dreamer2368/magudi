@@ -92,7 +92,7 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
   integer :: i, n, fuelIndex
   type(t_SimulationFlags) :: simulationFlags_
   type(t_SolverOptions) :: solverOptions_
-  real(SCALAR_KIND) :: ratioOfSpecificHeats, temp(3)
+  real(SCALAR_KIND) :: ratioOfSpecificHeats, temp(3), temp2(3)
   character(len = STRING_LENGTH) :: key, message, fuel
 
   call this%cleanup()
@@ -153,9 +153,11 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
         temp(1) = getOption(trim(key) // "x", 0.0_wp)
         temp(2) = getOption(trim(key) // "y", 0.0_wp)
         temp(3) = getOption(trim(key) // "z", 0.0_wp)
-        call this%ignitionSources(i)%setup(temp,                                             &
+        call getRequiredOption(trim(key) // "radius_x", temp2(1), grid%comm)
+        temp2(2) = getOption(trim(key) // "radius_y", 0.0_wp)
+        temp2(3) = getOption(trim(key) // "radius_z", 0.0_wp)
+        call this%ignitionSources(i)%setup(temp, temp2,                                      &
              getOption(trim(key) // "amplitude", 1.0_wp),                                    &
-             getOption(trim(key) // "radius", 1.0_wp),                                       &
              getOption(trim(key) // "time_start", 0.0_wp),                                   &
              getOption(trim(key) // "time_duration", 0.0_wp))
      end do
@@ -758,17 +760,17 @@ subroutine addSources(this, mode, grid, solverOptions)
      end do
   end if
 
-  if (mode == FORWARD .and. allocated(this%ignitionSources)) then
-     do i = 1, size(this%ignitionSources)
-        call this%ignitionSources(i)%add(this%time, grid%coordinates,                        &
-             grid%iblank, solverOptions%ratioOfSpecificHeats, this%combustion%heatRelease,   &
+  if (mode == FORWARD .and. allocated(this%fuelSources)) then
+     do i = 1, size(this%fuelSources)
+        call this%fuelSources(i)%add(this%time, grid%coordinates, grid%iblank,               &
              this%rightHandSide)
      end do
   end if
 
-  if (mode == FORWARD .and. allocated(this%fuelSources)) then
-     do i = 1, size(this%fuelSources)
-        call this%fuelSources(i)%add(this%time, grid%coordinates, grid%iblank,               &
+  if (mode == FORWARD .and. allocated(this%ignitionSources)) then
+     do i = 1, size(this%ignitionSources)
+        call this%ignitionSources(i)%add(this%time, grid%coordinates,                        &
+             grid%iblank, solverOptions%ratioOfSpecificHeats, this%combustion%heatRelease,   &
              this%rightHandSide)
      end do
   end if

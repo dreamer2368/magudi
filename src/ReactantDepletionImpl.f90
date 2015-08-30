@@ -33,9 +33,9 @@ subroutine setupReactantDepletion(this, region)
   call getRequiredOption("deplete_reactant", reactant, region%comm)
   select case (trim(reactant))
   case ("H2")
-     this%reactant = region%combustion%H2
+     this%reactant = region%states(1)%combustion%H2
   case ("O2")
-     this%reactant = region%combustion%O2
+     this%reactant = region%states(1)%combustion%O2
   case default
      write(message, '(A)') "WARNING, unknown reactant!"
      call gracefulExit(region%comm, message)

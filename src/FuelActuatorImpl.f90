@@ -31,9 +31,9 @@ subroutine setupFuelActuator(this, region)
   fuel =  getOption(trim(key) // "reactant","H2")
   select case (trim(fuel))
   case ("H2")
-     this%fuelIndex = region%combustion%H2
+     this%fuelIndex = region%states(1)%combustion%H2
   case ("O2")
-     this%fuelIndex = region%combustion%O2
+     this%fuelIndex = region%states(1)%combustion%O2
   case default
      write(message, '(A)') "WARNING, unknown fuel!"
      call gracefulExit(region%comm, message)
@@ -155,7 +155,7 @@ subroutine updateFuelActuatorForcing(this, region)
 
   ! <<< Arguments >>>
   class(t_FuelActuator) :: this
-  class(t_Region), intent(in) :: region
+  class(t_Region) :: region
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND

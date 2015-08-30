@@ -6,9 +6,7 @@ module IgnitionSource_mod
 
   type, public :: t_IgnitionSource
 
-     real(SCALAR_KIND) :: location(3), amplitude, radius, timeStart, timeDuration
-
-     SCALAR_TYPE, allocatable :: strength(:)
+     real(SCALAR_KIND) :: location(3), radius(3), amplitude, timeStart, timeDuration
 
    contains
 
@@ -19,7 +17,7 @@ module IgnitionSource_mod
 
   interface
 
-     subroutine setupIgnitionSource(this, location, amplitude, radius, timeStart,            &
+     subroutine setupIgnitionSource(this, location, radius, amplitude, timeStart,            &
           timeDuration)
 
        use Grid_mod, only : t_Grid
@@ -27,7 +25,7 @@ module IgnitionSource_mod
        import :: t_IgnitionSource
 
        class(t_IgnitionSource) :: this
-       real(SCALAR_KIND), intent(in) :: location(:), amplitude, radius, timeStart,           &
+       real(SCALAR_KIND), intent(in) :: location(:), radius(:), amplitude, timeStart,        &
             timeDuration
 
      end subroutine setupIgnitionSource

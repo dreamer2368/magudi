@@ -77,7 +77,7 @@ module FuelActuator_mod
        import :: t_FuelActuator
 
        class(t_FuelActuator) :: this
-       class(t_Region), intent(in) :: region
+       class(t_Region) :: region
 
      end subroutine updateFuelActuatorForcing
 

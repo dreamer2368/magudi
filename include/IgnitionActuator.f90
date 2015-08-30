@@ -10,7 +10,7 @@ module IgnitionActuator_mod
 
      character(len = STRING_LENGTH) :: sensitivityDependence
      integer :: nSensitivities
-     real(SCALAR_KIND) :: location(3), amplitude, radius(3), timeStart, timeDuration
+     real(SCALAR_KIND) :: baselineValue
 
    contains
 
@@ -79,7 +79,7 @@ module IgnitionActuator_mod
        import :: t_IgnitionActuator
 
        class(t_IgnitionActuator) :: this
-       class(t_Region), intent(in) :: region
+       class(t_Region) :: region
 
      end subroutine updateIgnitionActuatorForcing
 

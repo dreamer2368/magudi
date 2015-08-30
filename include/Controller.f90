@@ -80,7 +80,7 @@ module Controller_mod
        import :: t_Controller
 
        class(t_Controller) :: this
-       class(t_Region), intent(in) :: region
+       class(t_Region) :: region
 
      end subroutine updateForcing
 

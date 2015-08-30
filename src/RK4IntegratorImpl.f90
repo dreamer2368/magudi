@@ -222,7 +222,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
 
      time = time - timeStepSize / 2.0_wp
      region%states(:)%time = time
-     region%states(:)%adjointCoefficientTime = time - 0.5_wp * timeStepSize
+     region%states(:)%adjointCoefficientTime = time
      region%states(:)%adjointForcingFactor = 1.0_wp
      call region%computeRhs(ADJOINT)
 
@@ -251,7 +251,7 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
 
      time = time - timeStepSize / 2.0_wp
      region%states(:)%time = time
-     region%states(:)%adjointCoefficientTime = time - 0.5_wp * timeStepSize
+     region%states(:)%adjointCoefficientTime = time
      region%states(:)%adjointForcingFactor = 1.0_wp
      call region%computeRhs(ADJOINT)
 

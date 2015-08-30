@@ -138,7 +138,7 @@ subroutine updateThermalActuatorForcing(this, region)
 
   ! <<< Arguments >>>
   class(t_ThermalActuator) :: this
-  class(t_Region), intent(in) :: region
+  class(t_Region) :: region
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND

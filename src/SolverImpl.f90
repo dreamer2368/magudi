@@ -861,10 +861,9 @@ function runAdjoint(this, region) result(costSensitivity)
         if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
            if (i == 1) then
               call reverseMigrator%migrateTo(region, timeIntegrator,                         &
-                   timestep, timeIntegrator%nStages, controller)
+                   timestep, timeIntegrator%nStages)
            else
-              call reverseMigrator%migrateTo(region, timeIntegrator,                         &
-                   timestep + 1, i - 1, controller)
+              call reverseMigrator%migrateTo(region, timeIntegrator, timestep + 1, i - 1)
            end if
         end if
 
@@ -955,7 +954,7 @@ subroutine checkGradientAccuracy(this, region)
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
-  logical :: outputControl, useBaselineActuation
+  logical :: outputControl
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -1014,13 +1013,7 @@ subroutine checkGradientAccuracy(this, region)
      end if
      call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   else
-     useBaselineActuation = getOption("use_baseline_actuation", .false.)
-     if (useBaselineActuation .and. restartIteration == 0) then
-        baselineCostFunctional = this%runForward(region,                                     &
-             actuationAmount = initialActuationAmount)
-     else
-        baselineCostFunctional = this%runForward(region)
-     end if
+     baselineCostFunctional = this%runForward(region)
   end if
 
   ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
