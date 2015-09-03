@@ -1,89 +1,5 @@
 #include "config.h"
 
-module FlameTemperatureImpl
-
-  implicit none
-  public
-
-contains
-
-  subroutine computeWeight(grid, patch, combustion, massFraction, W)
-
-    ! <<< External modules >>>
-    use MPI
-
-    ! <<< Derived types >>>
-    use Grid_mod, only : t_Grid
-    use CostTargetPatch_mod, only : t_CostTargetPatch
-    use Combustion_mod, only : t_Combustion
-
-    implicit none
-
-    ! <<< Arguments >>>
-    class(t_Grid), intent(in) :: grid
-    class(t_CostTargetPatch), intent(in) :: patch
-    type(t_Combustion), intent(in) :: combustion
-    SCALAR_TYPE, intent(in) :: massFraction(:,:)
-    SCALAR_TYPE, intent(out) :: W(:)
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, gridIndex, ierror
-    SCALAR_TYPE :: YF, YO, YF0, YO0, s, phi, Z, Zst, sigma_z, gaussianFactor
-    SCALAR_TYPE, allocatable :: mask(:)
-    logical :: hasNegativeWeight
-    character(len = STRING_LENGTH) :: str
-
-    assert(size(W) == grid%nGridPoints)
-    assert(size(massFraction,1) == grid%nGridPoints)
-
-    allocate(mask(grid%nGridPoints))
-    mask = 0.0_wp
-
-    W = 0.0_wp
-    YF0 = combustion%YF0
-    YO0 = combustion%YO0
-    s = combustion%stoichiometricRatio
-    phi = s * YF0 / YO0
-    Zst = 1.0_wp / (1.0_wp + phi)
-    sigma_z = 0.001_wp
-    gaussianFactor = -0.5_wp / sigma_z**2
-
-    ! Compute weight dynamically based on local equivalence ratio
-    ! Be careful, requires including dW/dQ terms...
-    do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
-       do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
-          do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
-             gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                  &
-                  (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                    &
-                  (k - 1 - patch%gridOffset(3)))
-             if (grid%iblank(gridIndex) == 0) cycle
-
-              mask(i - grid%offset(1) + grid%localSize(1) * (j - 1 - grid%offset(2) +        &
-                   grid%localSize(2) * (k - 1 - grid%offset(3)))) = 1.0_wp
-
-              YF = massFraction(gridIndex, combustion%H2)
-              YO = massFraction(gridIndex, combustion%O2)
-              Z = (YF - YO / s  + YO0 / s) / (YF0 + YO0 / s)
-
-              W(gridIndex) = exp(gaussianFactor * (Z - Zst) **2)
-
-          end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
-       end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
-    end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
-
-    hasNegativeWeight = any(real(W, wp) < 0.0_wp)
-    call MPI_Allreduce(MPI_IN_PLACE, hasNegativeWeight, 1, MPI_LOGICAL, MPI_LOR, grid%comm,  &
-         ierror)
-    if (hasNegativeWeight) then
-       write(str, '(A)') "Target weight is not non-negative!"
-       call gracefulExit(grid%comm, str)
-    end if
-
-  end subroutine computeWeight
-
-end module FlameTemperatureImpl
-
 subroutine setupFlameTemperature(this, region)
 
   ! <<< External modules >>>
@@ -106,6 +22,7 @@ subroutine setupFlameTemperature(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
+  character(len = STRING_LENGTH) :: key
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
@@ -130,9 +47,14 @@ subroutine setupFlameTemperature(this, region)
   end do
 
   do i = 1, size(this%data_)
-     this%data_(i)%flameTemperature = 1.0_wp / ( (region%solverOptions%ratioOfSpecificHeats  -&
+     this%data_(i)%flameTemperature = 1.0_wp / ( (region%solverOptions%ratioOfSpecificHeats -&
           1.0_wp) * (1.0_wp - region%states(1)%combustion%heatRelease) )
   end do
+
+  write(key, '(A)') "flame_temperature/"
+  this%weightBurnRegion = getOption(trim(key) // "weight_burn_region", .false.)
+  if (this%weightBurnRegion) call getRequiredOption(trim(key) // "burn_radius",              &
+       this%burnRadius, region%comm) 
 
 end subroutine setupFlameTemperature
 
@@ -172,9 +94,6 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   use Patch_mod, only : t_Patch
   use CostTargetPatch_mod, only : t_CostTargetPatch
 
-  ! <<< Private members >>>
-!!$  use FlameTemperatureImpl, only : computeWeight
-
   ! <<< Arguments >>>
   class(t_FlameTemperature) :: this
   class(t_Region), intent(in) :: region
@@ -184,14 +103,15 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, ierror
-  SCALAR_TYPE, allocatable :: F(:,:)
+  integer :: i, j, k, H2, O2, ierror
+  SCALAR_TYPE :: YF0, YO0, s, Z, Zst, gaussianFactor, referenceTemperature
+  SCALAR_TYPE, allocatable :: F(:,:), W(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(allocated(region%patchFactories))
   assert(size(region%grids) == size(region%states))
-  assert(region%solverOptions%nSpecies > 0)
+  assert(region%solverOptions%nSpecies >= 2)
 
   instantaneousFunctional = 0.0_wp
 
@@ -201,12 +121,12 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
      assert(allocated(region%grids(i)%targetMollifier))
      assert(size(region%grids(i)%targetMollifier, 1) == region%grids(i)%nGridPoints)
      assert(size(region%grids(i)%targetMollifier, 2) == 1)
-     assert(allocated(region%states(i)%temperature))
-     assert(size(region%states(i)%temperature, 1) == region%grids(i)%nGridPoints)
-     assert(size(region%states(i)%temperature, 2) == 1)
      assert(allocated(region%states(i)%massFraction))
      assert(size(region%states(i)%massFraction, 1) == region%grids(i)%nGridPoints)
      assert(size(region%states(i)%massFraction, 2) == region%solverOptions%nSpecies)
+     assert(allocated(region%states(i)%temperature))
+     assert(size(region%states(i)%temperature, 1) == region%grids(i)%nGridPoints)
+     assert(size(region%states(i)%temperature, 2) == 1)
 
      j = region%grids(i)%index
 
@@ -214,10 +134,40 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
      assert(size(this%data_(j)%flameTemperature, 1) == 1)
      assert(size(this%data_(j)%flameTemperature, 2) == 1)
 
+     allocate(W(region%grids(i)%nGridPoints))
+
+     if (this%weightBurnRegion) then
+
+        H2 = region%states(i)%combustion%H2
+        O2 = region%states(i)%combustion%O2
+        YF0 = region%states(i)%combustion%YF0
+        YO0 = region%states(i)%combustion%YO0
+        s = region%states(i)%combustion%stoichiometricRatio
+        Zst = 1.0_wp / (1.0_wp + s * YF0 / YO0)
+        gaussianFactor = -0.5_wp / this%burnRadius**2
+        referenceTemperature = 1.0_wp / (region%solverOptions%ratioOfSpecificHeats - 1.0_wp)
+
+        do k = 1, region%grids(i)%nGridPoints
+           Z = ( region%states(i)%massFraction(k, H2) -                                      &
+                region%states(i)%massFraction(k, O2) / s  + YO0 / s ) / (YF0 + YO0 / s)
+           W(k) = region%grids(i)%targetMollifier(k, 1) * exp(gaussianFactor * (Z - Zst) **2)
+        end do
+
+     else
+
+        W = region%grids(i)%targetMollifier(:, 1)
+
+     end if
+
      allocate(F(region%grids(i)%nGridPoints, 1))
-     F = region%states(i)%temperature - this%data_(j)%flameTemperature(1,1)
+
+     F = (region%states(i)%temperature - referenceTemperature) /                             &
+          (this%data_(j)%flameTemperature(1,1) - referenceTemperature)
+
      instantaneousFunctional = instantaneousFunctional +                                     &
-          region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
+          region%grids(i)%computeInnerProduct(F, F, W)
+
+     SAFE_DEALLOCATE(W)
      SAFE_DEALLOCATE(F)
 
   end do
@@ -235,7 +185,7 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
 
 end function computeFlameTemperature
 
-subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOptions,          &
+subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOptions,       &
      grid, state, patch)
 
   ! <<< Derived types >>>
@@ -245,9 +195,6 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   use SolverOptions_mod, only : t_SolverOptions
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use SimulationFlags_mod, only : t_SimulationFlags
-
-  ! <<< Private members >>>
-!!$  use FlameTemperatureImpl, only : computeWeight
 
   implicit none
 
@@ -261,14 +208,34 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, gridIndex, patchIndex
-  SCALAR_TYPE :: F, flameTemperature
+  integer :: i, j, k, nDimensions, gridIndex, patchIndex, H2, O2
+  SCALAR_TYPE :: flameTemperature, referenceTemperature, F, W, Z, Zst, s, YF0, YO0,          &
+       gaussianFactor
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
+  assert(grid%nGridPoints > 0)
+  assert(solverOptions%nSpecies >= 2)
 
   i = grid%index
   flameTemperature = this%data_(i)%flameTemperature(1,1)
+  referenceTemperature = 1.0_wp / (solverOptions%ratioOfSpecificHeats - 1.0_wp)
+
+  if (this%weightBurnRegion) then
+
+     assert(allocated(state%massFraction))
+     assert(size(state%massFraction, 1) == grid%nGridPoints)
+     assert(size(state%massFraction, 2) == solverOptions%nSpecies)
+
+     gaussianFactor = -0.5_wp / this%burnRadius**2
+     H2 = state%combustion%H2
+     O2 = state%combustion%O2
+     YF0 = state%combustion%YF0
+     YO0 = state%combustion%YO0
+     s = state%combustion%stoichiometricRatio
+     Zst = 1.0_wp / (1.0_wp + s * YF0 / YO0)
+
+  end if
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -276,22 +243,61 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
            gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
                 (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
                 (k - 1 - patch%gridOffset(3)))
+
            if (grid%iblank(gridIndex) == 0) cycle
+
            patchIndex = i - patch%offset(1) + patch%localSize(1) *                           &
                 (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
                 (k - 1 - patch%offset(3)))
 
-           F = - 2.0_wp *  grid%targetMollifier(gridIndex, 1) *                              &
-                solverOptions%ratioOfSpecificHeats * state%specificVolume(gridIndex, 1) *    &
-                (state%temperature(gridIndex, 1) - flameTemperature)
-
            patch%adjointForcing(patchIndex,:) = 0.0_wp
-           patch%adjointForcing(patchIndex,nDimensions+2) = F
-           patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
-                - state%velocity(gridIndex,:) * F
-           patch%adjointForcing(patchIndex,1) = ( sum(state%velocity(gridIndex,:) ** 2) -    &
-                state%conservedVariables(gridIndex,nDimensions+2) *                          &
-                state%specificVolume(gridIndex,1) ) * F
+
+           if (this%weightBurnRegion) then
+
+              Z = ( state%massFraction(gridIndex, H2) -                                      &
+                   state%massFraction(gridIndex, O2) / s  + YO0 / s ) / (YF0 + YO0 / s)
+              W = grid%targetMollifier(gridIndex, 1) * exp(gaussianFactor * (Z - Zst) **2)
+
+              ! First apply -2*W*(T-T0)/(Tf-T0)^2*dT/dQ.
+              F = - 2.0_wp * W *                                                             &
+                   solverOptions%ratioOfSpecificHeats * state%specificVolume(gridIndex, 1) * &
+                   (state%temperature(gridIndex, 1) - referenceTemperature) /  &
+                   (flameTemperature - referenceTemperature)**2
+
+              patch%adjointForcing(patchIndex,nDimensions+2) = F
+              patch%adjointForcing(patchIndex,2:nDimensions+1) =                             &
+                   - state%velocity(gridIndex,:) * F
+              patch%adjointForcing(patchIndex,1) = ( sum(state%velocity(gridIndex,:) ** 2) - &
+                   state%conservedVariables(gridIndex,nDimensions+2) *                       &
+                   state%specificVolume(gridIndex,1) ) * F
+
+              ! Now apply -((T-Tf)/(Tf-T0))^2*dW/dQ.
+              F = W * ( (state%temperature(gridIndex, 1) - referenceTemperature) /           &
+                   (flameTemperature - referenceTemperature) )**2 *                          &
+                   ( (Z - Zst) / this%burnRadius**2 ) * state%specificVolume(gridIndex,1) /  &
+                   (YF0 + YO0 / s)
+
+              patch%adjointForcing(patchIndex,1) = patch%adjointForcing(patchIndex,1) +      &
+                   (state%massFraction(gridIndex, O2) / s -                                  &
+                   state%massFraction(gridIndex, H2)) * F
+              patch%adjointForcing(patchIndex,nDimensions+2+H2) = F
+              patch%adjointForcing(patchIndex,nDimensions+2+O2) = - F / s
+
+           else
+
+              F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                            &
+                   solverOptions%ratioOfSpecificHeats * state%specificVolume(gridIndex, 1) * &
+                   (state%temperature(gridIndex, 1) - referenceTemperature) /                &
+                   (flameTemperature - referenceTemperature)**2
+
+              patch%adjointForcing(patchIndex,nDimensions+2) = F
+              patch%adjointForcing(patchIndex,2:nDimensions+1) =                             &
+                   - state%velocity(gridIndex,:) * F
+              patch%adjointForcing(patchIndex,1) = ( sum(state%velocity(gridIndex,:) ** 2) - &
+                   state%conservedVariables(gridIndex,nDimensions+2) *                       &
+                   state%specificVolume(gridIndex,1) ) * F
+
+           end if
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)

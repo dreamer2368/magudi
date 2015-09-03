@@ -13,6 +13,8 @@ module FlameTemperature_mod
   type, extends(t_Functional), public :: t_FlameTemperature
 
      type(t_FlameTemperatureInternal), allocatable :: data_(:)
+     logical :: weightBurnRegion
+     real(SCALAR_KIND) :: burnRadius
 
    contains
 
