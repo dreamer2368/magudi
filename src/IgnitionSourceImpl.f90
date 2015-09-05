@@ -17,9 +17,6 @@ subroutine setupIgnitionSource(this, location, radius, amplitude, timeStart, tim
 
   assert(size(location) >= 1 .and. size(location) <= 3)
   assert(size(radius) >= 1 .and. size(radius) <= 3)
-  assert(radius > 0.0_wp)
-  assert(timeStart > 0.0_wp)
-  assert(timeDuration > 0.0_wp)
 
   this%location = 0.0_wp
   this%location(1:size(location)) = location
@@ -75,12 +72,13 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHea
   power = 0.5_wp * this%amplitude * heatRelease * flameTemperature
 
   gaussianFactor = 0.0_wp
-  gaussianFactor(1:nDimensions) = 0.5_wp / this%radius(1:nDimensions)**2
+  if (minval(this%radius(1:nDimensions)) > 0.0_wp) gaussianFactor(1:nDimensions) =           &
+       0.5_wp / this%radius(1:nDimensions)**2
 
   do i = 1, size(rightHandSide, 1)
      if (iblank(i) == 0) cycle
      rightHandSide(i,nDimensions+2) = rightHandSide(i,nDimensions+2) +                       &
-          power * timePortion *  exp(- sum(gaussianFactor(1:nDimensions) *                   &
+          power * timePortion * exp(- sum(gaussianFactor(1:nDimensions) *                    &
           (coordinates(i,:) - this%location(1:nDimensions))**2) )
   end do
 

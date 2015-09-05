@@ -114,6 +114,7 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   assert(region%solverOptions%nSpecies >= 2)
 
   instantaneousFunctional = 0.0_wp
+  referenceTemperature = 1.0_wp / (region%solverOptions%ratioOfSpecificHeats - 1.0_wp)
 
   do i = 1, size(region%grids)
 
@@ -145,7 +146,6 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
         s = region%states(i)%combustion%stoichiometricRatio
         Zst = 1.0_wp / (1.0_wp + s * YF0 / YO0)
         gaussianFactor = -0.5_wp / this%burnRadius**2
-        referenceTemperature = 1.0_wp / (region%solverOptions%ratioOfSpecificHeats - 1.0_wp)
 
         do k = 1, region%grids(i)%nGridPoints
            Z = ( region%states(i)%massFraction(k, H2) -                                      &
