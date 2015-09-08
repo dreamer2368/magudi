@@ -245,6 +245,121 @@ contains
 
   end subroutine addFarFieldAdjointPenalty
 
+  subroutine addSpongeAdvectionForward(simulationFlags, solverOptions, grid, state, patchFactories)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Grid_mod, only : t_Grid
+    use Patch_mod, only : t_Patch
+    use State_mod, only : t_State
+    use Patch_factory, only : t_PatchFactory
+    use SpongePatch_mod, only : t_SpongePatch
+    use SolverOptions_mod, only : t_SolverOptions
+    use SimulationFlags_mod, only : t_SimulationFlags
+
+    ! <<< Enumerations >>>
+    use Region_enum, only : FORWARD, ADJOINT
+
+    ! <<< Internal modules >>>
+    use Patch_factory, only : queryPatchTypeExists
+    use MPITimingsHelper, only : startTiming, endTiming
+
+    implicit none
+
+    ! <<< Arguments >>>
+    type(t_SimulationFlags), intent(in) :: simulationFlags
+    type(t_SolverOptions), intent(in) :: solverOptions
+    class(t_Grid) :: grid
+    class(t_State) :: state
+    type(t_PatchFactory), allocatable :: patchFactories(:)
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    logical :: spongePatchesExist
+    integer :: i, j, k, iPatchFactory, nDimensions, nUnknowns,                               &
+         direction, gridIndex, patchIndex, ierror
+    SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:)
+    class(t_Patch), pointer :: patch => null()
+
+    spongePatchesExist = queryPatchTypeExists(patchFactories, 'SPONGE', grid%index)
+    call MPI_Allreduce(MPI_IN_PLACE, spongePatchesExist, 1, MPI_LOGICAL,                     &
+         MPI_LOR, grid%comm, ierror) !... reduce across grid-level processes.
+    if (.not. spongePatchesExist) return
+
+    nDimensions = grid%nDimensions
+    assert_key(nDimensions, (1, 2, 3))
+
+    nUnknowns = solverOptions%nUnknowns
+    assert(nUnknowns >= nDimensions + 2)
+
+    allocate(temp1(grid%nGridPoints, nUnknowns, nDimensions))
+    allocate(temp2(grid%nGridPoints, nUnknowns))
+
+    temp1 = 0.0_wp
+
+    do i = 1, nDimensions
+       do j = 1, nDimensions
+          if (.not. grid%isCurvilinear .and. i /= j) cycle
+          do k = 1, nUnknowns
+             temp2(:,k) = grid%metrics(:,i+nDimensions*(j-1)) * state%conservedVariables(:,k)
+          end do
+          call grid%firstDerivative(j)%apply(temp2, grid%localSize)
+          temp1(:,:,i) = temp1(:,:,i) + temp2
+       end do
+    end do
+
+    SAFE_DEALLOCATE(temp2)        
+
+    if (allocated(patchFactories)) then
+       do iPatchFactory = 1, size(patchFactories)
+          call patchFactories(iPatchFactory)%connect(patch)
+          if (.not. associated(patch)) cycle
+          if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
+
+          assert(all(grid%offset == patch%gridOffset))
+          assert(all(grid%localSize == patch%gridLocalSize))
+
+          direction = abs(patch%normalDirection)
+          assert(direction >= 1 .and. direction <= nDimensions)
+
+          select type (patch)
+          class is (t_SpongePatch)
+
+             allocate(temp2(patch%nPatchPoints, nUnknowns))
+             call patch%collect(temp1(:,:,direction), temp2)
+             
+             do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+                do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+                   do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                      gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *         &
+                           (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *           &
+                           (k - 1 - patch%gridOffset(3)))
+                      if (grid%iblank(gridIndex) == 0) cycle
+                      patchIndex = i - patch%offset(1) + patch%localSize(1) *                &
+                           (j - 1 - patch%offset(2) + patch%localSize(2) *                   &
+                           (k - 1 - patch%offset(3)))
+
+                      state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -  &
+                           grid%jacobian(gridIndex, 1) *                                     &
+                           sign(patch%spongeStrength(patchIndex),                            &
+                           real(patch%normalDirection, wp)) * temp2(patchIndex,:)
+
+                   end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+             end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+
+          end select !... type(patch)
+
+       end do !... iPatchFactory = 1, size(patchFactories)
+    end if !... allocated(patchFactories)             
+
+    SAFE_DEALLOCATE(temp1)
+    SAFE_DEALLOCATE(temp2)    
+
+  end subroutine addSpongeAdvectionForward
+
 end module RhsHelperImpl
 
 subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchFactories)
@@ -266,7 +381,7 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   use Region_enum, only : FORWARD
 
   ! <<< Private members >>>
-  use RhsHelperImpl, only : addDissipation
+  use RhsHelperImpl, only : addDissipation, addSpongeAdvectionForward
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -344,6 +459,9 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   ! Add dissipation if required.
   if (simulationFlags%dissipationOn)                                                         &
        call addDissipation(FORWARD, simulationFlags, solverOptions, grid, state)
+
+  ! Add advection in sponge zones.
+  call addSpongeAdvectionForward(simulationFlags, solverOptions, grid, state, patchFactories)
 
   call endTiming("computeRhsForward")
 
