@@ -258,9 +258,11 @@ subroutine addSolenoidalExcitation(this, mode, simulationFlags, solverOptions, g
            case (ADJOINT)
               state%rightHandSide(gridIndex,1) = state%rightHandSide(gridIndex,1) -          &
                    state%specificVolume(gridIndex,1) *                                       &
-                   sum(state%velocity(gridIndex,1:2) * localForcing)
+                   sum(state%velocity(gridIndex,1:2) * localForcing) *                       &
+                   state%adjointVariables(gridIndex,nDimensions+2)
               state%rightHandSide(gridIndex,2:3) = state%rightHandSide(gridIndex,2:3) +      &
-                   state%specificVolume(gridIndex,1) * localForcing
+                   state%specificVolume(gridIndex,1) * localForcing *                        &
+                   state%adjointVariables(gridIndex,nDimensions+2)
            end select
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
