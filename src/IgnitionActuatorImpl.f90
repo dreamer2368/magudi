@@ -175,9 +175,9 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
           region%grids(i)%iblank, region%solverOptions%ratioOfSpecificHeats,                 &
           region%states(i)%combustion%heatRelease, ignitionSource)
 
-     call region%states(i)%combustion%addForward(nDimensions,                                &
-          region%states(i)%conservedVariables(:,1), region%states(i)%temperature(:,1),       &
-          region%states(i)%massFraction, region%solverOptions%ratioOfSpecificHeats,          &
+     call region%states(i)%combustion%addForward(nDimensions, nSpecies,                      &
+          region%solverOptions%ratioOfSpecificHeats, region%states(i)%conservedVariables,    &
+          region%states(i)%temperature(:,1), region%states(i)%massFraction,                  &
           region%grids(i)%iblank, combustionSource)
 
      ! Compute sensitivities of ignition parameters.
@@ -350,48 +350,59 @@ subroutine updateIgnitionActuatorForcing(this, region)
      select case (trim(this%sensitivityDependence))
 
      case ('AMPLITUDE')
-        region%states(i)%ignitionSources(1)%amplitude = this%baselineValue -                 &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%amplitude = this%baselineValue +                 &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('POSITION_X')
-        region%states(i)%ignitionSources(1)%location(1) = this%baselineValue -               &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%location(1) = this%baselineValue +               &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('POSITION_Y')
-        region%states(i)%ignitionSources(1)%location(2) = this%baselineValue -               &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%location(2) = this%baselineValue +               &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('POSITION_Z')
-        region%states(i)%ignitionSources(1)%location(3) = this%baselineValue -               &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%location(3) = this%baselineValue +               &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('RADIUS_X')
-        region%states(i)%ignitionSources(1)%radius(1) = this%baselineValue -                 &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%radius(1) = this%baselineValue +                 &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('RADIUS_Y')
-        region%states(i)%ignitionSources(1)%radius(2) = this%baselineValue -                 &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%radius(2) = this%baselineValue +                 &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('RADIUS_Z')
-        region%states(i)%ignitionSources(1)%radius(3) = this%baselineValue -                 &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%radius(3) = this%baselineValue +                 &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('INITIAL_TIME')
-        region%states(i)%ignitionSources(1)%timeStart = this%baselineValue -                 &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%timeStart = this%baselineValue +                 &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('DURATION')
-        region%states(i)%ignitionSources(1)%timeDuration = this%baselineValue -              &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%ignitionSources(1)%timeDuration = this%baselineValue +              &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('DAMKOHLER')
-        region%states(i)%combustion%Damkohler = this%baselineValue -                         &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%combustion%Damkohler = this%baselineValue +                         &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      case ('ZEL_DOVICH')
-        region%states(i)%combustion%zelDovich = this%baselineValue -                         &
-             region%states(i)%actuationAmount * region%states(i)%controlGradient
+        region%states(i)%combustion%zelDovich = this%baselineValue +                         &
+             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
+             region%states(i)%controlGradient
 
      end select
   end do

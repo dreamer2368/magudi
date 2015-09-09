@@ -141,8 +141,8 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
 
         H2 = region%states(i)%combustion%H2
         O2 = region%states(i)%combustion%O2
-        YF0 = region%states(i)%combustion%YF0
-        YO0 = region%states(i)%combustion%YO0
+        YF0 = region%states(i)%combustion%Y0(H2)
+        YO0 = region%states(i)%combustion%Y0(O2)
         s = region%states(i)%combustion%stoichiometricRatio
         Zst = 1.0_wp / (1.0_wp + s * YF0 / YO0)
         gaussianFactor = -0.5_wp / this%burnRadius**2
@@ -230,8 +230,8 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
      gaussianFactor = -0.5_wp / this%burnRadius**2
      H2 = state%combustion%H2
      O2 = state%combustion%O2
-     YF0 = state%combustion%YF0
-     YO0 = state%combustion%YO0
+     YF0 = state%combustion%Y0(H2)
+     YO0 = state%combustion%Y0(O2)
      s = state%combustion%stoichiometricRatio
      Zst = 1.0_wp / (1.0_wp + s * YF0 / YO0)
 

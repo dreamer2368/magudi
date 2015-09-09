@@ -60,7 +60,7 @@ module State_mod
 
      integer :: nSpecies, gradientExponent = 1
      real(wp) :: time, adjointCoefficientTime, adjointForcingFactor = 1.0_wp,                &
-          actuationAmount = 0.0_wp, controlGradient = 0.0_wp
+          actuationAmount = 0.0_wp, controlGradient = 0.0_wp, gradientDirection = -1.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &

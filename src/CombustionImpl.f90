@@ -27,17 +27,20 @@ subroutine setupCombustion(this, nSpecies, comm)
   this%O2 = 2
   this%N2 = nSpecies + 1
 
+  allocate(this%Y0(nSpecies))
+
   ! Read combustion parameters from input.
   call getRequiredOption("number_of_reactions", this%nReactions, comm)
   call getRequiredOption("stoichiometric_ratio", this%stoichiometricRatio, comm)
   call getRequiredOption("heat_release", this%heatRelease, comm)
   call getRequiredOption("Zel_Dovich", this%zelDovich, comm)
   call getRequiredOption("Damkohler_number", this%Damkohler, comm)
-  call getRequiredOption("initial_fuel_mass_fraction", this%Yf0, comm)
-  call getRequiredOption("initial_oxidizer_mass_fraction", this%Yo0, comm)
+  call getRequiredOption("initial_fuel_mass_fraction", this%Y0(this%H2), comm)
+  call getRequiredOption("initial_oxidizer_mass_fraction", this%Y0(this%O2), comm)
 
   ! Stoichiometric fuel mass fraction.
-  this%Yfs = 1.0_wp / (1.0_wp + this%stoichiometricRatio * this%Yf0 / this%Yo0)
+  this%Yfs = 1.0_wp / (1.0_wp + this%stoichiometricRatio * this%Y0(this%H2)                  &
+       / this%Y0(this%O2))
 
   ! Stoichiometric coefficients.
   allocate(this%stoichiometricCoefficient(nSpecies))
@@ -60,10 +63,21 @@ subroutine setupCombustion(this, nSpecies, comm)
 
   end if
 
+  ! Well-stirred reactor assumption
+  this%wellStirredReactor = getOption("well_stirred_reactor", .false.)
+  if (this%wellStirredReactor) then
+     allocate(this%Yin(nSpecies))
+     call getRequiredOption("residence_time", this%residenceTime, comm)
+     this%residenceTime = 1.0_wp / this%residenceTime
+     call getRequiredOption("inlet_temperature", this%Tin, comm)
+     call getRequiredOption("inlet_fuel", this%Yin(this%H2), comm)
+     call getRequiredOption("inlet_oxidizer", this%Yin(this%O2), comm)
+  end if
+
 end subroutine setupCombustion
 
-subroutine addCombustionForward(this, nDimensions, density, temperature, massFraction,       &
-     ratioOfSpecificHeats, iblank, rightHandSide)
+subroutine addCombustionForward(this, nDimensions, nSpecies, ratioOfSpecificHeats,           &
+     conservedVariables, temperature, massFraction, iblank, rightHandSide)
 
   ! <<< Derived types >>>
   use Combustion_mod, only : t_Combustion
@@ -73,18 +87,18 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
   ! <<< Arguments >>>
   class(t_Combustion) :: this
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-  SCALAR_TYPE, intent(in) :: density(:), temperature(:), massFraction(:,:)
-  integer, intent(in) :: nDimensions, iblank(:)
+  SCALAR_TYPE, intent(in) :: conservedVariables(:,:), temperature(:), massFraction(:,:)
+  integer, intent(in) :: nDimensions, nSpecies, iblank(:)
   SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, k, nSpecies
+  integer :: i, k
   real(SCALAR_KIND) :: referenceTemperature, flameTemperature, activationTemperature,        &
        chemicalSource, H
 
-  nSpecies = size(massFraction,2)
   assert(nSpecies >= 0)
+  assert(size(massFraction,2) == nSpecies)
 
   if (nSpecies == 0 .or. this%nReactions == 0) return
 
@@ -105,8 +119,9 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
      do i = 1, size(rightHandSide, 1)
         if (iblank(i) == 0) cycle
 
-        chemicalSource = this%Damkohler * density(i)**2 * massFraction(i,this%H2) *          &
-             massFraction(i,this%O2) * exp(- activationTemperature / temperature(i))
+        chemicalSource = this%Damkohler * conservedVariables(i,nDimensions+2+this%H2) *      &
+             conservedVariables(i,nDimensions+2+this%O2) *                                   &
+             exp(- activationTemperature / temperature(i))
 
         ! Heat release due to combustion.
         rightHandSide(i,nDimensions+2) = rightHandSide(i,nDimensions+2) +                    &
@@ -117,6 +132,17 @@ subroutine addCombustionForward(this, nDimensions, density, temperature, massFra
            rightHandSide(i,nDimensions+2+k) = rightHandSide(i,nDimensions+2+k) -             &
                 this%stoichiometricCoefficient(k) * chemicalSource
         end do
+
+        ! Well-stirred reactor
+        if (this%wellStirredReactor) then
+           rightHandSide(i,nDimensions+2) = rightHandSide(i,nDimensions+2) +                 &
+                this%residenceTime * (this%Tin / ratioOfSpecificHeats -                      &
+                conservedVariables(i,nDimensions+2))
+           do k = 1, nSpecies
+              rightHandSide(i,nDimensions+2+k) = rightHandSide(i,nDimensions+2+k) +          &
+                   this%residenceTime * (this%Yin(k) - conservedVariables(i,nDimensions+2+k))
+           end do
+        end if
      end do
 
   end if

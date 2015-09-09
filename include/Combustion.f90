@@ -7,9 +7,10 @@ module Combustion_mod
   type, public :: t_Combustion
 
      integer :: nReactions, H2, O2, N2
-     real(SCALAR_KIND) :: Yf0, Yo0, YFs, Damkohler, stoichiometricRatio,                     &
-          heatRelease, zelDovich
-     SCALAR_TYPE, dimension(:), allocatable :: stoichiometricCoefficient
+     real(SCALAR_KIND) :: YFs, Damkohler, stoichiometricRatio, heatRelease, zelDovich,       &
+          residenceTime, Tin
+     SCALAR_TYPE, dimension(:), allocatable :: Y0, stoichiometricCoefficient, Yin
+     logical :: wellStirredReactor
 
    contains
 
@@ -34,15 +35,15 @@ module Combustion_mod
 
   interface
 
-     subroutine addCombustionForward(this, nDimensions, density, temperature, massFraction,  &
-          ratioOfSpecificHeats, iblank, rightHandSide)
+     subroutine addCombustionForward(this, nDimensions, nSpecies, ratioOfSpecificHeats,      &
+          conservedVariables, temperature, massFraction, iblank, rightHandSide)
 
        import :: t_Combustion
 
        class(t_Combustion) :: this
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-       SCALAR_TYPE, intent(in) :: density(:), temperature(:), massFraction(:,:)
-       integer, intent(in) :: nDimensions, iblank(:)
+       SCALAR_TYPE, intent(in) :: conservedVariables(:,:), temperature(:), massFraction(:,:)
+       integer, intent(in) :: nDimensions, nSpecies, iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
      end subroutine addCombustionForward

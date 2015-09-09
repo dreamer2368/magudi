@@ -2984,14 +2984,15 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
   referenceTemperature = 1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
   flameTemperature = referenceTemperature / (1.0_wp - combustion%heatRelease)
   activationTemperature = combustion%zelDovich / combustion%heatRelease * flameTemperature
-  chemicalSource = combustion%Damkohler * conservedVariables(1)**2 *                         &
-       massFraction_(combustion%H2) * massFraction_(combustion%O2) *                         &
+  chemicalSource = combustion%Damkohler * conservedVariables(nDimensions+2+combustion%H2) *  &
+       conservedVariables(nDimensions+2+combustion%O2) *                                     &
        exp(- activationTemperature / temperature_)
   H = combustion%heatRelease * flameTemperature / combustion%Yfs
 
   ! Zero-out source Jacobian.
   jacobianOfSource = 0.0_wp
 
+  ! Jacobian of combustion source.
   temp = 2.0_wp * chemicalSource * specificVolume_
   jacobianOfSource(nDimensions+2,1) = temp * H
   do k = 1, nSpecies
@@ -3019,5 +3020,29 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies,                  
              - combustion%stoichiometricCoefficient(l) * temp
      end do
   end do
+
+  ! Jacobian of well-stirred reactor source.
+  if (combustion%wellStirredReactor) then
+
+     temp = -combustion%residenceTime
+
+     jacobianOfSource(nDimensions+2,1) = jacobianOfSource(nDimensions+2,1) + temp * (        &
+          specificVolume_ * conservedVariables(nDimensions+2) )
+     do k = 1, nDimensions
+        jacobianOfSource(nDimensions+2,k+1) = jacobianOfSource(nDimensions+2,k+1) + temp *   &
+             conservedVariables(k+1)
+     end do
+     jacobianOfSource(nDimensions+2,nDimensions+2) =                                         &
+          jacobianOfSource(nDimensions+2,nDimensions+2) + temp * conservedVariables(1) /     &
+          ratioOfSpecificHeats
+
+     do k = 1, nSpecies
+        jacobianOfSource(nDimensions+2+k,1) = jacobianOfSource(nDimensions+2+k,1) + temp *   &
+             massFraction_(k)
+        jacobianOfSource(nDimensions+2+k,nDimensions+2+k) =                                  &
+             jacobianOfSource(nDimensions+2+k,nDimensions+2+k) + temp * conservedVariables(1)
+     end do
+
+  end if
 
 end subroutine computeJacobianOfSource

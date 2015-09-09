@@ -776,9 +776,9 @@ subroutine addSources(this, mode, grid, solverOptions)
   end if
 
   if (mode == FORWARD .and. this%nSpecies > 0) then
-     call this%combustion%addForward(grid%nDimensions, this%conservedVariables(:,1),         &
-          this%temperature(:,1), this%massFraction, solverOptions%ratioOfSpecificHeats,      &
-          grid%iblank, this%rightHandSide)
+     call this%combustion%addForward(grid%nDimensions, solverOptions%nSpecies,               &
+          solverOptions%ratioOfSpecificHeats, this%conservedVariables,                       &
+          this%temperature(:,1), this%massFraction, grid%iblank, this%rightHandSide)
   end if
 
   if (mode == ADJOINT .and. this%nSpecies > 0) then
