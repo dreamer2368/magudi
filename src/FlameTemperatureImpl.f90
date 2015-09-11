@@ -54,7 +54,14 @@ subroutine setupFlameTemperature(this, region)
   write(key, '(A)') "flame_temperature/"
   this%weightBurnRegion = getOption(trim(key) // "weight_burn_region", .false.)
   if (this%weightBurnRegion) call getRequiredOption(trim(key) // "burn_radius",              &
-       this%burnRadius, region%comm) 
+       this%burnRadius, region%comm)
+
+  this%useTimeRamp = getOption(trim(key) // "use_time_ramp", .false.)
+  if (this%useTimeRamp) then
+     call getRequiredOption(trim(key) // "ramp_width", this%rampWidthInverse)
+     this%rampWidthInverse = 1.0_wp / this%rampWidthInverse
+     call getRequiredOption(trim(key) // "ramp_peak", this%rampPeak)
+  end if
 
 end subroutine setupFlameTemperature
 
@@ -104,7 +111,7 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, H2, O2, ierror
-  SCALAR_TYPE :: YF0, YO0, s, Z, Zst, gaussianFactor, referenceTemperature
+  SCALAR_TYPE :: YF0, YO0, s, Z, Zst, gaussianFactor, referenceTemperature, timeRampFactor
   SCALAR_TYPE, allocatable :: F(:,:), W(:)
 
   assert(allocated(region%grids))
@@ -115,6 +122,11 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
 
   instantaneousFunctional = 0.0_wp
   referenceTemperature = 1.0_wp / (region%solverOptions%ratioOfSpecificHeats - 1.0_wp)
+
+  timeRampFactor = 1.0_wp
+  if (this%useTimeRamp)                                                                      &
+       timeRampFactor = exp(-0.5_wp * (region%states(1)%time - this%rampPeak)**2 *           &
+       this%rampWidthInverse**2)
 
   do i = 1, size(region%grids)
 
@@ -158,6 +170,8 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
         W = region%grids(i)%targetMollifier(:, 1)
 
      end if
+
+     W = W * timeRampFactor
 
      allocate(F(region%grids(i)%nGridPoints, 1))
 
@@ -210,7 +224,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex, H2, O2
   SCALAR_TYPE :: flameTemperature, referenceTemperature, F, W, Z, Zst, s, YF0, YO0,          &
-       gaussianFactor
+       gaussianFactor, timeRampFactor
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -220,6 +234,11 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   i = grid%index
   flameTemperature = this%data_(i)%flameTemperature(1,1)
   referenceTemperature = 1.0_wp / (solverOptions%ratioOfSpecificHeats - 1.0_wp)
+
+  timeRampFactor = 1.0_wp
+  if (this%useTimeRamp)                                                                      &
+       timeRampFactor = exp(-0.5_wp * (state%time - this%rampPeak)**2 *                      &
+       this%rampWidthInverse**2)
 
   if (this%weightBurnRegion) then
 
@@ -259,7 +278,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
               W = grid%targetMollifier(gridIndex, 1) * exp(gaussianFactor * (Z - Zst) **2)
 
               ! First apply -2*W*(T-T0)/(Tf-T0)^2*dT/dQ.
-              F = - 2.0_wp * W *                                                             &
+              F = - 2.0_wp * W * timeRampFactor *                                            &
                    solverOptions%ratioOfSpecificHeats * state%specificVolume(gridIndex, 1) * &
                    (state%temperature(gridIndex, 1) - referenceTemperature) /  &
                    (flameTemperature - referenceTemperature)**2
@@ -272,7 +291,8 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
                    state%specificVolume(gridIndex,1) ) * F
 
               ! Now apply -((T-Tf)/(Tf-T0))^2*dW/dQ.
-              F = W * ( (state%temperature(gridIndex, 1) - referenceTemperature) /           &
+              F = W * timeRampFactor *                                                       &
+                   ( (state%temperature(gridIndex, 1) - referenceTemperature) /              &
                    (flameTemperature - referenceTemperature) )**2 *                          &
                    ( (Z - Zst) / this%burnRadius**2 ) * state%specificVolume(gridIndex,1) /  &
                    (YF0 + YO0 / s)
@@ -285,7 +305,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
            else
 
-              F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                            &
+              F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) * timeRampFactor *           &
                    solverOptions%ratioOfSpecificHeats * state%specificVolume(gridIndex, 1) * &
                    (state%temperature(gridIndex, 1) - referenceTemperature) /                &
                    (flameTemperature - referenceTemperature)**2
