@@ -227,7 +227,6 @@ subroutine cleanupState(this)
 
   this%adjointForcingFactor = 1.0_wp
   this%actuationAmount = 0.0_wp
-  this%gradientExponent = 1
 
 end subroutine cleanupState
 

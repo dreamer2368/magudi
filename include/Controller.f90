@@ -6,9 +6,8 @@ module Controller_mod
 
   type, abstract, public :: t_Controller
 
-     SCALAR_TYPE :: cachedValue = real(0.0, SCALAR_KIND),                                    &
-          runningTimeQuadrature = real(0.0, SCALAR_KIND)
-     SCALAR_TYPE, allocatable :: cachedValues(:), runningTimeQuadratures(:)
+     integer :: nParameters
+     SCALAR_TYPE, allocatable :: cachedValue(:), runningTimeQuadrature(:)
 
    contains
 
@@ -56,7 +55,7 @@ module Controller_mod
 
   abstract interface
 
-     function computeSensitivity(this, region) result(instantaneousSensitivity)
+     subroutine computeSensitivity(this, region)
 
        use Region_mod, only : t_Region
 
@@ -65,9 +64,7 @@ module Controller_mod
        class(t_Controller) :: this
        class(t_Region) :: region
 
-       SCALAR_TYPE :: instantaneousSensitivity
-
-     end function computeSensitivity
+     end subroutine computeSensitivity
 
   end interface
 

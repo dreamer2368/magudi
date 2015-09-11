@@ -53,7 +53,7 @@ module FuelActuator_mod
 
   interface
 
-     function computeFuelActuatorSensitivity(this, region) result(instantaneousSensitivity)
+     subroutine computeFuelActuatorSensitivity(this, region)
 
        use Region_mod, only : t_Region
 
@@ -62,9 +62,7 @@ module FuelActuator_mod
        class(t_FuelActuator) :: this
        class(t_Region) :: region
 
-       SCALAR_TYPE :: instantaneousSensitivity
-
-     end function computeFuelActuatorSensitivity
+     end subroutine computeFuelActuatorSensitivity
 
   end interface
 

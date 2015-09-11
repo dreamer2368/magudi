@@ -92,7 +92,7 @@ module Solver_mod
        class(t_Solver) :: this
        class(t_Region) :: region
 
-       SCALAR_TYPE :: costSensitivity
+       SCALAR_TYPE, dimension(:), allocatable :: costSensitivity
 
      end function runAdjoint
 

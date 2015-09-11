@@ -52,7 +52,7 @@ module MomentumActuator_mod
 
   interface
 
-     function computeMomentumActuatorSensitivity(this, region) result(instantaneousSensitivity)
+     subroutine computeMomentumActuatorSensitivity(this, region)
 
        use Region_mod, only : t_Region
 
@@ -61,9 +61,7 @@ module MomentumActuator_mod
        class(t_MomentumActuator) :: this
        class(t_Region) :: region
 
-       SCALAR_TYPE :: instantaneousSensitivity
-
-     end function computeMomentumActuatorSensitivity
+     end subroutine computeMomentumActuatorSensitivity
 
   end interface
 

@@ -20,7 +20,7 @@ subroutine setupIgnitionActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i
+  integer :: i, j
   character(len = STRING_LENGTH) :: key, message
 
   call this%cleanup()
@@ -29,65 +29,77 @@ subroutine setupIgnitionActuator(this, region)
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
-  write(key, '(A)') "ignition_actuator/"
-  call getRequiredOption(trim(key) // "sensitivity_dependence",                              &
-       this%sensitivityDependence, region%comm)
+  this%nParameters = getOption("number_of_parameters", 1)
+  if (this%nParameters <= 0) then
+     write(message, '(A)') "Number of parameters must be > 0!"
+     call gracefulExit(region%comm, message)
+  end if
 
-  this%nSensitivities = 9
-  allocate(this%cachedValues(this%nSensitivities))
-  allocate(this%runningTimeQuadratures(this%nSensitivities))
-  this%cachedValues = 0.0_wp
-  this%runningTimeQuadratures = 0.0_wp
+  allocate(this%cachedValue(this%nParameters))
+  allocate(this%runningTimeQuadrature(this%nParameters))
+  this%cachedValue = 0.0_wp
+  this%runningTimeQuadrature = 0.0_wp
+
+  allocate(this%sensitivityParameter(this%nParameters))
+  do i = 1, this%nParameters
+     write(key, '(A,I2.2)') "sensitivity_parameter", i
+     call getRequiredOption(key, this%sensitivityParameter(i), region%comm)
+  end do
+
+  allocate(this%baselineValue(this%nParameters))
+  this%baselineValue = 0.0_wp
 
   do i = 1, size(region%grids)
 
      if (.not.allocated(region%states(i)%ignitionSources)) then
-        write(message, '(A)') "WARNING, ignition actuator requires ignition source!"
+        write(message, '(A)') "Ignition actuator requires ignition source!"
         call gracefulExit(region%comm, message)
      end if
 
-     region%states(i)%gradientExponent = 2
+     do j = 1, this%nParameters
 
-     select case (trim(this%sensitivityDependence))
+        select case (trim(this%sensitivityParameter(j)))
 
-     case ('AMPLITUDE')
-        this%baselineValue = region%states(i)%ignitionSources(1)%amplitude
+        case ('AMPLITUDE')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%amplitude
 
-     case ('POSITION_X')
-        this%baselineValue = region%states(i)%ignitionSources(1)%location(1)
+        case ('POSITION_X')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%location(1)
 
-     case ('POSITION_Y')
-        this%baselineValue = region%states(i)%ignitionSources(1)%location(2)
+        case ('POSITION_Y')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%location(2)
 
-     case ('POSITION_Z')
-        this%baselineValue = region%states(i)%ignitionSources(1)%location(3)
+        case ('POSITION_Z')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%location(3)
 
-     case ('RADIUS_X')
-        this%baselineValue = region%states(i)%ignitionSources(1)%radius(1)
+        case ('RADIUS_X')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%radius(1)
 
-     case ('RADIUS_Y')
-        this%baselineValue = region%states(i)%ignitionSources(1)%radius(2)
+        case ('RADIUS_Y')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%radius(2)
 
-     case ('RADIUS_Z')
-        this%baselineValue = region%states(i)%ignitionSources(1)%radius(3)
+        case ('RADIUS_Z')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%radius(3)
 
-     case ('INITIAL_TIME')
-        this%baselineValue = region%states(i)%ignitionSources(1)%timeStart
+        case ('INITIAL_TIME')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%timeStart
 
-     case ('DURATION')
-        this%baselineValue = region%states(i)%ignitionSources(1)%timeDuration
+        case ('DURATION')
+           this%baselineValue(j) = region%states(i)%ignitionSources(1)%timeDuration
 
-     case ('DAMKOHLER')
-        this%baselineValue = region%states(i)%combustion%Damkohler
+        case ('DAMKOHLER')
+           this%baselineValue(j) = region%states(i)%combustion%Damkohler
 
-     case ('ZEL_DOVICH')
-        this%baselineValue = region%states(i)%combustion%zelDovich
+        case ('ZEL_DOVICH')
+           this%baselineValue(j) = region%states(i)%combustion%zelDovich
 
-     case default
-        write(message, '(A)') "WARNING, unknown sensitivity type!"
-        call gracefulExit(region%comm, message)
+        case default
+           write(message, '(A)') "Unknown sensitivity parameter!"
+           call gracefulExit(region%comm, message)
 
-     end select
+        end select
+
+     end do
 
   end do
 
@@ -105,9 +117,12 @@ subroutine cleanupIgnitionActuator(this)
 
   call this%cleanupBase()
 
+  SAFE_DEALLOCATE(this%baselineValue)
+  SAFE_DEALLOCATE(this%sensitivityParameter)
+
 end subroutine cleanupIgnitionActuator
 
-function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSensitivity)
+subroutine computeIgnitionActuatorSensitivity(this, region)
 
   ! <<< External modules >>>
   use MPI
@@ -122,24 +137,20 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   class(t_IgnitionActuator) :: this
   class(t_Region) :: region
 
-  ! <<< Result >>>
-  SCALAR_TYPE :: instantaneousSensitivity
-
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, k, nDimensions, nSpecies, nUnknowns, ierror
+  integer :: i, j, k, nDimensions, nSpecies, nUnknowns, ierror
   real(SCALAR_KIND) ::  time, timeStart, timeDuration, amplitude, radius(3), location(3)
   SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:,:), combustionSource(:,:),            &
-       instantaneousSensitivities(:)
+       instantaneousSensitivity(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
-  assert(this%nSensitivities > 0)
-  assert(size(this%cachedValues) == this%nSensitivities)
+  assert(this%nParameters > 0)
+  assert(size(this%cachedValue) == this%nParameters)
 
-  allocate(instantaneousSensitivities(this%nSensitivities))
-  instantaneousSensitivities = 0.0_wp
+  allocate(instantaneousSensitivity(this%nParameters))
   instantaneousSensitivity = 0.0_wp
 
   do i = 1, size(region%states)
@@ -183,115 +194,107 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
      ! Compute sensitivities of ignition parameters.
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
 
-     ! Partial sensitivity with respect to amplitude.
-     F(:,2) = ignitionSource(:,nDimensions+2) / amplitude
+     do j = 1, this%nParameters
+        select case (trim(this%sensitivityParameter(j)))
 
-     instantaneousSensitivities(1) = instantaneousSensitivities(1) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+        case ('AMPLITUDE')
+           F(:,2) = ignitionSource(:,nDimensions+2) / amplitude
 
-     if (trim(this%sensitivityDependence) == 'AMPLITUDE')                                    &
-          instantaneousSensitivity = instantaneousSensitivities(1)
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-     ! Partial sensitivity with respect to position in x.
-     F(:,2) = ignitionSource(:,nDimensions+2) *                                              &
-          (region%grids(i)%coordinates(:,1) - location(1)) / radius(1)**2
+        case ('POSITION_X')
+           F(:,2) = ignitionSource(:,nDimensions+2) *                                        &
+                (region%grids(i)%coordinates(:,1) - location(1)) / radius(1)**2
 
-     instantaneousSensitivities(2) = instantaneousSensitivities(2) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-     if (trim(this%sensitivityDependence) == 'POSITION_X')                                   &
-          instantaneousSensitivity = instantaneousSensitivities(2)
+        case ('POSITION_Y')
+           F(:,2) = ignitionSource(:,nDimensions+2) *                                        &
+                (region%grids(i)%coordinates(:,2) - location(2)) / radius(2)**2
 
-     ! Partial sensitivity with respect to position in y.
-     F(:,2) = ignitionSource(:,nDimensions+2) *                                              &
-          (region%grids(i)%coordinates(:,2) - location(2)) / radius(2)**2
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-     instantaneousSensitivities(3) = instantaneousSensitivities(3) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+        case ('RADIUS_X')
+           F(:,2) = ignitionSource(:,nDimensions+2) *                                        &
+                (region%grids(i)%coordinates(:,1) - location(1))**2 / radius(1)**3
 
-     if (trim(this%sensitivityDependence) == 'POSITION_Y')                                   &
-          instantaneousSensitivity = instantaneousSensitivities(3)
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-     ! Partial sensitivity with respect to radius in x.
-     F(:,2) = ignitionSource(:,nDimensions+2) *                                              &
-          (region%grids(i)%coordinates(:,1) - location(1))**2 / radius(1)**3
+        case ('RADIUS_Y')
+           F(:,2) = ignitionSource(:,nDimensions+2) *                                        &
+                (region%grids(i)%coordinates(:,2) - location(2))**2 / radius(2)**3
 
-     instantaneousSensitivities(4) = instantaneousSensitivities(4) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-     if (trim(this%sensitivityDependence) == 'RADIUS_X')                                     &
-          instantaneousSensitivity = instantaneousSensitivities(4)
+        case ('INITIAL_TIME')
+           F(:,2) = ignitionSource(:,nDimensions+2) * (time - timeStart) / timeDuration**2
 
-     ! Partial sensitivity with respect to radius in y.
-     F(:,2) = ignitionSource(:,nDimensions+2) *                                              &
-          (region%grids(i)%coordinates(:,2) - location(2))**2 / radius(2)**3
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-     instantaneousSensitivities(5) = instantaneousSensitivities(5) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+        case ('DURATION')
+           F(:,2) = - ignitionSource(:,nDimensions+2) * (timeDuration + time - timeStart) *  &
+                (timeDuration - time + timeStart) / timeDuration**3
 
-     if (trim(this%sensitivityDependence) == 'RADIUS_Y')                                     &
-          instantaneousSensitivity = instantaneousSensitivities(5)
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-     ! Partial sensitivity with respect to initial time.
-     F(:,2) = ignitionSource(:,nDimensions+2) * (time - timeStart) / timeDuration**2
+        end select
 
-     instantaneousSensitivities(6) = instantaneousSensitivities(6) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
-
-     if (trim(this%sensitivityDependence) == 'INITIAL_TIME')                                 &
-          instantaneousSensitivity = instantaneousSensitivities(6)
-
-     ! Partial sensitivity with respect to duration.
-     F(:,2) = - ignitionSource(:,nDimensions+2) * (timeDuration + time - timeStart) *        &
-          (timeDuration - time + timeStart) / timeDuration**3
-
-     instantaneousSensitivities(7) = instantaneousSensitivities(7) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
-
-     if (trim(this%sensitivityDependence) == 'DURATION')                                     &
-          instantaneousSensitivity = instantaneousSensitivities(7)
-
-     ! Partial sensitivity with respect to Damköhler number.
-     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
-     F(:,2) = combustionSource(:,nDimensions+2) / region%states(i)%combustion%Damkohler
-
-     instantaneousSensitivities(8) = instantaneousSensitivities(8) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
-
-     do k = 1, nSpecies
-        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+k)
-        F(:,2) = combustionSource(:,nDimensions+2+k) / region%states(i)%combustion%Damkohler
-
-        instantaneousSensitivities(8) = instantaneousSensitivities(8) +                      &
-             region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
      end do
 
-     if (trim(this%sensitivityDependence) == 'DAMKOHLER')                                    &
-          instantaneousSensitivity = instantaneousSensitivities(8)
+     ! Compute sensitivities of combustion parameters.
+     do j = 1, this%nParameters
+        select case (trim(this%sensitivityParameter(j)))
 
-     ! Partial sensitivity with respect to the Zel Dovich number.
-     F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
-     F(:,2) = - combustionSource(:,nDimensions+2) /                                          &
-          ( region%states(i)%combustion%heatRelease * region%states(i)%temperature(:,1) *    &
-          (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) *                             &
-          (1.0_wp - region%states(i)%combustion%heatRelease) )
+        case ('DAMKOHLER')
+           F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
+           F(:,2) = combustionSource(:,nDimensions+2) /                                      &
+                region%states(i)%combustion%Damkohler
 
-     instantaneousSensitivities(9) = instantaneousSensitivities(9) +                         &
-          region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-     do k = 1, nSpecies
-        F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+k)
-        F(:,2) = - combustionSource(:,nDimensions+2+k) /                                     &
-             ( region%states(i)%combustion%heatRelease * region%states(i)%temperature(:,1) * &
-             (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) *                          &
-             (1.0_wp - region%states(i)%combustion%heatRelease) )
+           do k = 1, nSpecies
+              F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+k)
+              F(:,2) = combustionSource(:,nDimensions+2+k) /                                 &
+                   region%states(i)%combustion%Damkohler
 
-        instantaneousSensitivities(9) = instantaneousSensitivities(9) +                      &
-             region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+           end do
+
+        case ('ZEL_DOVICH')
+           F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2)
+           F(:,2) = - combustionSource(:,nDimensions+2) /                                    &
+                ( region%states(i)%combustion%heatRelease *                                  &
+                region%states(i)%temperature(:,1) *                                          &
+                (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) *                       &
+                (1.0_wp - region%states(i)%combustion%heatRelease) )
+
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+
+           do k = 1, nSpecies
+              F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2+k)
+              F(:,2) = - combustionSource(:,nDimensions+2+k) /                               &
+                   ( region%states(i)%combustion%heatRelease *                               &
+                   region%states(i)%temperature(:,1) *                                       &
+                   (region%solverOptions%ratioOfSpecificHeats - 1.0_wp) *                    &
+                   (1.0_wp - region%states(i)%combustion%heatRelease) )
+
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+           end do
+
+        end select
+
      end do
-
-     if (trim(this%sensitivityDependence) == 'ZEL_DOVICH')                                   &
-          instantaneousSensitivity = instantaneousSensitivities(9)
 
      ! Clean up.
      SAFE_DEALLOCATE(F)
@@ -301,23 +304,19 @@ function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSe
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL) then
-     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, 1,                           &
-          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
-     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivities, this%nSensitivities,       &
+     call MPI_Allreduce(MPI_IN_PLACE, instantaneousSensitivity, this%nParameters,            &
           SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
   end if
 
   do i = 1, size(region%grids)
-     call MPI_Bcast(instantaneousSensitivity, 1, SCALAR_TYPE_MPI,                            &
-          0, region%grids(i)%comm, ierror)
-     call MPI_Bcast(instantaneousSensitivities, this%nSensitivities, SCALAR_TYPE_MPI,        &
+     call MPI_Bcast(instantaneousSensitivity, this%nParameters, SCALAR_TYPE_MPI,             &
           0, region%grids(i)%comm, ierror)
   end do
 
   this%cachedValue = instantaneousSensitivity
-  this%cachedValues = instantaneousSensitivities
+  SAFE_DEALLOCATE(instantaneousSensitivity)
 
-end function computeIgnitionActuatorSensitivity
+end subroutine computeIgnitionActuatorSensitivity
 
 subroutine updateIgnitionActuatorForcing(this, region)
 
@@ -333,7 +332,7 @@ subroutine updateIgnitionActuatorForcing(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, nUnknowns, nSpecies
+  integer :: i, j, nDimensions, nUnknowns, nSpecies
 
   if (.not. allocated(region%patchFactories)) return
 
@@ -347,64 +346,66 @@ subroutine updateIgnitionActuatorForcing(this, region)
   assert(nUnknowns == nDimensions + 2 + nSpecies)
 
   do i = 1, size(region%states)
-     select case (trim(this%sensitivityDependence))
+     do j= 1, this%nParameters
+        select case (trim(this%sensitivityParameter(j)))
 
-     case ('AMPLITUDE')
-        region%states(i)%ignitionSources(1)%amplitude = this%baselineValue +                 &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('AMPLITUDE')
+           region%states(i)%ignitionSources(1)%amplitude = this%baselineValue(j) +           &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('POSITION_X')
-        region%states(i)%ignitionSources(1)%location(1) = this%baselineValue +               &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('POSITION_X')
+           region%states(i)%ignitionSources(1)%location(1) = this%baselineValue(j) +         &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('POSITION_Y')
-        region%states(i)%ignitionSources(1)%location(2) = this%baselineValue +               &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('POSITION_Y')
+           region%states(i)%ignitionSources(1)%location(2) = this%baselineValue(j) +         &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('POSITION_Z')
-        region%states(i)%ignitionSources(1)%location(3) = this%baselineValue +               &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('POSITION_Z')
+           region%states(i)%ignitionSources(1)%location(3) = this%baselineValue(j) +         &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('RADIUS_X')
-        region%states(i)%ignitionSources(1)%radius(1) = this%baselineValue +                 &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('RADIUS_X')
+           region%states(i)%ignitionSources(1)%radius(1) = this%baselineValue(j) +           &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('RADIUS_Y')
-        region%states(i)%ignitionSources(1)%radius(2) = this%baselineValue +                 &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('RADIUS_Y')
+           region%states(i)%ignitionSources(1)%radius(2) = this%baselineValue(j) +           &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('RADIUS_Z')
-        region%states(i)%ignitionSources(1)%radius(3) = this%baselineValue +                 &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('RADIUS_Z')
+           region%states(i)%ignitionSources(1)%radius(3) = this%baselineValue(j) +           &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('INITIAL_TIME')
-        region%states(i)%ignitionSources(1)%timeStart = this%baselineValue +                 &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('INITIAL_TIME')
+           region%states(i)%ignitionSources(1)%timeStart = this%baselineValue(j) +           &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('DURATION')
-        region%states(i)%ignitionSources(1)%timeDuration = this%baselineValue +              &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('DURATION')
+           region%states(i)%ignitionSources(1)%timeDuration = this%baselineValue(j) +        &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('DAMKOHLER')
-        region%states(i)%combustion%Damkohler = this%baselineValue +                         &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('DAMKOHLER')
+           region%states(i)%combustion%Damkohler = this%baselineValue(j) +                   &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     case ('ZEL_DOVICH')
-        region%states(i)%combustion%zelDovich = this%baselineValue +                         &
-             region%states(i)%gradientDirection * region%states(i)%actuationAmount *         &
-             region%states(i)%controlGradient
+        case ('ZEL_DOVICH')
+           region%states(i)%combustion%zelDovich = this%baselineValue(j) +                   &
+                region%states(i)%gradientDirection * region%states(i)%actuationAmount *      &
+                region%states(i)%controlGradient(j)
 
-     end select
+        end select
+     end do
   end do
 
 end subroutine updateIgnitionActuatorForcing

@@ -51,7 +51,7 @@ module ThermalActuator_mod
 
   interface
 
-     function computeThermalActuatorSensitivity(this, region) result(instantaneousSensitivity)
+     subroutine computeThermalActuatorSensitivity(this, region)
 
        use Region_mod, only : t_Region
 
@@ -60,9 +60,7 @@ module ThermalActuator_mod
        class(t_ThermalActuator) :: this
        class(t_Region) :: region
 
-       SCALAR_TYPE :: instantaneousSensitivity
-
-     end function computeThermalActuatorSensitivity
+     end subroutine computeThermalActuatorSensitivity
 
   end interface
 

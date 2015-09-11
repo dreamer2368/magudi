@@ -20,6 +20,7 @@ subroutine setupThermalActuator(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, gradientBufferSize
+  character(len = STRING_LENGTH) :: message
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
@@ -46,6 +47,17 @@ subroutine setupThermalActuator(this, region)
      end do
   end if
 
+  this%nParameters = getOption("number_of_parameters", 1)
+  if (this%nParameters <= 0) then
+     write(message, '(A)') "Number of parameters must be > 0!"
+     call gracefulExit(region%comm, message)
+  end if
+
+  allocate(this%cachedValue(this%nParameters))
+  allocate(this%runningTimeQuadrature(this%nParameters))
+  this%cachedValue = 0.0_wp
+  this%runningTimeQuadrature = 0.0_wp
+
 end subroutine setupThermalActuator
 
 subroutine cleanupThermalActuator(this)
@@ -62,7 +74,7 @@ subroutine cleanupThermalActuator(this)
 
 end subroutine cleanupThermalActuator
 
-function computeThermalActuatorSensitivity(this, region) result(instantaneousSensitivity)
+subroutine computeThermalActuatorSensitivity(this, region)
 
   ! <<< External modules >>>
   use MPI
@@ -77,18 +89,16 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
   class(t_ThermalActuator) :: this
   class(t_Region) :: region
 
-  ! <<< Result >>>
-  SCALAR_TYPE :: instantaneousSensitivity
-
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, ierror
-  SCALAR_TYPE, allocatable :: F(:,:)
+  SCALAR_TYPE, allocatable :: F(:,:), instantaneousSensitivity(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
 
+  allocate(instantaneousSensitivity(this%nParameters))
   instantaneousSensitivity = 0.0_wp
 
   do i = 1, size(region%grids)
@@ -123,8 +133,9 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
   end do
 
   this%cachedValue = instantaneousSensitivity
+  SAFE_DEALLOCATE(instantaneousSensitivity)
 
-end function computeThermalActuatorSensitivity
+end subroutine computeThermalActuatorSensitivity
 
 subroutine updateThermalActuatorForcing(this, region)
 

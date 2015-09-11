@@ -8,9 +8,8 @@ module IgnitionActuator_mod
 
   type, extends(t_Controller), public :: t_IgnitionActuator
 
-     character(len = STRING_LENGTH) :: sensitivityDependence
-     integer :: nSensitivities
-     real(SCALAR_KIND) :: baselineValue
+     real(SCALAR_KIND), dimension(:), allocatable :: baselineValue
+     character(len = STRING_LENGTH), dimension(:), allocatable :: sensitivityParameter
 
    contains
 
@@ -55,7 +54,7 @@ module IgnitionActuator_mod
 
   interface
 
-     function computeIgnitionActuatorSensitivity(this, region) result(instantaneousSensitivity)
+     subroutine computeIgnitionActuatorSensitivity(this, region)
 
        use Region_mod, only : t_Region
 
@@ -64,9 +63,7 @@ module IgnitionActuator_mod
        class(t_IgnitionActuator) :: this
        class(t_Region) :: region
 
-       SCALAR_TYPE :: instantaneousSensitivity
-
-     end function computeIgnitionActuatorSensitivity
+     end subroutine computeIgnitionActuatorSensitivity
 
   end interface
 
