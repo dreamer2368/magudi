@@ -81,6 +81,9 @@ subroutine writeSensitivityToFile(this, comm, filename, timestep, time, append)
   end if
 
   if (procRank == 0) then
+     if (.not. append_) write(fileUnit, '(A4,100A20)') 'i', 'Time',                          &
+          (trim(this%sensitivityParameter(i))//"(i)", i = 1, this%nParameters),              &
+          (trim(this%sensitivityParameter(i)), i = 1, this%nParameters)
      write (fileUnit, '(I8,1X,E13.6,100(1X,SP,' // SCALAR_FORMAT // '))')                    &
           timestep, time, this%cachedValue,                                                  &
           (this%runningTimeQuadrature(i), i = 1, this%nParameters)

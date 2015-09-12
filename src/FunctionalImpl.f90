@@ -131,6 +131,8 @@ subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
   end if
 
   if (procRank == 0) then
+     if (.not. append_) write(fileUnit, '(A4,3A20)')                                         &
+          'i', 'Time', 'Integrand', 'Cost functional'
      write(fileUnit, '(I8,1X,E13.6,2(1X,SP,' // SCALAR_FORMAT // '))')                       &
           timestep, time, this%cachedValue, this%runningTimeQuadrature
   end if
