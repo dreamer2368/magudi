@@ -12,7 +12,8 @@ use MPI
   use WallActuator_mod, only : t_WallActuator
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption
+  use InputHelper, only : getOption,getRequiredOption
+   use InputHelper, only : getFreeUnit
   use WavywallHelperImpl,&
      only:compute_dMijdp,compute_dJacobiandp,updateWallCoordinates
   use Grid_enum
@@ -34,7 +35,7 @@ use MPI
   integer, allocatable :: seed_(:)
   SCALAR_TYPE,allocatable::phases(:)
   character(len = STRING_LENGTH) :: filename
-  integer :: ierror
+  integer :: ierror,iostat,fileUnit
   character(len = STRING_LENGTH) :: key
 
   call this%cleanup()
@@ -72,6 +73,25 @@ SAFE_DEALLOCATE(this%po)
 allocate(this%po(this%numP));this%po(:)=0.00_wp
 SAFE_DEALLOCATE(this%beta)
 allocate(this%beta(this%numP/2)); this%beta=0.00_wp
+else !numP <= 0
+assert(this%numP > 0)
+endif
+
+if (getOption("read_gradient_from_file",.false.))then
+call getRequiredOption("gradient_parameter_file", filename)
+
+open(unit = getFreeUnit(fileUnit), file = trim(filename),action='read',          &
+     status = 'unknown', iostat = iostat)
+
+do i = 2,this%numP,2
+  read(fileUnit, '(I4,5(1X,DP,' // SCALAR_FORMAT // '))')&
+      j,this%beta(j),this%gradient(i-1),this%gradient(i),this%po(i-1),this%po(i)
+end do
+
+close(fileUnit)
+
+
+else !initialize from input file
 
 j=1
 do i=2,this%numP,2
@@ -82,11 +102,9 @@ this%beta(j)=getOption(trim(key) // "beta", 0.0_wp)
 j=j+1
 end do
 
-this%p=this%po
-
-else !numP <= 0
-assert(this%numP > 0)
 end if
+
+     this%p=this%po
 
      this%controlIndex=0
      this%MAX_WAVY_WALL_SUM_SQUARES=1.e-2_wp/real(this%numP,wp)
@@ -654,23 +672,7 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
      j=j+1
      end do
 
-     write(filename, '(2A)') trim(outputPrefix),".gradients.and.parameters"&
-          //(adjustl(trim(griditeration)))
-     if (procRank == 0) then
-        open(unit = getFreeUnit(fileUnit), file = trim(filename),action='write',          &
-             status = 'unknown', iostat = iostat)
-     end if
 
-     j=1
-     do i = 2,this%numP,2
-     if (procRank == 0)&
-          write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))')&
-              j,region%states(g)%actuationAmount,this%gradient(i-1),this%gradient(i),this%p(i-1),this%p(i)
-     j=j+1
-     end do
-
-     if (procRank == 0) close(fileUnit)
-  
      this%controlIndex=this%controlIndex+1
      
      end if !not line searching
@@ -754,10 +756,55 @@ subroutine hookWallActuatorAfterTimemarch(this, region, mode)
   integer, intent(in) :: mode
 
   ! <<< Local variables >>>
-  integer :: i, procRank, ierror
+  integer :: i, procRank, ierror,fileUnit,iostat
   class(t_Patch), pointer :: patch => null()
   integer::j
   integer, parameter :: wp = SCALAR_KIND
+  character(len = STRING_LENGTH) :: filename,outputPrefix
+  character(len = STRING_LENGTH) :: griditeration
+ select case (mode)
+
+     case (FORWARD)
+     call MPI_Comm_rank(region%comm, procRank, ierror)
+     outputPrefix = getOption("output_prefix", PROJECT_NAME)
+     write (griditeration, "(I4)") this%controlIndex
+     write(filename, '(2A)') trim(outputPrefix),".parameters"&
+          //(adjustl(trim(griditeration)))
+     if (procRank == 0) then
+        open(unit = getFreeUnit(fileUnit), file = trim(filename),action='write',          &
+             status = 'unknown', iostat = iostat)
+     j=1
+     write(fileUnit, '(1(DP,' // SCALAR_FORMAT // '))')region%costFunctional
+     do i = 2,this%numP,2
+          write(fileUnit, '(I4,3(1X,DP,' // SCALAR_FORMAT // '))')&
+              j,this%beta(j),this%p(i-1),this%p(i)
+     j=j+1
+     end do
+
+     close(fileUnit)
+     end if
+
+     case (ADJOINT)
+     call MPI_Comm_rank(region%comm, procRank, ierror)
+     outputPrefix = getOption("output_prefix", PROJECT_NAME)
+     write (griditeration, "(I4)") this%controlIndex
+     write(filename, '(2A)') trim(outputPrefix),".gradients"&
+          //(adjustl(trim(griditeration)))
+     if (procRank == 0) then
+        open(unit = getFreeUnit(fileUnit), file = trim(filename),action='write',          &
+             status = 'unknown', iostat = iostat)
+
+     j=1
+write(fileUnit, '(1(DP,' // SCALAR_FORMAT // '))')this%sensitivity
+     do i = 2,this%numP,2
+          write(fileUnit, '(I4,2(1X,DP,' // SCALAR_FORMAT // '))')&
+              j,this%gradient(i-1),this%gradient(i)
+     j=j+1
+     end do
+
+     close(fileUnit)
+     end if
+end select
 
   if (.not. allocated(region%patchFactories)) return
 

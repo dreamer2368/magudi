@@ -38,6 +38,7 @@ module Region_mod
           gridCommunicators(:), patchCommunicators(:), patchInterfaces(:),                   &
           interfaceIndexReorderings(:,:), patchMasterRanks(:)
      logical :: outputOn = .true.
+     SCALAR_TYPE::costFunctional
 
    contains
 
