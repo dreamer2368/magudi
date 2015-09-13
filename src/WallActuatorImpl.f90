@@ -35,6 +35,7 @@ use MPI
   SCALAR_TYPE,allocatable::phases(:)
   character(len = STRING_LENGTH) :: filename
   integer :: ierror
+  character(len = STRING_LENGTH) :: key
 
   call this%cleanup()
 
@@ -60,25 +61,35 @@ use MPI
      end do
   end if
 
+
+!initial parameterization from input
+this%numP = 2.*min(getOption("number_of_wall_modes", 0), 99)
+
+if (this%numP > 0) then
+SAFE_DEALLOCATE(this%p)
+allocate(this%p(this%numP));this%p(:)=0.00_wp
+SAFE_DEALLOCATE(this%po)
+allocate(this%po(this%numP));this%po(:)=0.00_wp
+SAFE_DEALLOCATE(this%beta)
+allocate(this%beta(this%numP/2)); this%beta=0.00_wp
+
+j=1
+do i=2,this%numP,2
+write(key, '(A,I2.2,A)') "wall_parameter",j,"/"
+this%po(i-1)=getOption(trim(key) // "amplitude", 0.0_wp)                                    
+this%po(i)=getOption(trim(key) // "phase", 0.0_wp)                                   
+this%beta(j)=getOption(trim(key) // "beta", 0.0_wp) 
+j=j+1
+end do
+
+this%p=this%po
+
+else !numP <= 0
+assert(this%numP > 0)
+end if
+
      this%controlIndex=0
-     this%numP=10
-     
      this%MAX_WAVY_WALL_SUM_SQUARES=1.e-2_wp/real(this%numP,wp)
-
-     SAFE_DEALLOCATE(this%p)
-     allocate(this%p(this%numP))
-     this%p(:)=0.00_wp 
-
-     allocate(this%po(this%numP))
-     this%po(:)=0.00_wp
-
-     i=1
-     do j=2,size(this%p),2
-     this%po(j-1)=0.0005_wp !
-     this%po(j)=0. !2._wp * pi *real(i) * 0.1
-     end do
-
-     this%p=this%po
 
      SAFE_DEALLOCATE(this%gradient)
      allocate(this%gradient(this%numP))
@@ -111,7 +122,6 @@ use MPI
      call getRequiredOption("grid_file", filename)
      call region%saveData(QOI_GRID, filename)
      call MPI_Barrier(region%comm, ierror)
-
  
 end subroutine setupWallActuator
 
@@ -127,6 +137,9 @@ subroutine cleanupWallActuator(this)
 
   call this%cleanupBase()
 
+  SAFE_DEALLOCATE(this%p)
+  SAFE_DEALLOCATE(this%po)
+  SAFE_DEALLOCATE(this%beta)
   SAFE_DEALLOCATE(this%stepDirection)
   SAFE_DEALLOCATE(this%gradient)
   SAFE_DEALLOCATE(this%previousGradient)
@@ -640,30 +653,27 @@ subroutine hookWallActuatorBeforeTimemarch(this, region, mode)
               j,amplitude,shiftedPhase,phase  
      j=j+1
      end do
-  
-     if (procRank == 0) close(fileUnit)
 
-     write(filename, '(2A)') trim(outputPrefix),".gradients."&
+     write(filename, '(2A)') trim(outputPrefix),".gradients.and.parameters"&
           //(adjustl(trim(griditeration)))
      if (procRank == 0) then
         open(unit = getFreeUnit(fileUnit), file = trim(filename),action='write',          &
              status = 'unknown', iostat = iostat)
      end if
-     
+
      j=1
      do i = 2,this%numP,2
      if (procRank == 0)&
-          write(fileUnit, '(I4,2(1X,SP,' // SCALAR_FORMAT // '))')&
-              j,this%gradient(i-1),this%gradient(i)
+          write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))')&
+              j,region%states(g)%actuationAmount,this%gradient(i-1),this%gradient(i),this%p(i-1),this%p(i)
      j=j+1
      end do
 
      if (procRank == 0) close(fileUnit)
-
-
+  
      this%controlIndex=this%controlIndex+1
      
-     end if
+     end if !not line searching
 
      if (getOption("find_Optimal_Forcing",.true.).and.&
           (.not.region%states(g)%LINESEARCHING))then

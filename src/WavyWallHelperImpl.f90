@@ -31,7 +31,7 @@ SCALAR_TYPE::dummyAmplitude
 sumOfSquares=0._wp
 do i=2,size(this%p),2
 dummyAmplitude=this%po(i-1)+actuationAmount*direction(i-1)
-sumOfSquares=sumOfSquares+dummyAmplitude
+sumOfSquares=sumOfSquares+dummyAmplitude**2
 end do
 
 if (sumOfSquares .gt. this%MAX_WAVY_WALL_SUM_SQUARES) then
@@ -49,16 +49,16 @@ integer, parameter :: wp = SCALAR_KIND
 integer::i
 class(t_WallActuator) :: this
 
-sumOfSquares=0._wp
-do i=2,size(this%p),2
-sumOfSquares=sumOfSquares+this%p(i-1)*this%p(i-1)
-end do
-
-if (sumOfSquares.gt.this%MAX_WAVY_WALL_SUM_SQUARES)then
-do i=2,size(this%p),2
-this%p(i-1)=this%p(i-1)/sqrt(sumOfSquares)*sqrt(this%MAX_WAVY_WALL_SUM_SQUARES)
-end do
-end if
+!sumOfSquares=0._wp
+!do i=2,size(this%p),2
+!sumOfSquares=sumOfSquares+this%p(i-1)*this%p(i-1)
+!end do
+!
+!if (sumOfSquares.gt.this%MAX_WAVY_WALL_SUM_SQUARES)then
+!do i=2,size(this%p),2
+!this%p(i-1)=this%p(i-1)/sqrt(sumOfSquares)*sqrt(this%MAX_WAVY_WALL_SUM_SQUARES)
+!end do
+!end if
 
 
 end subroutine
@@ -94,7 +94,7 @@ subroutine updateWallCoordinates(this,grid)
                index=i + grid%localSize(1) * (j - 1 +&
                    grid%localSize(2) * (k - 1))
                grid%coordinates(index,1)=f(unitCoordinates(index,1))
-               grid%coordinates(index,2)=g(unitCoordinates(index,1),unitCoordinates(index,2),p=this%p)
+               grid%coordinates(index,2)=g(unitCoordinates(index,1),unitCoordinates(index,2),p=this%p,beta=this%beta)
                !grid%coordinates(index,3)=h(unitCoordinates(index,3))
            end do
         end do
@@ -146,7 +146,7 @@ k=1
           index=i + grid%localSize(1) * (j - 1 +&
               grid%localSize(2) * (k - 1))
           call dgdp(unitCoordinates(index,1),&
-               unitCoordinates(index,2),p=this%p,dgdpVec=dgdp_vec)
+               unitCoordinates(index,2),p=this%p,beta=this%beta,dgdpVec=dgdp_vec)
           dGdp_(index,:)=dgdp_vec(:)
      end do
    end do
@@ -215,7 +215,7 @@ k=1
           index=i + grid%localSize(1) * (j - 1 +&
               grid%localSize(2) * (k - 1))
           call dgdp(unitCoordinates(index,1),&
-               unitCoordinates(index,2),p=this%p,dgdpVec=dgdp_vec)
+               unitCoordinates(index,2),p=this%p,beta=this%beta,dgdpVec=dgdp_vec)
           dGdp_(index,:)=dgdp_vec(:)
      end do
    end do
@@ -254,7 +254,10 @@ real(SCALAR_KIND) function f(xi1)
 ! <<< Arguments >>>
 real(SCALAR_KIND)::xi1
 integer, parameter :: wp = SCALAR_KIND
-f=xi1*1._wp 
+real(SCALAR_KIND)::xmin,xmax
+xmin=-25._wp; xmax=100._wp
+xmin=0._wp; xmax=1._wp
+f=xmin+(xmax-xmin)*xi1
 end function
 
 real(SCALAR_KIND) function h(xi3)
@@ -263,58 +266,56 @@ real(SCALAR_KIND)::xi3
 h=xi3
 end function
 
-real(SCALAR_KIND) function g(xi1,xi2,xi3,p)
+real(SCALAR_KIND) function shapeMollifier(x)
+real(SCALAR_KIND)::x
+integer, parameter :: wp = SCALAR_KIND
+shapeMollifier=tanh(60._wp*(x - 25._wp/125._wp))-tanh(60._wp*(x-75._wp/125._wp))
+shapeMollifier=tanh(60._wp*(x - 0.2_wp))-tanh(60._wp*(x-0.8_wp))
+end function
+
+real(SCALAR_KIND) function g(xi1,xi2,xi3,p,beta)
 ! <<< Arguments >>>
 real(SCALAR_KIND)::xi1,xi2
 real(SCALAR_KIND),optional::xi3
-SCALAR_TYPE,allocatable::p(:)
+SCALAR_TYPE,allocatable::p(:),beta(:)
 
 integer::i,j
 integer, parameter :: wp = SCALAR_KIND
-SCALAR_TYPE::amplitude,shapeMollifier,gstar,width,chi
+SCALAR_TYPE::amplitude,gstar,chi
 SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
 SCALAR_TYPE::ymin,ymax
 SCALAR_TYPE::ystar,y
 SCALAR_TYPE::h
 
+ymin=-7._wp; ymax=53._wp
 ymin=0._wp; ymax=1._wp
 y=ymin+(ymax-ymin)*xi2
 
 assert(mod(size(p),2)==0)
 
-width=0.3_wp
-shapeMollifier=tanh(60._wp*(xi1 - 0.3_wp))-tanh(60._wp*(xi1-0.7_wp))
-!shapeMollifier=shapeMollifier/0.8_wp
-
 h=0._wp
 j=1
 do i=2,size(p),2
-h=h+p(i-1)*shapeMollifier*cos(2._wp*pi*3._wp*real(j, wp)*xi1+p(i))
+h=h+p(i-1)*shapeMollifier(xi1)*cos(beta(j)*xi1+p(i))
 j=j+1
 end do
 
 ystar=ymax*xi2+(1._wp-xi2)*(ymin+h)
-
-!if (xi2 .le. width) then
-chi=tanh(50._wp *xi2)
-!else
-!chi=1._wp
-!end if
-
+chi=tanh(100._wp *xi2)
 g=ystar-chi*(ystar-y)
 
 end function
 
-subroutine dgdp(xi1,xi2,xi3,p,dgdpVec) 
+subroutine dgdp(xi1,xi2,xi3,p,beta,dgdpVec) 
 ! <<< Arguments >>>
 real(SCALAR_KIND)::xi1,xi2
 real(SCALAR_KIND),optional::xi3
-SCALAR_TYPE,allocatable::p(:)
+SCALAR_TYPE,allocatable::p(:),beta(:)
 SCALAR_TYPE,allocatable::dgdpVec(:),dgstardpVec(:)
 
 integer::i,j
 integer, parameter :: wp = SCALAR_KIND
-SCALAR_TYPE::amplitude,shapeMollifier,gstar,width,chi
+SCALAR_TYPE::amplitude,gstar,width,chi
 SCALAR_TYPE, parameter :: pi = 4.0_wp * atan(1.0_wp)
 SCALAR_TYPE::ymin,ymax
 SCALAR_TYPE::ystar,y
@@ -326,24 +327,16 @@ assert(size(dgdpVec) == size(p))
 
 allocate(dgstardpVec(size(dgdpVec)))
 
-width=0.2_wp
 dgdpVec=0._wp
-shapeMollifier=tanh(60._wp * (xi1 - 0.3_wp)) - tanh(60._wp * (xi1 - 0.7_wp))
-!shapeMollifier=shapeMollifier/0.8_wp
 
 j=1
 do i=2,size(p),2
-dgstardpVec(i-1)=(1._wp-xi2)*shapeMollifier*cos(2._wp*pi*3._wp*real(j, wp)*xi1+p(i))
-dgstardpVec(i)=(-(1._wp-xi2)*p(i-1)*shapeMollifier*sin(2._wp*pi*3._wp*real(j, wp)*xi1+p(i)))
+dgstardpVec(i-1)=(1._wp-xi2)*shapeMollifier(xi1)*cos(beta(j)*xi1+p(i))
+dgstardpVec(i)=(-(1._wp-xi2)*p(i-1)*shapeMollifier(xi1)*sin(beta(j)*xi1+p(i)))
 j=j+1
 end do
 
-!if (xi2 .le. width) then
-chi=tanh(50._wp *xi2)
-!else
-!chi=1._wp
-!end if
-
+chi=tanh(100._wp *xi2)
 dgdpVec=dgstardpVec-chi*(dgstardpVec)
 
 end subroutine

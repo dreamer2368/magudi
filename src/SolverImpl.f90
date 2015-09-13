@@ -642,7 +642,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
      ! Report simulation progess.
      call showProgress(this, region, FORWARD, startTimestep, timestep,                       &
-          time, instantaneousCostFunctional)
+          time,costFunctional)
 
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
