@@ -27,7 +27,7 @@ use MPI
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, gradientBufferSize,j
+  integer :: i,k, gradientBufferSize,j
   class(t_Patch), pointer :: patch => null()
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
   SCALAR_TYPE::r
@@ -73,23 +73,63 @@ SAFE_DEALLOCATE(this%po)
 allocate(this%po(this%numP));this%po(:)=0.00_wp
 SAFE_DEALLOCATE(this%beta)
 allocate(this%beta(this%numP/2)); this%beta=0.00_wp
+
+SAFE_DEALLOCATE(this%gradient)
+allocate(this%gradient(this%numP))
+this%gradient=0._wp
+SAFE_DEALLOCATE(this%previousGradient)
+allocate(this%previousGradient(this%numP))
+this%previousGradient=0._wp
+
+SAFE_DEALLOCATE(this%stepDirection)
+allocate(this%stepDirection(this%numP))
+this%stepDirection=0._wp
+
+SAFE_DEALLOCATE(this%instantaneousGradient)
+allocate(this%instantaneousGradient(this%numP))
+this%instantaneousGradient=0._wp
+this%sensitivity=0._wp
+
+SAFE_DEALLOCATE(this%dJacobiandp)
+allocate(this%dJacobiandp(region%grids(1)%nGridPoints,this%numP))
+
+SAFE_DEALLOCATE(this%dMijdp)
+allocate(this%dMijdp(region%grids(1)%nGridPoints,&
+  region%grids(1)%nDimensions*region%grids(1)%nDimensions,this%numP))
+
 else !numP <= 0
 assert(this%numP > 0)
 endif
 
 if (getOption("read_gradient_from_file",.false.))then
-call getRequiredOption("gradient_parameter_file", filename)
 
+call getRequiredOption("gradient_file", filename)
 open(unit = getFreeUnit(fileUnit), file = trim(filename),action='read',          &
      status = 'unknown', iostat = iostat)
 
+read(fileUnit, '(1(DP,' // SCALAR_FORMAT // '))')this%sensitivity
 do i = 2,this%numP,2
-  read(fileUnit, '(I4,5(1X,DP,' // SCALAR_FORMAT // '))')&
-      j,this%beta(j),this%gradient(i-1),this%gradient(i),this%po(i-1),this%po(i)
+  read(fileUnit, '(I4,2(1X,DP,' // SCALAR_FORMAT // '))')&
+      j,this%gradient(i-1),this%gradient(i)
 end do
 
 close(fileUnit)
 
+call getRequiredOption("parameter_file", filename)
+open(unit = getFreeUnit(fileUnit), file = trim(filename),action='read',          &
+     status = 'unknown', iostat = iostat)
+
+j=1
+read(fileUnit, '(1(DP,' // SCALAR_FORMAT // '))')r
+do i = 2,this%numP,2
+  read(fileUnit, '(I4,3(1X,DP,' // SCALAR_FORMAT // '))')&
+      k,this%beta(j),this%po(i-1),this%po(i)
+j=j+1
+end do
+
+close(fileUnit)
+
+call MPI_Barrier(region%comm, ierror)
 
 else !initialize from input file
 
@@ -105,32 +145,8 @@ end do
 end if
 
      this%p=this%po
-
      this%controlIndex=0
      this%MAX_WAVY_WALL_SUM_SQUARES=1.e-2_wp/real(this%numP,wp)
-
-     SAFE_DEALLOCATE(this%gradient)
-     allocate(this%gradient(this%numP))
-     this%gradient=0._wp
-     SAFE_DEALLOCATE(this%previousGradient)
-     allocate(this%previousGradient(this%numP))
-     this%previousGradient=0._wp
- 
-     SAFE_DEALLOCATE(this%stepDirection)
-     allocate(this%stepDirection(this%numP))
-     this%stepDirection=0._wp
-
-     SAFE_DEALLOCATE(this%instantaneousGradient)
-     allocate(this%instantaneousGradient(this%numP))
-     this%instantaneousGradient=0._wp
-     this%sensitivity=0._wp
- 
-     SAFE_DEALLOCATE(this%dJacobiandp) 
-     allocate(this%dJacobiandp(region%grids(1)%nGridPoints,this%numP))
-     
-     SAFE_DEALLOCATE(this%dMijdp) 
-     allocate(this%dMijdp(region%grids(1)%nGridPoints,&
-          region%grids(1)%nDimensions*region%grids(1)%nDimensions,this%numP)) 
 
      call updateWallCoordinates(this,region%grids(1))
      call region%grids(1)%update()

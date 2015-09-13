@@ -876,7 +876,7 @@ subroutine checkGradientAccuracy(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
+  integer :: i, j, nIterations, restartIteration, fileUnit,fileUnit2, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: filename, message
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError,dummyValue,&
@@ -924,54 +924,22 @@ subroutine checkGradientAccuracy(this, region)
      end if
   end if
 
-  ! Find (or load from file) the cost functional for the baseline prediction.
-  !if (region%simulationFlags%isBaselineAvailable) then
-  !   if (procRank == 0)                                                                      &
-  !        read(fileUnit, *, iostat = iostat) i, actuationAmount,                             &
-  !        baselineCostFunctional, costSensitivity, gradientError
-  !   call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-  !   if (iostat /= 0) then
-  !      write(message, "(2A)") trim(filename),                                               &
-  !           ": Failed to read baseline cost functional from file!"
-  !      call gracefulExit(region%comm, message)
-  !   end if
-  !   call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
-  !else
-  !   baselineCostFunctional = this%runForward(region)
-  !end if
+  call getRequiredOption("gradient_file", filename)
+  open(unit = getFreeUnit(fileUnit2), file = trim(filename),action='read',          &
+     status = 'unknown', iostat = iostat)
+  read(fileUnit2, '(1(DP,' // SCALAR_FORMAT // '))')costSensitivity
+  close(fileUnit2)
+  call MPI_Barrier(region%comm, ierror)
 
-  ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
-  !if (restartIteration == 0) then
-  !   costSensitivity = this%runAdjoint(region)
-  !else
-  !   call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
-  !end if
-!
-!  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable)                  &
-!       write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                   &
-!       baselineCostFunctional, costSensitivity, 0.0_wp
+  call getRequiredOption("parameter_file", filename)
+  open(unit = getFreeUnit(fileUnit2), file = trim(filename),action='read',          &
+     status = 'unknown', iostat = iostat)
+  read(fileUnit2, '(1(DP,' // SCALAR_FORMAT // '))')baselineCostFunctional
 
-!  if (nIterations == 0) return
+  close(fileUnit2)
+  call MPI_Barrier(region%comm, ierror)
 
-  ! Turn off output for controlled predictions.
-
-
-baselineCostFunctional=+1.920475829101896E-005
-costSensitivity=+1.298573236904891E-014
-region%outputOn = .false.
-
-!  if (restartIteration == 0) restartIteration = restartIteration + 1
-!  do i = 1, restartIteration - 1
-!     if (procRank == 0)                                                                      &
-!          read(fileUnit, *, iostat = iostat) j, actuationAmount, costFunctional,             &
-!          dummyValue, gradientError
-!     call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-!     if (iostat /= 0) then
-!        write(message, "(2A)") trim(filename),                                               &
-!             ": Cost functional history is too short for the specified restart iteration!"
-!        call gracefulExit(region%comm, message)
-!     end if
-!  end do
+  region%outputOn = .false.
 
   do i = restartIteration, restartIteration + nIterations - 1
      actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
