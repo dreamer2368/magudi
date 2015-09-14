@@ -7,7 +7,7 @@ module Controller_mod
   type, abstract, public :: t_Controller
 
      integer :: nParameters
-     SCALAR_TYPE, allocatable :: cachedValue(:), runningTimeQuadrature(:)
+     SCALAR_TYPE, allocatable :: cachedValue(:), runningTimeQuadrature(:), baselineValue(:)
      character(len = STRING_LENGTH), dimension(:), allocatable :: sensitivityParameter
 
    contains

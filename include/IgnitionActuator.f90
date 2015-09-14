@@ -8,8 +8,6 @@ module IgnitionActuator_mod
 
   type, extends(t_Controller), public :: t_IgnitionActuator
 
-     real(SCALAR_KIND), dimension(:), allocatable :: baselineValue
-
    contains
 
      procedure, pass :: setup => setupIgnitionActuator
