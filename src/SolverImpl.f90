@@ -1115,8 +1115,8 @@ subroutine findOptimalForcing(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nIterations, restartIteration, controlIteration, fileUnit, iostat,        &
-       procRank, ierror
+  integer :: i, j, nIterations, restartIteration, controlIteration, nForward, nAdjoint,      &
+       fileUnit, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: optimizationType, filename, message
   class(t_Controller), pointer :: controller => null()
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
@@ -1226,6 +1226,8 @@ subroutine findOptimalForcing(this, region)
 
      ! We have at this point a baseline cost functional and the first gradient with respect
      ! to each parameter.
+     nForward = 1
+     nAdjoint = 1
      reachedThreshold = .false.
      controlIteration = restartIteration
      minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
@@ -1241,6 +1243,7 @@ subroutine findOptimalForcing(this, region)
            ! Compute a new cost functional.
            costFunctional = this%runForward(region, actuationAmount = actuationAmount,       &
                 controlIteration = i)
+           nForward = nForward + 1
 
            ! Update the baseline values
            do j = 1, controller%nParameters
@@ -1274,6 +1277,7 @@ subroutine findOptimalForcing(this, region)
         ! Compute a new sensitivity gradient and adjust the actuation amount.
         if (.not.reachedThreshold .and. controlIteration < nIterations) then
            individualSensitivities = this%runAdjoint(region)
+           nAdjoint = nAdjoint + 1
            costSensitivity = sum(individualSensitivities**2)
            do i = 1, size(region%grids)
               region%states(i)%controlGradient = individualSensitivities
@@ -1287,7 +1291,14 @@ subroutine findOptimalForcing(this, region)
 
      end do
 
-     if (procRank == 0) close(fileUnit)
+     ! Dump optimizatiom summary and close.
+     if (procRank == 0) then
+        write(fileUnit, *) ''
+        write(fileUnit, '(A28,I4)') 'Number of forward runs:', nForward
+        write(fileUnit, '(A28,I4)') 'Number of adjoint runs:', nAdjoint
+        write(fileUnit, '(A28,L4)') 'Ignition threshold found:', reachedThreshold
+        close(fileUnit)
+     end if
 
   case default
      write(message, '(A)') "Unknown optimization type!"
