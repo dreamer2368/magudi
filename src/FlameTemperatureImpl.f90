@@ -237,7 +237,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
   timeRampFactor = 1.0_wp
   if (this%useTimeRamp)                                                                      &
-       timeRampFactor = exp(-0.5_wp * (statw%adjointCoefficientTime - this%rampPeak)**2 *    &
+       timeRampFactor = exp(-0.5_wp * (state%adjointCoefficientTime - this%rampPeak)**2 *    &
        this%rampWidthInverse**2)
 
   if (this%weightBurnRegion) then
