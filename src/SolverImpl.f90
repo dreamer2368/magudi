@@ -935,6 +935,7 @@ subroutine checkGradientAccuracy(this, region)
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
+  use Controller_mod, only : t_Controller
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE
@@ -953,10 +954,15 @@ subroutine checkGradientAccuracy(this, region)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: filename, message
+  class(t_Controller), pointer :: controller => null()
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
   real(WP), dimension(:), allocatable :: individualSensitivities
   logical :: minimizeCost
+
+  ! Connect to the previously allocated controller.
+  call this%controllerFactory%connect(controller)
+  assert(associated(controller))
 
   call getRequiredOption("number_of_control_iterations", nIterations)
   if (nIterations < 0) then
@@ -1003,12 +1009,13 @@ subroutine checkGradientAccuracy(this, region)
      end if
   end if
 
-  ! Find (or load from file) the cost functional for the baseline prediction.
+  ! Find (or load from file) the cost functional and sensitivity for the baseline prediction.
+  allocate(individualSensitivities(controller%nParameters))
   if (region%simulationFlags%isBaselineAvailable) then
      if (procRank == 0) then
         read(fileUnit, *, iostat = iostat)
         read(fileUnit, *, iostat = iostat) i, actuationAmount,                               &
-             baselineCostFunctional, costSensitivity, gradientError
+             baselineCostFunctional, costSensitivity, gradientError, individualSensitivities
      end if
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
@@ -1023,24 +1030,27 @@ subroutine checkGradientAccuracy(this, region)
 
   ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
   if (restartIteration == 0) then
-     allocate(individualSensitivities(getOption("number_of_parameters", 1)))
      individualSensitivities = this%runAdjoint(region)
-     costSensitivity = sum(individualSensitivities**2)
   else
-     call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+     call MPI_Bcast(individualSensitivities, size(individualSensitivities), REAL_TYPE_MPI, 0,&
+          region%comm, ierror)
   end if
+  assert(size(individualSensitivities) == controller%nParameters)
+  costSensitivity = sum(individualSensitivities**2)
 
   ! Store gradient to be used for control forcing.
   do i = 1, size(region%grids)
-     allocate(region%states(i)%controlGradient(size(individualSensitivities)))
+     allocate(region%states(i)%controlGradient(controller%nParameters))
      region%states(i)%controlGradient = individualSensitivities
   end do
 
-  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
-     write(fileUnit, '(A4,5A24)') 'i', 'Actuation amount', 'Cost functional',                &
-          'Cost sensitivity','Gradient error'
-     write(fileUnit, '(I4,5(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                     &
-          baselineCostFunctional, costSensitivity, 0.0_wp
+   if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+     write(fileUnit, '(A4,100A24)') 'i', 'Actuation amount', 'Cost functional',              &
+          'Cost sensitivity', 'Gradient error',                                              &
+          ('dJ/d '//trim(controller%sensitivityParameter(i)), i = 1, controller%nParameters)
+     write(fileUnit, '(I4,100(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                     &
+          baselineCostFunctional, costSensitivity, 0.0_wp,                                   &
+          (individualSensitivities(i), i = 1, controller%nParameters)
   end if
 
   if (nIterations == 0) return
@@ -1104,110 +1114,126 @@ subroutine findOptimalForcing(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDescents, nLineSearches, restartIteration, fileUnit, fileUnit2,       &
-       iostat, procRank, ierror
+  integer :: i, controlIteration, nIterations, restartIteration, fileUnit, iostat, procRank, &
+       ierror
+  character(len = STRING_LENGTH) :: optimizationType, filename, message
   real(wp) :: actuationAmount, tempCostFunctional, baselineCostFunctional, costFunctional,   &
        costSensitivity, tempCost, minVal
-  character(len = STRING_LENGTH) :: optimizationType, filename, message
-  logical:: minValSet
+  real(WP), dimension(:), allocatable :: individualSensitivities
+  logical:: reachedThreshold
 
-!!$  call getRequiredOption("optimization_type", optimizationType)
-!!$
-!!$  select case(trim(optimizationType))
-!!$  case ('IGNITION_THRESHOLD')
-!!$
-!!$     call getRequiredOption("number_of_descents", nDescents)
-!!$     if (nDescents <= 0) then
-!!$        write(message, '(A)') "Number of descents must be > 0!"
-!!$        call gracefulExit(region%comm, message)
-!!$     end if
-!!$
-!!$     call getRequiredOption("number_of_line_searches", nLineSearches)
-!!$     if (nLineSearches <= 0) then
-!!$        write(message, '(A)') "Number of line searches must be > 0!"
-!!$        call gracefulExit(region%comm, message)
-!!$     end if
-!!$
-!!$     call MPI_Comm_rank(region%comm, procRank, ierror)
-!!$
-!!$     restartIteration = getOption("restart_control_iteration", 0)
-!!$     restartIteration = max(restartIteration, 0)
-!!$
-!!$     write(filename, '(2A)') trim(this%outputPrefix), ".cost_optimization.txt"
-!!$     if (procRank == 0) then
-!!$        if (restartIteration == 0 .and. .not.region%simulationFlags%isBaselineAvailable) then
-!!$           open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='write',        &
-!!$                status = 'unknown', iostat = iostat)
-!!$        else
-!!$           open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='readwrite',    &
-!!$                status = 'old', position = 'rewind', iostat = iostat)
-!!$        end if
-!!$     end if
-!!$
-!!$     call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-!!$     if (iostat /= 0) then
-!!$        write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
-!!$        call gracefulExit(region%comm, message)
-!!$     end if
-!!$
-!!$     write(filename, '(2A)') trim(this%outputPrefix),".cost_optimization_all.txt"
-!!$     if (procRank == 0) then
-!!$        if (restartIteration == 0 .and. .not.region%simulationFlags%isBaselineAvailable) then
-!!$           open(unit = getFreeUnit(fileUnit2), file = trim(filename), action='write',        &
-!!$                status = 'unknown', iostat = iostat)
-!!$        else
-!!$           open(unit = getFreeUnit(fileUnit2), file = trim(filename), action='readwrite',    &
-!!$                status = 'old', position = 'rewind', iostat = iostat)
-!!$        end if
-!!$     end if
-!!$
-!!$     call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-!!$     if (iostat /= 0) then
-!!$        write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
-!!$        call gracefulExit(region%comm, message)
-!!$     end if
-!!$
-!!$     baselineCostFunctional = this%runForward(region)
-!!$
+  call getRequiredOption("optimization_type", optimizationType)
+
+  select case(trim(optimizationType))
+
+  case ('IGNITION_THRESHOLD')
+
+     call getRequiredOption("number_of_control_iterations", nIterations)
+     if (nIterations < 0) then
+        write(message, '(A)') "Number of control iterations must be a non-negative number!"
+        call gracefulExit(region%comm, message)
+     end if
+
+     restartIteration = getOption("restart_control_iteration", 0)
+     restartIteration = max(restartIteration, 0)
+
+     if (restartIteration > 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+        write(message, '(A)') "Can't restart with controlled prediction without baseline!"
+        call gracefulExit(region%comm, message)
+     end if
+
+     call MPI_Comm_rank(region%comm, procRank, ierror)
+
+     write(filename, '(2A)') trim(this%outputPrefix), ".cost_optimization.txt"
+     if (procRank == 0) then
+        if (restartIteration == 0 .and. .not.region%simulationFlags%isBaselineAvailable) then
+           open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='write',        &
+                status = 'unknown', iostat = iostat)
+        else
+           open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='readwrite',    &
+                status = 'old', position = 'rewind', iostat = iostat)
+        end if
+     end if
+
+     call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+     if (iostat /= 0) then
+        write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
+        call gracefulExit(region%comm, message)
+     end if
+
+     ! Find (or load from file) the cost functional for the baseline prediction.
+     if (region%simulationFlags%isBaselineAvailable) then
+        if (procRank == 0) then
+           read(fileUnit, *, iostat = iostat)
+           read(fileUnit, *, iostat = iostat) i, actuationAmount,                            &
+                baselineCostFunctional, costSensitivity
+        end if
+        call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+        if (iostat /= 0) then
+           write(message, "(2A)") trim(filename),                                            &
+                ": Failed to read baseline cost functional from file!"
+           call gracefulExit(region%comm, message)
+        end if
+        call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+     else
+        baselineCostFunctional = this%runForward(region)
+     end if
+
+     
+
+
+
+
+
+
+
+     if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+        write(fileUnit, '(A4,4A24)') 'i', 'Actuation amount', 'Cost functional',             &
+             'Cost sensitivity'
+        write(fileUnit, '(I4,3(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                  &
+             baselineCostFunctional, costSensitivity
+     end if
+  
 !!$     if (procRank == 0) write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'))') 0,          &
 !!$          baselineCostFunctional, baselineCostFunctional, 0.0_wp, 0.0_wp
 !!$
 !!$     ! Turn off output for controlled predictions.
 !!$     region%outputOn = getOption("output_control_iterations", .false.)
 !!$
-!!$     ! We have at this point a baseline cost and the first gradient.
+!!$     ! Store temporary cost functional.
 !!$     tempCost = baselineCostFunctional
-!!$     k=1
-!!$     do i = 1, nDescents
 !!$
-!!$        region%states(:)%lineSearching = .false.
-!!$        tempCostFunctional = this%runForward(region)
+!!$     reachedThreshold = .false.
+!!$     controlIteration = restartIteration + 1
+!!$     do while (controlIteration < nIterations .and. .not.reachedThreshold)
+!!$
+!!$        ! Compute a new sensitivity gradient.
 !!$        costSensitivity = this%runAdjoint(region)
-!!$        region%states(:)%lineSearching = .true.
 !!$
 !!$        ! Line search here.
 !!$        minVal = tempCostFunctional
 !!$        minValSet = .false.
 !!$        actuationAmount = 100.0_wp * (tempCostFunctional/sqrt(costSensitivity))
-!!$        do j=1,nLineSearches
+!!$        do i = restartIteration, restartIteration + nIterations - 1
 !!$
 !!$           costFunctional = this%runForward(region, actuationAmount = actuationAmount)
 !!$
-!!$           if (costFunctional - tempCostFunctional > 0.0_wp) then
+!!$           if (  tempCostFunctional > 0.0_wp) then
+!!$              ! Exit loop and recompute the gradient.
 !!$              exit
 !!$           else
 !!$
-!!$              if (procRank == 0) &
-!!$                   write(fileUnit2, '(I4,1x,I4,I4,1x,5(1X,SP,' // SCALAR_FORMAT//'))')       &
-!!$                   i, j, k, region%states(1)%actuationAmount, baselineCostFunctional,        &
-!!$                   costFunctional, costFunctional-tempCostFunctional,                        &
-!!$                   (baselineCostFunctional-costFunctional) /baselineCostFunctional
-!!$              k=k+1
+!!$              if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+!!$                 write(fileUnit, '(I4,1x,I4,1x,5(1X,SP,' // SCALAR_FORMAT//'))')             &
+!!$                      i, j, region%states(1)%actuationAmount, baselineCostFunctional,        &
+!!$                      costFunctional, costFunctional-tempCostFunctional,                     &
+!!$                      (baselineCostFunctional-costFunctional) /baselineCostFunctional
+!!$              end if
 !!$
 !!$              if (minValSet .and. (costFunctional.ge.minVal)) then
 !!$                 if (procRank == 0) &
 !!$                      write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'),1x,A)') i,       &
-!!$                      baselineCostFunctional,minVal,costSensitivity,&
+!!$                      baselineCostFunctional,minVal,costSensitivity,                         &
 !!$                      (baselineCostFunctional-minVal) /baselineCostFunctional,'M'
 !!$                 exit
 !!$              end if
@@ -1215,7 +1241,7 @@ subroutine findOptimalForcing(this, region)
 !!$              ! Armijo-Golstein condition with d=G and c=0.5.
 !!$              if (costFunctional - tempCostFunctional < -actuationAmount*0.999_wp*costSensitivity) then
 !!$                 if (procRank == 0) &
-!!$                      write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'),1x,A)')i,       &
+!!$                      write(fileUnit, '(I4,1x,4(1X,SP,' //SCALAR_FORMAT//'),1x,A)') i,       &
 !!$                      baselineCostFunctional,costFunctional,costSensitivity,&
 !!$                      (baselineCostFunctional-costFunctional) /baselineCostFunctional,'A'
 !!$                 exit
@@ -1233,12 +1259,11 @@ subroutine findOptimalForcing(this, region)
 !!$        end do
 !!$     end do
 !!$
-!!$     if (procRank == 0) close(fileUnit2)
 !!$     if (procRank == 0) close(fileUnit)
-!!$
-!!$  case default
-!!$     write(message, '(A)') "Unknown optimization type!"
-!!$     call gracefulExit(region%comm, message)
-!!$  end select
+
+  case default
+     write(message, '(A)') "Unknown optimization type!"
+     call gracefulExit(region%comm, message)
+  end select
 
 end subroutine findOptimalForcing

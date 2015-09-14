@@ -20,7 +20,7 @@ subroutine setupThermalActuator(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, gradientBufferSize
-  character(len = STRING_LENGTH) :: message
+  character(len = STRING_LENGTH) :: key, message
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
@@ -52,6 +52,12 @@ subroutine setupThermalActuator(this, region)
      write(message, '(A)') "Number of parameters must be > 0!"
      call gracefulExit(region%comm, message)
   end if
+
+  allocate(this%sensitivityParameter(this%nParameters))
+  do i = 1, this%nParameters
+     write(key, '(A,I2.2)') "sensitivity_parameter", i
+     this%sensitivityParameter(i) = getOption(trim(key),trim(key))
+  end do
 
   allocate(this%cachedValue(this%nParameters))
   allocate(this%runningTimeQuadrature(this%nParameters))

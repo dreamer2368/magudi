@@ -43,7 +43,7 @@ subroutine setupIgnitionActuator(this, region)
   allocate(this%sensitivityParameter(this%nParameters))
   do i = 1, this%nParameters
      write(key, '(A,I2.2)') "sensitivity_parameter", i
-     call getRequiredOption(key, this%sensitivityParameter(i), region%comm)
+     this%sensitivityParameter(i) = getOption(trim(key),trim(key))
   end do
 
   allocate(this%baselineValue(this%nParameters))

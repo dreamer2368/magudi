@@ -8,6 +8,7 @@ module Controller_mod
 
      integer :: nParameters
      SCALAR_TYPE, allocatable :: cachedValue(:), runningTimeQuadrature(:)
+     character(len = STRING_LENGTH), dimension(:), allocatable :: sensitivityParameter
 
    contains
 

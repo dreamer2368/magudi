@@ -68,6 +68,12 @@ subroutine setupFuelActuator(this, region)
      call gracefulExit(region%comm, message)
   end if
 
+  allocate(this%sensitivityParameter(this%nParameters))
+  do i = 1, this%nParameters
+     write(key, '(A,I2.2)') "sensitivity_parameter", i
+     this%sensitivityParameter(i) = getOption(trim(key),trim(key))
+  end do
+
   allocate(this%cachedValue(this%nParameters))
   allocate(this%runningTimeQuadrature(this%nParameters))
   this%cachedValue = 0.0_wp
