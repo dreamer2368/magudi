@@ -83,7 +83,7 @@ module Solver_mod
 
   interface
 
-     function runAdjoint(this, region) result(costSensitivity)
+     function runAdjoint(this, region, controlIteration) result(costSensitivity)
 
        use Region_mod, only : t_Region
 
@@ -91,6 +91,7 @@ module Solver_mod
 
        class(t_Solver) :: this
        class(t_Region) :: region
+       integer, intent(in), optional :: controlIteration
 
        SCALAR_TYPE, dimension(:), allocatable :: costSensitivity
 

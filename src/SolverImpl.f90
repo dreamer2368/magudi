@@ -114,9 +114,16 @@ contains
           case (ADJOINT)
              call this%controllerFactory%connect(controller)
              assert(associated(controller))
-             call controller%writeSensitivityToFile(region%comm, trim(this%outputPrefix) //  &
-                  ".cost_sensitivity.txt", timestep, time,                                   &
-                  startTimestep - timestep > this%reportInterval)
+             if (controlIteration_ > 0) then
+                write(filename, '(2A,I2.2,A)') trim(this%outputPrefix), ".cost_sensitivity_",&
+                     controlIteration_, ".txt"
+                call controller%writeSensitivityToFile(region%comm, filename, timestep, time,&
+                     timestep - startTimestep > this%reportInterval)
+             else
+                call controller%writeSensitivityToFile(region%comm, trim(this%outputPrefix)  &
+                     // ".cost_sensitivity.txt", timestep, time,                             &
+                     startTimestep - timestep > this%reportInterval)
+             end if
 
           end select
 
@@ -129,16 +136,23 @@ contains
        select case (mode)
        case (FORWARD)
           if (controlIteration_ > 0) then
-             write(filename, '(2A,I8.8,A,I2.2,A)') trim(this%outputPrefix), "_",             &
-                  controlIteration, "-", timestep, ".q"
+             write(filename, '(2A,I2.2,A,I8.8,A)') trim(this%outputPrefix), "_",             &
+                  controlIteration_, "-", timestep, ".q"
              call region%saveData(QOI_FORWARD_STATE, filename)
           else
              write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
              call region%saveData(QOI_FORWARD_STATE, filename)
           end if
        case (ADJOINT)
-          write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adjoint.q"
-          call region%saveData(QOI_ADJOINT_STATE, filename)
+          if (controlIteration_ > 0) then
+             write(filename, '(2A,I2.2,A,I8.8,A)') trim(this%outputPrefix), "_",             &
+                  controlIteration_, "-", timestep, ".adjoint.q"
+             call region%saveData(QOI_ADJOINT_STATE, filename)
+          else
+             write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep,          &
+                  ".adjoint.q"
+             call region%saveData(QOI_ADJOINT_STATE, filename)
+          end if
        end select
 
     end if
@@ -734,7 +748,7 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
 
 end function runForward
 
-function runAdjoint(this, region) result(costSensitivity)
+function runAdjoint(this, region, controlIteration) result(costSensitivity)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -762,6 +776,7 @@ function runAdjoint(this, region) result(costSensitivity)
   ! <<< Arguments >>>
   class(t_Solver) :: this
   class(t_Region) :: region
+  integer, intent(in), optional :: controlIteration
 
   ! <<< Result >>>
   SCALAR_TYPE, dimension(:), allocatable :: costSensitivity
@@ -776,7 +791,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
   SCALAR_TYPE, dimension(:), allocatable :: instantaneousCostSensitivity
-  real(SCALAR_KIND) :: time, startTime, timeStepSize, test
+  real(SCALAR_KIND) :: time, startTime, timeStepSize
 
   assert(.not. region%simulationFlags%predictionOnly)
 
@@ -890,9 +905,14 @@ function runAdjoint(this, region) result(costSensitivity)
 
      end do
 
-     ! Report simulation progress.
-     call showProgress(this, region, ADJOINT, startTimestep, timestep,                       &
-          time, sum(instantaneousCostSensitivity**2))
+     ! Report simulation progess.
+     if (present(controlIteration)) then
+        call showProgress(this, region, ADJOINT, startTimestep, timestep,                    &
+             time, sum(instantaneousCostSensitivity**2), controlIteration)
+     else
+        call showProgress(this, region, ADJOINT, startTimestep, timestep,                    &
+             time, sum(instantaneousCostSensitivity**2))
+     end if
 
      ! Save solution on probe patches.
      if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
@@ -1099,6 +1119,7 @@ subroutine findOptimalForcing(this, region)
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
   use Controller_mod, only : t_Controller
+  use Functional_mod, only : t_Functional
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE
@@ -1119,6 +1140,7 @@ subroutine findOptimalForcing(this, region)
        fileUnit, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: optimizationType, filename, message
   class(t_Controller), pointer :: controller => null()
+  class(t_Functional), pointer :: functional => null()
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        burnValue, minimumTolerance
   real(WP), dimension(:), allocatable :: individualSensitivities
@@ -1127,6 +1149,10 @@ subroutine findOptimalForcing(this, region)
   ! Connect to the previously allocated controller.
   call this%controllerFactory%connect(controller)
   assert(associated(controller))
+
+  ! Connect to the previously allocated functional.
+  call this%functionalFactory%connect(functional)
+  assert(associated(functional))
 
   call getRequiredOption("optimization_type", optimizationType)
 
@@ -1220,9 +1246,10 @@ subroutine findOptimalForcing(this, region)
      ! Turn off output for controlled predictions.
      region%outputOn = getOption("output_control_iterations", .false.)
 
-     ! Determine if the initial run was burning based on value of the cost functional.
+     ! Determine if the initial run was burning based on the last value of the instantaneous
+     ! cost functional.
      call getRequiredOption("burn_value", burnValue)
-     burning = baselineCostFunctional > burnValue
+     burning =  functional%cachedValue > burnValue
 
      ! We have at this point a baseline cost functional and the first gradient with respect
      ! to each parameter.
@@ -1242,7 +1269,7 @@ subroutine findOptimalForcing(this, region)
 
            ! Compute a new cost functional.
            costFunctional = this%runForward(region, actuationAmount = actuationAmount,       &
-                controlIteration = i)
+                controlIteration = nForward)
            nForward = nForward + 1
 
            ! Update the baseline values
@@ -1264,10 +1291,10 @@ subroutine findOptimalForcing(this, region)
            controlIteration = controlIteration + 1
 
            ! Exit loop and recompute the gradient if we passed the threshold.
-           if (burning .and. costFunctional < burnvalue) then
+           if (burning .and. functional%cachedValue < burnvalue) then
               burning = .false.
               exit
-           else if (.not.burning .and. costFunctional > burnValue) then
+           else if (.not.burning .and. functional%cachedValue > burnValue) then
               burning = .true.
               exit
            end if
@@ -1276,7 +1303,7 @@ subroutine findOptimalForcing(this, region)
 
         ! Compute a new sensitivity gradient and adjust the actuation amount.
         if (.not.reachedThreshold .and. controlIteration < nIterations) then
-           individualSensitivities = this%runAdjoint(region)
+           individualSensitivities = this%runAdjoint(region, controlIteration = nAdjoint)
            nAdjoint = nAdjoint + 1
            costSensitivity = sum(individualSensitivities**2)
            do i = 1, size(region%grids)
