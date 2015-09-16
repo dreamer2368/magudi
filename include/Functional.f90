@@ -7,7 +7,8 @@ module Functional_mod
   type, abstract, public :: t_Functional
 
      SCALAR_TYPE :: cachedValue = real(0.0, SCALAR_KIND),                                    &
-          runningTimeQuadrature = real(0.0, SCALAR_KIND)
+          runningTimeQuadrature = real(0.0, SCALAR_KIND),                                    &
+          auxilaryFunctional = real(0.0, SCALAR_KIND)
 
    contains
 

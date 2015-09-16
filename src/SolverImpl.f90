@@ -1249,7 +1249,7 @@ subroutine findOptimalForcing(this, region)
      ! Determine if the initial run was burning based on the last value of the instantaneous
      ! cost functional.
      call getRequiredOption("burn_value", burnValue)
-     burning =  functional%cachedValue > burnValue
+     burning =  functional%auxilaryFunctional > burnValue
 
      ! We have at this point a baseline cost functional and the first gradient with respect
      ! to each parameter.
@@ -1291,10 +1291,10 @@ subroutine findOptimalForcing(this, region)
            controlIteration = controlIteration + 1
 
            ! Exit loop and recompute the gradient if we passed the threshold.
-           if (burning .and. functional%cachedValue < burnvalue) then
+           if (burning .and. functional%auxilaryFunctional < burnvalue) then
               burning = .false.
               exit
-           else if (.not.burning .and. functional%cachedValue > burnValue) then
+           else if (.not.burning .and. functional%auxilaryFunctional > burnValue) then
               burning = .true.
               exit
            end if
