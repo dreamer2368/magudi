@@ -1193,7 +1193,8 @@ subroutine findOptimalForcing(this, region)
         call gracefulExit(region%comm, message)
      end if
 
-     ! Find (or load from file) the cost functional & sensitivity for the baseline prediction.
+     ! Find (or load from file) the cost functional & sensitivity for the baseline
+     ! prediction.
      allocate(individualSensitivities(controller%nParameters))
      if (region%simulationFlags%isBaselineAvailable) then
         if (procRank == 0) then
@@ -1257,6 +1258,7 @@ subroutine findOptimalForcing(this, region)
      nAdjoint = 1
      reachedThreshold = .false.
      controlIteration = restartIteration
+     actuationAmount = actuationAmount / baselineCostFunctional
      minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
      do while (controlIteration < nIterations .and. .not.reachedThreshold)
 
