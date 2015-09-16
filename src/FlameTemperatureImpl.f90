@@ -171,8 +171,6 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
 
      end if
 
-     W = W * timeRampFactor
-
      allocate(F(region%grids(i)%nGridPoints, 1))
 
      F = (region%states(i)%temperature - referenceTemperature) /                             &
@@ -195,6 +193,8 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
           0, region%grids(i)%comm, ierror)
   end do
 
+  this%auxilaryFunctional = instantaneousFunctional
+  instantaneousFunctional = instantaneousFunctional * timeRampFactor
   this%cachedValue = instantaneousFunctional
 
 end function computeFlameTemperature
@@ -224,7 +224,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex, H2, O2
   SCALAR_TYPE :: flameTemperature, referenceTemperature, F, W, Z, Zst, s, YF0, YO0,          &
-       gaussianFactor, timeRampFactor
+       gaussianFactor, timeRampFactor, timeStep
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -236,9 +236,11 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   referenceTemperature = 1.0_wp / (solverOptions%ratioOfSpecificHeats - 1.0_wp)
 
   timeRampFactor = 1.0_wp
-  if (this%useTimeRamp)                                                                      &
-       timeRampFactor = exp(-0.5_wp * (state%adjointCoefficientTime - this%rampPeak)**2 *    &
-       this%rampWidthInverse**2)
+  if (this%useTimeRamp) then
+     timeStep = state%computeTimeStepSize(grid, simulationFlags, solverOptions)
+     timeRampFactor = exp(-0.5_wp * (state%time - 0.5_wp * timeStep - this%rampPeak)**2 *    &
+          this%rampWidthInverse**2)
+  end if
 
   if (this%weightBurnRegion) then
 
