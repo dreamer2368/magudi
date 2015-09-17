@@ -1141,10 +1141,11 @@ subroutine findOptimalForcing(this, region)
   character(len = STRING_LENGTH) :: optimizationType, filename, message
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
-  real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
+  real(wp) :: baselineCostFunctional, costFunctional, previousCostFunctional,                &
+       costSensitivity, actuationAmount, previousActuationAmount, baselineActuationAmount,   &
        burnValue, minimumTolerance
   real(WP), dimension(:), allocatable :: individualSensitivities
-  logical:: reachedThreshold, burning
+  logical:: done, foundNewMinimum, burning
 
   ! Connect to the previously allocated controller.
   call this%controllerFactory%connect(controller)
@@ -1154,98 +1155,98 @@ subroutine findOptimalForcing(this, region)
   call this%functionalFactory%connect(functional)
   assert(associated(functional))
 
+  call getRequiredOption("number_of_control_iterations", nIterations)
+  if (nIterations < 0) then
+     write(message, '(A)') "Number of control iterations must be a non-negative number!"
+     call gracefulExit(region%comm, message)
+  end if
+
+  restartIteration = getOption("restart_control_iteration", 0)
+  restartIteration = max(restartIteration, 0)
+
+  if (restartIteration > 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+     write(message, '(A)') "Can't restart with controlled prediction without baseline!"
+     call gracefulExit(region%comm, message)
+  end if
+
+  call MPI_Comm_rank(region%comm, procRank, ierror)
+
+  write(filename, '(2A)') trim(this%outputPrefix), ".cost_optimization.txt"
+  if (procRank == 0) then
+     if (restartIteration == 0 .and. .not.region%simulationFlags%isBaselineAvailable) then
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='write',           &
+             status = 'unknown', iostat = iostat)
+     else
+        open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='readwrite',       &
+             status = 'old', position = 'rewind', iostat = iostat)
+     end if
+  end if
+
+  call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+  if (iostat /= 0) then
+     write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
+     call gracefulExit(region%comm, message)
+  end if
+
+  ! Find (or load from file) the cost functional & sensitivity for the baseline
+  ! prediction.
+  allocate(individualSensitivities(controller%nParameters))
+  if (region%simulationFlags%isBaselineAvailable) then
+     if (procRank == 0) then
+        read(fileUnit, *, iostat = iostat)
+        read(fileUnit, *, iostat = iostat) i, actuationAmount,                               &
+             baselineCostFunctional, individualSensitivities
+     end if
+     call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+     if (iostat /= 0) then
+        write(message, "(2A)") trim(filename),                                               &
+             ": Failed to read baseline cost functional from file!"
+        call gracefulExit(region%comm, message)
+     end if
+     call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+  else
+     baselineCostFunctional = this%runForward(region)
+  end if
+
+  ! Find the initial sensitivity gradient and actuation amount.
+  if (restartIteration == 0) then
+     individualSensitivities = this%runAdjoint(region)
+     call getRequiredOption("initial_actuation_amount", actuationAmount)
+  else
+     call MPI_Bcast(individualSensitivities, size(individualSensitivities), REAL_TYPE_MPI,&
+          0, region%comm, ierror)
+     call MPI_Bcast(actuationAmount, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+  end if
+  assert(size(individualSensitivities) == controller%nParameters)
+  costSensitivity = sum(individualSensitivities**2)
+
+  ! Store gradient to be used for control forcing.
+  do i = 1, size(region%grids)
+     allocate(region%states(i)%controlGradient(controller%nParameters))
+     region%states(i)%controlGradient = individualSensitivities
+  end do
+
+  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+     write(fileUnit, '(A4,1000A24)') 'i', 'Actuation amount', 'Cost functional',             &
+          (trim(controller%sensitivityParameter(i)), i = 1, controller%nParameters),         &
+          ('dJ/d ' // trim(controller%sensitivityParameter(i)), i = 1,                       &
+          controller%nParameters)
+     write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                  &
+          baselineCostFunctional, (controller%baselineValue(i), i = 1,                       &
+          controller%nParameters), (individualSensitivities(i), i = 1,                       &
+          controller%nParameters)
+  end if
+
+  if (nIterations == 0) return
+
+  ! Turn off output for controlled predictions.
+  region%outputOn = getOption("output_control_iterations", .false.)
+
   call getRequiredOption("optimization_type", optimizationType)
 
   select case(trim(optimizationType))
 
   case ('IGNITION_THRESHOLD')
-
-     call getRequiredOption("number_of_control_iterations", nIterations)
-     if (nIterations < 0) then
-        write(message, '(A)') "Number of control iterations must be a non-negative number!"
-        call gracefulExit(region%comm, message)
-     end if
-
-     restartIteration = getOption("restart_control_iteration", 0)
-     restartIteration = max(restartIteration, 0)
-
-     if (restartIteration > 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
-        write(message, '(A)') "Can't restart with controlled prediction without baseline!"
-        call gracefulExit(region%comm, message)
-     end if
-
-     call MPI_Comm_rank(region%comm, procRank, ierror)
-
-     write(filename, '(2A)') trim(this%outputPrefix), ".cost_optimization.txt"
-     if (procRank == 0) then
-        if (restartIteration == 0 .and. .not.region%simulationFlags%isBaselineAvailable) then
-           open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='write',        &
-                status = 'unknown', iostat = iostat)
-        else
-           open(unit = getFreeUnit(fileUnit), file = trim(filename), action ='readwrite',    &
-                status = 'old', position = 'rewind', iostat = iostat)
-        end if
-     end if
-
-     call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-     if (iostat /= 0) then
-        write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
-        call gracefulExit(region%comm, message)
-     end if
-
-     ! Find (or load from file) the cost functional & sensitivity for the baseline
-     ! prediction.
-     allocate(individualSensitivities(controller%nParameters))
-     if (region%simulationFlags%isBaselineAvailable) then
-        if (procRank == 0) then
-           read(fileUnit, *, iostat = iostat)
-           read(fileUnit, *, iostat = iostat) i, actuationAmount,                            &
-                baselineCostFunctional, individualSensitivities
-        end if
-        call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-        if (iostat /= 0) then
-           write(message, "(2A)") trim(filename),                                            &
-                ": Failed to read baseline cost functional from file!"
-           call gracefulExit(region%comm, message)
-        end if
-        call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
-     else
-        baselineCostFunctional = this%runForward(region)
-     end if
-
-     ! Find the initial sensitivity gradient and actuation amount.
-     if (restartIteration == 0) then
-        individualSensitivities = this%runAdjoint(region)
-        call getRequiredOption("initial_actuation_amount", actuationAmount)
-     else
-        call MPI_Bcast(individualSensitivities, size(individualSensitivities), REAL_TYPE_MPI,&
-             0, region%comm, ierror)
-        call MPI_Bcast(actuationAmount, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
-     end if
-     assert(size(individualSensitivities) == controller%nParameters)
-     costSensitivity = sum(individualSensitivities**2)
-
-     ! Store gradient to be used for control forcing.
-     do i = 1, size(region%grids)
-        allocate(region%states(i)%controlGradient(controller%nParameters))
-        region%states(i)%controlGradient = individualSensitivities
-     end do
-
-     if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
-        write(fileUnit, '(A4,1000A24)') 'i', 'Actuation amount', 'Cost functional',          &
-             (trim(controller%sensitivityParameter(i)), i = 1, controller%nParameters),      &
-             ('dJ/d ' // trim(controller%sensitivityParameter(i)), i = 1,                    &
-             controller%nParameters)
-        write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,               &
-             baselineCostFunctional, (controller%baselineValue(i), i = 1,                    &
-             controller%nParameters), (individualSensitivities(i), i = 1,                    &
-             controller%nParameters)
-     end if
-
-     if (nIterations == 0) return
-
-     ! Turn off output for controlled predictions.
-     region%outputOn = getOption("output_control_iterations", .false.)
 
      ! Determine if the initial run was burning based on the last value of the instantaneous
      ! cost functional.
@@ -1256,11 +1257,11 @@ subroutine findOptimalForcing(this, region)
      ! to each parameter.
      nForward = 1
      nAdjoint = 1
-     reachedThreshold = .false.
+     done = .false.
      controlIteration = restartIteration
      actuationAmount = actuationAmount / baselineCostFunctional
      minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
-     do while (controlIteration < nIterations .and. .not.reachedThreshold)
+     do while (controlIteration < nIterations .and. .not.done)
 
         ! Perform line search.
         do i = controlIteration + 1, restartIteration + nIterations
@@ -1304,7 +1305,7 @@ subroutine findOptimalForcing(this, region)
         end do
 
         ! Compute a new sensitivity gradient and adjust the actuation amount.
-        if (.not.reachedThreshold .and. controlIteration < nIterations) then
+        if (.not.done .and. controlIteration < nIterations) then
            individualSensitivities = this%runAdjoint(region, controlIteration = nAdjoint)
            nAdjoint = nAdjoint + 1
            costSensitivity = sum(individualSensitivities**2)
@@ -1316,7 +1317,7 @@ subroutine findOptimalForcing(this, region)
         end if
 
         ! Check actuation tolerance.
-        if (actuationAmount < minimumTolerance) reachedThreshold = .true.
+        if (actuationAmount < minimumTolerance) done = .true.
 
      end do
 
@@ -1325,7 +1326,90 @@ subroutine findOptimalForcing(this, region)
         write(fileUnit, *) ''
         write(fileUnit, '(A28,I4)') 'Number of forward runs:', nForward
         write(fileUnit, '(A28,I4)') 'Number of adjoint runs:', nAdjoint
-        write(fileUnit, '(A28,L4)') 'Ignition threshold found:', reachedThreshold
+        write(fileUnit, '(A28,L4)') 'Ignition threshold found:', done
+        close(fileUnit)
+     end if
+
+  case ('MINIMIZATION')
+
+     ! We have at this point a baseline cost functional and the first gradient with respect
+     ! to each parameter.
+     nForward = 1
+     nAdjoint = 1
+     done = .false.
+     foundNewMinimum = .false.
+     controlIteration = restartIteration
+     actuationAmount = actuationAmount / baselineCostFunctional
+     baselineActuationAmount = actuationAmount
+     minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
+     previousCostFunctional = baselineCostFunctional
+     do while (controlIteration < nIterations .and. .not.done)
+
+        ! Perform line search.
+        do i = controlIteration + 1, restartIteration + nIterations
+
+           ! Compute a new cost functional.
+           costFunctional = this%runForward(region, actuationAmount = actuationAmount,       &
+                controlIteration = nForward)
+           nForward = nForward + 1
+           controlIteration = controlIteration + 1
+
+          ! Output progress.
+           if (procRank == 0) then
+              write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') i,                 &
+                   actuationAmount, costFunctional, (controller%baselineValue(j) +           &
+                   real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
+                   individualSensitivities(j), j = 1, controller%nParameters),               &
+                   (individualSensitivities(j), j = 1, controller%nParameters)
+              flush(fileUnit)
+           end if
+
+           ! Reset the actuation amount and exit if we start climbing back up the gradient.
+           if (foundNewMinimum .and. costFunctional > previousCostFunctional) then
+              actuationAmount = previousActuationAmount
+              exit
+           end if
+
+           ! Check if a new minimum was found.
+           if (costFunctional < previousCostFunctional) then
+              foundNewMinimum = .true.
+              previousCostFunctional = costFunctional
+              previousActuationAmount = actuationAmount
+           end if
+
+           ! If we made it this far, reduce the actuation amount and try again.
+           actuationAmount = 0.5_wp * actuationAmount
+
+           ! Check actuation tolerance.
+           if (actuationAmount < minimumTolerance) done = .true.
+
+        end do
+
+        ! Update the baseline values and compute a new sensitivity gradient.
+        if (.not.done .and. controlIteration < nIterations) then
+           do i = 1, controller%nParameters
+              controller%baselineValue(i) = controller%baselineValue(i) +                    &
+                   real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
+                   individualSensitivities(i)
+           end do
+           individualSensitivities = this%runAdjoint(region, controlIteration = nAdjoint)
+           nAdjoint = nAdjoint + 1
+           costSensitivity = sum(individualSensitivities**2)
+           do i = 1, size(region%grids)
+              region%states(i)%controlGradient = individualSensitivities
+           end do
+           actuationAmount = baselineActuationAmount
+           foundNewMinimum = .false.
+        end if
+
+     end do
+
+     ! Dump optimizatiom summary and close.
+     if (procRank == 0) then
+        write(fileUnit, *) ''
+        write(fileUnit, '(A28,I4)') 'Number of forward runs:', nForward
+        write(fileUnit, '(A28,I4)') 'Number of adjoint runs:', nAdjoint
+        write(fileUnit, '(A28,L4)') 'Minimization found:', done
         close(fileUnit)
      end if
 
