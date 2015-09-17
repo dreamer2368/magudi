@@ -26,6 +26,7 @@ program main
   type(t_Region) :: region
   type(t_Solver) :: solver
   SCALAR_TYPE :: dummyValue
+  SCALAR_TYPE, dimension(:), pointer :: dummyValues
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -115,8 +116,10 @@ program main
   else
      if (.not. region%simulationFlags%isBaselineAvailable)                                   &
           dummyValue = solver%runForward(region)
-     if (.not. getOption("gradient_available", .false.))                                     &
-          dummyValue = solver%runAdjoint(region)
+     if (.not. getOption("gradient_available", .false.)) then
+        allocate(dummyValues(getOption("number_of_parameters", 1)))
+        dummyValues = solver%runAdjoint(region)
+     end if
   end if
 
   call solver%cleanup()
