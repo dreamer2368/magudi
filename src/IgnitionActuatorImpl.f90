@@ -351,9 +351,9 @@ subroutine updateIgnitionActuatorForcing(this, region)
         select case (trim(this%sensitivityParameter(j)))
 
         case ('AMPLITUDE')
-           region%states(i)%ignitionSources(1)%amplitude = this%baselineValue(j) +           &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+           region%states(i)%ignitionSources(1)%amplitude = min( 0.0_wp,                      &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('POSITION_X')
            region%states(i)%ignitionSources(1)%location(1) = this%baselineValue(j) +         &
@@ -371,39 +371,39 @@ subroutine updateIgnitionActuatorForcing(this, region)
                 region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
 
         case ('RADIUS_X')
-           region%states(i)%ignitionSources(1)%radius(1) = this%baselineValue(j) +           &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+           region%states(i)%ignitionSources(1)%radius(1) = min( 0.0_wp,                      &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('RADIUS_Y')
-           region%states(i)%ignitionSources(1)%radius(2) = this%baselineValue(j) +           &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+           region%states(i)%ignitionSources(1)%radius(2) = min( 0.0_wp,                      &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('RADIUS_Z')
-           region%states(i)%ignitionSources(1)%radius(3) = this%baselineValue(j) +           &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+           region%states(i)%ignitionSources(1)%radius(3) = min( 0.0_wp,                      &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('INITIAL_TIME')
-           region%states(i)%ignitionSources(1)%timeStart = this%baselineValue(j) +           &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+           region%states(i)%ignitionSources(1)%timeStart = min( 0.0_wp,                      &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('DURATION')
-           region%states(i)%ignitionSources(1)%timeDuration = this%baselineValue(j) +        &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+           region%states(i)%ignitionSources(1)%timeDuration = min( 0.0_wp,                   &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('DAMKOHLER')
-           region%states(i)%combustion%Damkohler = this%baselineValue(j) +                   &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+           region%states(i)%combustion%Damkohler = min( 0.0_wp,                              &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('ZEL_DOVICH')
-           region%states(i)%combustion%zelDovich = this%baselineValue(j) +                   &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+           region%states(i)%combustion%zelDovich = min( 0.0_wp,                              &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         end select
      end do
