@@ -20,6 +20,7 @@ program vorticity_dilatation
   logical :: success
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
+  integer::procRank,numProcs
 
   interface
 
@@ -36,6 +37,8 @@ program vorticity_dilatation
 
   ! Initialize MPI.
   call MPI_Init(ierror)
+  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
+  call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
 
   ! Parse options from the input file.
   filename = PROJECT_NAME // ".inp"
