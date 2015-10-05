@@ -131,10 +131,11 @@ subroutine writeFunctionalToFile(this, comm, filename, timestep, time, append)
   end if
 
   if (procRank == 0) then
-     if (.not. append_) write(fileUnit, '(A4,3A20)')                                         &
-          'i', 'Time', 'Integrand', 'Cost functional'
-     write(fileUnit, '(I8,1X,E13.6,2(1X,SP,' // SCALAR_FORMAT // '))')                       &
-          timestep, time, this%cachedValue, this%runningTimeQuadrature
+     if (.not. append_) write(fileUnit, '(A4,4A20)')                                         &
+          'i', 'Time', 'Integrand', 'Cost functional', 'Auxilary functional'
+     write(fileUnit, '(I8,1X,E13.6,3(1X,SP,' // SCALAR_FORMAT // '))')                       &
+          timestep, time, this%cachedValue, this%runningTimeQuadrature,                      &
+          this%auxilaryFunctional
   end if
 
   call MPI_Bcast(ostat, 1, MPI_INTEGER, 0, comm, ierror)

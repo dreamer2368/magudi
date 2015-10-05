@@ -1228,13 +1228,14 @@ subroutine findOptimalForcing(this, region)
 
   if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
      write(fileUnit, '(A4,1000A24)') 'i', 'Actuation amount', 'Cost functional',             &
+          'Inidicator functional',                                                           &
           (trim(controller%sensitivityParameter(i)), i = 1, controller%nParameters),         &
           ('dJ/d ' // trim(controller%sensitivityParameter(i)), i = 1,                       &
           controller%nParameters)
      write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                  &
-          baselineCostFunctional, (controller%baselineValue(i), i = 1,                       &
-          controller%nParameters), (individualSensitivities(i), i = 1,                       &
-          controller%nParameters)
+          baselineCostFunctional, functional%auxilaryFunctional,                             &
+          (controller%baselineValue(i), i = 1, controller%nParameters),                      &
+          (individualSensitivities(i), i = 1, controller%nParameters)
   end if
 
   if (nIterations == 0) return
@@ -1274,50 +1275,49 @@ subroutine findOptimalForcing(this, region)
            costFunctional = this%runForward(region, actuationAmount = actuationAmount,       &
                 controlIteration = nForward)
            nForward = nForward + 1
-
-           ! Update the baseline values
-           do j = 1, controller%nParameters
-              controller%baselineValue(j) = controller%baselineValue(j) +                    &
-                   real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
-                   individualSensitivities(j)
-           end do
+           controlIteration = controlIteration + 1
 
           ! Output progress.
            if (procRank == 0) then
               write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') i,                 &
-                   actuationAmount, costFunctional, (controller%baselineValue(j), j = 1,     &
-                   controller%nParameters), (individualSensitivities(j), j = 1,              &
-                   controller%nParameters)
+                   actuationAmount, costFunctional, functional%auxilaryFunctional,           &
+                   (controller%baselineValue(j) +                                            &
+                   real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
+                   individualSensitivities(j), j = 1, controller%nParameters),               &
+                   (individualSensitivities(j), j = 1, controller%nParameters)
               flush(fileUnit)
            end if
 
-           controlIteration = controlIteration + 1
-
-           ! Exit loop and recompute the gradient if we passed the threshold.
-           if (burning .and. functional%auxilaryFunctional < burnvalue) then
-              burning = .false.
+           ! Exit loop and recompute the gradient if we didn't passed the threshold.
+           if (burning .and. functional%auxilaryFunctional > burnvalue) then
               exit
-           else if (.not.burning .and. functional%auxilaryFunctional > burnValue) then
-              burning = .true.
+           else if (.not.burning .and. functional%auxilaryFunctional < burnValue) then
               exit
            end if
 
+           ! If we made it this far, reduce the actuation amount and try again.
+           actuationAmount = 0.5_wp * actuationAmount
+
+           ! Check actuation tolerance.
+           if (actuationAmount < minimumTolerance) done = .true.
+
         end do
 
-        ! Compute a new sensitivity gradient and adjust the actuation amount.
+        ! Update the baseline values and compute a new sensitivity gradient.
         if (.not.done .and. controlIteration < nIterations) then
+           do i = 1, controller%nParameters
+              controller%baselineValue(i) = controller%baselineValue(i) +                    &
+                   real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
+                   individualSensitivities(i)
+           end do
            individualSensitivities = this%runAdjoint(region, controlIteration = nAdjoint)
            nAdjoint = nAdjoint + 1
            costSensitivity = sum(individualSensitivities**2)
            do i = 1, size(region%grids)
               region%states(i)%controlGradient = individualSensitivities
            end do
-           ! Bi-section for now.
-           actuationAmount = 0.5_wp * actuationAmount
+           !actuationAmount = baselineActuationAmount
         end if
-
-        ! Check actuation tolerance.
-        if (actuationAmount < minimumTolerance) done = .true.
 
      end do
 
@@ -1357,7 +1357,8 @@ subroutine findOptimalForcing(this, region)
           ! Output progress.
            if (procRank == 0) then
               write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') i,                 &
-                   actuationAmount, costFunctional, (controller%baselineValue(j) +           &
+                   actuationAmount, costFunctional, functional%auxilaryFunctional,           &
+                   (controller%baselineValue(j) +                                            &
                    real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
                    individualSensitivities(j), j = 1, controller%nParameters),               &
                    (individualSensitivities(j), j = 1, controller%nParameters)
