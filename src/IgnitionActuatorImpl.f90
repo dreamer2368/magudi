@@ -183,8 +183,9 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
      combustionSource = 0.0_wp
 
      call region%states(i)%ignitionSources(1)%add(time, region%grids(i)%coordinates,         &
-          region%grids(i)%iblank, region%solverOptions%ratioOfSpecificHeats,                 &
-          region%states(i)%combustion%heatRelease, ignitionSource)
+          region%grids(i)%iblank, region%states(i)%conservedVariables(:,1),                  &
+          region%solverOptions%ratioOfSpecificHeats, region%states(i)%combustion%heatRelease,&
+          ignitionSource)
 
      call region%states(i)%combustion%addForward(nDimensions, nSpecies,                      &
           region%solverOptions%ratioOfSpecificHeats, region%states(i)%conservedVariables,    &

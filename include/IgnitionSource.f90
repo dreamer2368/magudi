@@ -6,7 +6,9 @@ module IgnitionSource_mod
 
   type, public :: t_IgnitionSource
 
-     real(SCALAR_KIND) :: location(3), radius(3), amplitude, timeStart, timeDuration
+     real(SCALAR_KIND) :: location(3), radius(3), amplitude, timeStart, timeDuration,        &
+          shockMach, vorticityCorrection
+     logical :: vorticityDeposition
 
    contains
 
@@ -17,16 +19,16 @@ module IgnitionSource_mod
 
   interface
 
-     subroutine setupIgnitionSource(this, location, radius, amplitude, timeStart,            &
-          timeDuration)
+     subroutine setupIgnitionSource(this, ratioOfSpecificHeats, location, radius, amplitude, &
+          timeStart, timeDuration, shockMach)
 
        use Grid_mod, only : t_Grid
 
        import :: t_IgnitionSource
 
        class(t_IgnitionSource) :: this
-       real(SCALAR_KIND), intent(in) :: location(:), radius(:), amplitude, timeStart,        &
-            timeDuration
+       real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats, location(:), radius(:),        &
+            amplitude, timeStart, timeDuration, shockMach
 
      end subroutine setupIgnitionSource
 
@@ -34,14 +36,14 @@ module IgnitionSource_mod
 
   interface
 
-     subroutine addIgnitionSource(this, time, coordinates, iblank, ratioOfSpecificHeats,     &
-          heatRelease, rightHandSide)
+     subroutine addIgnitionSource(this, time, coordinates, iblank, density,                  &
+          ratioOfSpecificHeats, heatRelease, rightHandSide)
 
        import :: t_IgnitionSource
 
        class(t_IgnitionSource) :: this
        real(SCALAR_KIND), intent(in) :: time, ratioOfSpecificHeats, heatRelease
-       SCALAR_TYPE, intent(in) :: coordinates(:,:)
+       SCALAR_TYPE, intent(in) :: coordinates(:,:), density(:)
        integer, intent(in) :: iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
