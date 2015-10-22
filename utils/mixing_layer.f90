@@ -28,7 +28,7 @@ program mixing_layer
   print *
   print *, '! ================================================= !'
   print *, '!                                                   !'
-  print *, '!    2D MIXING LAYER GENERATOR                      !'
+  print *, '!    MIXING LAYER GENERATOR                         !'
   print *, '!    Creates:                                       !'
   print *, '!               - Cartesian grid                    !'
   print *, '!               - Target/initial solution           !'
