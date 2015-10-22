@@ -775,6 +775,13 @@ subroutine addSources(this, mode, grid, solverOptions)
      end do
   end if
 
+  if (mode == ADJOINT .and. allocated(this%ignitionSources)) then
+     do i = 1, size(this%ignitionSources)
+        call this%ignitionSources(i)%addAdjoint(this%time, grid%coordinates, grid%iblank,    &
+             this%adjointVariables, solverOptions%ratioOfSpecificHeats, this%rightHandSide)
+     end do
+  end if
+
   if (mode == FORWARD .and. this%nSpecies > 0) then
      call this%combustion%addForward(grid%nDimensions, solverOptions%nSpecies,               &
           solverOptions%ratioOfSpecificHeats, this%conservedVariables,                       &
