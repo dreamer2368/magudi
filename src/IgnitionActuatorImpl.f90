@@ -330,6 +330,18 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
               instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
                    region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
+           case ('INITIAL_TIME')
+              F(:,2) = ignitionSource(:,3) * (time - timeStart) / timeDuration**2
+
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+
+           case ('DURATION')
+              F(:,2) = ignitionSource(:,3) * (time - timeStart)**2 / timeDuration**3
+
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+
            end select
 
         end do
