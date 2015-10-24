@@ -1142,8 +1142,8 @@ subroutine findOptimalForcing(this, region)
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
   real(wp) :: baselineCostFunctional, costFunctional, previousCostFunctional,                &
-       costSensitivity, actuationAmount, previousActuationAmount, baselineActuationAmount,   &
-       burnValue, minimumTolerance
+       indicatorFunction, costSensitivity, actuationAmount, previousActuationAmount,         &
+       baselineActuationAmount, burnValue, minimumTolerance
   real(WP), dimension(:), allocatable :: individualSensitivities
   logical:: done, foundNewMinimum, burning
 
@@ -1188,14 +1188,13 @@ subroutine findOptimalForcing(this, region)
      call gracefulExit(region%comm, message)
   end if
 
-  ! Find (or load from file) the cost functional & sensitivity for the baseline
-  ! prediction.
+  ! Find (or load from file) the cost functional & sensitivity for the baseline prediction
   allocate(individualSensitivities(controller%nParameters))
   if (region%simulationFlags%isBaselineAvailable) then
      if (procRank == 0) then
         read(fileUnit, *, iostat = iostat)
         read(fileUnit, *, iostat = iostat) i, actuationAmount,                               &
-             baselineCostFunctional, individualSensitivities
+             baselineCostFunctional, indicatorFunction, individualSensitivities
      end if
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
@@ -1204,21 +1203,29 @@ subroutine findOptimalForcing(this, region)
         call gracefulExit(region%comm, message)
      end if
      call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+     call MPI_Bcast(indicatorFunction, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   else
      baselineCostFunctional = this%runForward(region)
+     indicatorFunction = functional%auxilaryFunctional
   end if
 
-  ! Find the initial sensitivity gradient and actuation amount.
+  ! Find the initial sensitivity gradient.
   if (restartIteration == 0) then
      individualSensitivities = this%runAdjoint(region)
-     call getRequiredOption("initial_actuation_amount", actuationAmount)
   else
-     call MPI_Bcast(individualSensitivities, size(individualSensitivities), REAL_TYPE_MPI,&
+     call MPI_Bcast(individualSensitivities, size(individualSensitivities), REAL_TYPE_MPI,   &
           0, region%comm, ierror)
-     call MPI_Bcast(actuationAmount, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
   end if
   assert(size(individualSensitivities) == controller%nParameters)
   costSensitivity = sum(individualSensitivities**2)
+
+  ! Find the previous actuation amount.
+  if (restartIteration <= 1) then
+     individualSensitivities = this%runAdjoint(region)
+     call getRequiredOption("initial_actuation_amount", actuationAmount)
+  else
+     call MPI_Bcast(actuationAmount, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+  end if
 
   ! Store gradient to be used for control forcing.
   do i = 1, size(region%grids)
@@ -1233,7 +1240,7 @@ subroutine findOptimalForcing(this, region)
           ('dJ/d ' // trim(controller%sensitivityParameter(i)), i = 1,                       &
           controller%nParameters)
      write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                  &
-          baselineCostFunctional, functional%auxilaryFunctional,                             &
+          baselineCostFunctional, indicatorFunction,                                         &
           (controller%baselineValue(i), i = 1, controller%nParameters),                      &
           (individualSensitivities(i), i = 1, controller%nParameters)
   end if
@@ -1252,7 +1259,7 @@ subroutine findOptimalForcing(this, region)
      ! Determine if the initial run was burning based on the last value of the instantaneous
      ! cost functional.
      call getRequiredOption("burn_value", burnValue)
-     burning =  functional%auxilaryFunctional > burnValue
+     burning = indicatorFunction > burnValue
 
      ! We have at this point a baseline cost functional and the first gradient with respect
      ! to each parameter.
@@ -1274,13 +1281,14 @@ subroutine findOptimalForcing(this, region)
            ! Compute a new cost functional.
            costFunctional = this%runForward(region, actuationAmount = actuationAmount,       &
                 controlIteration = nForward)
+           indicatorFunction = functional%auxilaryFunctional
            nForward = nForward + 1
            controlIteration = controlIteration + 1
 
           ! Output progress.
            if (procRank == 0) then
               write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') i,                 &
-                   actuationAmount, costFunctional, functional%auxilaryFunctional,           &
+                   actuationAmount, costFunctional, indicatorFunction,                       &
                    (controller%baselineValue(j) +                                            &
                    real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
                    individualSensitivities(j), j = 1, controller%nParameters),               &
@@ -1289,9 +1297,9 @@ subroutine findOptimalForcing(this, region)
            end if
 
            ! Exit loop and recompute the gradient if we didn't passed the threshold.
-           if (burning .and. functional%auxilaryFunctional > burnvalue) then
+           if (burning .and. indicatorFunction > burnvalue) then
               exit
-           else if (.not.burning .and. functional%auxilaryFunctional < burnValue) then
+           else if (.not.burning .and. indicatorFunction < burnValue) then
               exit
            end if
 
@@ -1351,13 +1359,14 @@ subroutine findOptimalForcing(this, region)
            ! Compute a new cost functional.
            costFunctional = this%runForward(region, actuationAmount = actuationAmount,       &
                 controlIteration = nForward)
+           indicatorFunction = functional%auxilaryFunctional
            nForward = nForward + 1
            controlIteration = controlIteration + 1
 
           ! Output progress.
            if (procRank == 0) then
               write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') i,                 &
-                   actuationAmount, costFunctional, functional%auxilaryFunctional,           &
+                   actuationAmount, costFunctional, indicatorFunction,                       &
                    (controller%baselineValue(j) +                                            &
                    real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
                    individualSensitivities(j), j = 1, controller%nParameters),               &
