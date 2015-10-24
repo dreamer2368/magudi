@@ -56,8 +56,7 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
   integer :: i, nDimensions
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
   real(wp) :: power, timePortion, referenceTemperature, flameTemperature, gaussianFactor(3), &
-       vorticityContribution, vorticityCorrection, halfWidth(3), r, z, r2p1, M0, M02, g, gm1,&
-       gp1, rlim
+       vorticityContribution, vorticityCoefficient
 
   nDimensions = size(coordinates, 2)
   assert_key(nDimensions, (1, 2, 3))
@@ -82,27 +81,7 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
   if (minval(this%radius(1:nDimensions)) > 0.0_wp) gaussianFactor(1:nDimensions) =           &
        0.5_wp / this%radius(1:nDimensions)**2
 
-  if (this%depositVorticity) then
-     M0 = this%shockMach
-     M02 = M0 * M0
-     g = ratioOfSpecificHeats
-     gm1 = g - 1.0_wp
-     gp1 = g + 1.0_wp
-     rlim = sqrt(M02 - 1.0_wp)
-     halfWidth = 2.0_wp * sqrt(2.0_wp * log(2.0_wp)) * this%radius
-     if (nDimensions == 2) then
-        vorticityCorrection =  - ( (2.0_wp * M0 * atan(rlim)) / ((g**2 - 1.0_wp) * rlim) -   &
-             ((gp1 * (sqrt(4.0_wp + 2.0_wp * gm1 * M02) * atan(sqrt(2.0_wp) *                &
-             sqrt((M02 - 1.0_wp) / (2.0_wp + gm1 * M02))) + rlim *                           &
-             (log(gp1) + 2.0_wp * log(M0) - 2.0_wp))) / (gm1**2 * M0 * rlim)) +              &
-             (8.0_wp * g * (atan(rlim) / rlim + log(M0) - 1.0_wp)) / (gm1**2 * gp1 * M0) )
-     else if(nDimensions == 3) then
-        vorticityCorrection = - ( 2.0_wp * gm1**2 * (M02 - 1.0_wp) - gp1**3 * M02 *          &
-             log(gp1 * M02) + gp1**2 * (gm1 * M02 + 2.0_wp) * log(gm1 * M02 + 2.0_wp) -      &
-             8.0_wp * (1.0_wp - 3.0_wp * g) * M02 * log(M0) ) / ( 2.0_wp * gm1**2 * gp1 *    &
-             M0 * (M02 - 1.0_wp) )
-     end if
-  end if
+  if (this%depositVorticity) vorticityCoefficient = 0.017_wp * (this%shockMach**4 - 1.0_wp)
 
   do i = 1, size(rightHandSide, 1)
      if (iblank(i) == 0) cycle
@@ -111,24 +90,11 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
           (coordinates(i,:) - this%location(1:nDimensions))**2) )
 
      if (this%depositVorticity .and. nDimensions > 1) then
-        if (nDimensions == 2) then
-           r = abs(coordinates(i,1) - this%location(1)) / halfWidth(1)
-        else
-           r = sqrt( (coordinates(i,1) - this%location(1))**2 + (coordinates(i,3) -          &
-                this%location(3))**2 ) / halfWidth(1)
-        end if
 
-        z = abs(coordinates(i,2) - this%location(2)) / halfWidth(2)
-
-        if (r >= 1.0_wp .or. z >= 1.0_wp) cycle
-
-        r = r * rlim
-        r2p1 = r * r + 1.0_wp
-
-        vorticityContribution = vorticityCorrection +                                        &
-             2.0_wp * M0 / (r2p1 * (g**2 - 1.0_wp)) -                                        &
-             gp1 / (M0 * gm1**2) * log(gm1 * M02 + 2.0_wp * r2p1) +                          &
-             4.0_wp * g * log(r2p1) / (gm1**2 * gp1 * M0)
+        vorticityContribution =  vorticityCoefficient *                                      &
+             (1.0_wp - (coordinates(i,1) - this%location(1))**2 / this%radius(1)**2) *       &
+             exp(- sum(gaussianFactor(1:nDimensions) *                                       &
+             (coordinates(i,:) - this%location(1:nDimensions))**2) )
 
         rightHandSide(i,3) = rightHandSide(i,3) + timePortion * density(i) *                 &
              vorticityContribution
@@ -156,8 +122,7 @@ subroutine addAdjointIgnitionSource(this, time, coordinates, iblank, adjointVari
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, nUnknowns
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  real(wp) :: timePortion, vorticityContribution, vorticityCorrection, halfWidth(3), r, z,   &
-       M0, M02, g, gm1, gp1, rlim, r2p1
+  real(wp) :: gaussianFactor(3), timePortion, vorticityContribution, vorticityCoefficient
   SCALAR_TYPE, allocatable :: localSourceJacobian(:,:), temp(:)
 
   if (.not.this%depositVorticity) return
@@ -180,47 +145,19 @@ subroutine addAdjointIgnitionSource(this, time, coordinates, iblank, adjointVari
      timePortion = 1.0_wp
   end if
 
-  M0 = this%shockMach
-  M02 = M0 * M0
-  g = ratioOfSpecificHeats
-  gm1 = g - 1.0_wp
-  gp1 = g + 1.0_wp
-  rlim = sqrt(M02 - 1.0_wp)
-  halfWidth = 2.0_wp * sqrt(2.0_wp * log(2.0_wp)) * this%radius
-  if (nDimensions == 2) then
-     vorticityCorrection =  - ( (2.0_wp * M0 * atan(rlim)) / ((g**2 - 1.0_wp) * rlim) -      &
-          ((gp1 * (sqrt(4.0_wp + 2.0_wp * gm1 * M02) * atan(sqrt(2.0_wp) *                   &
-          sqrt((M02 - 1.0_wp) / (2.0_wp + gm1 * M02))) + rlim *                              &
-          (log(gp1) + 2.0_wp * log(M0) - 2.0_wp))) / (gm1**2 * M0 * rlim)) +                 &
-          (8.0_wp * g * (atan(rlim) / rlim + log(M0) - 1.0_wp)) / (gm1**2 * gp1 * M0) )
-  else if(nDimensions == 3) then
-     vorticityCorrection = - ( 2.0_wp * gm1**2 * (M02 - 1.0_wp) - gp1**3 * M02 *             &
-          log(gp1 * M02) + gp1**2 * (gm1 * M02 + 2.0_wp) * log(gm1 * M02 + 2.0_wp) -         &
-          8.0_wp * (1.0_wp - 3.0_wp * g) * M02 * log(M0) ) / ( 2.0_wp * gm1**2 * gp1 *       &
-          M0 * (M02 - 1.0_wp) )
-  end if
+  gaussianFactor = 0.0_wp
+  if (minval(this%radius(1:nDimensions)) > 0.0_wp) gaussianFactor(1:nDimensions) =           &
+       0.5_wp / this%radius(1:nDimensions)**2
+
+  vorticityCoefficient = 0.017_wp * (this%shockMach**4 - 1.0_wp)
 
   do i = 1, size(rightHandSide, 1)
      if (iblank(i) == 0) cycle
 
-     if (nDimensions == 2) then
-        r = abs(coordinates(i,1) - this%location(1)) / halfWidth(1)
-     else
-        r = sqrt( (coordinates(i,1) - this%location(1))**2 + (coordinates(i,3) -             &
-             this%location(3))**2 ) / halfWidth(1)
-     end if
-
-     z = abs(coordinates(i,2) - this%location(2)) / halfWidth(2)
-
-     if (r >= 1.0_wp .or. z >= 1.0_wp) cycle
-
-     r = r * rlim
-     r2p1 = r * r + 1.0_wp
-
-     vorticityContribution = vorticityCorrection +                                           &
-          2.0_wp * M0 / (r2p1 * (g**2 - 1.0_wp)) -                                           &
-          gp1 / (M0 * gm1**2) * log(gm1 * M02 + 2.0_wp * r2p1) +                             &
-          4.0_wp * g * log(r2p1) / (gm1**2 * gp1 * M0)
+     vorticityContribution = vorticityCoefficient *                                          &
+          (1.0_wp - (coordinates(i,1) - this%location(1))**2 / this%radius(1)**2) *          &
+          exp(- sum(gaussianFactor(1:nDimensions) *                                          &
+          (coordinates(i,:) - this%location(1:nDimensions))**2) )
 
      localSourceJacobian(3,1) = timePortion * vorticityContribution
 

@@ -143,8 +143,7 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nSpecies, nUnknowns, ierror
-  real(SCALAR_KIND) ::  time, timeStart, timeDuration, amplitude, radius(3), location(3),    &
-       M0, M02, g, gm1, gp1, vorticityCorrection, r, r2p1, rlim, z, halfWidth(3), timePortion
+  real(SCALAR_KIND) ::  time, timeStart, timeDuration, amplitude, radius(3), location(3), M0
   SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:,:), combustionSource(:,:),            &
        instantaneousSensitivity(:)
 
@@ -168,6 +167,7 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
      amplitude = region%states(i)%ignitionSources(1)%amplitude
      radius = region%states(i)%ignitionSources(1)%radius
      location = region%states(i)%ignitionSources(1)%location
+     M0 = region%states(i)%ignitionSources(1)%shockMach
 
      assert_key(nDimensions, (1, 2, 3))
      assert(nSpecies >= 0)
@@ -256,76 +256,45 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
      ! Compute sensitivities of vorticity deposition.
      if (region%states(i)%ignitionSources(1)%depositVorticity) then
         F(:,1) = region%states(i)%adjointVariables(:,3)
-        F(:,2) = 0.0_wp
 
         do j = 1, this%nParameters
            select case (trim(this%sensitivityParameter(j)))
            case ('SHOCK_MACH_NUMBER')
-              M0 = region%states(i)%ignitionSources(1)%shockMach
-              M02 = M0 * M0
-              g = region%solverOptions%ratioOfSpecificHeats
-              gm1 = g - 1.0_wp
-              gp1 = g + 1.0_wp
-              rlim = sqrt(M02 - 1.0_wp)
+              F(:,2) = ignitionSource(:,3) * 4.0_wp * M0**3 / (M0**4 - 1.0_wp)
 
-              if (nDimensions == 2) then
-                 vorticityCorrection = (2.0_wp * (-4.0_wp * g + (-1.0_wp + 9.0_wp * g) * M02)&
-                      * atan(rlim) - sqrt(2.0_wp) * gp1**2 *                                 &
-                      sqrt(1.0_wp / (2.0_wp + gm1 * M02)) *                                  &
-                      (-2.0_wp + 4.0_wp * M02 + gm1 * M02**2) *                              &
-                      atan(sqrt(2.0_wp) / sqrt((2.0_wp + gm1 * M02) / (M02 - 1.0_wp))) +     &
-                      rlim * (-(gp1**2 * (M02 - 1.0_wp) * log(gp1)) + 2.0_wp *               &
-                      (-2.0_wp + 3.0_wp * M02 + sqrt(1.0_wp / (2.0_wp + gm1 * M02)) *        &
-                      sqrt(2.0_wp + gm1 * M02) + g * (-2.0_wp * g + (-5.0_wp + 2.0_wp * g) * &
-                      M02 + 2.0_wp * sqrt(1.0_wp / (2.0_wp + gm1 * M02)) *                   &
-                      sqrt(2.0_wp + gm1 * M02) + g * sqrt(1.0_wp / (2.0_wp + gm1 * M02)) *   &
-                      sqrt(2.0_wp + gm1 * M02)) - gm1**2 * (M02 - 1) * log(M0)))) /          &
-                      (gm1**2 * gp1 * M02 * rlim**3)
-              else if(nDimensions == 3) then
-                 vorticityCorrection = -( 2.0_wp * gm1 * (M02 - 1.0_wp) * (1.0_wp - g + M02 *&
-                      (3.0_wp * g - 7.0_wp)) + 8.0_wp * (3.0_wp * g - 1.0_wp) * M02 *        &
-                      (M02 + 1.0_wp) * log(M0) - gp1**3 * M02 * (M02 + 1.0_wp) *             &
-                      log(gp1 * M02) + gp1**2 * ((g + 5.0_wp) * M02 - 2.0_wp + gm1 * M0**4) *&
-                      log(2.0_wp + gm1 * M02) ) /                                            &
-                      ( 2.0_wp * gm1**2 * gp1 * M02 * (M02 - 1.0_wp)**2 )
-              end if
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-              halfWidth = 2.0_wp * sqrt(2.0_wp * log(2.0_wp)) *                              &
-                   region%states(i)%ignitionSources(1)%radius
+           case ('POSITION_X')
+              F(:,2) = ignitionSource(:,3) *                                                 &
+                   (region%grids(i)%coordinates(:,1) - location(1)) / radius(1)**2 * (       &
+                   1.0_wp + 2.0_wp /                                                         &
+                   (1.0_wp - (region%grids(i)%coordinates(:,1) - location(1))**2) /          &
+                   radius(1)**2 )
 
-              if (timeDuration > 0.0_wp) then
-                 timePortion = exp( -0.5_wp * (time - timeStart)**2 / timeDuration**2)
-              else
-                 timePortion = 1.0_wp
-              end if
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-              do k = 1, size(F, 1)
-                 if (nDimensions == 2) then
-                    r = abs(region%grids(i)%coordinates(k,1) -                               &
-                         region%states(i)%ignitionSources(1)%location(1)) / halfWidth(1)
-                 else
-                    r = sqrt( (region%grids(i)%coordinates(k,1) -                            &
-                         region%states(i)%ignitionSources(1)%location(1))**2 +               &
-                         (region%grids(i)%coordinates(k,3) -                                 &
-                         region%states(i)%ignitionSources(1)%location(3))**2 ) / halfWidth(1)
-                 end if
+           case ('POSITION_Y')
+              F(:,2) = ignitionSource(:,3) *                                                 &
+                   (region%grids(i)%coordinates(:,2) - location(2)) / radius(2)**2
 
-                 z = abs(region%grids(i)%coordinates(k,2) -                                  &
-                      region%states(i)%ignitionSources(1)%location(2)) / halfWidth(2)
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-                 if (r >= 1.0_wp .or. z >= 1.0_wp) cycle
+           case ('RADIUS_X')
+              F(:,2) = ignitionSource(:,3) *                                                 &
+                   (region%grids(i)%coordinates(:,1) - location(1))**2 / radius(1)**3 * (    &
+                   1.0_wp + 2.0_wp /                                                         &
+                   (1.0_wp - (region%grids(i)%coordinates(:,1) - location(1))**2) /          &
+                   radius(1)**2 )
 
-                 r = r * rlim
-                 r2p1 = r * r + 1.0_wp
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
-                 F(k, 2) = region%states(i)%conservedVariables(k,1) * timePortion * (        &
-                      vorticityCorrection + (-2.0_wp * ((M02 - 1.0_wp) * (M02 - 1.0_wp + g * &
-                      (2.0_wp + g - M02)) + (M02 - 1.0_wp) * (2.0_wp * g * gp1 + gm1 * M02) *&
-                      r**2 + (3.0_wp + (g - 2.0_wp) * g) * (M02 - 1) * r**4 + 2.0_wp * gm1 * &
-                      r**6)) / ((g**2 - 1.0_wp) * (M02 - 1.0_wp) * r2p1**2 *                 &
-                      (gm1 * M02 + 2.0_wp * r2p1)) + (-4.0_wp * g * log(r2p1) + gp1**2 *     &
-                      log(gm1 * M02 + 2.0_wp * r2p1)) / (gm1**2 * gp1 * M02) )
-              end do
+           case ('RADIUS_Y')
+              F(:,2) = ignitionSource(:,3) *                                                 &
+                   (region%grids(i)%coordinates(:,2) - location(2))**2 / radius(2)**3
 
               instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
                    region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
@@ -496,13 +465,9 @@ subroutine updateIgnitionActuatorForcing(this, region)
                 region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('SHOCK_MACH_NUMBER')
-           region%states(i)%ignitionSources(1)%shockMach = this%baselineValue(j) +           &
-                real(region%states(i)%gradientDirection, wp) *                               &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
-
-           region%states(i)%ignitionSources(1)%depositVorticity = .false.
-           if (region%states(i)%ignitionSources(1)%shockMach > 1.0_wp)                       &
-                region%states(i)%ignitionSources(1)%depositVorticity = .true.
+           region%states(i)%ignitionSources(1)%shockMach = max( 1.0_wp + epsilon(1.0_wp),    &
+                this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('DAMKOHLER')
            region%states(i)%combustion%Damkohler = max( 0.0_wp,                              &
