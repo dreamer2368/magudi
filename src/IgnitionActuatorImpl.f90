@@ -465,9 +465,13 @@ subroutine updateIgnitionActuatorForcing(this, region)
                 region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
 
         case ('SHOCK_MACH_NUMBER')
-           region%states(i)%ignitionSources(1)%shockMach = max( 1.0_wp + epsilon(1.0_wp),    &
+           region%states(i)%ignitionSources(1)%shockMach =                                   &
                 this%baselineValue(j) + real(region%states(i)%gradientDirection, wp) *       &
-                region%states(i)%actuationAmount * region%states(i)%controlGradient(j) )
+                region%states(i)%actuationAmount * region%states(i)%controlGradient(j)
+
+           region%states(i)%ignitionSources(1)%depositVorticity = .false.
+           if (region%states(i)%ignitionSources(1)%shockMach > 1.0_wp)                       &
+                region%states(i)%ignitionSources(1)%depositVorticity = .true.
 
         case ('DAMKOHLER')
            region%states(i)%combustion%Damkohler = max( 0.0_wp,                              &
