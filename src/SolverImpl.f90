@@ -1144,7 +1144,7 @@ subroutine findOptimalForcing(this, region)
   real(wp) :: baselineCostFunctional, costFunctional, previousCostFunctional,                &
        indicatorFunction, costSensitivity, actuationAmount, previousActuationAmount,         &
        baselineActuationAmount, burnValue, minimumTolerance
-  real(WP), dimension(:), allocatable :: individualSensitivities
+  real(WP), dimension(:), allocatable :: individualSensitivities, parameters
   logical:: done, foundNewMinimum, burning
 
   ! Connect to the previously allocated controller.
@@ -1188,13 +1188,14 @@ subroutine findOptimalForcing(this, region)
      call gracefulExit(region%comm, message)
   end if
 
-  ! Find (or load from file) the cost functional & sensitivity for the baseline prediction
+  ! Find (or load from file) useful data from the baseline prediction.
+  allocate(parameters(controller%nParameters))
   allocate(individualSensitivities(controller%nParameters))
   if (region%simulationFlags%isBaselineAvailable) then
      if (procRank == 0) then
         read(fileUnit, *, iostat = iostat)
         read(fileUnit, *, iostat = iostat) i, actuationAmount,                               &
-             baselineCostFunctional, indicatorFunction, individualSensitivities
+             baselineCostFunctional, indicatorFunction, parameters, individualSensitivities
      end if
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
@@ -1221,7 +1222,6 @@ subroutine findOptimalForcing(this, region)
 
   ! Find the previous actuation amount.
   if (restartIteration <= 1) then
-     individualSensitivities = this%runAdjoint(region)
      call getRequiredOption("initial_actuation_amount", actuationAmount)
   else
      call MPI_Bcast(actuationAmount, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
@@ -1267,7 +1267,7 @@ subroutine findOptimalForcing(this, region)
      nAdjoint = 1
      done = .false.
      controlIteration = restartIteration
-     actuationAmount = actuationAmount / baselineCostFunctional
+     !actuationAmount = actuationAmount / baselineCostFunctional
      minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
      do while (controlIteration < nIterations .and. .not.done)
 
