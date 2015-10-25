@@ -1068,7 +1068,7 @@ subroutine checkGradientAccuracy(this, region)
      write(fileUnit, '(A4,100A24)') 'i', 'Actuation amount', 'Cost functional',              &
           'Cost sensitivity', 'Gradient error',                                              &
           ('dJ/d '//trim(controller%sensitivityParameter(i)), i = 1, controller%nParameters)
-     write(fileUnit, '(I4,100(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                     &
+     write(fileUnit, '(I4,100(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                   &
           baselineCostFunctional, costSensitivity, 0.0_wp,                                   &
           (individualSensitivities(i), i = 1, controller%nParameters)
   end if
@@ -1188,14 +1188,18 @@ subroutine findOptimalForcing(this, region)
      call gracefulExit(region%comm, message)
   end if
 
+  if (restartIteration == 0) restartIteration = restartIteration + 1
+
   ! Find (or load from file) useful data from the baseline prediction.
   allocate(parameters(controller%nParameters))
   allocate(individualSensitivities(controller%nParameters))
   if (region%simulationFlags%isBaselineAvailable) then
      if (procRank == 0) then
         read(fileUnit, *, iostat = iostat)
-        read(fileUnit, *, iostat = iostat) i, actuationAmount,                               &
-             baselineCostFunctional, indicatorFunction, parameters, individualSensitivities
+        do i = 1, restartIteration - 1
+           read(fileUnit, *, iostat = iostat) j, actuationAmount,                            &
+                baselineCostFunctional, indicatorFunction, parameters, individualSensitivities
+        end do
      end if
      call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
      if (iostat /= 0) then
@@ -1205,6 +1209,8 @@ subroutine findOptimalForcing(this, region)
      end if
      call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
      call MPI_Bcast(indicatorFunction, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+     call MPI_Bcast(parameters, 1, REAL_TYPE_MPI, size(parameters), region%comm, ierror)
+     controller%baselineValue = parameters
   else
      baselineCostFunctional = this%runForward(region)
      indicatorFunction = functional%auxilaryFunctional
@@ -1267,12 +1273,12 @@ subroutine findOptimalForcing(this, region)
      nAdjoint = 1
      done = .false.
      controlIteration = restartIteration
-     !actuationAmount = actuationAmount / baselineCostFunctional
+     actuationAmount = actuationAmount / baselineCostFunctional
      minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
      do while (controlIteration < nIterations .and. .not.done)
 
         ! Perform line search.
-        do i = controlIteration + 1, restartIteration + nIterations
+        do i = controlIteration, restartIteration + nIterations - 1
 
            ! Choose a direction to march.
            region%states(:)%gradientDirection = -1
