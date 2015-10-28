@@ -11,14 +11,20 @@ program data2ensight
 ! 9 August 2014                                                 !
 !                                                               !
 ! ============================================================= !
+
+  ! <<< External modules >>>
   use MPI
   use, intrinsic :: iso_fortran_env
 
+ ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+
+  ! <<< Enumerations >>>
   use Grid_enum
   use State_enum
 
-  use Region_mod, only : t_Region
-
+  ! <<< Internal modules >>>
+  use CNSHelper, only : computeDependentVariables
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
@@ -37,11 +43,11 @@ program data2ensight
 
   ! EnSight stuff
   integer :: num, numFiles
-  integer :: nx, ny, nz, nspec, ndim, npart, reclength, ii
+  integer :: nx, ny, nz, nDimensions, nSpecies, npart, reclength, ii
   integer :: startIter, stopIter, skipIter, iter, var, nvar
   real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,iblank,rbuffer
   real(KIND=4) :: xmin, xmax, ymin, ymax, zmin, zmax
-  real(KIND=8), Dimension(:), Allocatable :: time
+  real(KIND=8), Dimension(:), Allocatable :: time, temperature
   character(LEN=80), dimension(:), Allocatable :: names
   character(LEN=80) :: binary_form
   character(LEN=80) :: file_description1,file_description2
@@ -52,7 +58,7 @@ program data2ensight
   ! Local variables
   integer :: i, j, k
   real(KIND=8) :: gamma, heatRelease, zelDovich, referenceTemperature, flameTemperature,     &
-       activationTemperature, temperature, density, Yf, Yo, Da
+       activationTemperature, density, Yf, Yo, Da
 
   ! Initialize MPI
   call MPI_Init(ierror)
@@ -116,15 +122,21 @@ program data2ensight
   call region%reportGridDiagnostics()
 
   ! Get number of dimensions.
-  ndim = size(region%grids(1)%coordinates(1,:))
+  nDimensions = region%grids(1)%nDimensions
+
+  ! Get number of species.
+  nSpecies = region%solverOptions%nSpecies
 
   ! Get number of variables.
   write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
   call region%loadData(QOI_FORWARD_STATE, fname)
   nvar = size(region%states(1)%conservedVariables(1,:))
 
-  ! Number of species.
-  nspec = nvar - (ndim+2)
+  ! Sanity check.
+  if (nvar.ne.region%solverOptions%nUnknowns) then
+     print *, 'Something is wrong!'
+     stop
+  end if
 
   ! Include adjoint variables.
   if (useAdjoint == 1) nvar = nvar * 2
@@ -147,7 +159,7 @@ program data2ensight
 
   ! Assign variable names.
   allocate(names(nvar+2))
-  select case (ndim)
+  select case (nDimensions)
   case (2)
      names(1) = 'RHO'
      names(2) = 'U'
@@ -161,12 +173,12 @@ program data2ensight
      names(5) = 'E'
   end select
 
-  select case (nspec)
+  select case (nSpecies)
   case (1)
-     names(ndim+3) = 'H2'
+     names(nDimensions+3) = 'H2'
   case (2)
-     names(ndim+3) = 'H2'
-     names(ndim+4) = 'O2'
+     names(nDimensions+3) = 'H2'
+     names(nDimensions+4) = 'O2'
   end select
 
   ! Adjoint variable names.
@@ -290,6 +302,9 @@ program data2ensight
   ! Allocate single-precision array
   allocate(rbuffer(nx,ny,nz))
 
+  ! Allocate temperature array
+  allocate(temperature(size(region%states(1)%conservedVariables, 1)))
+
   ! Loop through files and write
   num = 1
   do iter = startIter, stopIter, skipIter
@@ -340,36 +355,24 @@ program data2ensight
 
      end do ! var
 
-     ! Temperature
-     rbuffer = 0.0_4
+     ! Get the temperature.
+     call computeDependentVariables(nDimensions, nSpecies,                                   &
+             region%states(1)%conservedVariables,                                            &
+             region%solverOptions%equationOfState,                                           &
+             region%solverOptions%ratioOfSpecificHeats,                                      &
+             region%solverOptions%molecularWeightCoefficient,                                &
+             temperature = temperature)
      do k=1,nz
         do j=1,ny
            do i=1,nx
               ii = i+nx*(j-1+ny*(k-1))
-              ! Store temperature in buffer
-              select case (ndim)
-              case (2)
-                 rbuffer(i,j,k) = real(gamma * (region%states(1)%conservedVariables(ii,ndim+2) - &
-                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                    &
-                      region%states(1)%conservedVariables(ii,3)**2) /                            &
-                      region%states(1)%conservedVariables(ii,1)) /                               &
-                      region%states(1)%conservedVariables(ii,1),4)
-
-              case (3)
-                 rbuffer(i,j,k) = real(gamma * (region%states(1)%conservedVariables(ii,ndim+2) - &
-                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                    &
-                      region%states(1)%conservedVariables(ii,3)**2 +                             &
-                      region%states(1)%conservedVariables(ii,4)**2) /                            &
-                      region%states(1)%conservedVariables(ii,1)) /                               &
-                      region%states(1)%conservedVariables(ii,1),4)
-
-              end select
+              rbuffer(i,j,k) = real(temperature(ii), 4)
            end do
         end do
      end do
 
      ! Dimenionalize
-     rbuffer = rbuffer * 0.4_4 * 293.15_4
+     rbuffer = rbuffer * (real(gamma, 4) - 1.0_4) * 293.15_4
 
      ! Write temperature to Ensight file
      cbuffer=trim(names(nvar+1))
@@ -386,29 +389,12 @@ program data2ensight
               ii = i+nx*(j-1+ny*(k-1))
               ! Get local variables
               density = region%states(1)%conservedVariables(ii, 1)
-              Yf = region%states(1)%conservedVariables(ii, ndim+3) / density
-              Yo = region%states(1)%conservedVariables(ii, ndim+4) / density
+              Yf = region%states(1)%conservedVariables(ii, nDimensions+3) / density
+              Yo = region%states(1)%conservedVariables(ii, nDimensions+4) / density
 
-              ! Compute local temperature
-              select case (ndim)
-              case (2)
-                 temperature = real(gamma * (region%states(1)%conservedVariables(ii,ndim+2) -&
-                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                &
-                      region%states(1)%conservedVariables(ii,3)**2) /                        &
-                      region%states(1)%conservedVariables(ii,1)) /                           &
-                      region%states(1)%conservedVariables(ii,1),4)
-
-              case (3)
-                 temperature = real(gamma * (region%states(1)%conservedVariables(ii,ndim+2) -&
-                      0.5_8 * (region%states(1)%conservedVariables(ii,2)**2 +                &
-                      region%states(1)%conservedVariables(ii,3)**2 +                         &
-                      region%states(1)%conservedVariables(ii,4)**2) /                        &
-                      region%states(1)%conservedVariables(ii,1)) /                           &
-                      region%states(1)%conservedVariables(ii,1),4)
-              end select
               ! Reaction rate
               rbuffer(i,j,k) = real(Da * density * Yf * Yo *                                 &
-                   exp(- activationTemperature / temperature), 4)
+                   exp(- activationTemperature / temperature(ii)), 4)
            end do
         end do
      end do
