@@ -88,7 +88,12 @@ subroutine setupCombustion(this, nSpecies, species, comm)
 
      call getRequiredOption("number_of_reactions", this%nReactions, comm)
 
-     do k = 1, this%nSpecies
+     allocate(this%stoichiometricCoefficientF(nSpecies, this%nReactions))
+     allocate(this%stoichiometricCoefficientR(nSpecies, this%nReactions))
+     allocate(this%activationTemperature(this%nReactions))
+     allocate(this%temperatureExponent(this%nReactions))
+
+     do k = 1, nSpecies
         write(message, "(A,I1.1)") "stoichiometric_coefficient_", k
         call getRequiredOption(trim(message), this%stoichiometricCoefficient(k), comm)
      end do

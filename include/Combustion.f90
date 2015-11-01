@@ -19,10 +19,12 @@ module Combustion_mod
   type, public :: t_Combustion
 
      integer :: chemistryModel, nReactions, H2, O2, N2
-     integer, dimension(:), allocatable :: stoichiometricCoefficient
      real(SCALAR_KIND) :: YFs, Damkohler, stoichiometricRatio, heatRelease, zelDovich,       &
           residenceTime, Tin
-     SCALAR_TYPE, dimension(:), allocatable :: Y0, stoichiometricCoefficient, Yin
+     SCALAR_TYPE, dimension(:), allocatable :: Y0, stoichiometricCoefficient, Yin,           &
+          activationTemperature, temperatureExponent
+     SCALAR_TYPE, dimension(:,:), allocatable :: stoichiometricCoefficientF,                 &
+          stoichiometricCoefficientR
      logical :: wellStirredReactor
 
    contains
@@ -32,6 +34,15 @@ module Combustion_mod
      procedure, public, pass :: addAdjoint => addCombustionAdjoint
 
   end type t_Combustion
+
+  type, public :: t_Species
+
+     real(SCALAR_KIND) :: schmidtNumberInverse, molecularWeightInverse
+     SCALAR_TYPE, dimension(:), allocatable :: stoichiometricCoefficientF,                   &
+          stoichiometricCoefficientR
+     character(len = STRING_LENGTH) :: name
+
+  end type t_Species
 
   interface
 
