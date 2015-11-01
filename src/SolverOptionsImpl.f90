@@ -18,6 +18,10 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : gracefulExit
+  use ThermoChemistry, only : getMolecularWeight
+
+  ! <<< Enumerations >>>
+  use SolverOptions_enum
 
   implicit none
 
@@ -30,8 +34,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: k, comm_
-  real(SCALAR_KIND) :: Schmidt_number_k
-  character(len = STRING_LENGTH) :: message
+  character(len = STRING_LENGTH) :: message, referenceSpecies, val
+  real(wp) :: referenceMolecularWeight
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   class(t_TimeIntegrator), pointer :: dummyTimeIntegrator => null()
   type(t_ControllerFactory) :: controllerFactory
@@ -57,13 +61,15 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   if (simulationFlags%viscosityOn) then
 
      this%reynoldsNumberInverse = max(0.0_wp, getOption("Reynolds_number", 0.0_wp))
-     this%prandtlNumberInverse = max(0.0_wp, getOption("Prandtl_number", 0.72_wp))
-     allocate(this%schmidtNumberInverse(this%nSpecies))
+     this%prandtlNumberInverse = max(0.0_wp, getOption("Prandtl_number", 0.7_wp))
+     allocate(this%schmidtNumberInverse(this%nSpecies+1))
      do k = 1, this%nSpecies
         write(message, "(A,I1.1)") "Schmidt_number_", k
-        call getRequiredOption(trim(message), Schmidt_number_k, comm)
-        this%schmidtNumberInverse(k) = max(0.0_wp, Schmidt_number_k)
+        this%schmidtNumberInverse(k) = max(0.0_wp, getOption(trim(message), 0.7_wp))
      end do
+     write(message, "(A)") "Schmidt_number_inert"
+     this%schmidtNumberInverse(this%nSpecies+1) =                                            &
+          max(0.0_wp, getOption(trim(message), 0.7_wp))
 
      if (this%reynoldsNumberInverse <= 0.0_wp .or. this%prandtlNumberInverse <= 0.0_wp) then
         this%powerLawExponent = 0.0_wp
@@ -71,10 +77,9 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      else
         this%reynoldsNumberInverse = 1.0_wp / this%reynoldsNumberInverse
         this%prandtlNumberInverse = 1.0_wp / this%prandtlNumberInverse
-        if (this%nSpecies > 0)                                                               &
-             this%schmidtNumberInverse = 1.0_wp / this%schmidtNumberInverse
         this%powerLawExponent = getOption("viscosity_power_law_exponent", 0.666_wp)
         this%bulkViscosityRatio = getOption("bulk_viscosity_ratio", 0.6_wp)
+        if (this%nSpecies > 0) this%schmidtNumberInverse = 1.0_wp / this%schmidtNumberInverse
      end if
 
   end if
@@ -115,7 +120,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      this%controllerType = getOption("controller_type", "THERMAL_ACTUATOR")
      call controllerFactory%connect(dummyController, trim(this%controllerType))
      if (.not. associated(dummyController)) then
-        write(message, '(3A)') "Invalid controller type '",                             &
+        write(message, '(3A)') "Invalid controller type '",                                  &
              trim(this%controllerType), "'!"
         call gracefulExit(comm_, message)
      end if
@@ -131,5 +136,50 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      this%checkpointingScheme = getOption("checkpointing_scheme", "uniform checkpointing")
 
   end if
+
+  val = getOption("equation_of_state", "IDEAL_GAS")
+  select case (trim(val))
+  case ('IDEAL_GAS')
+     this%equationOfState = IDEAL_GAS
+
+  case ('IDEAL_GAS_MIXTURE')
+     if (this%nSpecies > 0) then
+
+        this%equationOfState = IDEAL_GAS_MIXTURE
+
+        allocate(this%speciesName(this%nSpecies+1))
+        allocate(this%molecularWeightInverse(this%nSpecies+1))
+
+        ! Get the molecular weight of the reference species.
+        referenceSpecies = getOption("reference_species", "AIR")
+        call getMolecularWeight(comm_, trim(referenceSpecies), referenceMolecularWeight)
+
+        ! Get the molecular weights of each species.
+        do k = 1, this%nSpecies
+           write(message, "(A,I1.1)") "species_", k
+           call getRequiredOption(trim(message), this%speciesName(k), comm)
+           call getMolecularWeight(comm_, trim(this%speciesName(k)),                         &
+                this%molecularWeightInverse(k))
+           this%molecularWeightInverse(k) = referenceMolecularWeight /                       &
+                this%molecularWeightInverse(k)
+        end do
+
+        ! Get the molecular weight of the inert species.
+        this%speciesName(this%nSpecies+1) = getOption("inert_species", "N2")
+        call getMolecularWeight(comm_, trim(this%speciesName(this%nSpecies+1)),              &
+             this%molecularWeightInverse(this%nSpecies+1))
+        this%molecularWeightInverse(this%nSpecies+1) = referenceMolecularWeight /            &
+             this%molecularWeightInverse(this%nSpecies+1)
+     else
+
+        write(message, '(A)') "IDEAL_GAS_MIXTURE requires nSpecies > 0!"
+        call gracefulExit(comm_, message)
+
+     end if
+
+  case default
+     write(message, '(A)') "Invalid equation of state '", trim(val), "'!"
+     call gracefulExit(comm_, message)
+  end select
 
 end subroutine initializeSolverOptions

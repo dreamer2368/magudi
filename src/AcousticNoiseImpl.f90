@@ -59,7 +59,9 @@ subroutine setupAcousticNoise(this, region)
            j = region%grids(i)%index
            call computeDependentVariables(region%grids(i)%nDimensions,                       &
                 region%solverOptions%nSpecies, region%states(i)%targetState,                 &
+                region%solverOptions%equationOfState,                                        &
                 region%solverOptions%ratioOfSpecificHeats,                                   &
+                region%solverOptions%molecularWeightInverse,                                 &
                 pressure = this%data_(j)%meanPressure(:,1))
         end do
      end if

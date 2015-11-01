@@ -1,5 +1,16 @@
 #include "config.h"
 
+module SolverOptions_enum
+
+  implicit none
+  public
+
+  integer, parameter, public ::                                                              &
+       IDEAL_GAS         = 1,                                                                &
+       IDEAL_GAS_MIXTURE = 2
+
+end module SolverOptions_enum
+
 module SolverOptions_mod
 
   implicit none
@@ -9,10 +20,11 @@ module SolverOptions_mod
      real(SCALAR_KIND) :: reynoldsNumberInverse, prandtlNumberInverse,                       &
           ratioOfSpecificHeats, powerLawExponent, bulkViscosityRatio, dissipationAmount,     &
           densityRange(2),temperatureRange(2), massFractionRange(2), cfl, timeStepSize
-     SCALAR_TYPE, dimension(:), allocatable :: schmidtNumberInverse
-     integer :: nSpecies, nUnknowns
+     SCALAR_TYPE, dimension(:), allocatable :: schmidtNumberInverse, molecularWeightInverse
+     integer :: nSpecies, nUnknowns, equationOfState
      character(len = STRING_LENGTH) :: discretizationType, timeintegratorType,               &
           costFunctionalType, controllerType, checkpointingScheme
+     character(len = STRING_LENGTH), dimension(:), allocatable :: speciesName
 
    contains
 

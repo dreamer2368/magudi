@@ -141,8 +141,13 @@ subroutine setupState(this, grid, simulationFlags, solverOptions)
      end do
   end if
 
-  if (this%nSpecies > 0)                                                                     &
-       call this%combustion%setup(this%nSpecies, grid%comm)
+  if (this%nSpecies > 0) then
+     if (allocated(solverOptions%speciesName)) then
+        call this%combustion%setup(this%nSpecies, solverOptions%speciesName, grid%comm)
+     else
+        call this%combustion%setup(this%nSpecies, comm = grid%comm)
+     end if
+  end if
 
   n = min(getOption("number_of_ignition_sources", 0), 99)
   if (n > 0) then
@@ -528,6 +533,9 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
   use CNSHelper
   use MPITimingsHelper, only : startTiming, endTiming
 
+  ! <<< Enumerations >>>
+  use SolverOptions_enum
+
   implicit none
 
   ! <<< Arguments >>>
@@ -538,26 +546,29 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
   SCALAR_TYPE, intent(in), optional :: conservedVariables(:,:)
 
   ! <<< Local variables >>>
-  integer :: i, k, nDimensions
+  integer :: i, k, nDimensions, nSpecies
 
   call startTiming("updateState")
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
+  nSpecies = this%nSpecies
 
   if (present(conservedVariables)) then
-     call computeDependentVariables(nDimensions, this%nSpecies, conservedVariables,          &
-          solverOptions%ratioOfSpecificHeats, this%specificVolume(:,1), this%velocity,       &
+     call computeDependentVariables(nDimensions, nSpecies, conservedVariables,               &
+          solverOptions%equationOfState, solverOptions%ratioOfSpecificHeats,                 &
+          solverOptions%molecularWeightInverse, this%specificVolume(:,1), this%velocity,     &
           this%pressure(:,1), this%temperature(:,1), this%massFraction)
   else
-     call computeDependentVariables(nDimensions, this%nSpecies, this%conservedVariables,     &
-          solverOptions%ratioOfSpecificHeats, this%specificVolume(:,1), this%velocity,       &
+     call computeDependentVariables(nDimensions, nSpecies, this%conservedVariables,          &
+          solverOptions%equationOfState, solverOptions%ratioOfSpecificHeats,                 &
+          solverOptions%molecularWeightInverse, this%specificVolume(:,1), this%velocity,     &
           this%pressure(:,1), this%temperature(:,1), this%massFraction)
   end if
 
   if (simulationFlags%viscosityOn) then
 
-     call computeTransportVariables(this%nSpecies, this%temperature(:,1),                    &
+     call computeTransportVariables(nSpecies, this%temperature(:,1),                         &
           solverOptions%powerLawExponent, solverOptions%bulkViscosityRatio,                  &
           solverOptions%ratioOfSpecificHeats, solverOptions%reynoldsNumberInverse,           &
           solverOptions%prandtlNumberInverse, solverOptions%schmidtNumberInverse,            &
@@ -581,6 +592,19 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
               this%speciesFlux(:,k,i) = - this%massDiffusivity(:,k) * this%speciesFlux(:,k,i)
            end do
         end do
+
+        if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE) then
+           do i = 1, nDimensions
+              do k = 1, this%nSpecies
+                 this%heatFlux(:,i) = this%heatFlux(:,i) + this%speciesFlux(:,k,i) *         &
+                      this%temperature(:,1) / solverOptions%schmidtNumberInverse(k) *        &
+                      ( solverOptions%molecularWeightInverse(k) *                            &
+                      solverOptions%schmidtNumberInverse(k) -                                &
+                      solverOptions%molecularWeightInverse(this%nSpecies+1) *                &
+                      solverOptions%schmidtNumberInverse(this%nSpecies+1) )
+              end do
+           end do
+        end if
 
      else
 
@@ -648,13 +672,13 @@ function computeStateCfl(this, grid, simulationFlags, solverOptions) result(cfl)
         assert(size(this%thermalDiffusivity, 2) == 1)
 
         cfl = computeCfl(nDimensions, grid%iblank, grid%jacobian(:,1), grid%metrics,         &
-             this%velocity, this%temperature(:,1), solverOptions%timeStepSize,               &
-             solverOptions%ratioOfSpecificHeats, this%dynamicViscosity(:,1),                 &
-             this%thermalDiffusivity(:,1))
+             this%velocity, this%pressure(:,1), this%specificVolume(:,1),                    &
+             solverOptions%timeStepSize, solverOptions%ratioOfSpecificHeats,                 &
+             this%dynamicViscosity(:,1), this%thermalDiffusivity(:,1))
      else
         cfl = computeCfl(nDimensions, grid%iblank, grid%jacobian(:,1), grid%metrics,         &
-             this%velocity, this%temperature(:,1), solverOptions%timeStepSize,               &
-             solverOptions%ratioOfSpecificHeats)
+             this%velocity, this%pressure(:,1), this%specificVolume(:,1),                    &
+             solverOptions%timeStepSize, solverOptions%ratioOfSpecificHeats)
      end if
   end if
 
@@ -713,13 +737,13 @@ function computeStateTimeStepSize(this, grid, simulationFlags,                  
         assert(size(this%thermalDiffusivity, 2) == 1)
 
         timeStepSize = computeTimeStepSize(nDimensions, grid%iblank, grid%jacobian(:,1),     &
-             grid%metrics, this%velocity, this%temperature(:,1), solverOptions%cfl,          &
-             solverOptions%ratioOfSpecificHeats, this%dynamicViscosity(:,1),                 &
-             this%thermalDiffusivity(:,1))
+             grid%metrics, this%velocity, this%pressure(:,1), this%specificVolume(:,1),      &
+             solverOptions%cfl, solverOptions%ratioOfSpecificHeats,                          &
+             this%dynamicViscosity(:,1), this%thermalDiffusivity(:,1))
      else
         timeStepSize = computeTimeStepSize(nDimensions, grid%iblank, grid%jacobian(:,1),     &
-             grid%metrics, this%velocity, this%temperature(:,1), solverOptions%cfl,          &
-             solverOptions%ratioOfSpecificHeats)
+             grid%metrics, this%velocity, this%pressure(:,1), this%specificVolume(:,1),      &
+             solverOptions%cfl, solverOptions%ratioOfSpecificHeats)
      end if
   else
      timeStepSize = solverOptions%timeStepSize
@@ -783,13 +807,13 @@ subroutine addSources(this, mode, grid, solverOptions)
   end if
 
   if (mode == FORWARD .and. this%nSpecies > 0) then
-     call this%combustion%addForward(grid%nDimensions, solverOptions%nSpecies,               &
+     call this%combustion%addForward(grid%nDimensions, this%nSpecies,                        &
           solverOptions%ratioOfSpecificHeats, this%conservedVariables,                       &
           this%temperature(:,1), this%massFraction, grid%iblank, this%rightHandSide)
   end if
 
   if (mode == ADJOINT .and. this%nSpecies > 0) then
-     call this%combustion%addAdjoint(grid%nDimensions, solverOptions%nSpecies,               &
+     call this%combustion%addAdjoint(grid%nDimensions, this%nSpecies,                        &
           solverOptions%nUnknowns, solverOptions%ratioOfSpecificHeats,                       &
           this%conservedVariables, this%adjointVariables, this%velocity, this%massFraction,  &
           this%specificVolume, this%temperature, grid%iblank, this%rightHandSide)

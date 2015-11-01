@@ -208,9 +208,9 @@ subroutine computePressureDragAdjointForcing(this, simulationFlags, solverOption
                    unitNormal)
 
               call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,              &
-                   localConservedVariables, metricsAlongNormalDirection,                     &
-                   solverOptions%ratioOfSpecificHeats, - patch%normalDirection,              &
-                   incomingJacobianOfInviscidFlux,                                           &
+                   solverOptions%equationOfState, localConservedVariables,                   &
+                   metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
+                   - patch%normalDirection, incomingJacobianOfInviscidFlux,                  &
                    specificVolume = state%specificVolume(gridIndex, 1),                      &
                    temperature = state%temperature(gridIndex, 1))
 

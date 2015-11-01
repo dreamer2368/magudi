@@ -508,7 +508,8 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
      if (flag) then
         allocate(targetTemperature(grid%nGridPoints))
         call computeDependentVariables(nDimensions, solverOptions%nSpecies,                  &
-             state%targetState, solverOptions%ratioOfSpecificHeats,                          &
+             state%targetState, solverOptions%equationOfState,                               &
+             solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,       &
              temperature = targetTemperature)
      end if
 
@@ -525,9 +526,10 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
               call computeTransportVariables(solverOptions%nSpecies, patch%temperature,      &
                    solverOptions%powerLawExponent, solverOptions%bulkViscosityRatio,         &
                    solverOptions%ratioOfSpecificHeats, solverOptions%reynoldsNumberInverse,  &
-                   solverOptions%prandtlNumberInverse, solverOptions%schmidtNumberInverse,   &
-                   patch%dynamicViscosity, patch%secondCoefficientOfViscosity,               &
-                   patch%thermalDiffusivity, patch%massDiffusivity)
+                   solverOptions%prandtlNumberInverse,                                       &
+                   solverOptions%schmidtNumberInverse, patch%dynamicViscosity,               &
+                   patch%secondCoefficientOfViscosity, patch%thermalDiffusivity,             &
+                   patch%massDiffusivity)
            end select
 
         end do

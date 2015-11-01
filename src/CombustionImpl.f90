@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine setupCombustion(this, nSpecies, comm)
+subroutine setupCombustion(this, nSpecies, species, comm)
 
   ! <<< Derived types >>>
   use Combustion_mod, only : t_Combustion
@@ -9,59 +9,95 @@ subroutine setupCombustion(this, nSpecies, comm)
   use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : gracefulExit
 
+  ! <<< Enumerations >>>
+  use Combustion_enum
+
   implicit none
 
   ! <<< Arguments >>>
   class(t_Combustion) :: this
   integer, intent(in) :: nSpecies, comm
+  character(len = STRING_LENGTH), intent(in), optional :: species(:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  character(len = STRING_LENGTH) :: message
+  integer :: k
+  character(len = STRING_LENGTH) :: message, val
 
   if (nSpecies == 0) return
 
-  ! Species indices.
-  this%H2 = 1
-  this%O2 = 2
-  this%N2 = nSpecies + 1
+  ! Get species indices.
+  if (present(species)) then
+     do k = 1, nSpecies + 1
+        select case (trim(species(k)))
+        case ('H2', 'HYDROGEN')
+           this%H2 = k
+        case ('O2', 'OXYGEN')
+           this%O2 = k
+        case ('N2', 'NITROGEN')
+           this%N2 = k
+        case default
+           write(message, '(3A)') "Unknown species: ", trim(species(k)), "!"
+           call gracefulExit(comm, message)
+        end select
+     end do
+  else
+     this%H2 = 1
+     this%O2 = 2
+     this%N2 = nSpecies + 1
+  end if
 
-  allocate(this%Y0(nSpecies))
+  ! Combustion model
+  val = getOption("combustion_model", "NONE")
+  select case (trim(val))
+  case ("NONE")
+     ! No combustion.
+     this%chemistryModel = NONE
 
-  ! Read combustion parameters from input.
-  call getRequiredOption("number_of_reactions", this%nReactions, comm)
-  call getRequiredOption("stoichiometric_ratio", this%stoichiometricRatio, comm)
-  call getRequiredOption("heat_release", this%heatRelease, comm)
-  call getRequiredOption("Zel_Dovich", this%zelDovich, comm)
-  call getRequiredOption("Damkohler_number", this%Damkohler, comm)
-  call getRequiredOption("initial_fuel_mass_fraction", this%Y0(this%H2), comm)
-  call getRequiredOption("initial_oxidizer_mass_fraction", this%Y0(this%O2), comm)
+  case ("ONE_STEP")
+     ! One-step irreversible reaction
+     this%chemistryModel = ONE_STEP
 
-  ! Stoichiometric fuel mass fraction.
-  this%Yfs = 1.0_wp / (1.0_wp + this%stoichiometricRatio * this%Y0(this%H2)                  &
-       / this%Y0(this%O2))
+     this%nReactions = 1
 
-  ! Stoichiometric coefficients.
-  allocate(this%stoichiometricCoefficient(nSpecies))
-  this%stoichiometricCoefficient = 0.0_wp
+     allocate(this%Y0(nSpecies))
 
-  if (this%nReactions == 1) then
+     ! Read combustion parameters from input.
+     call getRequiredOption("stoichiometric_ratio", this%stoichiometricRatio, comm)
+     call getRequiredOption("heat_release", this%heatRelease, comm)
+     call getRequiredOption("Zel_Dovich", this%zelDovich, comm)
+     call getRequiredOption("Damkohler_number", this%Damkohler, comm)
+     call getRequiredOption("initial_fuel_mass_fraction", this%Y0(this%H2), comm)
+     call getRequiredOption("initial_oxidizer_mass_fraction", this%Y0(this%O2), comm)
 
-     ! One-step chemistry.
+     ! Stoichiometric fuel mass fraction.
+     this%Yfs = 1.0_wp / (1.0_wp + this%stoichiometricRatio * this%Y0(this%H2)               &
+          / this%Y0(this%O2))
+
+     ! Stoichiometric coefficients.
+     allocate(this%stoichiometricCoefficient(nSpecies))
+     this%stoichiometricCoefficient = 0.0_wp
+
      this%stoichiometricCoefficient(this%H2) = 1.0_wp
      this%stoichiometricCoefficient(this%O2) = this%stoichiometricRatio
 
-  else if (this%nReactions == 0) then
+  case ("DETAILED")
+     ! Detailed chemistry.
+     this%chemistryModel = DETAILED
 
-     ! Nothing to do.
+     call getRequiredOption("number_of_reactions", this%nReactions, comm)
 
-  else
+     do k = 1, this%nSpecies
+        write(message, "(A,I1.1)") "stoichiometric_coefficient_", k
+        call getRequiredOption(trim(message), this%stoichiometricCoefficient(k), comm)
+     end do
 
-     write(message, '(A)') "WARNING, maximum of 1 reaction for now!"
+  case default
+     write(message, '(3A)') "Unknown combustion model ",trim(val), "!"
      call gracefulExit(comm, message)
 
-  end if
+  end select
 
   ! Well-stirred reactor assumption
   this%wellStirredReactor = getOption("well_stirred_reactor", .false.)

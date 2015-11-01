@@ -183,7 +183,8 @@ program isothermal_wall_SAT
         call applyForwardBoundaryConditions(patch, grid, state,                              &
              solverOptions%ratioOfSpecificHeats)
         call computeDependentVariables(nDimensions, solverOptions%nSpecies,                  &
-             state%conservedVariables, solverOptions%ratioOfSpecificHeats,                   &
+             state%conservedVariables, solverOptions%equationOfState,                        &
+             solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,       &
              state%specificVolume(:,1), state%velocity, state%pressure(:,1),                 &
              state%temperature(:,1))
         assert(all(state%specificVolume(:,1) > 0.0_wp))

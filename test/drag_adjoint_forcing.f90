@@ -53,7 +53,7 @@ program drag_adjoint_forcing
      end subroutine setupTestRegion
 
      subroutine randomizeTestRegionData(grid, state, patchFactories,                         &
-          ratioOfSpecificHeats, dragDirection, success)
+          ratioOfSpecificHeats, equationOfState, dragDirection, success)
 
        use Grid_mod, only : t_Grid
        use State_mod, only : t_State
@@ -63,6 +63,7 @@ program drag_adjoint_forcing
        class(t_State) :: state
        type(t_PatchFactory), intent(in) :: patchFactories(2)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats, dragDirection(3)
+       integer, intent(in) :: equationOfState
        logical, intent(out) :: success
 
      end subroutine randomizeTestRegionData
@@ -134,7 +135,7 @@ program drag_adjoint_forcing
         ! Generate random data that satisfies the boundary conditions.
         call randomizeTestRegionData(region(1)%grids(1), region(1)%states(1),                &
              region(1)%patchFactories, region(1)%solverOptions%ratioOfSpecificHeats,         &
-             dragDirection, success_)
+             region(1)%solverOptions%equationOfState, dragDirection, success_)
         success = success .and. success_
         if (.not. success) exit
 
@@ -145,7 +146,9 @@ program drag_adjoint_forcing
         region(2)%states(1)%adjointVariables = region(1)%states(1)%adjointVariables
         call computeDependentVariables(nDimensions, region(2)%solverOptions%nSpecies,        &
              region(2)%states(1)%conservedVariables,                                         &
+             region(2)%solverOptions%equationOfState,                                        &
              region(2)%solverOptions%ratioOfSpecificHeats,                                   &
+             region(2)%solverOptions%molecularWeightInverse,                                 &
              region(2)%states(1)%specificVolume(:,1), region(2)%states(1)%velocity,          &
              region(2)%states(1)%pressure(:,1), region(2)%states(1)%temperature(:,1))
 
@@ -299,7 +302,7 @@ subroutine setupTestRegion(region, discretizationType, gridSize, patchExtent,   
 end subroutine setupTestRegion
 
 subroutine randomizeTestRegionData(grid, state, patchFactories, ratioOfSpecificHeats,        &
-     dragDirection, success)
+     equationOfState, dragDirection, success)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -318,6 +321,7 @@ subroutine randomizeTestRegionData(grid, state, patchFactories, ratioOfSpecificH
   class(t_Grid) :: grid
   class(t_State) :: state
   type(t_PatchFactory), intent(in) :: patchFactories(2)
+  integer, intent(in) :: equationOfState
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats, dragDirection(3)
   logical, intent(out) :: success
 
@@ -407,9 +411,10 @@ subroutine randomizeTestRegionData(grid, state, patchFactories, ratioOfSpecificH
   call applyForwardBoundaryConditions(impenetrableWall, grid, state)
 
   ! Compute dependent variables.
-  call computeDependentVariables(nDimensions, 0, state%conservedVariables,                   &
-       ratioOfSpecificHeats, state%specificVolume(:,1), state%velocity,                      &
-       state%pressure(:,1), state%temperature(:,1))
+  call computeDependentVariables(nDimensions, 0, state%conservedVariables, equationOfState,  &
+       ratioOfSpecificHeats, specificVolume = state%specificVolume(:,1),                     &
+       velocity = state%velocity, pressure = state%pressure(:,1),                            &
+       temperature = state%temperature(:,1))
 
   assert(all(state%specificVolume(:,1) > 0.0_wp))
   assert(all(state%temperature(:,1) > 0.0_wp))

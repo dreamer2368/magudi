@@ -8,16 +8,18 @@ module CNSHelper
   interface
 
      pure subroutine computeDependentVariables(nDimensions, nSpecies, conservedVariables,    &
-          ratioOfSpecificHeats, specificVolume,                                              &
+          equationOfState, ratioOfSpecificHeats, molecularWeightInverse, specificVolume,     &
           velocity, pressure, temperature, massFraction)
 
        !> Computes the requested dependent variable(s) including specific volume, velocity,
        !> pressure, temperature, and mass fraction from the conserved state variables.
 
        integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in), optional :: equationOfState
        SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
 
-       real(SCALAR_KIND), intent(in), optional :: ratioOfSpecificHeats
+       real(SCALAR_KIND), intent(in), optional :: ratioOfSpecificHeats,                      &
+            molecularWeightInverse(:)
        SCALAR_TYPE, intent(out), optional :: specificVolume(:),                              &
             velocity(:,:), pressure(:), temperature(:), massFraction(:,:)
 
@@ -165,13 +167,14 @@ module CNSHelper
   interface
 
      pure function computeCfl(nDimensions, iblank, jacobian, metrics,                        &
-          velocity, temperature, timeStepSize, ratioOfSpecificHeats,                         &
+          velocity, pressure, specificVolume, timeStepSize, ratioOfSpecificHeats,            &
           dynamicViscosity, thermalDiffusivity) result(cfl)
 
        !> Computes the CFL number.
 
        integer, intent(in) :: nDimensions, iblank(:)
-       SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:), velocity(:,:), temperature(:)
+       SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:), velocity(:,:), pressure(:),     &
+            specificVolume(:)
        real(SCALAR_KIND), intent(in) :: timeStepSize, ratioOfSpecificHeats
        SCALAR_TYPE, intent(in), optional :: dynamicViscosity(:), thermalDiffusivity(:)
 
@@ -184,7 +187,7 @@ module CNSHelper
   interface
 
      pure function computeTimeStepSize(nDimensions, iblank, jacobian,                        &
-          metrics, velocity, temperature, cfl,                                               &
+          metrics, velocity, pressure, specificVolume, cfl,                                  &
           ratioOfSpecificHeats, dynamicViscosity,                                            &
           thermalDiffusivity) result(timeStepSize)
 
@@ -192,7 +195,7 @@ module CNSHelper
 
        integer, intent(in) :: nDimensions, iblank(:)
        SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:),                                 &
-            velocity(:,:), temperature(:)
+            velocity(:,:), pressure(:), specificVolume(:)
        real(SCALAR_KIND), intent(in) :: cfl, ratioOfSpecificHeats
        SCALAR_TYPE, intent(in), optional :: dynamicViscosity(:), thermalDiffusivity(:)
 
@@ -225,18 +228,20 @@ module CNSHelper
   interface
 
      pure subroutine computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,            &
-          conservedVariables, metrics, ratioOfSpecificHeats, incomingDirection,              &
-          incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux,               &
-          deltaConservedVariables, specificVolume, velocity, temperature, massFraction)
+          equationOfState, conservedVariables, metrics, ratioOfSpecificHeats,                &
+          incomingDirection, incomingJacobianOfInviscidFlux,                                 &
+          deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,      &
+          velocity, temperature, massFraction, molecularWeightInverse)
 
        integer, intent(in) :: nDimensions, nSpecies, incomingDirection
+       integer, intent(in), optional :: equationOfState
        SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(:,:)
 
        SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(:,:,:)
        SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(:,:), specificVolume,    &
-            velocity(:), temperature, massFraction(:)
+            velocity(:), temperature, massFraction(:), molecularWeightInverse(:)
 
      end subroutine computeIncomingJacobianOfInviscidFlux
 

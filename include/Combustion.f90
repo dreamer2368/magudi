@@ -1,12 +1,25 @@
 #include "config.h"
 
+module Combustion_enum
+
+  implicit none
+  public
+
+  integer, parameter, public ::                                                              &
+       NONE             = 1,                                                                 &
+       ONE_STEP         = 2,                                                                 &
+       DETAILED         = 3
+
+end module Combustion_enum
+
 module Combustion_mod
 
   implicit none
 
   type, public :: t_Combustion
 
-     integer :: nReactions, H2, O2, N2
+     integer :: chemistryModel, nReactions, H2, O2, N2
+     integer, dimension(:), allocatable :: stoichiometricCoefficient
      real(SCALAR_KIND) :: YFs, Damkohler, stoichiometricRatio, heatRelease, zelDovich,       &
           residenceTime, Tin
      SCALAR_TYPE, dimension(:), allocatable :: Y0, stoichiometricCoefficient, Yin
@@ -22,12 +35,13 @@ module Combustion_mod
 
   interface
 
-     subroutine setupCombustion(this, nSpecies, comm)
+     subroutine setupCombustion(this, nSpecies, species, comm)
 
        import :: t_Combustion
 
        class(t_Combustion) :: this
        integer, intent(in) :: nSpecies, comm
+       character(len = STRING_LENGTH), intent(in), optional :: species(:)
 
      end subroutine setupCombustion
 

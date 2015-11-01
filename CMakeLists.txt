@@ -76,6 +76,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/RandomNumberImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ErrorHandler.f90
   ${PROJECT_SOURCE_DIR}/src/ErrorHandlerImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ThermoChemistry.f90
+  ${PROJECT_SOURCE_DIR}/src/ThermoChemistryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/MPIHelper.f90
   ${PROJECT_SOURCE_DIR}/src/MPIHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/MPITimingsHelper.f90

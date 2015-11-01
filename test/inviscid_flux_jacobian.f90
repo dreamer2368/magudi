@@ -102,8 +102,9 @@ program inviscid_flux_jacobian
      end do
 
      call computeDependentVariables(nDimensions, nSpecies, conservedVariables1,              &
-          ratioOfSpecificHeats, specificVolume = specificVolume, velocity = velocity,        &
-          pressure = pressure, temperature = temperature, massFraction = massFraction)
+          ratioOfSpecificHeats = ratioOfSpecificHeats, specificVolume = specificVolume,      &
+          velocity = velocity, pressure = pressure, temperature = temperature,               &
+          massFraction = massFraction)
      assert(all(specificVolume > 0.0_wp))
      assert(all(temperature > 0.0_wp))
      assert(all(massFraction > 0.0_wp))
@@ -145,8 +146,9 @@ program inviscid_flux_jacobian
         assert(all(conservedVariables2(:,1) > 0.0_wp))
 
         call computeDependentVariables(nDimensions, nSpecies, conservedVariables2,           &
-             ratioOfSpecificHeats, specificVolume = specificVolume, velocity = velocity,     &
-             pressure = pressure, temperature = temperature, massFraction = massFraction)
+             ratioOfSpecificHeats =  ratioOfSpecificHeats, specificVolume = specificVolume,  &
+             velocity = velocity, pressure = pressure, temperature = temperature,            &
+             massFraction = massFraction)
 
         assert(all(specificVolume > 0.0_wp))
         assert(all(temperature > 0.0_wp))

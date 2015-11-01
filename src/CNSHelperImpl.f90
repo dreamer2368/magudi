@@ -1,22 +1,28 @@
 #include "config.h"
 
 PURE_SUBROUTINE computeDependentVariables(nDimensions, nSpecies, conservedVariables,         &
-     ratioOfSpecificHeats, specificVolume,                                                   &
+     equationOfState, ratioOfSpecificHeats, molecularWeightInverse, specificVolume,          &
      velocity, pressure, temperature, massFraction)
+
+  ! <<< Enumerations >>>
+  use SolverOptions_enum
 
   implicit none
 
   ! <<< Arguments >>>
   integer, intent(in) :: nDimensions, nSpecies
+  integer, intent(in), optional :: equationOfState
   SCALAR_TYPE, intent(in) :: conservedVariables(:,:)
-  real(SCALAR_KIND), intent(in), optional :: ratioOfSpecificHeats
+  real(SCALAR_KIND), intent(in), optional :: ratioOfSpecificHeats,                           &
+       molecularWeightInverse(:)
   SCALAR_TYPE, intent(out), optional :: specificVolume(:),                                   &
        velocity(:,:), pressure(:), temperature(:), massFraction(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: ratioOfSpecificHeats_
-  integer :: i
+  SCALAR_TYPE, allocatable :: temp(:)
+  integer :: i, equationOfState_
 
   assert(size(conservedVariables, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
@@ -49,41 +55,6 @@ PURE_SUBROUTINE computeDependentVariables(nDimensions, nSpecies, conservedVariab
      end if
   end if
 
-  ! Pressure.
-  if (present(pressure)) then
-     assert(size(pressure) == size(conservedVariables, 1))
-     if (present(velocity)) then
-        pressure = (ratioOfSpecificHeats_ - 1.0_wp) * (conservedVariables(:,nDimensions+2) - &
-             0.5_wp * conservedVariables(:,1) * sum(velocity ** 2, dim = 2))
-     else if (present(specificVolume)) then
-        pressure = (ratioOfSpecificHeats_ - 1.0_wp) * (conservedVariables(:,nDimensions+2) - &
-             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) *             &
-             specificVolume)
-     else
-        pressure = (ratioOfSpecificHeats_ - 1.0_wp) * (conservedVariables(:,nDimensions+2) - &
-             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) /             &
-             conservedVariables(:,1))
-     end if
-  end if
-
-  ! Temperature.
-  if (present(temperature)) then
-     assert(size(temperature) == size(conservedVariables, 1))
-     if (present(pressure)) then
-        if (present(specificVolume)) then
-           temperature = ratioOfSpecificHeats_ *                                             &
-                pressure / (ratioOfSpecificHeats_ - 1.0_wp) * specificVolume
-        else
-           temperature = ratioOfSpecificHeats_ *                                             &
-                pressure / (ratioOfSpecificHeats_ - 1.0_wp) / conservedVariables(:,1)
-        end if
-     else
-        temperature = ratioOfSpecificHeats_ * (conservedVariables(:,nDimensions+2) -         &
-             0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) /             &
-             conservedVariables(:,1)) / conservedVariables(:,1)
-     end if
-  end if
-
   ! Mass fraction.
   if (present(massFraction) .and. nSpecies > 0) then
      assert(size(massFraction, 1) == size(conservedVariables, 1))
@@ -99,6 +70,93 @@ PURE_SUBROUTINE computeDependentVariables(nDimensions, nSpecies, conservedVariab
         end do
      end if
   end if
+
+  equationOfState_ = IDEAL_GAS
+  if (present(equationOfState)) equationOfState_ = equationOfState
+
+  select case (equationOfState_)
+  case (IDEAL_GAS)
+     ! Pressure.
+     if (present(pressure)) then
+        assert(size(pressure) == size(conservedVariables, 1))
+        if (present(velocity)) then
+           pressure = (ratioOfSpecificHeats_ - 1.0_wp) *                                     &
+                (conservedVariables(:,nDimensions+2) - 0.5_wp * conservedVariables(:,1) *    &
+                sum(velocity ** 2, dim = 2))
+        else if (present(specificVolume)) then
+           pressure = (ratioOfSpecificHeats_ - 1.0_wp) *                                     &
+                (conservedVariables(:,nDimensions+2) - 0.5_wp *                              &
+                sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) * specificVolume)
+        else
+           pressure = (ratioOfSpecificHeats_ - 1.0_wp) *                                     &
+                (conservedVariables(:,nDimensions+2) - 0.5_wp *                              &
+                sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) /                   &
+                conservedVariables(:,1))
+        end if
+     end if
+
+     ! Temperature.
+     if (present(temperature)) then
+        assert(size(temperature) == size(conservedVariables, 1))
+        if (present(pressure)) then
+           if (present(specificVolume)) then
+              temperature = ratioOfSpecificHeats_ *                                          &
+                   pressure / (ratioOfSpecificHeats_ - 1.0_wp) * specificVolume
+           else
+              temperature = ratioOfSpecificHeats_ *                                          &
+                   pressure / (ratioOfSpecificHeats_ - 1.0_wp) / conservedVariables(:,1)
+           end if
+        else
+           temperature = ratioOfSpecificHeats_ * (conservedVariables(:,nDimensions+2) -      &
+                0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) /          &
+                conservedVariables(:,1)) / conservedVariables(:,1)
+        end if
+     end if
+
+  case (IDEAL_GAS_MIXTURE)
+     ! Pressure.
+     if (present(pressure)) then
+        assert(size(pressure) == size(conservedVariables, 1))
+        if (present(velocity)) then
+           pressure = (ratioOfSpecificHeats_ - 1.0_wp) *                                     &
+                (conservedVariables(:,nDimensions+2) - 0.5_wp * conservedVariables(:,1) *    &
+                sum(velocity ** 2, dim = 2))
+        else if (present(specificVolume)) then
+           pressure = (ratioOfSpecificHeats_ - 1.0_wp) *                                     &
+                (conservedVariables(:,nDimensions+2) - 0.5_wp *                              &
+                sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) * specificVolume)
+        else
+           pressure = (ratioOfSpecificHeats_ - 1.0_wp) *                                     &
+                (conservedVariables(:,nDimensions+2) - 0.5_wp *                              &
+                sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) /                   &
+                conservedVariables(:,1))
+        end if
+     end if
+
+     ! Temperature.
+     if (present(temperature)) then
+        assert(size(temperature) == size(conservedVariables, 1))
+        assert(nSpecies > 0)
+        assert(present(molecularWeightInverse))
+        assert(size(molecularWeightInverse) == nSpecies + 1)
+        allocate(temp(size(temperature)))
+        temp = conservedVariables(:,1) * molecularWeightInverse(nSpecies+1)
+        do i = 1, nSpecies
+           temp = temp + conservedVariables(:,nDimensions+2+i) *                             &
+                (molecularWeightInverse(i) - molecularWeightInverse(nSpecies+1))
+        end do
+        if (present(pressure)) then
+           temperature = ratioOfSpecificHeats_ * pressure /                                  &
+                (ratioOfSpecificHeats_ - 1.0_wp) / temp
+        else
+           temperature = ratioOfSpecificHeats_ * (conservedVariables(:,nDimensions+2) -      &
+                0.5_wp * sum(conservedVariables(:,2:nDimensions+1) ** 2, dim = 2) /          &
+                conservedVariables(:,1)) / temp
+        end if
+        SAFE_DEALLOCATE(temp)
+     end if
+
+  end select
 
 end subroutine computeDependentVariables
 
@@ -157,7 +215,7 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
         assert(size(massDiffusivity,1) == size(temperature))
         assert(size(massDiffusivity,2) == nSpecies)
         assert(present(schmidtNumberInverse))
-        assert(size(schmidtNumberInverse) == nSpecies)
+        assert(size(schmidtNumberInverse) == nSpecies+1)
         assert(schmidtNumberInverse > 0.0_wp)
         do k = 1, nSpecies
            massDiffusivity(:,k) = reynoldsNumberInverse * schmidtNumberInverse(k)
@@ -208,7 +266,7 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
         assert(size(massDiffusivity,1) == size(temperature))
         assert(size(massDiffusivity,2) == nSpecies)
         assert(present(schmidtNumberInverse))
-        assert(size(schmidtNumberInverse) == nSpecies)
+        assert(size(schmidtNumberInverse) == nSpecies+1)
         assert(schmidtNumberInverse > 0.0_wp)
         if (present(dynamicViscosity)) then
            do k = 1, nSpecies
@@ -747,15 +805,16 @@ PURE_SUBROUTINE transformFluxes(nDimensions, fluxes, metrics,                   
 
 end subroutine transformFluxes
 
-PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, temperature,      &
-     timeStepSize, ratioOfSpecificHeats, dynamicViscosity,                                   &
+PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, pressure,         &
+     specificVolume, timeStepSize, ratioOfSpecificHeats, dynamicViscosity,                   &
      thermalDiffusivity) result(cfl)
 
   implicit none
 
   ! <<< Arguments >>>
   integer, intent(in) :: nDimensions, iblank(:)
-  SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:), velocity(:,:), temperature(:)
+  SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:), velocity(:,:), pressure(:),          &
+       specificVolume(:)
   real(SCALAR_KIND), intent(in) :: timeStepSize, ratioOfSpecificHeats
   SCALAR_TYPE, intent(in), optional :: dynamicViscosity(:), thermalDiffusivity(:)
 
@@ -774,7 +833,7 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
   assert(size(metrics, 2) == nDimensions ** 2)
   assert(size(velocity, 1) == size(iblank))
   assert(size(velocity, 2) == nDimensions)
-  assert(size(temperature) == size(iblank))
+  assert(size(pressure) == size(iblank))
   assert(timeStepSize > 0.0_wp)
   assert(ratioOfSpecificHeats > 1.0_wp)
 
@@ -783,7 +842,8 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
   ! Advection.
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
-     localSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))
+     localSpeedOfSound = sqrt(ratioOfSpecificHeats * real(pressure(i), wp) *                 &
+          real(specificVolume(i), wp))
      localWaveSpeed = 0.0_wp
      do j = 1, nDimensions
         localWaveSpeed = localWaveSpeed +                                                    &
@@ -819,14 +879,15 @@ PURE_FUNCTION computeCfl(nDimensions, iblank, jacobian, metrics, velocity, tempe
 end function computeCfl
 
 PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, velocity,          &
-     temperature, cfl, ratioOfSpecificHeats, dynamicViscosity, thermalDiffusivity)           &
-     result(timeStepSize)
+     pressure, specificVolume, cfl, ratioOfSpecificHeats, dynamicViscosity,                  &
+     thermalDiffusivity) result(timeStepSize)
 
   implicit none
 
   ! <<< Arguments >>>
   integer, intent(in) :: nDimensions, iblank(:)
-  SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:), velocity(:,:), temperature(:)
+  SCALAR_TYPE, intent(in) :: jacobian(:), metrics(:,:), velocity(:,:), pressure(:),          &
+       specificVolume(:)
   real(SCALAR_KIND), intent(in) :: cfl, ratioOfSpecificHeats
   SCALAR_TYPE, intent(in), optional :: dynamicViscosity(:), thermalDiffusivity(:)
 
@@ -845,7 +906,7 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
   assert(size(metrics, 2) == nDimensions ** 2)
   assert(size(velocity, 1) == size(iblank))
   assert(size(velocity, 2) == nDimensions)
-  assert(size(temperature) == size(iblank))
+  assert(size(pressure) == size(iblank))
   assert(cfl > 0.0_wp)
   assert(ratioOfSpecificHeats > 1.0_wp)
 
@@ -854,7 +915,8 @@ PURE_FUNCTION computeTimeStepSize(nDimensions, iblank, jacobian, metrics, veloci
   ! Advection.
   do i = 1, size(iblank)
      if (iblank(i) == 0) cycle ! ... skip hole points.
-     localSpeedOfSound = sqrt((ratioOfSpecificHeats - 1.0_wp) * real(temperature(i), wp))
+     localSpeedOfSound = sqrt(ratioOfSpecificHeats * real(pressure(i), wp) *                 &
+          real(specificVolume(i), wp))
      localWaveSpeed = 0.0_wp
      do j = 1, nDimensions
         localWaveSpeed = localWaveSpeed +                                                    &
@@ -1421,23 +1483,28 @@ PURE_SUBROUTINE computeJacobianOfInviscidFlux(nDimensions, nSpecies,            
 end subroutine computeJacobianOfInviscidFlux
 
 PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,                 &
-     conservedVariables, metrics, ratioOfSpecificHeats, incomingDirection,                   &
+     equationOfState, conservedVariables, metrics, ratioOfSpecificHeats, incomingDirection,  &
      incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux,                    &
-     deltaConservedVariables, specificVolume, velocity, temperature, massFraction)
+     deltaConservedVariables, specificVolume, velocity, temperature, massFraction,           &
+     molecularWeightInverse)
+
+  ! <<< Enumerations >>>
+  use SolverOptions_enum
 
   implicit none
 
   ! <<< Arguments >>>
   integer, intent(in) :: nDimensions, nSpecies, incomingDirection
+  integer, intent(in), optional :: equationOfState
   SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(:,:)
   SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(:,:,:)
   SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(:,:), specificVolume,         &
-       velocity(:), temperature, massFraction(:)
+       velocity(:), temperature, massFraction(:), molecularWeightInverse(:)
 
   ! <<< Local variables >>>
-  integer :: i, j, k
+  integer :: i, j, k, equationOfState_
   integer, parameter :: wp = SCALAR_KIND
   SCALAR_TYPE :: arcLength, normalizedMetrics(nDimensions), specificVolume_,                 &
        velocity_(nDimensions), temperature_, massFraction_(nSpecies),                        &
@@ -1457,7 +1524,7 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
        deltaEigenvalues(nDimensions+nSpecies+2, nDimensions+nSpecies+2),                     &
        deltaLeftEigenvectors                                                                 &
        (nDimensions+nSpecies+2, nDimensions+nSpecies+2, nDimensions+nSpecies+2),             &
-       temp(nDimensions+nSpecies+2)
+       temp(nDimensions+nSpecies+2), temp2
 
   ! Normalize the metrics.
   arcLength = sqrt(sum(metrics ** 2))
@@ -1479,12 +1546,27 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
      end do
   end if
 
+  ! Determine the equation of state.
+  equationOfState_ = IDEAL_GAS
+  if (present(equationOfState)) equationOfState_ = equationOfState
+
   ! Compute temperature if it was not specified.
   if (present(temperature)) then
      temperature_ = temperature
   else
-     temperature_ = ratioOfSpecificHeats * (specificVolume_ *                                &
-          conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
+     select case (equationOfState_)
+     case (IDEAL_GAS)
+        temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
+             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
+     case (IDEAL_GAS_MIXTURE)
+        temp2 = conservedVariables(1) * molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           temp2 = temp2 + conservedVariables(nDimensions+2+k) *                             &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
+        end do
+        temperature_ = ratioOfSpecificHeats * (conservedVariables(nDimensions+2) -           &
+             0.5_wp * sum(velocity_ ** 2)) / temp2
+     end select
   end if
 
   ! Compute mass fraction if it was not specified.

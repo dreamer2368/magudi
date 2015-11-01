@@ -95,7 +95,7 @@ program incoming_inviscid_flux_jacobian
      end do
 
      call computeDependentVariables(nDimensions, nSpecies, conservedVariables,               &
-          ratioOfSpecificHeats, specificVolume = specificVolume,                             &
+          ratioOfSpecificHeats = ratioOfSpecificHeats, specificVolume = specificVolume,      &
           velocity = velocity, temperature = temperature, massFraction = massFraction)
      assert(all(specificVolume > 0.0_wp))
      assert(all(temperature > 0.0_wp))
@@ -117,7 +117,7 @@ program incoming_inviscid_flux_jacobian
                 ratioOfSpecificHeats, jacobianOfInviscidFlux,                                &
                 specificVolume = specificVolume(i), velocity = localVelocity,                &
                 temperature = temperature(i), massFraction = localMassFraction)
-           call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,              &
+           call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies, 1,           &
                 localConservedVariables, localMetricsAlongDirection,                      &
                 ratioOfSpecificHeats, 1, incomingJacobianOfInviscidFlux1,                 &
                 specificVolume = specificVolume(i), velocity = localVelocity,             &

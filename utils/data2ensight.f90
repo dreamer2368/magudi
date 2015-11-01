@@ -360,7 +360,7 @@ program data2ensight
              region%states(1)%conservedVariables,                                            &
              region%solverOptions%equationOfState,                                           &
              region%solverOptions%ratioOfSpecificHeats,                                      &
-             region%solverOptions%molecularWeightCoefficient,                                &
+             region%solverOptions%molecularWeightInverse,                                    &
              temperature = temperature)
      do k=1,nz
         do j=1,ny

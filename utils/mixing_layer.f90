@@ -2,38 +2,40 @@
 
 program mixing_layer
 
+  ! <<< External modules >>>
   use MPI
   use, intrinsic :: iso_fortran_env
 
+ ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+
+  ! <<< Enumerations >>>
   use Grid_enum
   use State_enum
 
-  use Region_mod, only : t_Region
-
+  ! <<< Internal modules >>>
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat
 
-  !> Generates the grid, BC, initial condition, target state, and adjoint mollifiers
-  !> for a reactive spatial mixing layer.
-
   implicit none
 
+  ! <<< Global Parameters >>>
+  type(t_Region) :: region
   integer :: i, numProcs, ierror
   integer :: imin_sponge, imax_sponge, jmin_sponge, jmax_sponge
   character(len = STRING_LENGTH) :: inputname, filename
-  type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
 
   print *
   print *, '! ================================================= !'
   print *, '!                                                   !'
-  print *, '!    MIXING LAYER GENERATOR                         !'
+  print *, '!    MULTICOMPONENT MIXING LAYER GENERATOR          !'
   print *, '!    Creates:                                       !'
   print *, '!               - Cartesian grid                    !'
   print *, '!               - Target/initial solution           !'
   print *, '!               - Boundary conditions               !'
-  print *, '!    for a spatially evolving mixing layer          !'
+  print *, '!    for a non-premixed shear layer                 !'
   print *, '!                                                   !'
   print *, '! ================================================= !'
   print *
@@ -43,7 +45,7 @@ program mixing_layer
 
   ! Exit if executed in parallel
   call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
-  if (numProcs.gt.1) then
+  if (numProcs > 1) then
      print *, 'mixing_layer.f90 only implemented in serial for now...'
      stop
   end if
@@ -52,10 +54,10 @@ program mixing_layer
   inputname = "magudi.inp"
   call parseInputFile(inputname)
 
-  ! Generate the grid
-  call mixingLayerGrid(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
+  ! Generate the grid.
+  call mixingLayerGrid(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge)
 
-  ! Save the grid
+  ! Save the grid.
   call getRequiredOption("grid_file", filename)
   call region%saveData(QOI_GRID, filename)
 
@@ -68,13 +70,13 @@ program mixing_layer
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
-  ! Generate the BC
-  call mixingLayerBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
+  ! Generate the boundary conditions.
+  call mixingLayerBC(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge)
 
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
      call mixingLayerInitialCondition(region%states(i), region%grids(i),                     &
-          region%simulationFlags%useTargetState)
+          region%solverOptions, region%simulationFlags%useTargetState)
   end do
 
   ! Save initial condition.
@@ -109,7 +111,7 @@ contains
   ! =============== !
   ! Grid generation !
   ! =============== !
-  subroutine mixingLayerGrid(i1,i2,j1,j2)
+  subroutine mixingLayerGrid(i1, i2, j1, j2)
 
     ! <<< External modules >>>
     use MPI
@@ -165,7 +167,7 @@ contains
     ! Setup the region.
     call region%setup(MPI_COMM_WORLD, globalGridSizes)
 
-    ! Local mesh
+    ! Local mesh size.
     nx_ = region%grids(1)%localSize(1)
     ny_ = region%grids(1)%localSize(2)
     nz_ = region%grids(1)%localSize(3)
@@ -206,7 +208,7 @@ contains
           s(i) = real(i-1,wp) / (nx_ - 1)
        end do
 
-       ! Compute g(s).
+       ! Compute mapping g(s).
        allocate(g(nx_))
        call mapping_function(s, b, c, sigma, g)
 
@@ -240,7 +242,7 @@ contains
     end if
 
     if (stretch_y) then
-       ! Parameters
+       ! Grid stretching parameters.
        sigma=0.2_wp
        b=20.0_wp
        c=0.62_wp
@@ -251,7 +253,7 @@ contains
           s(j) = real(j-1,wp) / (ny_ - 1)
        end do
 
-       ! Compute g(s).
+       ! Compute mapping g(s).
        allocate(g(ny_))
        call mapping_function(s, b, c, sigma, g)
 
@@ -340,7 +342,7 @@ contains
   ! =================== !
   ! Boundary conditions !
   ! =================== !
-  subroutine mixingLayerBC(imin_sponge,imax_sponge,jmin_sponge,jmax_sponge)
+  subroutine mixingLayerBC(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge)
     implicit none
 
     integer, intent(in), optional :: imin_sponge,imax_sponge,jmin_sponge,jmax_sponge
@@ -348,18 +350,18 @@ contains
     integer, allocatable, dimension(:) :: grid,normDir,imin,imax,jmin,jmax,kmin,kmax
     character(len = 22), allocatable, dimension(:) :: name,type
 
-    ! Number of BC
+    ! Number of boundary conditions.
     nbc = 11
 
-    ! Allocate BC
+    ! Allocate boundary conditions.
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
          imin(nbc),imax(nbc),jmin(nbc),jmax(nbc),kmin(nbc),kmax(nbc))
 
-    ! Set the BC
-    ! GRID 1
+    ! Set the boundary conditions.
+    ! GRID 1.
     grid(:)    = 1
 
-    ! BC 1
+    ! BC 1.
     bc = 1
     name   (bc) = 'inflow'
     type   (bc) = 'SAT_FAR_FIELD'
@@ -371,7 +373,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 2
+    ! BC 2.
     bc = 2
     name   (bc) = 'inflowSponge'
     type   (bc) = 'SPONGE'
@@ -383,7 +385,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 3
+    ! BC 3.
     bc = 3
     name   (bc) = 'outflow'
     type   (bc) = 'SAT_FAR_FIELD'
@@ -395,7 +397,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 4
+    ! BC 4.
     bc = 4
     name   (bc) = 'outflowSponge'
     type   (bc) = 'SPONGE'
@@ -407,7 +409,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 5
+    ! BC 5.
     bc = 5
     name   (bc) = 'bottom'
     type   (bc) = 'SAT_FAR_FIELD'
@@ -419,7 +421,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 6
+    ! BC 6.
     bc = 6
     name   (bc) = 'bottomSponge'
     type   (bc) = 'SPONGE'
@@ -431,7 +433,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 7
+    ! BC 7.
     bc = 7
     name   (bc) = 'top'
     type   (bc) = 'SAT_FAR_FIELD'
@@ -443,7 +445,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 8
+    ! BC 8.
     bc = 8
     name   (bc) = 'topSponge'
     type   (bc) = 'SPONGE'
@@ -455,7 +457,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 9
+    ! BC 9.
     bc = 9
     name   (bc) = 'excitationSupport'
     type   (bc) = 'SOLENOIDAL_EXCITATION'
@@ -467,7 +469,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 10
+    ! BC 10.
     bc = 10
     name   (bc) = 'targetRegion'
     type   (bc) = 'COST_TARGET'
@@ -479,7 +481,7 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 11
+    ! BC 11.
     bc = 11
     name   (bc) = 'controlRegion'
     type   (bc) = 'ACTUATOR'
@@ -491,24 +493,24 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-   ! Open the file
+    ! Open the file.
     iunit=11
     open(iunit,file="bc.dat")
     
     write (*,'(A)') ''
     write (*,'(A)') 'Writing boundary conditions'
 
-    ! Write the header
+    ! Write the header.
     write(iunit,'(1a87)') "# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax"
     write(iunit,'(1a87)') "# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ===="
 
-    ! Write the BC
+    ! Write the boundary conditions.
     do i=1,nbc
        write(iunit,'(a2,2a21,8I5)') '  ',adjustl(name(i)),adjustl(type(i)),&
             grid(i),normDir(i),imin(i),imax(i),jmin(i),jmax(i),kmin(i),kmax(i)
     end do
 
-    ! Close the file
+    ! Close the file.
     close(iunit)
 
     return
@@ -518,32 +520,40 @@ contains
   ! ================== !
   ! Initial conditions !
   ! ================== !
-  subroutine mixingLayerInitialCondition(state, grid, generateTargetState)
+  subroutine mixingLayerInitialCondition(state, grid, solverOptions, generateTargetState)
 
     ! <<< External modules >>>
     use MPI
 
     ! <<< Derived types >>>
     use Grid_mod, only : t_Grid
-    use State_mod
+    use State_mod, only : t_State
+    use SolverOptions_mod, only : t_SolverOptions
+    use SimulationFlags_mod, only : t_SimulationFlags
 
     ! <<< Internal modules >>>
     use InputHelper, only : getOption
     use ErrorHandler, only : gracefulExit
+    use ThermoChemistry, only : getMolecularWeight
+
+    ! <<< Enumerations >>>
+    use SolverOptions_enum
 
     ! <<< Arguments >>>
     type(t_State) :: state
-    type(t_Grid) :: grid
+    type(t_Grid), intent(in) :: grid
+    type(t_SolverOptions), intent(in) :: solverOptions
     logical, intent(in), optional :: generateTargetState
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
-    integer :: i, nSpecies, H2, O2, nDimensions, ierror
+    integer :: i, k, nDimensions, nSpecies, H2, O2, N2, ierror
     real(wp) :: ratioOfSpecificHeats, upperVelocity, lowerVelocity,                          &
-         density, velocity, temperature, Z, fuel, oxidizer, YF0, YO0, Z0,                    &
-         x, y, xmini, xmaxi, ymini, ymaxi, xmaxo, xmino, ymaxo, ymino
-    real(wp), parameter :: growthRate = 0.1_wp
+         density, velocity, temperature, pressure, Z, fuel, oxidizer, inert, YF0, YO0, Z0,   &
+         x, y, xmini, xmaxi, ymini, ymaxi, xmaxo, xmino, ymaxo, ymino, growthRate,           &
+         outflowVelocity
+    real(wp), dimension(:), allocatable :: Wi
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -551,7 +561,7 @@ contains
     call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
     ! Species
-    nSpecies = getOption("number_of_species", 0)
+    nSpecies = solverOptions%nSpecies
 
     ! Only implemented for 2 species
     if (nspecies.gt.2) then
@@ -559,9 +569,40 @@ contains
        stop
     end if
 
+    ! Get species indices.
+    if (allocated(solverOptions%speciesName)) then
+       do k = 1, nSpecies + 1
+          select case (trim(solverOptions%speciesName(k)))
+          case ('H2', 'HYDROGEN')
+             H2 = k
+          case ('O2', 'OXYGEN')
+             O2 = k
+          case ('N2', 'NITROGEN')
+             N2 = k
+          case default
+             print *, "Unknown species: ", trim(solverOptions%speciesName(k)), "!"
+             stop
+          end select
+       end do
+    else
+       H2 = 1
+       O2 = 2
+       N2 = nSpecies + 1
+    end if
+
+    ! Get molecular weights.
+    allocate(Wi(nSpecies+1))
+    Wi = solverOptions%molecularWeightInverse
+
     ! Mixing layer velocities.
     upperVelocity = getOption("upper_velocity", 0.0_wp)
     lowerVelocity = getOption("lower_velocity", 0.0_wp)
+    growthRate = getOption("growth_rate", 0.1_wp)
+
+    ! Mixture properties.
+    Z0 = getOption("initial_mixture_fraction", 1.0_wp)
+    call getRequiredOption("initial_fuel_mass_fraction", Yf0)
+    call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
 
     ! Domain extents
     xmini = getOption("xmin_interior", 0.0_wp)
@@ -573,17 +614,8 @@ contains
     ymino = getOption("ymin_outer", -50.0_wp)
     ymaxo = getOption("ymax_outer", 50.0_wp)
 
-    ! Species indeces.
-    H2 = nDimensions+2+1
-    O2 = H2 + 1
-
-    ! Mixture properties.
-    Z0 = getOption("initial_mixture_fraction", 1.0_wp)
-    call getRequiredOption("initial_fuel_mass_fraction", Yf0)
-    call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
-
-    ! Specific heat ration (gamma).
-    ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
+    ! Get the ratio of specific heats.
+    ratioOfSpecificHeats = solverOptions%ratioOfSpecificHeats
 
     do i = 1, grid%nGridPoints
 
@@ -591,11 +623,27 @@ contains
        x = grid%coordinates(i,1)
        y = grid%coordinates(i,2)
 
+       ! Velocity.
+       velocity = lowerVelocity +                                                            &
+            0.5_wp * (upperVelocity - lowerVelocity) * (1.0_wp + tanh(2.0_wp * y /           &
+            (1.0_wp + growthRate*max(0.0_wp, x-xmini))))
+
+       ! Accelerate the outflow.
+       outflowVelocity = 2.0_wp
+       velocity = velocity + (1.0_wp - lowerVelocity) * outflowVelocity *                    &
+            max( 0.0_wp, (x - xmaxi) / (xmaxo - xmaxi) )
+
+       ! Pressure
+       pressure = 1.0_wp / ratioOfSpecificHeats
+
+       ! Temperature.
+       temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
+
        ! Mixture fraction.
        Z = 0.5_wp * Z0 * ( 1.0_wp - erf(y / (1.0_wp +                                        &
             growthRate * max(0.0_wp, min(x, xmaxi) - xmini))) )
 
-       ! Mixture components.
+       ! Mass fractions.
        fuel = YF0 * Z
        oxidizer = YO0 * (1.0_wp - Z)
 
@@ -603,32 +651,30 @@ contains
        fuel = fuel - fuel * max( 0.0_wp, (x - xmaxi) / (xmaxo - xmaxi) )
        oxidizer = oxidizer - oxidizer * max( 0.0_wp, (x - xmaxi) / (xmaxo - xmaxi) )
 
-       ! Density.
-       if (nspecies.gt.0) then
-          density = 1.0_wp
-       else
-          density = 1.0_wp
-       end if
+       ! Correct species mass fractions.
+       inert = 1.0_wp - fuel - oxidizer
+       if (inert.lt.0.0_wp) oxidizer = oxidizer + inert
 
-       ! Velocity.
-       velocity = lowerVelocity +                                                            &
-            0.5_wp * (upperVelocity - lowerVelocity) * (1.0_wp + tanh(2.0_wp *               &
-            grid%coordinates(i,2) /                                                          &
-            (1.0_wp + growthRate*max(0.0_wp, grid%coordinates(i,1)-xmini))))
-
-       ! Temperature.
-       temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
+       ! Get density from the equation of state
+       select case (solverOptions%equationOfState)
+       case(IDEAL_GAS)
+          density = 1.0_wp
+       case (IDEAL_GAS_MIXTURE)
+          density = ratioOfSpecificHeats * pressure /                                        &
+               ( temperature * (ratioOfSpecificHeats - 1.0_wp) *                             &
+               (fuel * (Wi(H2) - Wi(N2)) + oxidizer * (Wi(O2) - Wi(N2)) + Wi(N2)) )
+       end select
 
        ! State variables.
        state%conservedVariables(i,1) = density
        state%conservedVariables(i,2) = state%conservedVariables(i,1) * velocity
        state%conservedVariables(i,3:nDimensions+1) = 0.0_wp
-       state%conservedVariables(i,nDimensions+2) =                                           &
-            state%conservedVariables(i,1) * temperature / ratioOfSpecificHeats +             &
+       state%conservedVariables(i,nDimensions+2) = pressure /                                &
+            (ratioOfSpecificHeats - 1.0_wp) +                                                &
             0.5_wp * state%conservedVariables(i,1) * velocity ** 2
-       if (nSpecies.gt.0) state%conservedVariables(i,H2) = fuel *                            &
+       if (nSpecies.gt.0) state%conservedVariables(i,nDimensions+2+H2) = fuel *              &
             state%conservedVariables(i,1)
-       if (nSpecies.gt.1) state%conservedVariables(i,O2) = oxidizer *                        &
+       if (nSpecies.gt.1) state%conservedVariables(i,nDimensions+2+O2) = oxidizer *          &
             state%conservedVariables(i,1)
 
        ! Target solution.

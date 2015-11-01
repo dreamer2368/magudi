@@ -61,7 +61,10 @@ subroutine setupReynoldsStress(this, region)
            j = region%grids(i)%index
            call computeDependentVariables(region%grids(i)%nDimensions,                       &
            region%states(i)%nSpecies, region%states(i)%targetState,                          &
-           region%solverOptions%ratioOfSpecificHeats, velocity = this%data_(j)%meanVelocity)
+           region%solverOptions%equationOfState,                                             &
+           region%solverOptions%ratioOfSpecificHeats,                                        &
+           region%solverOptions%molecularWeightInverse,                                      &
+           velocity = this%data_(j)%meanVelocity)
         end do
      end if
   end if
