@@ -132,13 +132,13 @@ module CNSHelper
   interface
 
      pure subroutine computeSpectralRadius(nDimensions, ratioOfSpecificHeats,                &
-       velocity, temperature, metrics, spectralRadius, isDomainCurvilinear)
+          specificVolume, velocity, pressure, metrics, spectralRadius, isDomainCurvilinear)
 
        !> Compute the spectral radii along all the directions.
 
        integer, intent(in) :: nDimensions
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
-       SCALAR_TYPE, intent(in) :: velocity(:,:), temperature(:), metrics(:,:)
+       SCALAR_TYPE, intent(in) :: specificVolume(:), velocity(:,:), pressure(:), metrics(:,:)
        SCALAR_TYPE, intent(out) :: spectralRadius(:,:)
        logical, intent(in), optional :: isDomainCurvilinear
 
@@ -207,10 +207,9 @@ module CNSHelper
 
   interface
 
-     pure subroutine computeJacobianOfInviscidFlux(nDimensions, nSpecies,                    &
-          conservedVariables, metrics, ratioOfSpecificHeats, jacobianOfInviscidFlux,         &
-          deltaConservedVariables, specificVolume, velocity, temperature, massFraction,      &
-          deltaJacobianOfInviscidFlux)
+     pure subroutine computeJacobianOfInviscidFlux(nDimensions, nSpecies, conservedVariables,&
+          metrics, ratioOfSpecificHeats, jacobianOfInviscidFlux, deltaConservedVariables,    &
+          specificVolume, velocity, pressure, massFraction, deltaJacobianOfInviscidFlux)
 
        integer, intent(in) :: nDimensions, nSpecies
        SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
@@ -218,7 +217,7 @@ module CNSHelper
        SCALAR_TYPE, intent(out) :: jacobianOfInviscidFlux(:,:)
 
        SCALAR_TYPE, intent(in), optional :: deltaConservedVariables, specificVolume,         &
-            velocity(:), temperature, massFraction(:)
+            velocity(:), pressure, massFraction(:)
        SCALAR_TYPE, intent(out), optional :: deltaJacobianOfInviscidFlux(:,:,:)
 
      end subroutine computeJacobianOfInviscidFlux
@@ -228,20 +227,18 @@ module CNSHelper
   interface
 
      pure subroutine computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,            &
-          equationOfState, conservedVariables, metrics, ratioOfSpecificHeats,                &
-          incomingDirection, incomingJacobianOfInviscidFlux,                                 &
-          deltaIncomingJacobianOfInviscidFlux, deltaConservedVariables, specificVolume,      &
-          velocity, temperature, massFraction, molecularWeightInverse)
+          conservedVariables, metrics, ratioOfSpecificHeats, incomingDirection,              &
+          incomingJacobianOfInviscidFlux, deltaIncomingJacobianOfInviscidFlux,               &
+          deltaConservedVariables, specificVolume, velocity, pressure, massFraction)
 
        integer, intent(in) :: nDimensions, nSpecies, incomingDirection
-       integer, intent(in), optional :: equationOfState
        SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: incomingJacobianOfInviscidFlux(:,:)
 
        SCALAR_TYPE, intent(out), optional :: deltaIncomingJacobianOfInviscidFlux(:,:,:)
        SCALAR_TYPE, intent(in), optional :: deltaConservedVariables(:,:), specificVolume,    &
-            velocity(:), temperature, massFraction(:), molecularWeightInverse(:)
+            velocity(:), pressure, massFraction(:)
 
      end subroutine computeIncomingJacobianOfInviscidFlux
 
@@ -250,11 +247,11 @@ module CNSHelper
   interface
 
      pure subroutine computeFirstPartialViscousJacobian(nDimensions, nSpecies,               &
-          conservedVariables, metrics, stressTensor, heatFlux, speciesFlux,                  &
+          equationOfState, conservedVariables, metrics, stressTensor, heatFlux, speciesFlux, &
           powerLawExponent, ratioOfSpecificHeats, firstPartialViscousJacobian,               &
           specificVolume, velocity, temperature, massFraction)
 
-       integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in) :: nDimensions, nSpecies, equationOfState
        SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:),                         &
             stressTensor(:), heatFlux(:)
        real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
@@ -270,11 +267,11 @@ module CNSHelper
   interface
 
      pure subroutine computeSecondPartialViscousJacobian(nDimensions, nSpecies,              &
-          velocity, dynamicViscosity, secondCoefficientOfViscosity,                          &
+          equationOfState, velocity, dynamicViscosity, secondCoefficientOfViscosity,         &
           thermalDiffusivity, massDiffusivity, jacobian, metricsAlongFirstDir,               &
           metricsAlongSecondDir, secondPartialViscousJacobian)
 
-       integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in) :: nDimensions, nSpecies, equationOfState
        SCALAR_TYPE, intent(in) :: velocity(:), dynamicViscosity,                             &
             secondCoefficientOfViscosity, thermalDiffusivity, massDiffusivity(:),            &
             jacobian, metricsAlongFirstDir(:)
@@ -287,13 +284,13 @@ module CNSHelper
 
   interface
 
-     pure subroutine computeJacobianOfSource(nDimensions, nSpecies,                          &
+     pure subroutine computeJacobianOfSource(nDimensions, nSpecies, equationOfState,         &
           conservedVariables, ratioOfSpecificHeats, combustion, jacobianOfSource,            &
           specificVolume, velocity, temperature, massFraction)
 
        use Combustion_mod, only : t_Combustion
 
-       integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in) :: nDimensions, nSpecies, equationOfState
        SCALAR_TYPE, intent(in) :: conservedVariables(:)
        real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
        SCALAR_TYPE, intent(out) :: jacobianOfSource(:,:)

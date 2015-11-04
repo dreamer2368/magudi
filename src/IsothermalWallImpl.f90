@@ -260,7 +260,8 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
                    state%adjointVariables(gridIndex,2:nDimensions+2)
 
               call computeSecondPartialViscousJacobian(nDimensions, state%nSpecies,          &
-                   localVelocity, this%dynamicViscosity(patchIndex),                         &
+                   solverOptions%equationOfState, localVelocity,                             &
+                   this%dynamicViscosity(patchIndex),                                        &
                    this%secondCoefficientOfViscosity(patchIndex),                            &
                    this%thermalDiffusivity(patchIndex), this%massDiffusivity(patchIndex,:),  &
                    grid%jacobian(gridIndex,1), metricsAlongNormalDirection,                  &

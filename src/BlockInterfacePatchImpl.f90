@@ -222,8 +222,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                 localInterfaceConservedVariables, solverOptions%ratioOfSpecificHeats,        &
                 localRoeAverage)
 
-           call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,                 &
-                solverOptions%equationOfState, localRoeAverage,                              &
+           call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies, localRoeAverage,&
                 localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,        &
                 incomingDirection, incomingJacobianOfInviscidFlux)
 

@@ -398,9 +398,9 @@ subroutine addSurfaceIntegralContribution(patch, grid, state, solverOptions)
            localMetricsAlongDirection = grid%metrics(gridIndex, 1 + nDimensions *            &
                 (abs(direction) - 1) : nDimensions * abs(direction))
 
-           call computeJacobianOfInviscidFlux(nDimensions, nSpecies,                         &
-                localConservedVariables, localMetricsAlongDirection,                         &
-                solverOptions%ratioOfSpecificHeats, localFluxJacobian)
+           call computeJacobianOfInviscidFlux(nDimensions, nSpecies, localConservedVariables,&
+                localMetricsAlongDirection, solverOptions%ratioOfSpecificHeats,              &
+                localFluxJacobian)
 
            state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -             &
                 sign(1.0_wp / grid%firstDerivative(abs(direction))%normBoundary(1),          &

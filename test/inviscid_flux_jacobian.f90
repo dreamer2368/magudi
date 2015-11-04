@@ -8,13 +8,13 @@ program inviscid_flux_jacobian
 
   implicit none
 
-  integer, parameter :: wp = SCALAR_KIND, n = 1024, maxSpecies = 6
+  integer, parameter :: wp = SCALAR_KIND, n = 1024, maxSpecies = 6, equationOfState = 1
   real(wp), parameter :: ratioOfSpecificHeats = 1.4_wp
   logical :: success
   integer :: i, j, k, nDimensions, nSpecies
   SCALAR_TYPE, allocatable :: conservedVariables1(:,:), deltaPrimitiveVariables(:,:),        &
        deltaConservedVariables(:,:),  conservedVariables2(:,:), metrics(:,:),                &
-       specificVolume(:), velocity(:,:), pressure(:), temperature(:), massFraction(:,:),     &
+       specificVolume(:), velocity(:,:), pressure(:), massFraction(:,:),                     &
        fluxes1(:,:,:), fluxes2(:,:,:), fluxes3(:,:,:), localConservedVariables(:),           &
        localVelocity(:), localMassFraction(:), localMetricsAlongDirection(:),                &
        jacobianOfInviscidFlux(:,:)
@@ -54,7 +54,6 @@ program inviscid_flux_jacobian
      allocate(specificVolume(n))
      allocate(velocity(n, nDimensions))
      allocate(pressure(n))
-     allocate(temperature(n))
      allocate(massFraction(n, nSpecies))
      allocate(fluxes1(n, nDimensions + 2 + nSpecies, nDimensions))
      allocate(fluxes2(n, nDimensions + 2 + nSpecies, nDimensions))
@@ -102,11 +101,11 @@ program inviscid_flux_jacobian
      end do
 
      call computeDependentVariables(nDimensions, nSpecies, conservedVariables1,              &
-          ratioOfSpecificHeats = ratioOfSpecificHeats, specificVolume = specificVolume,      &
-          velocity = velocity, pressure = pressure, temperature = temperature,               &
+          equationOfState = equationOfState, ratioOfSpecificHeats = ratioOfSpecificHeats,    &
+          specificVolume = specificVolume, velocity = velocity, pressure = pressure,         &
           massFraction = massFraction)
      assert(all(specificVolume > 0.0_wp))
-     assert(all(temperature > 0.0_wp))
+     assert(all(pressure > 0.0_wp))
      assert(all(massFraction > 0.0_wp))
      call computeCartesianInvsicidFluxes(nDimensions, nSpecies, conservedVariables1,         &
           velocity, pressure, fluxes1)
@@ -146,12 +145,12 @@ program inviscid_flux_jacobian
         assert(all(conservedVariables2(:,1) > 0.0_wp))
 
         call computeDependentVariables(nDimensions, nSpecies, conservedVariables2,           &
-             ratioOfSpecificHeats =  ratioOfSpecificHeats, specificVolume = specificVolume,  &
-             velocity = velocity, pressure = pressure, temperature = temperature,            &
+             equationOfState = equationOfState, ratioOfSpecificHeats =  ratioOfSpecificHeats,&
+             specificVolume = specificVolume, velocity = velocity, pressure = pressure,      &
              massFraction = massFraction)
 
         assert(all(specificVolume > 0.0_wp))
-        assert(all(temperature > 0.0_wp))
+        assert(all(pressure > 0.0_wp))
         call computeCartesianInvsicidFluxes(nDimensions, nSpecies, conservedVariables2,      &
              velocity, pressure, fluxes1)
         call transformFluxes(nDimensions, fluxes1, metrics, fluxes3, isDomainCurvilinear)
@@ -172,7 +171,7 @@ program inviscid_flux_jacobian
                    localConservedVariables, localMetricsAlongDirection,                      &
                    ratioOfSpecificHeats, jacobianOfInviscidFlux,                             &
                    specificVolume = specificVolume(j), velocity = localVelocity,             &
-                   temperature = temperature(j), massFraction = localMassFraction)
+                   pressure = pressure(j), massFraction = localMassFraction)
 
               errorHistory(i) = max(errorHistory(i),                                         &
                    maxval(abs(fluxes3(j,:,k) - fluxes2(j,:,k) - stepSizes(i) *               &
@@ -210,7 +209,6 @@ program inviscid_flux_jacobian
      SAFE_DEALLOCATE(fluxes2)
      SAFE_DEALLOCATE(fluxes1)
      SAFE_DEALLOCATE(massFraction)
-     SAFE_DEALLOCATE(temperature)
      SAFE_DEALLOCATE(pressure)
      SAFE_DEALLOCATE(velocity)
      SAFE_DEALLOCATE(specificVolume)

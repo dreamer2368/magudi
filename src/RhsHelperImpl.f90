@@ -276,16 +276,17 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
 
         localMetricsAlongDirection1 = grid%metrics(j,1+nDimensions*(i-1):nDimensions*i)
 
-        call computeJacobianOfInviscidFlux(nDimensions, nSpecies,                            &
-             localConservedVariables, localMetricsAlongDirection1,                           &
-             solverOptions%ratioOfSpecificHeats, localFluxJacobian1,                         &
-             specificVolume = state%specificVolume(j,1), velocity = localVelocity,           &
-             temperature = state%temperature(j,1), massFraction = localMassFraction)
+        call computeJacobianOfInviscidFlux(nDimensions, nSpecies, localConservedVariables,   &
+             localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,                &
+             localFluxJacobian1, specificVolume = state%specificVolume(j,1),                 &
+             velocity = localVelocity, pressure = state%pressure(j,1),                       &
+             massFraction = localMassFraction)
 
         if (simulationFlags%viscosityOn) then
            call computeFirstPartialViscousJacobian(nDimensions, nSpecies,                    &
-                localConservedVariables, localMetricsAlongDirection1, localStressTensor,     &
-                localHeatFlux, localSpeciesFlux, solverOptions%powerLawExponent,             &
+                solverOptions%equationOfState, localConservedVariables,                      &
+                localMetricsAlongDirection1, localStressTensor, localHeatFlux,               &
+                localSpeciesFlux, solverOptions%powerLawExponent,                            &
                 solverOptions%ratioOfSpecificHeats, localFluxJacobian2,                      &
                 specificVolume = state%specificVolume(j,1), velocity = localVelocity,        &
                 temperature = state%temperature(j,1), massFraction = localMassFraction)
@@ -327,7 +328,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
               localMetricsAlongDirection1 = grid%metrics(k,1+nDimensions*(i-1):nDimensions*i)
 
               call computeSecondPartialViscousJacobian(nDimensions, nSpecies,                &
-                   localVelocity, state%dynamicViscosity(k,1),                               &
+                   solverOptions%equationOfState, localVelocity, state%dynamicViscosity(k,1),&
                    state%secondCoefficientOfViscosity(k,1),                                  &
                    state%thermalDiffusivity(k,1), state%massDiffusivity(k,:),                &
                    grid%jacobian(k,1), localMetricsAlongDirection1,                          &

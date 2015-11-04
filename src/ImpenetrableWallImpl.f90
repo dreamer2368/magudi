@@ -157,10 +157,11 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
               deltaPressure(nDimensions+2) = 1.0_wp
               deltaPressure = deltaPressure * (solverOptions%ratioOfSpecificHeats - 1.0_wp)
 
-              call computeJacobianOfInviscidFlux(nDimensions, nSpecies, localConservedVariables,               &
-                   metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,       &
-                   deltaInviscidPenalty, temperature = state%temperature(gridIndex, 1),   &
-                   specificVolume = state%specificVolume(gridIndex, 1))
+              call computeJacobianOfInviscidFlux(nDimensions, nSpecies,                      &
+                   localConservedVariables, metricsAlongNormalDirection,                     &
+                   solverOptions%ratioOfSpecificHeats, deltaInviscidPenalty,                 &
+                   specificVolume = state%specificVolume(gridIndex, 1),                      &
+                   pressure = state%pressure(gridIndex, 1))
 
               do l = 1, nDimensions
                  deltaInviscidPenalty(l+1,:) = deltaInviscidPenalty(l+1,:) -                 &

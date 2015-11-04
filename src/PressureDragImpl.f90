@@ -208,11 +208,11 @@ subroutine computePressureDragAdjointForcing(this, simulationFlags, solverOption
                    unitNormal)
 
               call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,              &
-                   solverOptions%equationOfState, localConservedVariables,                   &
-                   metricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,          &
-                   - patch%normalDirection, incomingJacobianOfInviscidFlux,                  &
+                   localConservedVariables, metricsAlongNormalDirection,                     &
+                   solverOptions%ratioOfSpecificHeats, - patch%normalDirection,              &
+                   incomingJacobianOfInviscidFlux,                                           &
                    specificVolume = state%specificVolume(gridIndex, 1),                      &
-                   temperature = state%temperature(gridIndex, 1))
+                   pressure = state%pressure(gridIndex, 1))
 
               patch%adjointForcing(patchIndex,:) = - patch%inviscidPenaltyAmount * F *       &
                    matmul(transpose(incomingJacobianOfInviscidFlux(2:nDimensions+1,:)),      &

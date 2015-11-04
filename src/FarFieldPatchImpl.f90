@@ -173,10 +173,9 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
 
            call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,                 &
-                solverOptions%equationOfState, localTargetState, metricsAlongNormalDirection,&
+                localTargetState, metricsAlongNormalDirection,                               &
                 solverOptions%ratioOfSpecificHeats, incomingDirection,                       &
-                incomingJacobianOfInviscidFlux,                                              &
-                molecularWeightInverse = solverOptions%molecularWeightInverse)
+                incomingJacobianOfInviscidFlux)
 
            select case (mode)
 

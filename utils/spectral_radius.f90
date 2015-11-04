@@ -165,8 +165,9 @@ subroutine saveSpectralRadius(region, filename)
           velocity = region%states(i)%velocity,                                              &
           temperature = region%states(i)%temperature(:,1))
      call computeSpectralRadius(nDimensions, region%solverOptions%ratioOfSpecificHeats,      &
-          region%states(i)%velocity, region%states(i)%temperature(:,1),                      &
-          region%grids(i)%metrics, spectralRadius = data_(i)%buffer)
+          region%states(i)%specificVolume(:,1), region%states(i)%velocity,                   &
+          region%states(i)%pressure(:,1), region%grids(i)%metrics,                           &
+          spectralRadius = data_(i)%buffer)
 
      region%states(i)%dummyFunction => data_(i)%buffer
 

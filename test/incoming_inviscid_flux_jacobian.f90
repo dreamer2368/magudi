@@ -8,12 +8,12 @@ program incoming_inviscid_flux_jacobian
 
   implicit none
 
-  integer, parameter :: wp = SCALAR_KIND, n = 2 ** 10, maxSpecies = 6
+  integer, parameter :: wp = SCALAR_KIND, n = 2 ** 10, maxSpecies = 6, equationOfState = 1
   real(wp), parameter :: ratioOfSpecificHeats = 1.4_wp
   logical :: success
   integer :: i, j, k, nDimensions, nSpecies
   SCALAR_TYPE, allocatable :: conservedVariables(:,:), metrics(:,:), specificVolume(:),      &
-       velocity(:,:), temperature(:), massFraction(:,:), localConservedVariables(:),         &
+       velocity(:,:), pressure(:), massFraction(:,:), localConservedVariables(:),            &
        localVelocity(:), localMassFraction(:), localMetricsAlongDirection(:),                &
        jacobianOfInviscidFlux(:,:), incomingJacobianOfInviscidFlux1(:,:),                    &
        incomingJacobianOfInviscidFlux2(:,:)
@@ -49,7 +49,7 @@ program incoming_inviscid_flux_jacobian
      allocate(metrics(n, nDimensions ** 2))
      allocate(specificVolume(n))
      allocate(velocity(n, nDimensions))
-     allocate(temperature(n))
+     allocate(pressure(n))
      allocate(massFraction(n, nSpecies))
      allocate(localConservedVariables(nDimensions + 2 + nSpecies))
      allocate(localVelocity(nDimensions))
@@ -96,9 +96,9 @@ program incoming_inviscid_flux_jacobian
 
      call computeDependentVariables(nDimensions, nSpecies, conservedVariables,               &
           ratioOfSpecificHeats = ratioOfSpecificHeats, specificVolume = specificVolume,      &
-          velocity = velocity, temperature = temperature, massFraction = massFraction)
+          velocity = velocity, pressure = pressure, massFraction = massFraction)
      assert(all(specificVolume > 0.0_wp))
-     assert(all(temperature > 0.0_wp))
+     assert(all(pressure > 0.0_wp))
      assert(all(massFraction >= 0.0_wp))
      assert(all(massFraction <= 1.0_wp))
 
@@ -112,16 +112,15 @@ program incoming_inviscid_flux_jacobian
 
            localMetricsAlongDirection = metrics(i,1+nDimensions*(j-1):nDimensions*j)
 
-           call computeJacobianOfInviscidFlux(nDimensions, nSpecies,                         &
-                localConservedVariables, localMetricsAlongDirection,                         &
-                ratioOfSpecificHeats, jacobianOfInviscidFlux,                                &
+           call computeJacobianOfInviscidFlux(nDimensions, nSpecies, localConservedVariables,&
+                localMetricsAlongDirection, ratioOfSpecificHeats, jacobianOfInviscidFlux,    &
                 specificVolume = specificVolume(i), velocity = localVelocity,                &
-                temperature = temperature(i), massFraction = localMassFraction)
-           call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies, 1,           &
-                localConservedVariables, localMetricsAlongDirection,                      &
-                ratioOfSpecificHeats, 1, incomingJacobianOfInviscidFlux1,                 &
-                specificVolume = specificVolume(i), velocity = localVelocity,             &
-                temperature = temperature(i), massFraction = localMassFraction)
+                pressure = pressure(i), massFraction = localMassFraction)
+           call computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,                 &
+                localConservedVariables, localMetricsAlongDirection,                         &
+                ratioOfSpecificHeats, 1, incomingJacobianOfInviscidFlux1,                    &
+                specificVolume = specificVolume(i), velocity = localVelocity,                &
+                pressure = pressure(i), massFraction = localMassFraction)
 
            call lapackComputeIncomingJacobianOfInviscidFlux(jacobianOfInviscidFlux, 1,       &
                 incomingJacobianOfInviscidFlux2)
@@ -145,7 +144,7 @@ program incoming_inviscid_flux_jacobian
      SAFE_DEALLOCATE(localVelocity)
      SAFE_DEALLOCATE(localConservedVariables)
      SAFE_DEALLOCATE(massFraction)
-     SAFE_DEALLOCATE(temperature)
+     SAFE_DEALLOCATE(pressure)
      SAFE_DEALLOCATE(velocity)
      SAFE_DEALLOCATE(specificVolume)
      SAFE_DEALLOCATE(metrics)

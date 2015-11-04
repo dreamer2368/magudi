@@ -190,7 +190,7 @@ subroutine addCombustionForward(this, nDimensions, nSpecies, ratioOfSpecificHeat
 
 end subroutine addCombustionForward
 
-subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,                      &
+subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns, equationOfState,     &
      ratioOfSpecificHeats, conservedVariables, adjointVariables, velocity, massFraction,     &
      specificVolume, temperature, iblank, rightHandSide)
 
@@ -204,7 +204,7 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,         
 
   ! <<< Arguments >>>
   class(t_Combustion) :: this
-  integer, intent(in) :: nDimensions, nSpecies, nUnknowns, iblank(:)
+  integer, intent(in) :: nDimensions, nSpecies, nUnknowns, iblank(:), equationOfState
   SCALAR_TYPE, dimension(:,:), intent(in) :: conservedVariables, adjointVariables,           &
        velocity, massFraction, specificVolume, temperature
   SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats
@@ -240,7 +240,7 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns,         
      localVelocity = velocity(j,:)
      localMassFraction = massFraction(j,:)
 
-     call computeJacobianOfSource(nDimensions, nSpecies,                                     &
+     call computeJacobianOfSource(nDimensions, nSpecies, equationOfState,                    &
           localConservedVariables, ratioOfSpecificHeats, this,                               &
           localSourceJacobian, specificVolume = specificVolume(j,1),                         &
           velocity = localVelocity, temperature = temperature(j,1),                          &
