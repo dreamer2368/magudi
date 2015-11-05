@@ -591,13 +591,16 @@ contains
     end if
 
     ! Get molecular weights.
-    allocate(Wi(nSpecies+1))
-    Wi = solverOptions%molecularWeightInverse
+    if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE) then
+       allocate(Wi(nSpecies+1))
+       Wi = solverOptions%molecularWeightInverse
+    end if
 
     ! Mixing layer velocities.
     upperVelocity = getOption("upper_velocity", 0.0_wp)
     lowerVelocity = getOption("lower_velocity", 0.0_wp)
     growthRate = getOption("growth_rate", 0.1_wp)
+    outflowVelocity = getOption("outflow_velocity", 0.0_wp)
 
     ! Mixture properties.
     Z0 = getOption("initial_mixture_fraction", 1.0_wp)
@@ -629,7 +632,6 @@ contains
             (1.0_wp + growthRate*max(0.0_wp, x-xmini))))
 
        ! Accelerate the outflow.
-       outflowVelocity = 2.0_wp
        velocity = velocity + (1.0_wp - lowerVelocity) * outflowVelocity *                    &
             max( 0.0_wp, (x - xmaxi) / (xmaxo - xmaxi) )
 
