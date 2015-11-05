@@ -116,13 +116,14 @@ module CNSHelper
   interface
 
      pure subroutine computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,          &
-          massFraction, stressTensor, heatFlux, speciesFlux, viscousFluxes)
+          stressTensor, heatFlux, viscousFluxes, massFraction, speciesFlux, enthalpyFlux)
 
        !> Computes the Cartesian form of the viscous fluxes.
 
        integer, intent(in) :: nDimensions, nSpecies
        SCALAR_TYPE, intent(in) :: velocity(:,:), stressTensor(:,:), heatFlux(:,:)
-       SCALAR_TYPE, intent(in), optional :: massFraction(:,:), speciesFlux(:,:,:)
+       SCALAR_TYPE, intent(in), optional :: massFraction(:,:), speciesFlux(:,:,:),           &
+            enthalpyFlux(:,:)
        SCALAR_TYPE, intent(out) :: viscousFluxes(:,:,:)
 
      end subroutine computeCartesianViscousFluxes
@@ -247,9 +248,10 @@ module CNSHelper
   interface
 
      pure subroutine computeFirstPartialViscousJacobian(nDimensions, nSpecies,               &
-          equationOfState, conservedVariables, metrics, stressTensor, heatFlux, speciesFlux, &
-          powerLawExponent, ratioOfSpecificHeats, firstPartialViscousJacobian,               &
-          specificVolume, velocity, temperature, massFraction)
+          equationOfState, conservedVariables, metrics, stressTensor, heatFlux,              &
+          enthalpyFlux, speciesFlux, powerLawExponent, ratioOfSpecificHeats,                 &
+          firstPartialViscousJacobian, specificVolume, velocity, temperature, massFraction,  &
+          molecularWeightInverse)
 
        integer, intent(in) :: nDimensions, nSpecies, equationOfState
        SCALAR_TYPE, intent(in) :: conservedVariables(:), metrics(:),                         &
@@ -258,7 +260,7 @@ module CNSHelper
        SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(:,:)
 
        SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(:), temperature,        &
-            massFraction(:), speciesFlux(:,:)
+            massFraction(:), enthalpyFlux(:), speciesFlux(:,:), molecularWeightInverse(:)
 
      end subroutine computeFirstPartialViscousJacobian
      

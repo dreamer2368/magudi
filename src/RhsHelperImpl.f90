@@ -100,6 +100,7 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD
+  use SolverOptions_enum
 
   ! <<< Private members >>>
   use RhsHelperImpl, only : addDissipation
@@ -144,9 +145,16 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   ! Compute Cartesian form of viscous fluxes if viscous terms are included and computed using
   ! repeated first derivatives.
   if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
-     call computeCartesianViscousFluxes(nDimensions, nSpecies, state%velocity,               &
-          state%massFraction, state%stressTensor, state%heatFlux, state%speciesFlux,         &
-          fluxes2)
+
+     if (solverOptions%equationOfState == IDEAL_GAS) then
+        call computeCartesianViscousFluxes(nDimensions, nSpecies, state%velocity,            &
+             state%stressTensor, state%heatFlux, fluxes2, massFraction = state%massFraction, &
+             speciesFlux = state%speciesFlux)
+     else
+        call computeCartesianViscousFluxes(nDimensions, nSpecies, state%velocity,            &
+             state%stressTensor, state%heatFlux, fluxes2, state%massFraction,                &
+             state%speciesFlux, state%enthalpyFlux)
+     end if
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
 
@@ -201,6 +209,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
 
   ! <<< Enumerations >>>
   use Region_enum, only : ADJOINT
+  use SolverOptions_enum
 
   ! <<< Private members >>>
   use RhsHelperImpl, only : addDissipation
@@ -227,7 +236,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
        localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
        localVelocity(:), localMassFraction(:), localMetricsAlongDirection1(:),               &
        localMetricsAlongDirection2(:), localStressTensor(:), localHeatFlux(:),               &
-       localAdjointDiffusion(:,:), localSpeciesFlux(:,:)
+       localEnthalpyFlux(:), localSpeciesFlux(:,:), localAdjointDiffusion(:,:)
 
   call startTiming("computeRhsAdjoint")
 
@@ -258,7 +267,11 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
      allocate(localFluxJacobian2(solverOptions%nUnknowns, solverOptions%nUnknowns))
      allocate(localStressTensor(nDimensions ** 2))
      allocate(localHeatFlux(nDimensions))
-     allocate(localSpeciesFlux(nSpecies,nDimensions))
+     if (nSpecies > 0) then
+        allocate(localSpeciesFlux(nSpecies,nDimensions))
+        if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE)                              &
+             allocate(localEnthalpyFlux(nDimensions))
+     end if
   end if
 
   do j = 1, grid%nGridPoints
@@ -269,7 +282,11 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
      if (simulationFlags%viscosityOn) then
         localStressTensor = state%stressTensor(j,:)
         localHeatFlux = state%heatFlux(j,:)
-        localSpeciesFlux = state%speciesFlux(j,:,:)
+        if (nSpecies > 0) then
+           localSpeciesFlux = state%speciesFlux(j,:,:)
+           if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE)                           &
+                localEnthalpyFlux = state%enthalpyFlux(j,:)
+        end if
      end if
 
      do i = 1, nDimensions
@@ -286,10 +303,10 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
            call computeFirstPartialViscousJacobian(nDimensions, nSpecies,                    &
                 solverOptions%equationOfState, localConservedVariables,                      &
                 localMetricsAlongDirection1, localStressTensor, localHeatFlux,               &
-                localSpeciesFlux, solverOptions%powerLawExponent,                            &
+                localEnthalpyFlux, localSpeciesFlux, solverOptions%powerLawExponent,         &
                 solverOptions%ratioOfSpecificHeats, localFluxJacobian2,                      &
-                specificVolume = state%specificVolume(j,1), velocity = localVelocity,        &
-                temperature = state%temperature(j,1), massFraction = localMassFraction)
+                state%specificVolume(j,1), localVelocity, state%temperature(j,1),            &
+                localMassFraction, solverOptions%molecularWeightInverse)
            localFluxJacobian1 = localFluxJacobian1 - localFluxJacobian2
         end if
 
@@ -303,6 +320,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
   SAFE_DEALLOCATE(localConservedVariables)
   SAFE_DEALLOCATE(localFluxJacobian1)
   SAFE_DEALLOCATE(localHeatFlux)
+  SAFE_DEALLOCATE(localEnthalpyFlux)
   SAFE_DEALLOCATE(localStressTensor)
   SAFE_DEALLOCATE(localFluxJacobian2)
 

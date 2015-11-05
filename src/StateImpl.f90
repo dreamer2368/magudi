@@ -14,6 +14,9 @@ contains
     use SolverOptions_mod, only : t_SolverOptions
     use SimulationFlags_mod, only : t_SimulationFlags
 
+    ! <<< Enumerations >>>
+    use SolverOptions_enum
+
     ! <<< Arguments >>>
     class(t_State) :: this
     type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -46,7 +49,11 @@ contains
        if (simulationFlags%repeatFirstDerivative) then
           allocate(this%stressTensor(nGridPoints, nDimensions ** 2))
           allocate(this%heatFlux(nGridPoints, nDimensions))
-          allocate(this%speciesFlux(nGridPoints, this%nSpecies, nDimensions))
+          if (this%nSpecies > 0) then
+             allocate(this%speciesFlux(nGridPoints, this%nSpecies, nDimensions))
+             if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE)                         &
+                  allocate(this%enthalpyFlux(nGridPoints, nDimensions))
+          end if
        else
           allocate(this%velocityGradient(nGridPoints, nDimensions ** 2))
        end if
@@ -228,6 +235,7 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%velocityGradient)
   SAFE_DEALLOCATE(this%stressTensor)
   SAFE_DEALLOCATE(this%heatFlux)
+  SAFE_DEALLOCATE(this%enthalpyFlux)
   SAFE_DEALLOCATE(this%speciesFlux)
   SAFE_DEALLOCATE(this%timeAverage)
 
@@ -546,6 +554,7 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
   SCALAR_TYPE, intent(in), optional :: conservedVariables(:,:)
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i, k, nDimensions, nSpecies
 
   call startTiming("updateState")
@@ -594,9 +603,10 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
         end do
 
         if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE) then
+           this%enthalpyFlux = 0.0_wp
            do i = 1, nDimensions
               do k = 1, this%nSpecies
-                 this%heatFlux(:,i) = this%heatFlux(:,i) + this%speciesFlux(:,k,i) *         &
+                 this%enthalpyFlux(:,i) = this%enthalpyFlux(:,i) + this%speciesFlux(:,k,i) * &
                       this%temperature(:,1) / solverOptions%schmidtNumberInverse(k) *        &
                       ( solverOptions%molecularWeightInverse(k) *                            &
                       solverOptions%schmidtNumberInverse(k) -                                &

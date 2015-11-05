@@ -541,14 +541,15 @@ PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, nSpecies, conservedV
 end subroutine computeCartesianInvsicidFluxes
 
 PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,               &
-     massFraction, stressTensor, heatFlux, speciesFlux, viscousFluxes)
+     stressTensor, heatFlux, viscousFluxes, massFraction, speciesFlux, enthalpyFlux)
 
   implicit none
 
   ! <<< Arguments >>>
   integer, intent(in) :: nDimensions, nSpecies
   SCALAR_TYPE, intent(in) :: velocity(:,:), stressTensor(:,:), heatFlux(:,:)
-  SCALAR_TYPE, intent(in), optional :: massFraction(:,:), speciesFlux(:,:,:)
+  SCALAR_TYPE, intent(in), optional :: massFraction(:,:), enthalpyFlux(:,:),                 &
+       speciesFlux(:,:,:)
   SCALAR_TYPE, intent(out) :: viscousFluxes(:,:,:)
 
   ! <<< Local variables >>>
@@ -566,11 +567,15 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
   assert(size(viscousFluxes, 2) >= nDimensions + 2)
   assert(size(viscousFluxes, 3) == nDimensions)
   if (nSpecies > 0) then
-     assert(size(speciesFlux, 3) == nDimensions)
      assert(size(massFraction, 1) == size(velocity, 1))
      assert(size(massFraction, 2) == nSpecies)
      assert(size(speciesFlux, 1) == size(velocity, 1))
      assert(size(speciesFlux, 2) == nSpecies)
+     assert(size(speciesFlux, 3) == nDimensions)
+     if (present(enthalpyFlux)) then
+        assert(size(enthalpyFlux, 1) == size(velocity, 1))
+        assert(size(enthalpyFlux, 2) == nDimensions)
+     end if
   end if
 
   select case (nDimensions)
@@ -579,6 +584,8 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
      viscousFluxes(:,1,1) = 0.0_wp
      viscousFluxes(:,2,1) = stressTensor(:,1)
      viscousFluxes(:,3,1) = velocity(:,1) * stressTensor(:,1) - heatFlux(:,1)
+     if (present(enthalpyFlux)) viscousFluxes(:,3,1) = viscousFluxes(:,3,1) -                &
+          enthalpyFlux(:,1)
      do k = 1, nSpecies
         viscousFluxes(:,k+3,1) = - speciesFlux(:,k,1)
      end do
@@ -594,6 +601,10 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
      viscousFluxes(:,3,2) = stressTensor(:,4)
      viscousFluxes(:,4,2) = velocity(:,1) * stressTensor(:,2) +                              &
           velocity(:,2) * stressTensor(:,4) - heatFlux(:,2)
+     if (present(enthalpyFlux)) then
+        viscousFluxes(:,4,1) = viscousFluxes(:,4,1) - enthalpyFlux(:,1)
+        viscousFluxes(:,4,2) = viscousFluxes(:,4,2) - enthalpyFlux(:,2)
+     end if
      do k = 1, nSpecies
         viscousFluxes(:,k+4,1) = - speciesFlux(:,k,1)
         viscousFluxes(:,k+4,2) = - speciesFlux(:,k,2)
@@ -621,6 +632,11 @@ PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,  
      viscousFluxes(:,5,3) = velocity(:,1) * stressTensor(:,3) +                              &
           velocity(:,2) * stressTensor(:,6) +                                                &
           velocity(:,3) * stressTensor(:,9) - heatFlux(:,3)
+     if (present(enthalpyFlux)) then
+        viscousFluxes(:,5,1) = viscousFluxes(:,5,1) - enthalpyFlux(:,1)
+        viscousFluxes(:,5,2) = viscousFluxes(:,5,2) - enthalpyFlux(:,2)
+        viscousFluxes(:,5,3) = viscousFluxes(:,5,3) - enthalpyFlux(:,3)
+     end if
      do k = 1, nSpecies
         viscousFluxes(:,k+5,1) = - speciesFlux(:,k,1)
         viscousFluxes(:,k+5,2) = - speciesFlux(:,k,2)
@@ -2533,9 +2549,9 @@ PURE_SUBROUTINE computeIncomingJacobianOfInviscidFlux(nDimensions, nSpecies,    
 end subroutine computeIncomingJacobianOfInviscidFlux
 
 PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equationOfState,   &
-     conservedVariables, metrics, stressTensor, heatFlux, speciesFlux,                       &
+     conservedVariables, metrics, stressTensor, heatFlux, enthalpyFlux, speciesFlux,         &
      powerLawExponent, ratioOfSpecificHeats, firstPartialViscousJacobian,                    &
-     specificVolume, velocity, temperature, massFraction)
+     specificVolume, velocity, temperature, massFraction, molecularWeightInverse)
 
   ! <<< Enumerations >>>
   use SolverOptions_enum
@@ -2549,11 +2565,11 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
   real(SCALAR_KIND), intent(in) :: powerLawExponent, ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: firstPartialViscousJacobian(:,:)
   SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(:), temperature,             &
-       massFraction(:), speciesFlux(:,:)
+       massFraction(:), enthalpyFlux(:), speciesFlux(:,:), molecularWeightInverse(:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i,  k
+  integer :: i, k
   SCALAR_TYPE :: specificVolume_, velocity_(nDimensions), temperature_, phiSquared,          &
        contravariantStressTensor(nDimensions), contravariantHeatFlux, temp1, temp2,          &
        massFraction_(nSpecies), contravariantSpeciesFlux(nSpecies)
@@ -2574,14 +2590,6 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
      end do
   end if
 
-  ! Compute temperature if it was not specified.
-  if (present(temperature)) then
-     temperature_ = temperature
-  else
-     temperature_ = ratioOfSpecificHeats * (specificVolume_ *                                &
-          conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
-  end if
-
   ! Compute mass fraction if it was not specified.
   if (present(massFraction) .and. nSpecies > 0) then
      massFraction_ = massFraction
@@ -2591,7 +2599,31 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
      end do
   end if
 
-  ! Zero-out first partial viscous Jacobian
+  ! Compute temperature if it was not specified.
+  if (present(temperature)) then
+     temperature_ = temperature
+  else
+     select case (equationOfState)
+     case (IDEAL_GAS)
+        temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
+             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
+
+     case (IDEAL_GAS_MIXTURE)
+        assert(nSpecies > 0)
+        assert(present(molecularWeightInverse))
+        assert(size(molecularWeightInverse) == nSpecies + 1)
+        temp1 = molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           temp1 = temp1 + massFraction_(k) * (molecularWeightInverse(k) -                   &
+                molecularWeightInverse(nSpecies+1))
+        end do
+        temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
+             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2)) / temp1
+     end select
+  end if
+
+
+  ! Zero-out first partial viscous Jacobian.
   firstPartialViscousJacobian = 0.0_wp
 
   select case (nDimensions)
@@ -2603,7 +2635,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
      contravariantStressTensor(1) = metrics(1) * stressTensor(1) !... not normalized.
      contravariantHeatFlux = metrics(1) * heatFlux(1) !... not normalized.
      do k = 1, nSpecies
-        contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) !... not normalized
+        contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) !... not normalized.
      end do
      temp1 = velocity(1) * contravariantStressTensor(1) - contravariantHeatFlux
 
@@ -2617,7 +2649,6 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
      do k = 1, nSpecies
         firstPartialViscousJacobian(3+k,1) = - temp2 * contravariantSpeciesFlux(k)
      end do
-     
 
      temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
           specificVolume_ / temperature_ * velocity(1)

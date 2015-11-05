@@ -456,6 +456,9 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   use Patch_factory, only : queryPatchTypeExists
   use MPITimingsHelper, only : startTiming, endTiming
 
+  ! <<< Enumerations >>>
+  use SolverOptions_enum
+
   implicit none
 
   ! <<< Arguments >>>
@@ -542,9 +545,15 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
      if (flag) then
         allocate(targetViscousFluxes(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
         call state%update(grid, simulationFlags, solverOptions, state%targetState)
-        call computeCartesianViscousFluxes(nDimensions, solverOptions%nSpecies,              &
-             state%velocity, state%massFraction, state%stressTensor, state%heatFlux,         &
-             state%speciesFlux, targetViscousFluxes)
+        if (solverOptions%equationOfState == IDEAL_GAS) then
+           call computeCartesianViscousFluxes(nDimensions, solverOptions%nSpecies,           &
+                state%velocity, state%stressTensor, state%heatFlux, targetViscousFluxes,     &
+                massFraction = state%massFraction, speciesFlux = state%speciesFlux)
+        else
+           call computeCartesianViscousFluxes(nDimensions, solverOptions%nSpecies,           &
+                state%velocity, state%stressTensor, state%heatFlux, targetViscousFluxes,     &
+                state%massFraction, state%speciesFlux, state%enthalpyFlux)
+        end if
      end if
 
      if (allocated(patchFactories)) then

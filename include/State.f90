@@ -68,7 +68,8 @@ module State_mod
      SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
           specificVolume, velocity, velocityGradient, stressTensor, pressure, temperature,   &
           massFraction, heatFlux, dynamicViscosity, secondCoefficientOfViscosity,            &
-          thermalDiffusivity, massDiffusivity, targetState, adjointVariables, timeAverage
+          thermalDiffusivity, massDiffusivity, enthalpyFlux, targetState, adjointVariables,  &
+          timeAverage
 
      SCALAR_TYPE, dimension(:,:,:), allocatable :: speciesFlux
 

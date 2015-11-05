@@ -343,6 +343,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
 
   ! <<< Enumerations >>>
   use Region_enum, only : ADJOINT
+  use SolverOptions_enum
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeCartesianViscousFluxes
@@ -360,7 +361,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   ! <<< Local variables >>>
   integer :: i, direction, nDimensions, nUnknowns, nSpecies, procRank, ierror
   SCALAR_TYPE, dimension(:,:), allocatable :: velocity, massFraction, stressTensor,          &
-       heatFlux, metricsAlongNormalDirection, dataToBeSent
+       heatFlux, enthalpyFlux, metricsAlongNormalDirection, dataToBeSent
   SCALAR_TYPE, dimension(:,:,:), allocatable :: speciesFlux, viscousFluxes
 
   if (this%comm == MPI_COMM_NULL) return
@@ -415,20 +416,32 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      allocate(massFraction(this%nPatchPoints, nSpecies))
      allocate(stressTensor(this%nPatchPoints, nDimensions ** 2))
      allocate(heatFlux(this%nPatchPoints, nDimensions))
-     allocate(speciesFlux(this%nPatchPoints, nSpecies, nDimensions))
      allocate(viscousFluxes(this%nPatchPoints, nUnknowns, nDimensions))
      allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
+     if (nSpecies > 0) then
+        allocate(speciesFlux(this%nPatchPoints, nSpecies, nDimensions))
+        if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE)                              &
+             allocate(enthalpyFlux(this%nPatchPoints, nDimensions))
+     end if
 
      call this%collect(state%velocity, velocity)
      call this%collect(state%massFraction, massFraction)
      call this%collect(state%stressTensor, stressTensor)
      call this%collect(state%heatFlux, heatFlux)
      call this%collect(state%speciesFlux, speciesFlux)
+     if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE)                                 &
+          call this%collect(state%enthalpyFlux, enthalpyFlux)
      call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
           metricsAlongNormalDirection)
 
-     call computeCartesianViscousFluxes(nDimensions, nSpecies, velocity,                     &
-          massFraction, stressTensor, heatFlux, speciesFlux, viscousFluxes)
+     if (solverOptions%equationOfState == IDEAL_GAS) then
+        call computeCartesianViscousFluxes(nDimensions, nSpecies, velocity, stressTensor,    &
+             heatFlux, viscousFluxes, massFraction = massFraction, speciesFlux = speciesFlux)
+     else
+        call computeCartesianViscousFluxes(nDimensions, nSpecies, velocity, stressTensor,    &
+             heatFlux, viscousFluxes, massFraction, speciesFlux, enthalpyFlux)
+     end if
+
      do i = 1, this%nPatchPoints
         this%viscousFluxes(i,:) = matmul(viscousFluxes(i,2:nUnknowns,:),                     &
              metricsAlongNormalDirection(i,:))
@@ -444,6 +457,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
      SAFE_DEALLOCATE(metricsAlongNormalDirection)
      SAFE_DEALLOCATE(heatFlux)
      SAFE_DEALLOCATE(speciesFlux)
+     SAFE_DEALLOCATE(enthalpyFlux)
      SAFE_DEALLOCATE(stressTensor)
      SAFE_DEALLOCATE(velocity)
      SAFE_DEALLOCATE(massFraction)
