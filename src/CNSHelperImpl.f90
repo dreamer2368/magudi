@@ -2571,8 +2571,16 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, k
   SCALAR_TYPE :: specificVolume_, velocity_(nDimensions), temperature_, phiSquared,          &
-       contravariantStressTensor(nDimensions), contravariantHeatFlux, temp1, temp2,          &
-       massFraction_(nSpecies), contravariantSpeciesFlux(nSpecies)
+       contravariantStressTensor(nDimensions), contravariantHeatFlux, temp,                  &
+       massFraction_(nSpecies), contravariantSpeciesFlux(nSpecies),                          &
+       contravariantEnthalpyFlux, deltaViscosity(nDimensions+nSpecies+2)
+
+  if (equationOfState == IDEAL_GAS_MIXTURE) then
+     assert(nSpecies > 0)
+     assert(present(enthalpyFlux))
+     assert(present(molecularWeightInverse))
+     assert(size(molecularWeightInverse) == nSpecies + 1)
+  end if
 
   ! Compute specific volume if it was not specified.
   if (present(specificVolume)) then
@@ -2607,21 +2615,16 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
      case (IDEAL_GAS)
         temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
              conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
-
      case (IDEAL_GAS_MIXTURE)
-        assert(nSpecies > 0)
-        assert(present(molecularWeightInverse))
-        assert(size(molecularWeightInverse) == nSpecies + 1)
-        temp1 = molecularWeightInverse(nSpecies+1)
+        temp = molecularWeightInverse(nSpecies+1)
         do k = 1, nSpecies
-           temp1 = temp1 + massFraction_(k) * (molecularWeightInverse(k) -                   &
+           temp = temp + massFraction_(k) * (molecularWeightInverse(k) -                     &
                 molecularWeightInverse(nSpecies+1))
         end do
         temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
-             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2)) / temp1
+             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2)) / temp
      end select
   end if
-
 
   ! Zero-out first partial viscous Jacobian.
   firstPartialViscousJacobian = 0.0_wp
@@ -2630,188 +2633,521 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
      
   case (1)
 
-     ! Other dependent variables.
-     phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * velocity_(1) ** 2
-     contravariantStressTensor(1) = metrics(1) * stressTensor(1) !... not normalized.
-     contravariantHeatFlux = metrics(1) * heatFlux(1) !... not normalized.
-     do k = 1, nSpecies
-        contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) !... not normalized.
-     end do
-     temp1 = velocity(1) * contravariantStressTensor(1) - contravariantHeatFlux
+     select case (equationOfState)
 
-     temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_ *      &
-          (phiSquared / (ratioOfSpecificHeats - 1.0_wp) -                                    &
-          temperature_ / ratioOfSpecificHeats)
-     firstPartialViscousJacobian(1,1) = 0.0_wp
-     firstPartialViscousJacobian(2,1) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,1) = temp2 * temp1 - specificVolume_ *                    &
-          (velocity(1) * contravariantStressTensor(1))
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(3+k,1) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+     case (IDEAL_GAS)
 
-     temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
-          specificVolume_ / temperature_ * velocity(1)
-     firstPartialViscousJacobian(1,2) = 0.0_wp
-     firstPartialViscousJacobian(2,2) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,2) = temp2 * temp1 +                                      &
-          specificVolume_ * contravariantStressTensor(1)
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(3+k,2) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+        ! Other dependent variables.
+        phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * velocity_(1) ** 2
+        contravariantStressTensor(1) = metrics(1) * stressTensor(1) !... not normalized.
+        contravariantHeatFlux = metrics(1) * heatFlux(1) !... not normalized.
+        do k = 1, nSpecies
+           contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) !... not normalized.
+        end do
+        deltaViscosity(1) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * (phiSquared / (ratioOfSpecificHeats - 1.0_wp) - temperature_ /   &
+             ratioOfSpecificHeats)
+        deltaViscosity(2) = - powerLawExponent * ratioOfSpecificHeats * specificVolume_ /    &
+             temperature_ * velocity(1)
+        deltaViscosity(3) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_
+        do k = 1, nSpecies
+           deltaViscosity(3+k) = 0.0_wp
+        end do
+        temp = velocity(1) * contravariantStressTensor(1) - contravariantHeatFlux
 
-     temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
-     firstPartialViscousJacobian(1,3) = 0.0_wp
-     firstPartialViscousJacobian(2,3) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,3) = temp2 * temp1
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(3+k,3) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+        firstPartialViscousJacobian(1,1) = 0.0_wp
+        firstPartialViscousJacobian(2,1) = deltaViscosity(1) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,1) = deltaViscosity(1) * temp - specificVolume_ *      &
+             (velocity(1) * contravariantStressTensor(1))
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(3+k,1) = - contravariantSpeciesFlux(k) *              &
+                (deltaViscosity(1) + specificVolume)
+        end do
+
+        firstPartialViscousJacobian(1,2) = 0.0_wp
+        firstPartialViscousJacobian(2,2) = deltaViscosity(2) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,2) = deltaViscosity(2) * temp +                        &
+             specificVolume_ * contravariantStressTensor(1)
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(3+k,2) = - deltaViscosity(2) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,3) = 0.0_wp
+        firstPartialViscousJacobian(2,3) = deltaViscosity(3) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,3) = deltaViscosity(3) * temp
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(3+k,3) = - deltaViscosity(3) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+     case (IDEAL_GAS_MIXTURE)
+
+        ! Other dependent variables.
+        phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * velocity_(1) ** 2
+        contravariantStressTensor(1) = metrics(1) * stressTensor(1) !... not normalized.
+        contravariantHeatFlux = metrics(1) * heatFlux(1) !... not normalized.
+        do k = 1, nSpecies
+           contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) !... not normalized.
+        end do
+        contravariantEnthalpyFlux = metrics(1) * enthalpyFlux(1) !... not normalized.
+        temp = molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           temp = temp + massFraction_(k) * (molecularWeightInverse(k) -                     &
+                molecularWeightInverse(nSpecies+1))
+        end do
+        temp = 1.0_wp / temp
+        deltaViscosity(1) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * temp * (phiSquared / (ratioOfSpecificHeats - 1.0_wp) -           &
+             temperature_ * molecularWeightInverse(nSpecies+1) / ratioOfSpecificHeats)
+        deltaViscosity(2) = - powerLawExponent * ratioOfSpecificHeats * specificVolume_ /    &
+             temperature_ * velocity(1) * temp
+        deltaViscosity(3) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * temp
+        do k = 1, nSpecies
+           deltaViscosity(3+k) = - powerLawExponent * specificVolume_ * temp *               &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
+        end do
+        temp = velocity(1) * contravariantStressTensor(1) - contravariantHeatFlux -          &
+             contravariantEnthalpyFlux
+
+        firstPartialViscousJacobian(1,1) = 0.0_wp
+        firstPartialViscousJacobian(2,1) = deltaViscosity(1) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,1) = deltaViscosity(1) * temp - specificVolume_ *      &
+             (velocity(1) * contravariantStressTensor(1) + contravariantEnthalpyFlux) -      &
+             contravariantEnthalpyFlux * deltaViscosity(1) / powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(3+k,1) = - contravariantSpeciesFlux(k) *              &
+                (deltaViscosity(1) + specificVolume)
+        end do
+
+        firstPartialViscousJacobian(1,2) = 0.0_wp
+        firstPartialViscousJacobian(2,2) = deltaViscosity(2) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,2) = deltaViscosity(2) * temp + specificVolume_ *      &
+             contravariantStressTensor(1) - contravariantEnthalpyFlux * deltaViscosity(2) /  &
+             powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(3+k,2) = - deltaViscosity(2) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,3) = 0.0_wp
+        firstPartialViscousJacobian(2,3) = deltaViscosity(3) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,3) = deltaViscosity(3) * temp -                        &
+             contravariantEnthalpyFlux * deltaViscosity(3) / powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(3+k,3) = - deltaViscosity(3) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(1,3+K) = 0.0_wp
+           firstPartialViscousJacobian(2,3+k) = deltaViscosity(3+k) *                        &
+                contravariantStressTensor(1)
+           firstPartialViscousJacobian(3,3+k) = deltaViscosity(3+k) * temp -                 &
+             contravariantEnthalpyFlux * deltaViscosity(3+k) / powerLawExponent
+           do i = 1, nSpecies
+              firstPartialViscousJacobian(3+i,3+k) = - deltaViscosity(3+k) *                 &
+                   contravariantSpeciesFlux(i)
+           end do
+        end do
+
+     end select
 
   case (2)
 
-     ! Other dependent variables.
-     phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                                 &
-          (velocity_(1) ** 2 + velocity_(2) ** 2)
-     contravariantStressTensor(1) = metrics(1) * stressTensor(1) +                           &
-          metrics(2) * stressTensor(2) !... not normalized.
-     contravariantStressTensor(2) = metrics(1) * stressTensor(3) +                           &
-          metrics(2) * stressTensor(4) !... not normalized.
-     contravariantHeatFlux = metrics(1) * heatFlux(1) +                                      &
-          metrics(2) * heatFlux(2) !... not normalized.
-     do k = 1, nSpecies
-        contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                        &
-             metrics(2) * speciesFlux(k,2) !... not normalized
-     end do
-     temp1 = velocity(1) * contravariantStressTensor(1) +                                    &
-          velocity(2) * contravariantStressTensor(2) - contravariantHeatFlux
+     select case (equationOfState)
 
-     temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_ *      &
-          (phiSquared / (ratioOfSpecificHeats - 1.0_wp) -                                    &
-          temperature_ / ratioOfSpecificHeats)
-     firstPartialViscousJacobian(1,1) = 0.0_wp
-     firstPartialViscousJacobian(2,1) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,1) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,1) = temp2 * temp1 - specificVolume_ *                    &
-          (velocity(1) * contravariantStressTensor(1) +                                      &
-          velocity(2) * contravariantStressTensor(2))
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(4+k,1) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+     case (IDEAL_GAS)
 
-     temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
+        ! Other dependent variables.
+        phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                              &
+             (velocity_(1) ** 2 + velocity_(2) ** 2)
+        contravariantStressTensor(1) = metrics(1) * stressTensor(1) +                        &
+             metrics(2) * stressTensor(2) !... not normalized.
+        contravariantStressTensor(2) = metrics(1) * stressTensor(3) +                        &
+             metrics(2) * stressTensor(4) !... not normalized.
+        contravariantHeatFlux = metrics(1) * heatFlux(1) +                                   &
+             metrics(2) * heatFlux(2) !... not normalized.
+        do k = 1, nSpecies
+           contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                     &
+                metrics(2) * speciesFlux(k,2) !... not normalized
+        end do
+        deltaViscosity(1) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * (phiSquared / (ratioOfSpecificHeats - 1.0_wp) - temperature_ /   &
+             ratioOfSpecificHeats)
+        deltaViscosity(2) = - powerLawExponent * ratioOfSpecificHeats *                      &
           specificVolume_ / temperature_ * velocity(1)
-     firstPartialViscousJacobian(1,2) = 0.0_wp
-     firstPartialViscousJacobian(2,2) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,2) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,2) = temp2 * temp1 +                                      &
-          specificVolume_ * contravariantStressTensor(1)
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(4+k,2) = - temp2 * contravariantSpeciesFlux(k)
-     end do
-
-     temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
+        deltaViscosity(3) = - powerLawExponent * ratioOfSpecificHeats *                      &
           specificVolume_ / temperature_ * velocity(2)
-     firstPartialViscousJacobian(1,3) = 0.0_wp
-     firstPartialViscousJacobian(2,3) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,3) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,3) = temp2 * temp1 +                                      &
-          specificVolume_ * contravariantStressTensor(2)
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(4+k,3) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+        deltaViscosity(4) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_
+        do k = 1, nSpecies
+           deltaViscosity(4+k) = 0.0_wp
+        end do
+        temp = velocity(1) * contravariantStressTensor(1) +                                  &
+             velocity(2) * contravariantStressTensor(2) - contravariantHeatFlux
 
-     temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
-     firstPartialViscousJacobian(1,4) = 0.0_wp
-     firstPartialViscousJacobian(2,4) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,4) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,4) = temp2 * temp1
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(4+k,4) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+        firstPartialViscousJacobian(1,1) = 0.0_wp
+        firstPartialViscousJacobian(2,1) = deltaViscosity(1) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,1) = deltaViscosity(1) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,1) = deltaViscosity(1) * temp - specificVolume_ *      &
+             (velocity(1) * contravariantStressTensor(1) +                                   &
+             velocity(2) * contravariantStressTensor(2))
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(4+k,1) = - contravariantSpeciesFlux(k) *              &
+                (deltaViscosity(1) + specificVolume)
+        end do
+
+        firstPartialViscousJacobian(1,2) = 0.0_wp
+        firstPartialViscousJacobian(2,2) = deltaViscosity(2) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,2) = deltaViscosity(2) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,2) = deltaViscosity(2) * temp +                        &
+             specificVolume_ * contravariantStressTensor(1)
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(4+k,2) = - deltaViscosity(2) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,3) = 0.0_wp
+        firstPartialViscousJacobian(2,3) = deltaViscosity(3) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,3) = deltaViscosity(3) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,3) = deltaViscosity(3) * temp +                        &
+             specificVolume_ * contravariantStressTensor(2)
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(4+k,3) = - deltaViscosity(3) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,4) = 0.0_wp
+        firstPartialViscousJacobian(2,4) = deltaViscosity(4) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,4) = deltaViscosity(4) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,4) = deltaViscosity(4) * temp
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(4+k,4) = - deltaViscosity(4) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+     case (IDEAL_GAS_MIXTURE)
+
+        ! Other dependent variables.
+        phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                              &
+             (velocity_(1) ** 2 + velocity_(2) ** 2)
+        contravariantStressTensor(1) = metrics(1) * stressTensor(1) +                        &
+             metrics(2) * stressTensor(2) !... not normalized.
+        contravariantStressTensor(2) = metrics(1) * stressTensor(3) +                        &
+             metrics(2) * stressTensor(4) !... not normalized.
+        contravariantHeatFlux = metrics(1) * heatFlux(1) +                                   &
+             metrics(2) * heatFlux(2) !... not normalized.
+        do k = 1, nSpecies
+           contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                     &
+                metrics(2) * speciesFlux(k,2) !... not normalized
+        end do
+        contravariantEnthalpyFlux = metrics(1) * enthalpyFlux(1) +                           &
+             metrics(2) * enthalpyFlux(2) !... not normalized.
+        temp = molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           temp = temp + massFraction_(k) * (molecularWeightInverse(k) -                     &
+                molecularWeightInverse(nSpecies+1))
+        end do
+        temp = 1.0_wp / temp
+        deltaViscosity(1) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * temp * (phiSquared / (ratioOfSpecificHeats - 1.0_wp) -           &
+             temperature_ * molecularWeightInverse(nSpecies+1) / ratioOfSpecificHeats)
+        deltaViscosity(2) = - powerLawExponent * ratioOfSpecificHeats * specificVolume_ /    &
+             temperature_ * velocity(1) * temp
+        deltaViscosity(3) = - powerLawExponent * ratioOfSpecificHeats * specificVolume_ /    &
+             temperature_ * velocity(2) * temp
+        deltaViscosity(4) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * temp
+        do k = 1, nSpecies
+           deltaViscosity(4+k) = - powerLawExponent * specificVolume_ * temp *               &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
+        end do
+        temp = velocity(1) * contravariantStressTensor(1) +                                  &
+             velocity(2) * contravariantStressTensor(2) - contravariantHeatFlux -            &
+             contravariantEnthalpyFlux
+
+        firstPartialViscousJacobian(1,1) = 0.0_wp
+        firstPartialViscousJacobian(2,1) = deltaViscosity(1) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,1) = deltaViscosity(1) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,1) = deltaViscosity(1) * temp - specificVolume_ *      &
+             (velocity(1) * contravariantStressTensor(1) + velocity(2) *                     &
+             contravariantStressTensor(2) + contravariantEnthalpyFlux) -                     &
+             contravariantEnthalpyFlux * deltaViscosity(1) / powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(4+k,1) = - contravariantSpeciesFlux(k) *              &
+                (deltaViscosity(1) + specificVolume)
+        end do
+
+        firstPartialViscousJacobian(1,2) = 0.0_wp
+        firstPartialViscousJacobian(2,2) = deltaViscosity(2) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,2) = deltaViscosity(2) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,2) = deltaViscosity(2) * temp + specificVolume_ *      &
+             contravariantStressTensor(1) - contravariantEnthalpyFlux * deltaViscosity(2) /  &
+             powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(4+k,2) = - deltaViscosity(2) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,3) = 0.0_wp
+        firstPartialViscousJacobian(2,3) = deltaViscosity(3) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,3) = deltaViscosity(3) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,3) = deltaViscosity(3) * temp + specificVolume_ *      &
+             contravariantStressTensor(2) - contravariantEnthalpyFlux * deltaViscosity(3) /  &
+             powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(4+k,3) = - deltaViscosity(3) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,4) = 0.0_wp
+        firstPartialViscousJacobian(2,4) = deltaViscosity(4) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,4) = deltaViscosity(4) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,4) = deltaViscosity(4) * temp -                        &
+             contravariantEnthalpyFlux * deltaViscosity(4) / powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(4+k,4) = - deltaViscosity(4) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(1,4+K) = 0.0_wp
+           firstPartialViscousJacobian(2,4+k) = deltaViscosity(4+k) *                        &
+                contravariantStressTensor(1)
+           firstPartialViscousJacobian(3,4+k) = deltaViscosity(4+k) *                        &
+                contravariantStressTensor(2)
+           firstPartialViscousJacobian(4,4+k) = deltaViscosity(4+k) * temp -                 &
+             contravariantEnthalpyFlux * deltaViscosity(4+k) / powerLawExponent
+           do i = 1, nSpecies
+              firstPartialViscousJacobian(4+i,4+k) = - deltaViscosity(4+k) *                 &
+                   contravariantSpeciesFlux(i)
+           end do
+        end do
+
+     end select
 
   case (3)
 
-     ! Other dependent variables.
-     phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                                 &
-          (velocity_(1) ** 2 + velocity_(2) ** 2 + velocity_(3) ** 2)
-     contravariantStressTensor(1) = metrics(1) * stressTensor(1) +                           &
-          metrics(2) * stressTensor(2) + metrics(3) * stressTensor(3) !... not normalized.
-     contravariantStressTensor(2) = metrics(1) * stressTensor(4) +                           &
-          metrics(2) * stressTensor(5) + metrics(3) * stressTensor(6) !... not normalized.
-     contravariantStressTensor(3) = metrics(1) * stressTensor(7) +                           &
-          metrics(2) * stressTensor(8) + metrics(3) * stressTensor(9) !... not normalized.
-     contravariantHeatFlux = metrics(1) * heatFlux(1) + metrics(2) * heatFlux(2) +           &
-          metrics(3) * heatFlux(3) !... not normalized.
-     do k = 1, nSpecies
-        contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                        &
-             metrics(2) * speciesFlux(k,2) +                                                 &
-             metrics(3) * speciesFlux(k,3) !... not normalized
-     end do
-     temp1 = velocity(1) * contravariantStressTensor(1) +                                    &
-          velocity(2) * contravariantStressTensor(2) +                                       &
-          velocity(3) * contravariantStressTensor(3) - contravariantHeatFlux
+     select case (equationOfState)
 
-     temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_ *      &
-          (phiSquared / (ratioOfSpecificHeats - 1.0_wp) -                                    &
-          temperature_ / ratioOfSpecificHeats)
-     firstPartialViscousJacobian(1,1) = 0.0_wp
-     firstPartialViscousJacobian(2,1) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,1) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,1) = temp2 * contravariantStressTensor(3)
-     firstPartialViscousJacobian(5,1) = temp2 * temp1 - specificVolume_ *                    &
-          (velocity(1) * contravariantStressTensor(1) +                                      &
-          velocity(2) * contravariantStressTensor(2) +                                       &
-          velocity(3) * contravariantStressTensor(3))
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(5+k,1) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+     case (IDEAL_GAS)
 
-     temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
-          specificVolume_ / temperature_ * velocity(1)
-     firstPartialViscousJacobian(1,2) = 0.0_wp
-     firstPartialViscousJacobian(2,2) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,2) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,2) = temp2 * contravariantStressTensor(3)
-     firstPartialViscousJacobian(5,2) = temp2 * temp1 +                                      &
-          specificVolume_ * contravariantStressTensor(1)
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(5+k,2) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+        ! Other dependent variables.
+        phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                              &
+             (velocity_(1) ** 2 + velocity_(2) ** 2 + velocity_(3) ** 2)
+        contravariantStressTensor(1) = metrics(1) * stressTensor(1) +                        &
+             metrics(2) * stressTensor(2) + metrics(3) * stressTensor(3) !... not normalized.
+        contravariantStressTensor(2) = metrics(1) * stressTensor(4) +                        &
+             metrics(2) * stressTensor(5) + metrics(3) * stressTensor(6) !... not normalized.
+        contravariantStressTensor(3) = metrics(1) * stressTensor(7) +                        &
+             metrics(2) * stressTensor(8) + metrics(3) * stressTensor(9) !... not normalized.
+        contravariantHeatFlux = metrics(1) * heatFlux(1) + metrics(2) * heatFlux(2) +        &
+             metrics(3) * heatFlux(3) !... not normalized.
+        do k = 1, nSpecies
+           contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                     &
+                metrics(2) * speciesFlux(k,2) +                                              &
+                metrics(3) * speciesFlux(k,3) !... not normalized
+        end do
+        deltaViscosity(1) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * (phiSquared / (ratioOfSpecificHeats - 1.0_wp) - temperature_ /   &
+             ratioOfSpecificHeats)
+        deltaViscosity(2) = - powerLawExponent * ratioOfSpecificHeats *                      &
+             specificVolume_ / temperature_ * velocity(1)
+        deltaViscosity(3) = - powerLawExponent * ratioOfSpecificHeats *                      &
+             specificVolume_ / temperature_ * velocity(2)
+        deltaViscosity(4) = - powerLawExponent * ratioOfSpecificHeats *                      &
+             specificVolume_ / temperature_ * velocity(3)
+        deltaViscosity(5) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_
+        do k = 1, nSpecies
+           deltaViscosity(5+k) = 0.0_wp
+        end do
+        temp = velocity(1) * contravariantStressTensor(1) +                                  &
+             velocity(2) * contravariantStressTensor(2) +                                    &
+             velocity(3) * contravariantStressTensor(3) - contravariantHeatFlux
 
-     temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
-          specificVolume_ / temperature_ * velocity(2)
-     firstPartialViscousJacobian(1,3) = 0.0_wp
-     firstPartialViscousJacobian(2,3) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,3) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,3) = temp2 * contravariantStressTensor(3)
-     firstPartialViscousJacobian(5,3) = temp2 * temp1 +                                      &
-          specificVolume_ * contravariantStressTensor(2)
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(5+k,3) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+        firstPartialViscousJacobian(1,1) = 0.0_wp
+        firstPartialViscousJacobian(2,1) = deltaViscosity(1) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,1) = deltaViscosity(1) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,1) = deltaViscosity(1) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,1) = deltaViscosity(1) * temp - specificVolume_ *      &
+             (velocity(1) * contravariantStressTensor(1) +                                   &
+             velocity(2) * contravariantStressTensor(2) +                                    &
+             velocity(3) * contravariantStressTensor(3))
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,1) = - contravariantSpeciesFlux(k) *              &
+                (deltaViscosity(1) + specificVolume)
+        end do
 
-     temp2 = - powerLawExponent * ratioOfSpecificHeats *                                     &
-          specificVolume_ / temperature_ * velocity(3)
-     firstPartialViscousJacobian(1,4) = 0.0_wp
-     firstPartialViscousJacobian(2,4) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,4) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,4) = temp2 * contravariantStressTensor(3)
-     firstPartialViscousJacobian(5,4) = temp2 * temp1 +                                      &
-          specificVolume_ * contravariantStressTensor(3)
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(5+k,4) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+        firstPartialViscousJacobian(1,2) = 0.0_wp
+        firstPartialViscousJacobian(2,2) = deltaViscosity(2) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,2) = deltaViscosity(2) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,2) = deltaViscosity(2) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,2) = deltaViscosity(2) * temp +                        &
+             specificVolume_ * contravariantStressTensor(1)
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,2) = - deltaViscosity(2) *                        &
+                contravariantSpeciesFlux(k)
+        end do
 
-     temp2 = powerLawExponent * ratioOfSpecificHeats * specificVolume_ / temperature_
-     firstPartialViscousJacobian(1,5) = 0.0_wp
-     firstPartialViscousJacobian(2,5) = temp2 * contravariantStressTensor(1)
-     firstPartialViscousJacobian(3,5) = temp2 * contravariantStressTensor(2)
-     firstPartialViscousJacobian(4,5) = temp2 * contravariantStressTensor(3)
-     firstPartialViscousJacobian(5,5) = temp2 * temp1
-     do k = 1, nSpecies
-        firstPartialViscousJacobian(5+k,5) = - temp2 * contravariantSpeciesFlux(k)
-     end do
+        firstPartialViscousJacobian(1,3) = 0.0_wp
+        firstPartialViscousJacobian(2,3) = deltaViscosity(3) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,3) = deltaViscosity(3) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,3) = deltaViscosity(3) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,3) = deltaViscosity(3) * temp +                        &
+             specificVolume_ * contravariantStressTensor(2)
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,3) = - deltaViscosity(3) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,4) = 0.0_wp
+        firstPartialViscousJacobian(2,4) = deltaViscosity(4) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,4) = deltaViscosity(4) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,4) = deltaViscosity(4) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,4) = deltaViscosity(4) * temp +                        &
+             specificVolume_ * contravariantStressTensor(3)
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,4) = - deltaViscosity(4) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,5) = 0.0_wp
+        firstPartialViscousJacobian(2,5) = deltaViscosity(5) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,5) = deltaViscosity(5) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,5) = deltaViscosity(5) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,5) = deltaViscosity(5) * temp
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,5) = - deltaViscosity(5) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+     
+     case (IDEAL_GAS_MIXTURE)
+
+        ! Other dependent variables.
+        phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                              &
+             (velocity_(1) ** 2 + velocity_(2) ** 2 + velocity_(3) ** 2)
+        contravariantStressTensor(1) = metrics(1) * stressTensor(1) +                        &
+             metrics(2) * stressTensor(2) + metrics(3) * stressTensor(3) !... not normalized.
+        contravariantStressTensor(2) = metrics(1) * stressTensor(4) +                        &
+             metrics(2) * stressTensor(5) + metrics(3) * stressTensor(6) !... not normalized.
+        contravariantStressTensor(3) = metrics(1) * stressTensor(7) +                        &
+             metrics(2) * stressTensor(8) + metrics(3) * stressTensor(9) !... not normalized.
+        contravariantHeatFlux = metrics(1) * heatFlux(1) + metrics(2) * heatFlux(2) +        &
+             metrics(3) * heatFlux(3) !... not normalized.
+        do k = 1, nSpecies
+           contravariantSpeciesFlux(k) = metrics(1) * speciesFlux(k,1) +                     &
+                metrics(2) * speciesFlux(k,2) +                                              &
+                metrics(3) * speciesFlux(k,3) !... not normalized
+        end do
+        contravariantEnthalpyFlux = metrics(1) * enthalpyFlux(1) +                           &
+             metrics(2) * enthalpyFlux(2) + metrics(3) * enthalpyFlux(3) !... not normalized.
+        temp = molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           temp = temp + massFraction_(k) * (molecularWeightInverse(k) -                     &
+                molecularWeightInverse(nSpecies+1))
+        end do
+        temp = 1.0_wp / temp
+        deltaViscosity(1) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * temp * (phiSquared / (ratioOfSpecificHeats - 1.0_wp) -           &
+             temperature_ * molecularWeightInverse(nSpecies+1) / ratioOfSpecificHeats)
+        deltaViscosity(2) = - powerLawExponent * ratioOfSpecificHeats * specificVolume_ /    &
+             temperature_ * velocity(1) * temp
+        deltaViscosity(3) = - powerLawExponent * ratioOfSpecificHeats * specificVolume_ /    &
+             temperature_ * velocity(2) * temp
+        deltaViscosity(4) = - powerLawExponent * ratioOfSpecificHeats * specificVolume_ /    &
+             temperature_ * velocity(3) * temp
+        deltaViscosity(5) = powerLawExponent * ratioOfSpecificHeats * specificVolume_ /      &
+             temperature_ * temp
+        do k = 1, nSpecies
+           deltaViscosity(5+k) = - powerLawExponent * specificVolume_ * temp *               &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
+        end do
+        temp = velocity(1) * contravariantStressTensor(1) +                                  &
+             velocity(2) * contravariantStressTensor(2) +                                    &
+             velocity(3) * contravariantStressTensor(3) - contravariantHeatFlux
+
+        firstPartialViscousJacobian(1,1) = 0.0_wp
+        firstPartialViscousJacobian(2,1) = deltaViscosity(1) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,1) = deltaViscosity(1) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,1) = deltaViscosity(1) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,1) = deltaViscosity(1) * temp - specificVolume_ *      &
+             (velocity(1) * contravariantStressTensor(1) + velocity(2) *                     &
+             contravariantStressTensor(2) + velocity(3) * contravariantStressTensor(3) +     &
+             contravariantEnthalpyFlux) - contravariantEnthalpyFlux * deltaViscosity(1) /    &
+             powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,1) = - contravariantSpeciesFlux(k) *              &
+                (deltaViscosity(1) + specificVolume)
+        end do
+
+        firstPartialViscousJacobian(1,2) = 0.0_wp
+        firstPartialViscousJacobian(2,2) = deltaViscosity(2) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,2) = deltaViscosity(2) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,2) = deltaViscosity(2) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,2) = deltaViscosity(2) * temp + specificVolume_ *      &
+             contravariantStressTensor(1) - contravariantEnthalpyFlux * deltaViscosity(2) /  &
+             powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,2) = - deltaViscosity(2) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,3) = 0.0_wp
+        firstPartialViscousJacobian(2,3) = deltaViscosity(3) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,3) = deltaViscosity(3) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,3) = deltaViscosity(3) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,3) = deltaViscosity(3) * temp + specificVolume_ *      &
+             contravariantStressTensor(2) - contravariantEnthalpyFlux * deltaViscosity(3) /  &
+             powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,3) = - deltaViscosity(3) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,4) = 0.0_wp
+        firstPartialViscousJacobian(2,4) = deltaViscosity(4) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,4) = deltaViscosity(4) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,4) = deltaViscosity(4) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,4) = deltaViscosity(4) * temp + specificVolume_ *      &
+             contravariantStressTensor(3) - contravariantEnthalpyFlux * deltaViscosity(3) /  &
+             powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,4) = - deltaViscosity(4) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        firstPartialViscousJacobian(1,5) = 0.0_wp
+        firstPartialViscousJacobian(2,5) = deltaViscosity(5) * contravariantStressTensor(1)
+        firstPartialViscousJacobian(3,5) = deltaViscosity(5) * contravariantStressTensor(2)
+        firstPartialViscousJacobian(4,5) = deltaViscosity(5) * contravariantStressTensor(3)
+        firstPartialViscousJacobian(5,5) = deltaViscosity(5) * temp -                        &
+             contravariantEnthalpyFlux * deltaViscosity(5) / powerLawExponent
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(5+k,5) = - deltaViscosity(5) *                        &
+                contravariantSpeciesFlux(k)
+        end do
+
+        do k = 1, nSpecies
+           firstPartialViscousJacobian(1,5+K) = 0.0_wp
+           firstPartialViscousJacobian(2,5+k) = deltaViscosity(5+k) *                        &
+                contravariantStressTensor(1)
+           firstPartialViscousJacobian(3,5+k) = deltaViscosity(5+k) *                        &
+                contravariantStressTensor(2)
+           firstPartialViscousJacobian(4,5+k) = deltaViscosity(5+k) *                        &
+                contravariantStressTensor(3)
+           firstPartialViscousJacobian(5,5+k) = deltaViscosity(5+k) * temp -                 &
+                contravariantEnthalpyFlux * deltaViscosity(5+k) / powerLawExponent
+           do i = 1, nSpecies
+              firstPartialViscousJacobian(5+i,5+k) = - deltaViscosity(5+k) *                 &
+                   contravariantSpeciesFlux(i)
+           end do
+        end do
+
+     end select
 
   end select !... nDimensions
 
