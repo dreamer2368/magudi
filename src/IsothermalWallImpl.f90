@@ -264,6 +264,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
                    this%dynamicViscosity(patchIndex),                                        &
                    this%secondCoefficientOfViscosity(patchIndex),                            &
                    this%thermalDiffusivity(patchIndex), this%massDiffusivity(patchIndex,:),  &
+                   this%temperature(patchIndex), solverOptions%molecularWeightInverse,       &
                    grid%jacobian(gridIndex,1), metricsAlongNormalDirection,                  &
                    metricsAlongNormalDirection, localFluxJacobian)
 

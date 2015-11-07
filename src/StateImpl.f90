@@ -598,8 +598,7 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
         do k = 1, this%nSpecies
            call grid%computeGradient(this%massFraction(:,k), this%speciesFlux(:,k,:))
            do i = 1, nDimensions
-              this%speciesFlux(:,k,i) = - this%conservedVariables(:,1) *                     &
-                   this%massDiffusivity(:,k) * this%speciesFlux(:,k,i)
+              this%speciesFlux(:,k,i) = - this%massDiffusivity(:,k) * this%speciesFlux(:,k,i)
            end do
         end do
 

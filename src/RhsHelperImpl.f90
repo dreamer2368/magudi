@@ -349,6 +349,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
                    solverOptions%equationOfState, localVelocity, state%dynamicViscosity(k,1),&
                    state%secondCoefficientOfViscosity(k,1),                                  &
                    state%thermalDiffusivity(k,1), state%massDiffusivity(k,:),                &
+                   state%temperature(k,1), solverOptions%molecularWeightInverse,             &
                    grid%jacobian(k,1), localMetricsAlongDirection1,                          &
                    localMetricsAlongDirection2, localFluxJacobian2)
 

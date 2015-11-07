@@ -2661,8 +2661,8 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
         firstPartialViscousJacobian(3,1) = deltaViscosity(1) * temp - specificVolume_ *      &
              (velocity(1) * contravariantStressTensor(1))
         do k = 1, nSpecies
-           firstPartialViscousJacobian(3+k,1) = - contravariantSpeciesFlux(k) *              &
-                (deltaViscosity(1) + specificVolume)
+           firstPartialViscousJacobian(3+k,1) = - deltaViscosity(1) *                        &
+                contravariantSpeciesFlux(k)
         end do
 
         firstPartialViscousJacobian(1,2) = 0.0_wp
@@ -2715,11 +2715,11 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
         firstPartialViscousJacobian(1,1) = 0.0_wp
         firstPartialViscousJacobian(2,1) = deltaViscosity(1) * contravariantStressTensor(1)
         firstPartialViscousJacobian(3,1) = deltaViscosity(1) * temp - specificVolume_ *      &
-             (velocity(1) * contravariantStressTensor(1) + contravariantEnthalpyFlux) -      &
-             contravariantEnthalpyFlux * deltaViscosity(1) / powerLawExponent
+             velocity(1) * contravariantStressTensor(1) - contravariantEnthalpyFlux *        &
+             deltaViscosity(1) / powerLawExponent
         do k = 1, nSpecies
-           firstPartialViscousJacobian(3+k,1) = - contravariantSpeciesFlux(k) *              &
-                (deltaViscosity(1) + specificVolume)
+           firstPartialViscousJacobian(3+k,1) = - deltaViscosity(1) *                        &
+                contravariantSpeciesFlux(k)
         end do
 
         firstPartialViscousJacobian(1,2) = 0.0_wp
@@ -2796,8 +2796,8 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
              (velocity(1) * contravariantStressTensor(1) +                                   &
              velocity(2) * contravariantStressTensor(2))
         do k = 1, nSpecies
-           firstPartialViscousJacobian(4+k,1) = - contravariantSpeciesFlux(k) *              &
-                (deltaViscosity(1) + specificVolume)
+           firstPartialViscousJacobian(4+k,1) = - deltaViscosity(1) *                        &
+                contravariantSpeciesFlux(k)
         end do
 
         firstPartialViscousJacobian(1,2) = 0.0_wp
@@ -2874,11 +2874,11 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
         firstPartialViscousJacobian(3,1) = deltaViscosity(1) * contravariantStressTensor(2)
         firstPartialViscousJacobian(4,1) = deltaViscosity(1) * temp - specificVolume_ *      &
              (velocity(1) * contravariantStressTensor(1) + velocity(2) *                     &
-             contravariantStressTensor(2) + contravariantEnthalpyFlux) -                     &
-             contravariantEnthalpyFlux * deltaViscosity(1) / powerLawExponent
+             contravariantStressTensor(2)) - contravariantEnthalpyFlux * deltaViscosity(1) / &
+             powerLawExponent
         do k = 1, nSpecies
-           firstPartialViscousJacobian(4+k,1) = - contravariantSpeciesFlux(k) *              &
-                (deltaViscosity(1) + specificVolume)
+           firstPartialViscousJacobian(4+k,1) = - deltaViscosity(1) *                        &
+                contravariantSpeciesFlux(k)
         end do
 
         firstPartialViscousJacobian(1,2) = 0.0_wp
@@ -2978,8 +2978,8 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
              velocity(2) * contravariantStressTensor(2) +                                    &
              velocity(3) * contravariantStressTensor(3))
         do k = 1, nSpecies
-           firstPartialViscousJacobian(5+k,1) = - contravariantSpeciesFlux(k) *              &
-                (deltaViscosity(1) + specificVolume)
+           firstPartialViscousJacobian(5+k,1) = - deltaViscosity(1) *                        &
+                contravariantSpeciesFlux(k)
         end do
 
         firstPartialViscousJacobian(1,2) = 0.0_wp
@@ -3076,12 +3076,11 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
         firstPartialViscousJacobian(4,1) = deltaViscosity(1) * contravariantStressTensor(3)
         firstPartialViscousJacobian(5,1) = deltaViscosity(1) * temp - specificVolume_ *      &
              (velocity(1) * contravariantStressTensor(1) + velocity(2) *                     &
-             contravariantStressTensor(2) + velocity(3) * contravariantStressTensor(3) +     &
-             contravariantEnthalpyFlux) - contravariantEnthalpyFlux * deltaViscosity(1) /    &
-             powerLawExponent
+             contravariantStressTensor(2) + velocity(3) * contravariantStressTensor(3)) -    &
+             contravariantEnthalpyFlux * deltaViscosity(1) / powerLawExponent
         do k = 1, nSpecies
-           firstPartialViscousJacobian(5+k,1) = - contravariantSpeciesFlux(k) *              &
-                (deltaViscosity(1) + specificVolume)
+           firstPartialViscousJacobian(5+k,1) = - deltaViscosity(1) *                        &
+                contravariantSpeciesFlux(k)
         end do
 
         firstPartialViscousJacobian(1,2) = 0.0_wp
@@ -3155,8 +3154,8 @@ end subroutine computeFirstPartialViscousJacobian
 
 PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equationOfState,  &
      velocity, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,           &
-     massDiffusivity, jacobian, metricsAlongFirstDir, metricsAlongSecondDir,                 &
-     secondPartialViscousJacobian)
+     massDiffusivity, temperature, molecularWeightInverse, jacobian,                         &
+     metricsAlongFirstDir, metricsAlongSecondDir, secondPartialViscousJacobian)
 
   ! <<< Enumerations >>>
   use SolverOptions_enum
@@ -3168,7 +3167,8 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
   SCALAR_TYPE, intent(in) :: velocity(:), dynamicViscosity,                                  &
        secondCoefficientOfViscosity, thermalDiffusivity, jacobian,                           &
        metricsAlongFirstDir(:)
-  SCALAR_TYPE, intent(in), optional :: massDiffusivity(:), metricsAlongSecondDir(:)
+  SCALAR_TYPE, intent(in), optional :: massDiffusivity(:), temperature,                      &
+       molecularWeightInverse(:), metricsAlongSecondDir(:)
   SCALAR_TYPE, intent(out) :: secondPartialViscousJacobian(:,:)
 
   ! <<< Local variables >>>
@@ -3196,6 +3196,13 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
 
      secondPartialViscousJacobian(1,2) = 0.0_wp
      secondPartialViscousJacobian(2,2) = thermalDiffusivity * temp1
+
+     if (equationOfState == IDEAL_GAS_MIXTURE) then
+        do k = 1, nSpecies
+           secondPartialViscousJacobian(2+k,2) = massDiffusivity(k) * temperature *          &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1)) * temp1
+        end do
+     end if
 
      do k = 1, nSpecies
         secondPartialViscousJacobian(2+k,2+k) = massDiffusivity(k) * temp1
@@ -3232,6 +3239,13 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
      secondPartialViscousJacobian(1,3) = 0.0_wp
      secondPartialViscousJacobian(2,3) = 0.0_wp
      secondPartialViscousJacobian(3,3) = thermalDiffusivity * temp1
+
+     if (equationOfState == IDEAL_GAS_MIXTURE) then
+        do k = 1, nSpecies
+           secondPartialViscousJacobian(3+k,3) = massDiffusivity(k) * temperature *          &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1)) * temp1
+        end do
+     end if
 
      do k = 1, nSpecies
         secondPartialViscousJacobian(3+k,3+k) = massDiffusivity(k) * temp1
@@ -3288,6 +3302,13 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
      secondPartialViscousJacobian(2,4) = 0.0_wp
      secondPartialViscousJacobian(3,4) = 0.0_wp
      secondPartialViscousJacobian(4,4) = thermalDiffusivity * temp1
+
+     if (equationOfState == IDEAL_GAS_MIXTURE) then
+        do k = 1, nSpecies
+           secondPartialViscousJacobian(4+k,4) = massDiffusivity(k) * temperature *          &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1)) * temp1
+        end do
+     end if
 
      do k = 1, nSpecies
         secondPartialViscousJacobian(4+k,4+k) = massDiffusivity(k) * temp1
