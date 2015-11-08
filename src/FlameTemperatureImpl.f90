@@ -283,6 +283,11 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
            patch%adjointForcing(patchIndex,:) = 0.0_wp
 
+           call computeDeltaVariables(nDimensions, nSpecies,                                 &
+                state%conservedVariables(gridIndex,:), solverOptions%equationOfState,        &
+                solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,    &
+                deltaTemperature = deltaTemperature)
+
            if (this%weightBurnRegion) then
 
               Z = ( state%massFraction(gridIndex, H2) -                                      &
@@ -290,11 +295,6 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
               W = grid%targetMollifier(gridIndex, 1) * exp(gaussianFactor * (Z - Zst) **2)
 
               ! First apply -2*W*(T-T0)/(Tf-T0)^2*dT/dQ.
-              call computeDeltaVariables(nDimensions, nSpecies,                              &
-                   state%conservedVariables(gridIndex,:), solverOptions%equationOfState,     &
-                   solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse, &
-                   deltaTemperature = deltaTemperature)
-
               F = - 2.0_wp * W * timeRampFactor *                                            &
                    (state%temperature(gridIndex, 1) - referenceTemperature) /                &
                    (flameTemperature - referenceTemperature)**2
@@ -315,11 +315,6 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
               patch%adjointForcing(patchIndex,nDimensions+2+O2) = - F / s
 
            else
-
-              call computeDeltaVariables(nDimensions, nSpecies,                              &
-                   state%conservedVariables(gridIndex,:), solverOptions%equationOfState,     &
-                   solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse, &
-                   deltaTemperature = deltaTemperature)
 
               F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) * timeRampFactor *           &
                    (state%temperature(gridIndex, 1) - referenceTemperature) /                &
