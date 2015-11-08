@@ -210,6 +210,12 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use SimulationFlags_mod, only : t_SimulationFlags
 
+  ! <<< Internal modules >>>
+  use CNSHelper
+
+  ! <<< Enumerations >>>
+  use SolverOptions_enum
+
   implicit none
 
   ! <<< Arguments >>>
@@ -222,14 +228,16 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, gridIndex, patchIndex, H2, O2
+  integer :: i, j, k, nDimensions, nSpecies, gridIndex, patchIndex, H2, O2
   SCALAR_TYPE :: flameTemperature, referenceTemperature, F, W, Z, Zst, s, YF0, YO0,          &
        gaussianFactor, timeRampFactor, timeStep
+  SCALAR_TYPE, dimension(:), allocatable :: deltaTemperature
 
   nDimensions = grid%nDimensions
+  nSpecies = solverOptions%nSpecies
   assert_key(nDimensions, (1, 2, 3))
   assert(grid%nGridPoints > 0)
-  assert(solverOptions%nSpecies >= 2)
+  assert(nSpecies >= 2)
 
   i = grid%index
   flameTemperature = this%data_(i)%flameTemperature(1,1)
@@ -246,7 +254,7 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
      assert(allocated(state%massFraction))
      assert(size(state%massFraction, 1) == grid%nGridPoints)
-     assert(size(state%massFraction, 2) == solverOptions%nSpecies)
+     assert(size(state%massFraction, 2) == nSpecies)
 
      gaussianFactor = -0.5_wp / this%burnRadius**2
      H2 = state%combustion%H2
@@ -257,6 +265,8 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
      Zst = 1.0_wp / (1.0_wp + s * YF0 / YO0)
 
   end if
+
+  allocate(deltaTemperature(nDimensions + nSpecies + 2))
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -280,17 +290,16 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
               W = grid%targetMollifier(gridIndex, 1) * exp(gaussianFactor * (Z - Zst) **2)
 
               ! First apply -2*W*(T-T0)/(Tf-T0)^2*dT/dQ.
+              call computeDeltaVariables(nDimensions, nSpecies,                              &
+                   state%conservedVariables(gridIndex,:), solverOptions%equationOfState,     &
+                   solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse, &
+                   deltaTemperature = deltaTemperature)
+
               F = - 2.0_wp * W * timeRampFactor *                                            &
-                   solverOptions%ratioOfSpecificHeats * state%specificVolume(gridIndex, 1) * &
-                   (state%temperature(gridIndex, 1) - referenceTemperature) /  &
+                   (state%temperature(gridIndex, 1) - referenceTemperature) /                &
                    (flameTemperature - referenceTemperature)**2
 
-              patch%adjointForcing(patchIndex,nDimensions+2) = F
-              patch%adjointForcing(patchIndex,2:nDimensions+1) =                             &
-                   - state%velocity(gridIndex,:) * F
-              patch%adjointForcing(patchIndex,1) = ( sum(state%velocity(gridIndex,:) ** 2) - &
-                   state%conservedVariables(gridIndex,nDimensions+2) *                       &
-                   state%specificVolume(gridIndex,1) ) * F
+              patch%adjointForcing(patchIndex,:) = F * deltaTemperature
 
               ! Now apply -((T-Tf)/(Tf-T0))^2*dW/dQ.
               F = W * timeRampFactor *                                                       &
@@ -307,23 +316,24 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
            else
 
+              call computeDeltaVariables(nDimensions, nSpecies,                              &
+                   state%conservedVariables(gridIndex,:), solverOptions%equationOfState,     &
+                   solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse, &
+                   deltaTemperature = deltaTemperature)
+
               F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) * timeRampFactor *           &
-                   solverOptions%ratioOfSpecificHeats * state%specificVolume(gridIndex, 1) * &
                    (state%temperature(gridIndex, 1) - referenceTemperature) /                &
                    (flameTemperature - referenceTemperature)**2
 
-              patch%adjointForcing(patchIndex,nDimensions+2) = F
-              patch%adjointForcing(patchIndex,2:nDimensions+1) =                             &
-                   - state%velocity(gridIndex,:) * F
-              patch%adjointForcing(patchIndex,1) = ( sum(state%velocity(gridIndex,:) ** 2) - &
-                   state%conservedVariables(gridIndex,nDimensions+2) *                       &
-                   state%specificVolume(gridIndex,1) ) * F
+              patch%adjointForcing(patchIndex,:) = F * deltaTemperature
 
            end if
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+
+  SAFE_DEALLOCATE(deltaTemperature)
 
 end subroutine computeFlameTemperatureAdjointForcing
 

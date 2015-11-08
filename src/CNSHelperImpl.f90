@@ -89,7 +89,7 @@ PURE_SUBROUTINE computeDependentVariables(nDimensions, nSpecies, conservedVariab
      end if
   end if
 
-  ! Temperature for different equations of state.
+  ! Temperature from the equation of state.
   if (present(temperature)) then
      assert(size(temperature) == size(conservedVariables, 1))
 
@@ -261,6 +261,147 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
   end if
 
 end subroutine computeTransportVariables
+
+PURE_SUBROUTINE computeDeltaVariables(nDimensions, nSpecies, conservedVariables,             &
+     equationOfState, ratioOfSpecificHeats, molecularWeightInverse, dynamicViscosity,        &
+     deltaConservedVariables, deltaSpecificVolume, deltaVelocity, deltaPressure,             &
+     deltaTemperature, deltaMassFraction, deltaViscosity)
+
+  ! <<< Enumerations >>>
+  use SolverOptions_enum
+
+  implicit none
+
+  ! <<< Arguments >>>
+  integer, intent(in) :: nDimensions, nSpecies
+  integer, intent(in), optional :: equationOfState
+  SCALAR_TYPE, intent(in) :: conservedVariables(:)
+  real(SCALAR_KIND), intent(in), optional :: ratioOfSpecificHeats, dynamicViscosity,         &
+       molecularWeightInverse(:)
+  SCALAR_TYPE, intent(out), optional :: deltaConservedVariables(:,:),                        &
+       deltaSpecificVolume(:), deltaVelocity(:,:), deltaPressure(:), deltaTemperature(:),    &
+       deltaMassFraction(:,:), deltaViscosity(:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, k, equationOfState_, nUnknowns
+  real(wp) :: ratioOfSpecificHeats_, temp
+
+  nUnknowns = nDimensions + nSpecies + 2
+
+  assert_key(nDimensions, (1, 2, 3))
+  assert(nSpecies >= 0)
+  assert(size(conservedVariables) == nUnknowns)
+
+  ratioOfSpecificHeats_ = 1.4_wp
+  if (present(ratioOfSpecificHeats)) then
+     assert(ratioOfSpecificHeats > 1.0_wp)
+     ratioOfSpecificHeats_ = ratioOfSpecificHeats
+  end if
+
+  ! Variation of conservedVariables.
+  if (present(deltaConservedVariables)) then
+     assert(size(deltaConservedVariables, 1) == nUnknowns)
+     assert(size(deltaConservedVariables, 2) == nUnknowns)
+     deltaConservedVariables = 0.0_wp
+     do i = 1, nUnknowns
+        deltaConservedVariables(i,i) = 1.0_wp
+     end do
+  end if
+
+  ! Variation of specific volume.
+  if (present(deltaSpecificVolume)) then
+     assert(size(deltaSpecificVolume) == nUnknowns)
+     deltaSpecificVolume = 0.0_wp
+     deltaSpecificVolume(1) = -1.0_wp / conservedVariables(1) ** 2
+  end if
+
+  ! Variation of velocity.
+  if (present(deltaVelocity)) then
+     assert(size(deltaVelocity, 1) == nDimensions)
+     assert(size(deltaVelocity, 2) == nUnknowns)
+     deltaVelocity = 0.0_wp
+     do i = 1, nDimensions
+        deltaVelocity(i,1) = - conservedVariables(1+i) / conservedVariables(1) ** 2
+        deltaVelocity(i,i+1) =  1.0_wp / conservedVariables(1)
+     end do
+  end if
+
+  ! Variation of pressure.
+  if (present(deltaPressure)) then
+     assert(size(deltaPressure) == nUnknowns)
+     deltaPressure = 0.0_wp
+     deltaPressure(1) = 0.5_wp * (ratioOfSpecificHeats_ - 1.0_wp) *                          &
+          sum(conservedVariables(2:nDimensions+1) **2) / conservedVariables(1) ** 2
+     do i = 1, nDimensions
+        deltaPressure(i+1) =  - (ratioOfSpecificHeats_ - 1.0_wp) * conservedVariables(i+1) / &
+             conservedVariables(1)
+     end do
+     deltaPressure(nDimensions+2) = (ratioOfSpecificHeats_ - 1.0_wp)
+  end if
+
+  ! Variation of mass fraction.
+  if (present(deltaMassFraction)) then
+     assert(size(deltaMassFraction, 1) == nSpecies)
+     assert(size(deltaMassFraction, 2) == nUnknowns)
+     deltaMassFraction = 0.0_wp
+     do k = 1, nSpecies
+        deltaMassFraction(k,1) = - conservedVariables(nDimensions+2+k) /                     &
+             conservedVariables(1) ** 2
+        deltaMassFraction(nDimensions+2+k,nDimensions+2+k) = 1.0_wp / conservedVariables(1)
+     end do
+  end if
+
+  ! Variation of temperature.
+  if (present(deltaTemperature)) then
+     assert(size(deltaTemperature) == nUnknowns)
+     deltaTemperature = 0.0_wp
+
+     equationOfState_ = IDEAL_GAS
+     if (present(equationOfState)) equationOfState_ = equationOfState
+
+     select case (equationOfState_)
+     case (IDEAL_GAS)
+
+        deltaTemperature(1) = ratioOfSpecificHeats_ / conservedVariables(1)**2 * (           &
+             - conservedVariables(nDimensions+2) +                                           &
+             sum(conservedVariables(2:nDimensions+1) **2) / conservedVariables(1) )
+        do i = 1, nDimensions
+           deltaTemperature(i+1) = ratioOfSpecificHeats_ * conservedVariables(i+1) /         &
+                conservedVariables(1)**2
+        end do
+        deltaTemperature(nDimensions+2) = ratioOfSpecificHeats_ / conservedVariables(1)
+
+     case (IDEAL_GAS_MIXTURE)
+        assert(nSpecies > 0)
+        assert(present(molecularWeightInverse))
+        assert(size(molecularWeightInverse) == nSpecies + 1)
+        temp = conservedVariables(1) * molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           temp = temp + conservedVariables(nDimensions+2+k) *                               &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
+        end do
+        deltaTemperature(1) = ratioOfSpecificHeats_ / temp**2 * (                            &
+             - conservedVariables(nDimensions+2) * molecularWeightInverse(nSpecies+1) +      &
+             0.5_wp * sum(conservedVariables(2:nDimensions+1) **2) /                         &
+             conservedVariables(1)**2 * (temp + conservedVariables(1) *                      &
+             molecularWeightInverse(nSpecies+1)) )
+        do i = 1, nDimensions
+           deltaTemperature(i+1) = - ratioOfSpecificHeats_ * conservedVariables(i+1) /       &
+                conservedVariables(1) / temp
+        end do
+        deltaTemperature(nDimensions+2) = ratioOfSpecificHeats_ / temp
+        do k = 1, nSpecies
+           deltaTemperature(nDimensions+2+k) = - ratioOfSpecificHeats_ / temp**2 *           &
+                (conservedVariables(nDimensions+2) - 0.5_wp *                                &
+           sum(conservedVariables(2:nDimensions+1) **2) / conservedVariables(1)) *           &
+           (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
+        end do
+
+     end select
+  end if
+
+end subroutine computeDeltaVariables
 
 PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,                          &
      conservedVariablesR, ratioOfSpecificHeats, roeAverage)
@@ -2865,9 +3006,8 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
            deltaViscosity(4+k) = - powerLawExponent * specificVolume_ * temp *               &
                 (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
         end do
-        temp = velocity(1) * contravariantStressTensor(1) +                                  &
-             velocity(2) * contravariantStressTensor(2) - contravariantHeatFlux -            &
-             contravariantEnthalpyFlux
+        temp = velocity(1) * contravariantStressTensor(1) + velocity(2) *                    &
+             contravariantStressTensor(2) - contravariantHeatFlux - contravariantEnthalpyFlux
 
         firstPartialViscousJacobian(1,1) = 0.0_wp
         firstPartialViscousJacobian(2,1) = deltaViscosity(1) * contravariantStressTensor(1)
@@ -2914,7 +3054,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
         end do
 
         do k = 1, nSpecies
-           firstPartialViscousJacobian(1,4+K) = 0.0_wp
+           firstPartialViscousJacobian(1,4+k) = 0.0_wp
            firstPartialViscousJacobian(2,4+k) = deltaViscosity(4+k) *                        &
                 contravariantStressTensor(1)
            firstPartialViscousJacobian(3,4+k) = deltaViscosity(4+k) *                        &
@@ -3131,7 +3271,7 @@ PURE_SUBROUTINE computeFirstPartialViscousJacobian(nDimensions, nSpecies, equati
         end do
 
         do k = 1, nSpecies
-           firstPartialViscousJacobian(1,5+K) = 0.0_wp
+           firstPartialViscousJacobian(1,5+k) = 0.0_wp
            firstPartialViscousJacobian(2,5+k) = deltaViscosity(5+k) *                        &
                 contravariantStressTensor(1)
            firstPartialViscousJacobian(3,5+k) = deltaViscosity(5+k) *                        &
@@ -3176,7 +3316,7 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
   integer :: k
   SCALAR_TYPE :: temp1, temp2, temp3
 
-  ! Zero-out second partial viscous Jacobian
+  ! Zero-out second partial viscous Jacobian.
   secondPartialViscousJacobian = 0.0_wp
 
   select case (nDimensions)
@@ -3323,7 +3463,7 @@ end subroutine computeSecondPartialViscousJacobian
 
 PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies, equationOfState,              &
      conservedVariables, ratioOfSpecificHeats, combustion, jacobianOfSource,                 &
-     specificVolume, velocity, temperature, massFraction)
+     specificVolume, velocity, temperature, massFraction, molecularWeightInverse)
 
   ! <<< Derived types >>>
   use Combustion_mod, only : t_Combustion
@@ -3337,7 +3477,7 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies, equationOfState, 
   real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
   SCALAR_TYPE, intent(out) :: jacobianOfSource(:,:)
   SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(:), temperature,             &
-       massFraction(:)
+       massFraction(:), molecularWeightInverse(:)
   type(t_Combustion), intent(in) :: combustion
 
   ! <<< Local variables >>>
@@ -3370,15 +3510,6 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies, equationOfState, 
      end do
   end if
 
-  ! Compute temperature if it was not specified.
-  if (present(temperature)) then
-     temperature_ = temperature
-  else
-     temperature_ = ratioOfSpecificHeats *                                                   &
-          (specificVolume_ * conservedVariables(nDimensions+2) -                             &
-          0.5_wp * (sum(velocity_ ** 2)))
-  end if
-
   ! Compute mass fraction if it was not specified.
   if (present(massFraction) .and. nSpecies > 0) then
      assert(size(massFraction) == nSpecies)
@@ -3387,6 +3518,25 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies, equationOfState, 
      do k = 1, nSpecies
         massFraction_(k) = specificVolume_ * conservedVariables(nDimensions+2+k)
      end do
+  end if
+
+  ! Compute temperature if it was not specified.
+  if (present(temperature)) then
+     temperature_ = temperature
+  else
+     select case (equationOfState)
+     case (IDEAL_GAS)
+        temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
+             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
+     case (IDEAL_GAS_MIXTURE)
+        temp = molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           temp = temp + massFraction_(k) * (molecularWeightInverse(k) -                     &
+                molecularWeightInverse(nSpecies+1))
+        end do
+        temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
+             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2)) / temp
+     end select
   end if
 
   ! Other dependent variables.

@@ -236,7 +236,8 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
        localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
        localVelocity(:), localMassFraction(:), localMetricsAlongDirection1(:),               &
        localMetricsAlongDirection2(:), localStressTensor(:), localHeatFlux(:),               &
-       localEnthalpyFlux(:), localSpeciesFlux(:,:), localAdjointDiffusion(:,:)
+       localEnthalpyFlux(:), localSpeciesFlux(:,:), localAdjointDiffusion(:,:),              &
+       mixtureMolecularWeight(:)
 
   call startTiming("computeRhsAdjoint")
 
@@ -369,17 +370,50 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
      do j = 1, nDimensions
         call grid%adjointFirstDerivative(j)%apply(temp1(:,2:nUnknowns,j), grid%localSize)
      end do
-     temp2 = sum(temp1(:,2:nUnknowns,:), dim = 3)
+     temp2 = sum(temp1(:,2:nUnknowns,:), dim = 3) !... Divergence of the adjoint flux.
 
-     temp2(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                           &
-          state%specificVolume(:,1) * temp2(:,nDimensions+1)
-     do i = 1, nDimensions
-        temp2(:,i) = state%specificVolume(:,1) * temp2(:,i) -                                &
-             state%velocity(:,i) * temp2(:,nDimensions+1)
-     end do
-     do k = 1, nSpecies
-        temp2(:,nDimensions+1+k) = state%specificVolume(:,1) *  temp2(:,nDimensions+1+k)
-     end do
+     select case (solverOptions%equationOfState)
+
+     case (IDEAL_GAS)
+
+        temp2(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                        &
+             state%specificVolume(:,1) * temp2(:,nDimensions+1)
+        do i = 1, nDimensions
+           temp2(:,i) = state%specificVolume(:,1) * temp2(:,i) -                             &
+                state%velocity(:,i) * temp2(:,nDimensions+1)
+        end do
+        do k = 1, nSpecies
+           temp2(:,nDimensions+1+k) = state%specificVolume(:,1) *  temp2(:,nDimensions+1+k)
+        end do
+
+     case (IDEAL_GAS_MIXTURE)
+
+        allocate(mixtureMolecularWeight(grid%nGridPoints))
+
+        mixtureMolecularWeight = solverOptions%molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           mixtureMolecularWeight = mixtureMolecularWeight + state%massFraction(:,k) *       &
+                (solverOptions%molecularWeightInverse(k) -                                   &
+                solverOptions%molecularWeightInverse(nSpecies+1))
+        end do
+        mixtureMolecularWeight = 1.0_wp / mixtureMolecularWeight
+
+        temp2(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                        &
+             state%specificVolume(:,1) * mixtureMolecularWeight * temp2(:,nDimensions+1)
+        do i = 1, nDimensions
+           temp2(:,i) = state%specificVolume(:,1) * temp2(:,i) -                             &
+                state%velocity(:,i) * temp2(:,nDimensions+1)
+        end do
+        do k = 1, nSpecies
+           temp2(:,nDimensions+1+k) = state%specificVolume(:,1) * temp2(:,nDimensions+1+k) + &
+                state%temperature(:,1) * (solverOptions%molecularWeightInverse(nSpecies+1) - &
+                solverOptions%molecularWeightInverse(k)) * temp2(:,nDimensions+1) /          &
+                solverOptions%ratioOfSpecificHeats
+        end do
+
+        SAFE_DEALLOCATE(mixtureMolecularWeight)
+
+     end select
 
      state%rightHandSide(:,2:nUnknowns) = state%rightHandSide(:,2:nUnknowns) - temp2
      state%rightHandSide(:,1) = state%rightHandSide(:,1) +                                   &

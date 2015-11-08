@@ -79,7 +79,8 @@ module Combustion_mod
 
      subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns, equationOfState,&
           ratioOfSpecificHeats, conservedVariables, adjointVariables, velocity,              &
-          massFraction, specificVolume, temperature, iblank, rightHandSide)
+          massFraction, specificVolume, temperature, molecularWeightInverse, iblank,         &
+          rightHandSide)
 
        import :: t_Combustion
 
@@ -87,7 +88,7 @@ module Combustion_mod
        integer, intent(in) :: nDimensions, nSpecies, nUnknowns, iblank(:), equationOfState
        SCALAR_TYPE, dimension(:,:), intent(in) :: conservedVariables, adjointVariables,      &
             velocity, massFraction, specificVolume, temperature
-       SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats
+       SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats, molecularWeightInverse(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
      end subroutine addCombustionAdjoint

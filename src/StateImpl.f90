@@ -827,7 +827,7 @@ subroutine addSources(this, mode, grid, solverOptions)
           solverOptions%nUnknowns, solverOptions%equationOfState,                            &
           solverOptions%ratioOfSpecificHeats, this%conservedVariables, this%adjointVariables,&
           this%velocity, this%massFraction, this%specificVolume, this%temperature,           &
-          grid%iblank, this%rightHandSide)
+          solverOptions%molecularWeightInverse, grid%iblank, this%rightHandSide)
   end if
 
   call endTiming("addSources")

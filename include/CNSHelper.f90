@@ -54,6 +54,30 @@ module CNSHelper
 
   interface
 
+     pure subroutine computeDeltaVariables(nDimensions, nSpecies, conservedVariables,        &
+          equationOfState, ratioOfSpecificHeats, molecularWeightInverse, dynamicViscosity,   &
+          deltaConservedVariables, deltaSpecificVolume, deltaVelocity, deltaPressure,        &
+          deltaTemperature, deltaMassFraction, deltaViscosity)
+
+       !> Computes variations in the requested variable(s) with respect to the conserved
+       !> state variables, including dependent and transport variables.
+
+       integer, intent(in) :: nDimensions, nSpecies
+       integer, intent(in), optional :: equationOfState
+       SCALAR_TYPE, intent(in) :: conservedVariables(:)
+
+       real(SCALAR_KIND), intent(in), optional :: ratioOfSpecificHeats, dynamicViscosity,    &
+            molecularWeightInverse(:)
+       SCALAR_TYPE, intent(out), optional :: deltaConservedVariables(:,:),                   &
+            deltaSpecificVolume(:), deltaVelocity(:,:), deltaPressure(:),                    &
+            deltaTemperature(:), deltaMassFraction(:,:), deltaViscosity(:)
+
+     end subroutine computeDeltaVariables
+
+  end interface
+
+  interface
+
      pure subroutine computeRoeAverage(nDimensions, conservedVariablesL,                     &
           conservedVariablesR, ratioOfSpecificHeats, roeAverage)
 
@@ -289,7 +313,7 @@ module CNSHelper
 
      pure subroutine computeJacobianOfSource(nDimensions, nSpecies, equationOfState,         &
           conservedVariables, ratioOfSpecificHeats, combustion, jacobianOfSource,            &
-          specificVolume, velocity, temperature, massFraction)
+          specificVolume, velocity, temperature, massFraction, molecularWeightInverse)
 
        use Combustion_mod, only : t_Combustion
 
@@ -300,7 +324,7 @@ module CNSHelper
        type(t_Combustion), intent(in) :: combustion
 
        SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(:), temperature,        &
-            massFraction(:)
+            massFraction(:), molecularWeightInverse(:)
 
      end subroutine computeJacobianOfSource
 

@@ -192,13 +192,16 @@ end subroutine addCombustionForward
 
 subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns, equationOfState,     &
      ratioOfSpecificHeats, conservedVariables, adjointVariables, velocity, massFraction,     &
-     specificVolume, temperature, iblank, rightHandSide)
+     specificVolume, temperature, molecularWeightInverse, iblank, rightHandSide)
 
   ! <<< Derived types >>>
   use Combustion_mod, only : t_Combustion
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeJacobianOfSource
+
+ ! <<< Enumerations >>>
+  use SolverOptions_enum
 
   implicit none
 
@@ -207,14 +210,15 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns, equation
   integer, intent(in) :: nDimensions, nSpecies, nUnknowns, iblank(:), equationOfState
   SCALAR_TYPE, dimension(:,:), intent(in) :: conservedVariables, adjointVariables,           &
        velocity, massFraction, specificVolume, temperature
-  SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(in) :: ratioOfSpecificHeats, molecularWeightInverse(:)
   SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nGridPoints
-  SCALAR_TYPE, allocatable :: localSourceJacobian(:,:), temp1(:), temp2(:),                  &
-       localConservedVariables(:), localVelocity(:), localMassFraction(:)
+  SCALAR_TYPE, allocatable :: localSourceJacobian(:,:), localConservedVariables(:),          &
+       localTemperature, localVelocity(:), localMassFraction(:), temp(:)
+  real(wp) :: mixtureMolecularWeight
 
   if (nSpecies == 0 .or. this%nReactions == 0) return
 
@@ -229,51 +233,69 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns, equation
   allocate(localVelocity(nDimensions))
   allocate(localMassFraction(nSpecies))
   allocate(localSourceJacobian(nUnknowns, nUnknowns))
-  allocate(temp1(nUnknowns))
-  allocate(temp2(nUnknowns))
+  allocate(temp(nUnknowns))
 
   do j = 1, nGridPoints
 
      if (iblank(j) == 0) cycle
 
      localConservedVariables = conservedVariables(j,:)
+     localTemperature = temperature(j,1)
      localVelocity = velocity(j,:)
      localMassFraction = massFraction(j,:)
 
      call computeJacobianOfSource(nDimensions, nSpecies, equationOfState,                    &
           localConservedVariables, ratioOfSpecificHeats, this,                               &
-          localSourceJacobian, specificVolume = specificVolume(j,1),                         &
-          velocity = localVelocity, temperature = temperature(j,1),                          &
-          massFraction = localMassFraction)
+          localSourceJacobian, specificVolume(j,1), localVelocity, localTemperature,         &
+          localMassFraction, molecularWeightInverse)
 
-     temp1 = matmul(transpose(localSourceJacobian), adjointVariables(j,:))
+     temp = matmul(transpose(localSourceJacobian), adjointVariables(j,:))
 
-     temp2(1) = temp1(1)
-     do i = 1, nDimensions
-        temp2(1) = temp2(1) - localVelocity(i) * specificVolume(j,1) *                       &
-             temp1(i+1)
-     end do
-     temp2(1) = temp2(1) + (0.5_wp * ratioOfSpecificHeats *                                  &
-          sum(localVelocity ** 2) - temperature(j,1)) * specificVolume(j,1) *                &
-          temp1(nDimensions+2)
-     do k = 1, nSpecies
-        temp2(1) = temp2(1) - localMassFraction(k) * specificVolume(j,1) *                   &
-             temp1(nDimensions+2+k)
-     end do
+     select case (equationOfState)
 
-     do i = 1, nDimensions
-        temp2(i+1) = specificVolume(j,1) * temp1(i+1) - ratioOfSpecificHeats *               &
-             localVelocity(i) * specificVolume(j,1) * temp1(nDimensions+2)
-     end do
+     case (IDEAL_GAS)
 
-     temp2(nDimensions+2) = ratioOfSpecificHeats * specificVolume(j,1) *                     &
-          temp1(nDimensions+2)
+        temp(nDimensions+2) = ratioOfSpecificHeats * specificVolume(j,1) *                   &
+             temp(nDimensions+2)
+        do i = 1, nDimensions
+           temp(i+1) = specificVolume(j,1) * temp(i+1) - localVelocity(i) *                  &
+                temp(nDimensions+2)
+        end do
+        do k = 1, nSpecies
+           temp(nDimensions+2+k) = specificVolume(j,1) *  temp(nDimensions+2+k)
+        end do
+        temp(1) = temp(1) - specificVolume(j,1) *localConservedVariables(nDimensions+2) *    &
+             temp(nDimensions+2) - sum(localVelocity * temp(2:nDimensions+1))
+        if (nSpecies > 0) temp(1) = temp(1) - sum(localMassFraction *                        &
+             temp(ndimensions+3:nUnknowns))
 
-     do k = 1, nSpecies
-        temp2(nDimensions+2+k) = specificVolume(j,1) * temp1(nDimensions+2+k)
-     end do
+     case (IDEAL_GAS_MIXTURE)
 
-     rightHandSide(j,:) = rightHandSide(j,:) - temp2
+        mixtureMolecularWeight = molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           mixtureMolecularWeight = mixtureMolecularWeight + localMassFraction(k) *          &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
+        end do
+        mixtureMolecularWeight = 1.0_wp / mixtureMolecularWeight
+
+        temp(nDimensions+2) = ratioOfSpecificHeats * specificVolume(j,1) *                   &
+             mixtureMolecularWeight * temp(nDimensions+2)
+        do i = 1, nDimensions
+           temp(i+1) = specificVolume(j,1) * temp(i+1) - localVelocity(i) *                  &
+                temp(nDimensions+2)
+        end do
+        do k = 1, nSpecies
+           temp(nDimensions+2+k) = specificVolume(j,1) *  temp(nDimensions+2+k) +            &
+                localTemperature * (molecularWeightInverse(nSpecies+1) -                     &
+                molecularWeightInverse(k)) * temp(nDimensions+2) / ratioOfSpecificHeats
+        end do
+        temp(1) = temp(1) - specificVolume(j,1) *localConservedVariables(nDimensions+2) *    &
+             temp(nDimensions+2) - sum(localVelocity * temp(2:nDimensions+1)) -              &
+             sum(localMassFraction * temp(ndimensions+3:nUnknowns))
+
+     end select
+
+     rightHandSide(j,:) = rightHandSide(j,:) - temp
 
   end do !... j = 1, nGridPoints
 
@@ -281,7 +303,6 @@ subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns, equation
   SAFE_DEALLOCATE(localVelocity)
   SAFE_DEALLOCATE(localMassFraction)
   SAFE_DEALLOCATE(localSourceJacobian)
-  SAFE_DEALLOCATE(temp1)
-  SAFE_DEALLOCATE(temp2)
+  SAFE_DEALLOCATE(temp)
 
 end subroutine addCombustionAdjoint
