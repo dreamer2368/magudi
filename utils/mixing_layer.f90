@@ -660,7 +660,8 @@ contains
        ! Get density from the equation of state
        select case (solverOptions%equationOfState)
        case(IDEAL_GAS)
-          density = 1.0_wp
+          density = ratioOfSpecificHeats * pressure /                                        &
+               (temperature * (ratioOfSpecificHeats - 1.0_wp))
        case (IDEAL_GAS_MIXTURE)
           density = ratioOfSpecificHeats * pressure /                                        &
                ( temperature * (ratioOfSpecificHeats - 1.0_wp) *                             &

@@ -77,7 +77,7 @@ program premixed
   ! Generate the initial condition and target state.
   do i = 1, size(region%grids)
      call premixedInitialCondition(region%states(i), region%grids(i),                        &
-          region%simulationFlags%useTargetState)
+          region%solverOptions, region%simulationFlags%useTargetState)
   end do
 
   ! Save initial condition.
@@ -418,32 +418,38 @@ contains
   ! ================== !
   ! Initial conditions !
   ! ================== !
-  subroutine premixedInitialCondition(state, grid, generateTargetState)
+  subroutine premixedInitialCondition(state, grid, solverOptions, generateTargetState)
 
     ! <<< External modules >>>
     use MPI
 
     ! <<< Derived types >>>
     use Grid_mod, only : t_Grid
+    use SolverOptions_mod, only : t_SolverOptions
     use State_mod
 
     ! <<< Internal modules >>>
     use InputHelper, only : getOption
     use ErrorHandler, only : gracefulExit
 
+    ! <<< Enumerations >>>
+    use SolverOptions_enum
+
     implicit none
 
     ! <<< Arguments >>>
     type(t_State) :: state
     type(t_Grid) :: grid
+    type(t_SolverOptions), intent(in) :: solverOptions
     logical, intent(in), optional :: generateTargetState
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     logical :: generateTargetState_
-    integer :: i, nSpecies, H2, O2, nDimensions, ierror
-    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, velocity(3),            &
+    integer :: i, k, nSpecies, H2, O2, N2, nDimensions, ierror
+    real(SCALAR_KIND) :: ratioOfSpecificHeats, density, pressure, temperature, velocity(3),  &
          T0, Yf0, Yo0, Z0, fuel, oxidizer
+    real(wp), dimension(:), allocatable :: Wi
 
     generateTargetState_ = .false.
     if (present(generateTargetState)) generateTargetState_ = generateTargetState
@@ -451,7 +457,7 @@ contains
     call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
 
     ! Species
-    nSpecies = getOption("number_of_species", 0)
+    nSpecies = solverOptions%nSpecies
 
     ! Only implemented for 2 species
     if (nspecies.gt.2) then
@@ -460,23 +466,61 @@ contains
     end if
 
     ! Species parameters.
-    H2 = nDimensions+2+1
-    O2 = H2 + 1
-    call getRequiredOption("initial_fuel_mass_fraction", Yf0)
-    call getRequiredOption("initial_oxidizer_mass_fraction", Yo0)
+    if (allocated(solverOptions%speciesName)) then
+       do k = 1, nSpecies + 1
+          select case (trim(solverOptions%speciesName(k)))
+          case ('H2', 'HYDROGEN')
+             H2 = k
+          case ('O2', 'OXYGEN')
+             O2 = k
+          case ('N2', 'NITROGEN')
+             N2 = k
+          case default
+             print *, "Unknown species: ", trim(solverOptions%speciesName(k)), "!"
+             stop
+          end select
+       end do
+    else
+       H2 = 1
+       O2 = 2
+       N2 = nSpecies + 1
+    end if
+    call getRequiredOption("initial_fuel_mass_fraction", YF0)
+    call getRequiredOption("initial_oxidizer_mass_fraction", YO0)
     call getRequiredOption("initial_mixture_fraction", Z0)
+
+    ! Components
+    fuel = YF0*Z0
+    oxidizer = YO0*(1.0_wp-Z0)
+
+    ! Get molecular weights.
+    if (solverOptions%equationOfState == IDEAL_GAS_MIXTURE) then
+       allocate(Wi(nSpecies+1))
+       Wi = solverOptions%molecularWeightInverse
+    end if
 
     ! Gamma
     ratioOfSpecificHeats = getOption("ratio_of_specific_heats", 1.4_wp)
+
+    ! Pressure
+    pressure = 1.0_wp / ratioOfSpecificHeats
 
     ! Temperature
     T0 =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
     temperature = getOption("initial_temperature", T0)
 
-    ! Density
-    density = T0 / temperature
+    ! Get density from the equation of state
+    select case (solverOptions%equationOfState)
+    case(IDEAL_GAS)
+       density = ratioOfSpecificHeats * pressure /                                           &
+            (temperature * (ratioOfSpecificHeats - 1.0_wp))
+    case (IDEAL_GAS_MIXTURE)
+       density = ratioOfSpecificHeats * pressure /                                           &
+            ( temperature * (ratioOfSpecificHeats - 1.0_wp) *                                &
+            (fuel * (Wi(H2) - Wi(N2)) + oxidizer * (Wi(O2) - Wi(N2)) + Wi(N2)) )
+    end select
     print *
-    print *, 'Mixture density = ',density
+    print *, 'Mixture density = ', density
     print *
 
     ! Velocity
@@ -485,10 +529,6 @@ contains
     velocity(2) = getOption("initial_velocity_2", 0.0_wp)
     velocity(3) = getOption("initial_velocity_3", 0.0_wp)
 
-    ! Components
-    fuel = YF0*Z0
-    oxidizer = YO0*(1.0_wp-Z0)
-
     do i = 1, grid%nGridPoints
 
        ! State variables
@@ -496,10 +536,11 @@ contains
        state%conservedVariables(i,2) = density * velocity(1)
        state%conservedVariables(i,3) = density * velocity(2)
        state%conservedVariables(i,4) = density * velocity(3)
-       state%conservedVariables(i,nDimensions+2) = density * temperature /                   &
-            ratioOfSpecificHeats + 0.5_wp * density * sum(velocity**2)
-       if (nSpecies.gt.0) state%conservedVariables(i,H2) = density * fuel
-       if (nSpecies.gt.1) state%conservedVariables(i,O2) = density * oxidizer
+       state%conservedVariables(i,nDimensions+2) =  pressure /                               &
+            (ratioOfSpecificHeats - 1.0_wp) +                                                &
+            0.5_wp * state%conservedVariables(i,1) * sum(velocity ** 2)
+       if (nSpecies.gt.0) state%conservedVariables(i,nDimensions+2+H2) = density * fuel
+       if (nSpecies.gt.1) state%conservedVariables(i,nDimensions+2+O2) = density * oxidizer
 
        ! Target solution
        if (generateTargetState_) state%targetState(i,:) = state%conservedVariables(i,:)
