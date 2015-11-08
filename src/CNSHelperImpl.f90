@@ -364,10 +364,10 @@ PURE_SUBROUTINE computeDeltaVariables(nDimensions, nSpecies, conservedVariables,
      case (IDEAL_GAS)
 
         deltaTemperature(1) = ratioOfSpecificHeats_ / conservedVariables(1)**2 * (           &
-             - conservedVariables(nDimensions+2) +                                           &
-             sum(conservedVariables(2:nDimensions+1) **2) / conservedVariables(1) )
+             sum(conservedVariables(2:nDimensions+1) **2) / conservedVariables(1) -          &
+             conservedVariables(nDimensions+2) )
         do i = 1, nDimensions
-           deltaTemperature(i+1) = ratioOfSpecificHeats_ * conservedVariables(i+1) /         &
+           deltaTemperature(i+1) = - ratioOfSpecificHeats_ * conservedVariables(i+1) /       &
                 conservedVariables(1)**2
         end do
         deltaTemperature(nDimensions+2) = ratioOfSpecificHeats_ / conservedVariables(1)
