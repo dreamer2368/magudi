@@ -3294,7 +3294,7 @@ end subroutine computeFirstPartialViscousJacobian
 
 PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equationOfState,  &
      velocity, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,           &
-     massDiffusivity, temperature, molecularWeightInverse, jacobian,                         &
+     massDiffusivity, temperature, schmidtNumberInverse, molecularWeightInverse, jacobian,   &
      metricsAlongFirstDir, metricsAlongSecondDir, secondPartialViscousJacobian)
 
   ! <<< Enumerations >>>
@@ -3308,7 +3308,7 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
        secondCoefficientOfViscosity, thermalDiffusivity, jacobian,                           &
        metricsAlongFirstDir(:)
   SCALAR_TYPE, intent(in), optional :: massDiffusivity(:), temperature,                      &
-       molecularWeightInverse(:), metricsAlongSecondDir(:)
+       schmidtNumberInverse(:), molecularWeightInverse(:), metricsAlongSecondDir(:)
   SCALAR_TYPE, intent(out) :: secondPartialViscousJacobian(:,:)
 
   ! <<< Local variables >>>
@@ -3339,8 +3339,10 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
 
      if (equationOfState == IDEAL_GAS_MIXTURE) then
         do k = 1, nSpecies
-           secondPartialViscousJacobian(2+k,2) = massDiffusivity(k) * temperature *          &
-                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1)) * temp1
+           secondPartialViscousJacobian(2,2+k) = massDiffusivity(k) * temperature /          &
+                schmidtNumberInverse(k) * (molecularWeightInverse(k) *                       &
+                schmidtNumberInverse(k) - molecularWeightInverse(nSpecies+1) *               &
+                schmidtNumberInverse(nSpecies+1)) * temp1
         end do
      end if
 
@@ -3382,8 +3384,10 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
 
      if (equationOfState == IDEAL_GAS_MIXTURE) then
         do k = 1, nSpecies
-           secondPartialViscousJacobian(3+k,3) = massDiffusivity(k) * temperature *          &
-                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1)) * temp1
+           secondPartialViscousJacobian(3,3+k) = massDiffusivity(k) * temperature /          &
+                schmidtNumberInverse(k) * (molecularWeightInverse(k) *                       &
+                schmidtNumberInverse(k) - molecularWeightInverse(nSpecies+1) *               &
+                schmidtNumberInverse(nSpecies+1)) * temp1
         end do
      end if
 
@@ -3445,8 +3449,10 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian(nDimensions, nSpecies, equat
 
      if (equationOfState == IDEAL_GAS_MIXTURE) then
         do k = 1, nSpecies
-           secondPartialViscousJacobian(4+k,4) = massDiffusivity(k) * temperature *          &
-                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1)) * temp1
+           secondPartialViscousJacobian(4,4+k) = massDiffusivity(k) * temperature /          &
+                schmidtNumberInverse(k) * (molecularWeightInverse(k) *                       &
+                schmidtNumberInverse(k) - molecularWeightInverse(nSpecies+1) *               &
+                schmidtNumberInverse(nSpecies+1)) * temp1
         end do
      end if
 

@@ -264,9 +264,10 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
                    this%dynamicViscosity(patchIndex),                                        &
                    this%secondCoefficientOfViscosity(patchIndex),                            &
                    this%thermalDiffusivity(patchIndex), this%massDiffusivity(patchIndex,:),  &
-                   this%temperature(patchIndex), solverOptions%molecularWeightInverse,       &
-                   grid%jacobian(gridIndex,1), metricsAlongNormalDirection,                  &
-                   metricsAlongNormalDirection, localFluxJacobian)
+                   this%temperature(patchIndex), solverOptions%schmidtNumberInverse,         &
+                   solverOptions%molecularWeightInverse, grid%jacobian(gridIndex,1),         &
+                   metricsAlongNormalDirection, metricsAlongNormalDirection,                 &
+                   localFluxJacobian)
 
               adjointPenalties(2:nUnknowns,2) = matmul(transpose(localFluxJacobian),         &
                    temp(gridIndex,:))

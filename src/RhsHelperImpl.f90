@@ -350,9 +350,10 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
                    solverOptions%equationOfState, localVelocity, state%dynamicViscosity(k,1),&
                    state%secondCoefficientOfViscosity(k,1),                                  &
                    state%thermalDiffusivity(k,1), state%massDiffusivity(k,:),                &
-                   state%temperature(k,1), solverOptions%molecularWeightInverse,             &
-                   grid%jacobian(k,1), localMetricsAlongDirection1,                          &
-                   localMetricsAlongDirection2, localFluxJacobian2)
+                   state%temperature(k,1), solverOptions%schmidtNumberInverse,               &
+                   solverOptions%molecularWeightInverse, grid%jacobian(k,1),                 &
+                   localMetricsAlongDirection1, localMetricsAlongDirection2,                 &
+                   localFluxJacobian2)
 
               localAdjointDiffusion(:,j) = localAdjointDiffusion(:,j) +                      &
                    matmul(transpose(localFluxJacobian2), temp1(k,2:nUnknowns,i))
@@ -383,7 +384,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
                 state%velocity(:,i) * temp2(:,nDimensions+1)
         end do
         do k = 1, nSpecies
-           temp2(:,nDimensions+1+k) = state%specificVolume(:,1) *  temp2(:,nDimensions+1+k)
+           temp2(:,nDimensions+1+k) = state%specificVolume(:,1) * temp2(:,nDimensions+1+k)
         end do
 
      case (IDEAL_GAS_MIXTURE)
@@ -396,7 +397,6 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, combustion, grid, s
                 (solverOptions%molecularWeightInverse(k) -                                   &
                 solverOptions%molecularWeightInverse(nSpecies+1))
         end do
-        mixtureMolecularWeight = 1.0_wp / mixtureMolecularWeight
 
         temp2(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                        &
              state%specificVolume(:,1) * mixtureMolecularWeight * temp2(:,nDimensions+1)

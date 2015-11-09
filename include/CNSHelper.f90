@@ -294,15 +294,16 @@ module CNSHelper
 
      pure subroutine computeSecondPartialViscousJacobian(nDimensions, nSpecies,              &
           equationOfState, velocity, dynamicViscosity, secondCoefficientOfViscosity,         &
-          thermalDiffusivity, massDiffusivity, temperature, molecularWeightInverse, jacobian,&
-          metricsAlongFirstDir, metricsAlongSecondDir, secondPartialViscousJacobian)
+          thermalDiffusivity, massDiffusivity, temperature, schmidtNumberInverse,            &
+          molecularWeightInverse, jacobian, metricsAlongFirstDir, metricsAlongSecondDir,     &
+          secondPartialViscousJacobian)
 
        integer, intent(in) :: nDimensions, nSpecies, equationOfState
        SCALAR_TYPE, intent(in) :: velocity(:), dynamicViscosity,                             &
             secondCoefficientOfViscosity, thermalDiffusivity, jacobian,                      &
             metricsAlongFirstDir(:)
        SCALAR_TYPE, intent(in), optional :: massDiffusivity(:), temperature,                 &
-            molecularWeightInverse(:), metricsAlongSecondDir(:)
+            schmidtNumberInverse(:), molecularWeightInverse(:), metricsAlongSecondDir(:)
        SCALAR_TYPE, intent(out) :: secondPartialViscousJacobian(:,:)
 
      end subroutine computeSecondPartialViscousJacobian
