@@ -3486,7 +3486,7 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies, equationOfState, 
   real(SCALAR_KIND) :: referenceTemperature, flameTemperature, activationTemperature,        &
        chemicalSource, H
   SCALAR_TYPE :: specificVolume_, velocity_(nDimensions), temperature_,                      &
-       massFraction_(nSpecies), temp
+       massFraction_(nSpecies), Wmix, temp
 
   assert_key(nDimensions, (1, 2, 3))
   assert(nSpecies >= 0)
@@ -3529,13 +3529,13 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies, equationOfState, 
         temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
              conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2))
      case (IDEAL_GAS_MIXTURE)
-        temp = molecularWeightInverse(nSpecies+1)
+        Wmix = molecularWeightInverse(nSpecies+1)
         do k = 1, nSpecies
-           temp = temp + massFraction_(k) * (molecularWeightInverse(k) -                     &
-                molecularWeightInverse(nSpecies+1))
+           Wmix = Wmix + massFraction_(k) *                                                  &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
         end do
         temperature_ = ratioOfSpecificHeats * (specificVolume_ *                             &
-             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2)) / temp
+             conservedVariables(nDimensions+2) - 0.5_wp * sum(velocity_ ** 2)) / Wmix
      end select
   end if
 
@@ -3580,20 +3580,48 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies, equationOfState, 
      end do
   end do
 
-  ! Jacobian of well-stirred reactor source.
+  ! Jacobian of well-stirred reactor source terms.
   if (combustion%wellStirredReactor) then
 
      temp = -combustion%residenceTime
 
-     jacobianOfSource(nDimensions+2,1) = jacobianOfSource(nDimensions+2,1) + temp * (        &
-          specificVolume_ * conservedVariables(nDimensions+2) )
-     do k = 1, nDimensions
-        jacobianOfSource(nDimensions+2,k+1) = jacobianOfSource(nDimensions+2,k+1) + temp *   &
-             conservedVariables(k+1)
-     end do
-     jacobianOfSource(nDimensions+2,nDimensions+2) =                                         &
-          jacobianOfSource(nDimensions+2,nDimensions+2) + temp * conservedVariables(1) /     &
-          ratioOfSpecificHeats
+     if (equationOfState == IDEAL_GAS_MIXTURE) then
+
+        Wmix = molecularWeightInverse(nSpecies+1)
+        do k = 1, nSpecies
+           Wmix = Wmix + massFraction_(k) *                                                  &
+                (molecularWeightInverse(k) - molecularWeightInverse(nSpecies+1))
+        end do
+
+        jacobianOfSource(nDimensions+2,1) = jacobianOfSource(nDimensions+2,1) + temp *       &
+             specificVolume_ * conservedVariables(nDimensions+2)
+        do k = 1, nDimensions
+           jacobianOfSource(nDimensions+2,k+1) = jacobianOfSource(nDimensions+2,k+1) + temp *&
+                conservedVariables(k+1)
+        end do
+        jacobianOfSource(nDimensions+2,nDimensions+2) =                                      &
+             jacobianOfSource(nDimensions+2,nDimensions+2) + temp * conservedVariables(1) *  &
+             Wmix / ratioOfSpecificHeats
+        do k = 1, nSpecies
+           jacobianOfSource(nDimensions+2,nDimensions+2+k) =                                 &
+                jacobianOfSource(nDimensions+2,nDimensions+2+k) + temp *                     &
+                conservedVariables(1) * temperature_ * (molecularWeightInverse(k) -          &
+                molecularWeightInverse(nSpecies+1)) / ratioOfSpecificHeats
+        end do
+
+     else  
+
+        jacobianOfSource(nDimensions+2,1) = jacobianOfSource(nDimensions+2,1) + temp *       &
+             specificVolume_ * conservedVariables(nDimensions+2)
+        do k = 1, nDimensions
+           jacobianOfSource(nDimensions+2,k+1) = jacobianOfSource(nDimensions+2,k+1) + temp *&
+                conservedVariables(k+1)
+        end do
+        jacobianOfSource(nDimensions+2,nDimensions+2) =                                      &
+             jacobianOfSource(nDimensions+2,nDimensions+2) + temp * conservedVariables(1) /  &
+             ratioOfSpecificHeats
+
+     end if
 
      do k = 1, nSpecies
         jacobianOfSource(nDimensions+2+k,1) = jacobianOfSource(nDimensions+2+k,1) + temp *   &
@@ -3602,6 +3630,6 @@ PURE_SUBROUTINE computeJacobianOfSource(nDimensions, nSpecies, equationOfState, 
              jacobianOfSource(nDimensions+2+k,nDimensions+2+k) + temp * conservedVariables(1)
      end do
 
-  end if
+  end if !... combustion%wellStirredReactor
 
 end subroutine computeJacobianOfSource
