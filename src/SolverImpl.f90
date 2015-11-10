@@ -1137,7 +1137,7 @@ subroutine findOptimalForcing(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nIterations, restartIteration, controlIteration, nForward, nAdjoint,      &
-       fileUnit, iostat, procRank, ierror
+       p1, p2, parameterDirection, fileUnit, iostat, procRank, ierror
   character(len = STRING_LENGTH) :: optimizationType, filename, message
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
@@ -1145,7 +1145,7 @@ subroutine findOptimalForcing(this, region)
        indicatorFunction, costSensitivity, actuationAmount, previousActuationAmount,         &
        baselineActuationAmount, burnValue, minimumTolerance
   real(WP), dimension(:), allocatable :: individualSensitivities, parameters
-  logical:: done, foundNewMinimum, burning
+  logical:: done, foundNewMinimum, burning, minimizeParameter
 
   ! Connect to the previously allocated controller.
   call this%controllerFactory%connect(controller)
@@ -1273,7 +1273,7 @@ subroutine findOptimalForcing(this, region)
      nAdjoint = 1
      done = .false.
      controlIteration = restartIteration
-     actuationAmount = actuationAmount / sqrt(costSensitivity)
+     actuationAmount = actuationAmount / sqrt(costSensitivity) !... Move normal n = dJ/|dJ|
      minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
      do while (controlIteration < nIterations .and. .not.done)
 
@@ -1346,76 +1346,61 @@ subroutine findOptimalForcing(this, region)
 
   case ('MAP_IGNITION')
 
-     ! Determine if the initial run was burning based on the last value of the instantaneous
-     ! cost functional.
-     call getRequiredOption("burn_value", burnValue)
-     burning = indicatorFunction > burnValue
-
-     ! We have at this point a baseline cost functional and the first gradient with respect
+     ! Assume we are at the burn boundary.
+     ! We have at this point a baseline cost functional and a gradient with respect
      ! to each parameter.
      nForward = 1
      nAdjoint = 1
-     done = .false.
      controlIteration = restartIteration
-     actuationAmount = actuationAmount / baselineCostFunctional
      minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
-     do while (controlIteration < nIterations .and. .not.done)
+     region%states(:)%gradientDirection = 1
 
-        ! Perform line search.
-        do i = controlIteration, restartIteration + nIterations - 1
+     ! Determine which parameters to control/adjust while keeping all others constant.
+     call getRequiredOption("control_parameter", p1)
+     call getRequiredOption("adjust_parameter", p2)
+     assert(p1 <= controller%nParameters)
+     assert(p2 <= controller%nParameters)
+     call getRequiredOption("minimize_control_parameter", minimizeParameter)
+     parameterDirection = 1
+     if (minimizeParameter) parameterDirection = -1
 
-           ! Choose a direction to march.
-           region%states(:)%gradientDirection = -1
-           if (.not. burning) region%states(:)%gradientDirection = 1
+     do i = controlIteration, restartIteration + nIterations - 1
 
-           ! Compute a new cost functional.
-           costFunctional = this%runForward(region, actuationAmount = actuationAmount,       &
-                controlIteration = nForward)
-           indicatorFunction = functional%auxilaryFunctional
-           nForward = nForward + 1
-           controlIteration = controlIteration + 1
-
-          ! Output progress.
-           if (procRank == 0) then
-              write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') i,                 &
-                   actuationAmount, costFunctional, indicatorFunction,                       &
-                   (controller%baselineValue(j) +                                            &
-                   real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
-                   individualSensitivities(j), j = 1, controller%nParameters),               &
-                   (individualSensitivities(j), j = 1, controller%nParameters)
-              flush(fileUnit)
-           end if
-
-           ! Exit loop and recompute the gradient if we didn't passed the threshold.
-           if (burning .and. indicatorFunction > burnvalue) then
-              exit
-           else if (.not.burning .and. indicatorFunction < burnValue) then
-              exit
-           end if
-
-           ! If we made it this far, reduce the actuation amount and try again.
-           actuationAmount = 0.5_wp * actuationAmount
-
-           ! Check actuation tolerance.
-           if (actuationAmount < minimumTolerance) done = .true.
-
+        ! Compute the tangent vector.
+        do j = 1, size(region%grids) 
+           region%states(j)%controlGradient = 0.0_wp
+           region%states(j)%controlGradient(p1) = real(parameterDirection, wp)
+           region%states(j)%controlGradient(p2) = - region%states(j)%controlGradient(p1) *   &
+                individualSensitivities(p1) / individualSensitivities(p2)
         end do
 
-        ! Update the baseline values and compute a new sensitivity gradient.
-        if (.not.done .and. controlIteration < nIterations) then
-           do i = 1, controller%nParameters
-              controller%baselineValue(i) = controller%baselineValue(i) +                    &
-                   real(region%states(1)%gradientDirection, wp) * actuationAmount *          &
-                   individualSensitivities(i)
-           end do
-           individualSensitivities = this%runAdjoint(region, controlIteration = nAdjoint)
-           nAdjoint = nAdjoint + 1
-           costSensitivity = sum(individualSensitivities**2)
-           do i = 1, size(region%grids)
-              region%states(i)%controlGradient = individualSensitivities
-           end do
-           !actuationAmount = baselineActuationAmount
+        ! Compute a new cost functional.
+        costFunctional = this%runForward(region, actuationAmount = actuationAmount,          &
+             controlIteration = nForward)
+        indicatorFunction = functional%auxilaryFunctional
+        nForward = nForward + 1
+        controlIteration = controlIteration + 1
+
+        ! Output progress.
+        if (procRank == 0) then
+           write(fileUnit, '(I4,1000(1X,SP,' // SCALAR_FORMAT // '))') i,                    &
+                actuationAmount, costFunctional, indicatorFunction,                          &
+                (controller%baselineValue(j) +                                               &
+                real(region%states(1)%gradientDirection, wp) * actuationAmount *             &
+                region%states(1)%controlGradient(j), j = 1, controller%nParameters),         &
+                (region%states(1)%controlGradient(j), j = 1, controller%nParameters)
+           flush(fileUnit)
         end if
+
+        ! Update the baseline values and compute a new sensitivity gradient.
+        do j = 1, controller%nParameters
+           controller%baselineValue(j) = controller%baselineValue(j) +                       &
+                real(region%states(1)%gradientDirection, wp) * actuationAmount *             &
+                region%states(1)%controlGradient(j)
+        end do
+        individualSensitivities = this%runAdjoint(region, controlIteration = nAdjoint)
+        nAdjoint = nAdjoint + 1
+        costSensitivity = sum(individualSensitivities**2)
 
      end do
 
@@ -1424,7 +1409,6 @@ subroutine findOptimalForcing(this, region)
         write(fileUnit, *) ''
         write(fileUnit, '(A28,I4)') 'Number of forward runs:', nForward
         write(fileUnit, '(A28,I4)') 'Number of adjoint runs:', nAdjoint
-        write(fileUnit, '(A28,L4)') 'Ignition threshold found:', done
         close(fileUnit)
      end if
 
@@ -1517,5 +1501,9 @@ subroutine findOptimalForcing(this, region)
      write(message, '(A)') "Unknown optimization type!"
      call gracefulExit(region%comm, message)
   end select
+
+  ! Clean up.
+  SAFE_DEALLOCATE(parameters)
+  SAFE_DEALLOCATE(individualSensitivities)
 
 end subroutine findOptimalForcing
