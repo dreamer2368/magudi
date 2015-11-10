@@ -1351,23 +1351,23 @@ subroutine findOptimalForcing(this, region)
      ! to each parameter.
      nForward = 1
      nAdjoint = 1
+     region%states(:)%gradientDirection = 1
      controlIteration = restartIteration
      minimumTolerance = getOption("minimum_actuation_tolerance", 1.0E-9_wp)
-     region%states(:)%gradientDirection = 1
 
      ! Determine which parameters to control/adjust while keeping all others constant.
-     call getRequiredOption("control_parameter", p1)
-     call getRequiredOption("adjust_parameter", p2)
+     call getRequiredOption("control_parameter", p1, region%comm)
+     call getRequiredOption("adjust_parameter", p2, region%comm)
      assert(p1 <= controller%nParameters)
      assert(p2 <= controller%nParameters)
-     call getRequiredOption("minimize_control_parameter", minimizeParameter)
+     minimizeParameter = getOption("minimize_control_parameter", .true.)
      parameterDirection = 1
      if (minimizeParameter) parameterDirection = -1
 
      do i = controlIteration, restartIteration + nIterations - 1
 
         ! Compute the tangent vector.
-        do j = 1, size(region%grids) 
+        do j = 1, size(region%states) 
            region%states(j)%controlGradient = 0.0_wp
            region%states(j)%controlGradient(p1) = real(parameterDirection, wp)
            region%states(j)%controlGradient(p2) = - region%states(j)%controlGradient(p1) *   &
@@ -1388,7 +1388,7 @@ subroutine findOptimalForcing(this, region)
                 (controller%baselineValue(j) +                                               &
                 real(region%states(1)%gradientDirection, wp) * actuationAmount *             &
                 region%states(1)%controlGradient(j), j = 1, controller%nParameters),         &
-                (region%states(1)%controlGradient(j), j = 1, controller%nParameters)
+                (individualSensitivities(j), j = 1, controller%nParameters)
            flush(fileUnit)
         end if
 
