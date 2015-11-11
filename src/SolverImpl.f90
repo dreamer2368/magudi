@@ -1392,31 +1392,28 @@ subroutine findOptimalForcing(this, region)
         indicatorFunction = functional%auxilaryFunctional
         burning = indicatorFunction > burnValue
 
-        ! Update the baseline values and compute a new sensitivity gradient.
+        ! Update the baseline values.
         do j = 1, controller%nParameters
            controller%baselineValue(j) = controller%baselineValue(j) +                       &
                 real(region%states(1)%gradientDirection, wp) * tangentActuationAmount *      &
                 region%states(1)%controlGradient(j)
         end do
-        individualSensitivities = this%runAdjoint(region, controlIteration = nAdjoint)
-        nAdjoint = nAdjoint + 1
-        costSensitivity = sum(individualSensitivities**2)
+
+        ! Check if we are close to the ignition boundary and correct if needed.
+        actuationAmount = minimumTolerance
+        previousActuationAmount = 0.0_wp
+        foundNewMinimum = .false.
         do j = 1, size(region%grids)
            region%states(j)%controlGradient = individualSensitivities / sqrt(costSensitivity)
         end do
-
-        ! Check if we are close to the ignition boundary and correct if needed.
-        foundNewMinimum = .false.
-        actuationAmount = minimumTolerance
-        previousActuationAmount = 0.0_wp
         if (burning) region%states(:)%gradientDirection = -1
         do
            costFunctional = this%runForward(region, actuationAmount = actuationAmount,       &
                 controlIteration = nForward)
            nForward = nForward + 1
            indicatorFunction = functional%auxilaryFunctional
-           if ( (burning .and. indicatorFunction < burnvalue) .or.                           &
-                (.not.burning .and. indicatorFunction > burnvalue) ) then
+           if ((burning .and. indicatorFunction < burnvalue) .or. &
+                (.not.burning .and. indicatorFunction > burnvalue)) then
               exit
            end if
            foundNewMinimum = .true.
