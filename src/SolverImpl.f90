@@ -461,6 +461,10 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   this%probeInterval = getOption("probe_interval", -1)
   if (this%probeInterval == 0) this%probeInterval = -1
 
+  this%adjointIterations = getOption("adjoint_iterations", this%nTimesteps)
+  this%adjointIterations = max(0, this%adjointIterations)
+  this%adjointIterations = min(this%nTimesteps, this%adjointIterations)
+
   call this%timeIntegratorFactory%connect(timeIntegrator,                                    &
        trim(region%solverOptions%timeIntegratorType))
   assert(associated(timeIntegrator))
@@ -821,7 +825,7 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
      write(filename, '(2A)') trim(this%outputPrefix), ".steady_state.q"
   else
      write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-",                            &
-          region%timestep + this%nTimesteps, ".q"
+          region%timestep + this%adjointIterations, ".q"
   end if
   call region%loadData(QOI_FORWARD_STATE, filename)
   do i = 1, size(region%states) !... update state
@@ -840,7 +844,7 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
   ! Setup the revese-time migrator if this is not a steady-state simulation.
   if (.not. region%simulationFlags%steadyStateSimulation)                                    &
        call reverseMigrator%setup(region, timeIntegrator, this%outputPrefix,                 &
-       startTimestep - this%nTimesteps, startTimestep, this%saveInterval,                    &
+       startTimestep - this%adjointIterations, startTimestep, this%saveInterval,             &
        this%saveInterval * timeIntegrator%nStages)
 
   ! March forward for adjoint steady-state simulation.
@@ -867,7 +871,7 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
   time = startTime
 
   do timestep = startTimestep + sign(1, timemarchDirection),                                 &
-       startTimestep + sign(this%nTimesteps, timemarchDirection), timemarchDirection
+       startTimestep + sign(this%adjointIterations, timemarchDirection), timemarchDirection
 
      region%timestep = timestep
      timeStepSize = region%getTimeStepSize()

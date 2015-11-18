@@ -17,7 +17,7 @@ module Solver_mod
      type(t_FunctionalFactory) :: functionalFactory
      type(t_TimeIntegratorFactory) :: timeIntegratorFactory
 
-     integer :: nTimesteps, saveInterval, reportInterval, probeInterval
+     integer :: nTimesteps, saveInterval, reportInterval, probeInterval, adjointIterations
      character(len = STRING_LENGTH) :: outputPrefix
 
    contains
