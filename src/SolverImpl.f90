@@ -1336,7 +1336,6 @@ subroutine findOptimalForcing(this, region)
               region%states(i)%controlGradient = individualSensitivities /                   &
                    sqrt(costSensitivity)
            end do
-           !actuationAmount = baselineActuationAmount
         end if
 
      end do
