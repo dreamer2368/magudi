@@ -177,7 +177,7 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
           (this%data_(j)%flameTemperature(1,1) - referenceTemperature)
 
      instantaneousFunctional = instantaneousFunctional +                                     &
-          region%grids(i)%computeInnerProduct(F, F, W)
+          region%grids(i)%computeInnerProduct(F(:,1), W)
 
      SAFE_DEALLOCATE(W)
      SAFE_DEALLOCATE(F)
@@ -294,17 +294,15 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
                    state%massFraction(gridIndex, O2) / s  + YO0 / s ) / (YF0 + YO0 / s)
               W = grid%targetMollifier(gridIndex, 1) * exp(gaussianFactor * (Z - Zst) **2)
 
-              ! First apply -2*W*(T-T0)/(Tf-T0)^2*dT/dQ.
-              F = - 2.0_wp * W * timeRampFactor *                                            &
-                   (state%temperature(gridIndex, 1) - referenceTemperature) /                &
-                   (flameTemperature - referenceTemperature)**2
+              ! First apply -W/(Tf-T0)*dT/dQ.
+              F = - W * timeRampFactor / (flameTemperature - referenceTemperature)
 
               patch%adjointForcing(patchIndex,:) = F * deltaTemperature
 
-              ! Now apply -((T-Tf)/(Tf-T0))^2*dW/dQ.
+              ! Now apply -((T-Tf)/(Tf-T0))*dW/dQ.
               F = W * timeRampFactor *                                                       &
                    ( (state%temperature(gridIndex, 1) - referenceTemperature) /              &
-                   (flameTemperature - referenceTemperature) )**2 *                          &
+                   (flameTemperature - referenceTemperature) ) *                             &
                    ( (Z - Zst) / this%burnRadius**2 ) * state%specificVolume(gridIndex,1) /  &
                    (YF0 + YO0 / s)
 
@@ -316,9 +314,8 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
 
            else
 
-              F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) * timeRampFactor *           &
-                   (state%temperature(gridIndex, 1) - referenceTemperature) /                &
-                   (flameTemperature - referenceTemperature)**2
+              F = - grid%targetMollifier(gridIndex, 1) * timeRampFactor /                    &
+                   (flameTemperature - referenceTemperature)
 
               patch%adjointForcing(patchIndex,:) = F * deltaTemperature
 
