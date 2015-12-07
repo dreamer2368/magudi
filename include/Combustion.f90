@@ -6,9 +6,9 @@ module Combustion_enum
   public
 
   integer, parameter, public ::                                                              &
-       NONE             = 1,                                                                 &
-       ONE_STEP         = 2,                                                                 &
-       DETAILED         = 3
+       NONE             = 0,                                                                 &
+       ONE_STEP         = 1,                                                                 &
+       DETAILED         = 2
 
 end module Combustion_enum
 
