@@ -45,15 +45,15 @@ program data2ensight
   integer :: num, numFiles
   integer :: nx, ny, nz, nDimensions, nSpecies, npart, reclength, ii
   integer :: startIter, stopIter, skipIter, iter, var, nvar
-  real(KIND=4), Dimension(:,:,:), Allocatable :: x,y,z,iblank,rbuffer
+  real(KIND=4), dimension(:,:,:), allocatable :: x,y,z,iblank,rbuffer
   real(KIND=4) :: xmin, xmax, ymin, ymax, zmin, zmax
-  real(KIND=8), Dimension(:), Allocatable :: time, temperature
-  character(LEN=80), dimension(:), Allocatable :: names
+  real(KIND=8), dimension(:), allocatable :: time, temperature
+  character(LEN=80), dimension(:), allocatable :: names
   character(LEN=80) :: binary_form
   character(LEN=80) :: file_description1,file_description2
   character(LEN=80) :: node_id,element_id
   character(LEN=80) :: part,description_part,cblock,extents,cbuffer
-  logical :: use_iblank
+  logical :: useIblank
 
   ! Local variables
   integer :: i, j, k
@@ -138,6 +138,10 @@ program data2ensight
      stop
   end if
 
+  ! Check if iblank is used
+  useIblank = .false.
+  if (size(region%grids(1)%iblank) > 0) useIblank = .true.
+
   ! Include adjoint variables.
   if (useAdjoint == 1) nvar = nvar * 2
   
@@ -158,7 +162,7 @@ program data2ensight
   end do
 
   ! Assign variable names.
-  allocate(names(nvar+2))
+  allocate(names(nvar+3))
   select case (nDimensions)
   case (2)
      names(1) = 'RHO'
@@ -191,11 +195,7 @@ program data2ensight
   ! Output additional data
   names(nvar+1) = 'Temperature'
   names(nvar+2) = 'Reaction'
-  if (use_iblank) names(nvar+3) = 'iblank'
-
-  ! Check if iblank is used
-  use_iblank = .false.
-  if (size(region%grids(1)%iblank) > 0) use_iblank = .true.
+  if (useIblank) names(nvar+3) = 'iblank'
 
   ! Create the EnSight directory
   !call system("mkdir -p "//trim(directory))
@@ -213,7 +213,7 @@ program data2ensight
   allocate(x(nx,ny,nz))
   allocate(y(nx,ny,nz))
   allocate(z(nx,ny,nz))
-  if (use_iblank) allocate(iblank(nx,ny,nz))
+  if (useIblank) allocate(iblank(nx,ny,nz))
   do k=1,nz
      do j=1,ny
         do i=1,nx
@@ -224,7 +224,7 @@ program data2ensight
            else
               z(i,j,k) = 0.0_4
            end if
-           if (use_iblank) iblank(i,j,k) = real(region%grids(1)%iblank(i+nx*(j-1+ny*(k-1))),4)
+           if (useIblank) iblank(i,j,k) = real(region%grids(1)%iblank(i+nx*(j-1+ny*(k-1))),4)
         end do
      end do
   end do
@@ -384,8 +384,8 @@ program data2ensight
      close(10)
 
      ! Write the iblank array to EnSight file
-     if (use_iblank) then
-        cbuffer=trim(names(nvar+2))
+     if (useIblank) then
+        cbuffer=trim(names(nvar+3))
         write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(nvar+3)),'.',num
         open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
         write(unit=10, rec=1) cbuffer,part,npart,cblock,(((iblank(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
@@ -415,9 +415,15 @@ program data2ensight
   cbuffer='VARIABLE'
   write(10,'(a)') cbuffer
   do var = 1, nvar + 2
-     write(cbuffer,'(5A)') 'scalar per node: 1 ',  trim(names(var)), ' ', trim(names(var)), '.******'
+     write(cbuffer,'(5A)') 'scalar per node: 1 ',  trim(names(var)), ' ',                    &
+          trim(names(var)), '.******'
      write(10,'(a80)') cbuffer
   end do
+  if (useIblank) then
+     write(cbuffer,'(5A)') 'scalar per node: 1 ',  trim(names(nvar+3)), ' ',                 &
+          trim(names(nvar+3)), '.******'
+     write(10,'(a80)') cbuffer
+  end if
   
   cbuffer='TIME'
   write(10,'(a80)') cbuffer
@@ -435,6 +441,6 @@ program data2ensight
 
   ! Clean up & leave
   deallocate(x, y, z, rbuffer, time)
-  if (use_iblank) deallocate(iblank)
+  if (useIblank) deallocate(iblank)
 
 end program data2ensight
