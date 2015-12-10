@@ -134,7 +134,7 @@ program data2ensight
 
   ! Sanity check.
   if (nvar.ne.region%solverOptions%nUnknowns) then
-     print *, 'Something is wrong!'
+     print *, 'Something is wrong! (nvar /= nUnknowns)'
      stop
   end if
 
@@ -191,6 +191,7 @@ program data2ensight
   ! Output additional data
   names(nvar+1) = 'Temperature'
   names(nvar+2) = 'Reaction'
+  if (use_iblank) names(nvar+3) = 'iblank'
 
   ! Check if iblank is used
   use_iblank = .false.
@@ -244,52 +245,28 @@ program data2ensight
   part             ='part'
   npart            =1
   write(description_part,'(A)') 'Grid'
-  if (use_iblank) then
-     cblock        ='block iblanked'
-  else
-     cblock        ='block'
-  end If
+  cblock        ='block'
   extents          ='extents'
 
   ! Size of file.
-  if (use_iblank) then
-     reclength=80*8+4*(4+4*NX*NY*NZ)
-  else
-     reclength=80*9+4*(4+3*NX*NY*NZ)
-  end if
+  reclength=80*9+4*(4+3*NX*NY*NZ)
 
   ! Write the file.
   write(fname,'(2A)') trim(directory), '/geometry'
   print *, 'Writing: ',fname
   open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
-  if (use_iblank) then
-     write(unit=10,rec=1) binary_form, &
-          file_description1, &
-          file_description2, &
-          node_id, &
-          element_id, &
-          part,npart, &
-          description_part, &
-          cblock, &
-          nx,ny,nz, &
-          (((x(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
-          (((y(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
-          (((z(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
-          (((iblank(i,j,k), i=1,nx), j=1,ny), k=1,nz)
-  else
-     write(unit=10,rec=1) binary_form, &
-          file_description1, &
-          file_description2, &
-          node_id, &
-          element_id, &
-          part,npart, &
-          description_part, &
-          cblock, &
-          NX,NY,NZ, &
-          (((x(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
-          (((y(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
-          (((z(i,j,k), i=1,nx), j=1,ny), k=1,nz)
-  end if
+  write(unit=10,rec=1) binary_form, &
+       file_description1, &
+       file_description2, &
+       node_id, &
+       element_id, &
+       part,npart, &
+       description_part, &
+       cblock, &
+       NX,NY,NZ, &
+       (((x(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
+       (((y(i,j,k), i=1,nx), j=1,ny), k=1,nz), &
+       (((z(i,j,k), i=1,nx), j=1,ny), k=1,nz)
   
   ! Close the file.
   close (10)
@@ -406,6 +383,15 @@ program data2ensight
      write(unit=10, rec=1) cbuffer,part,npart,cblock,(((rbuffer(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
      close(10)
 
+     ! Write the iblank array to EnSight file
+     if (use_iblank) then
+        cbuffer=trim(names(nvar+2))
+        write(fname,'(4A,I6.6)') trim(directory),'/',trim(names(nvar+3)),'.',num
+        open (unit=10, file=trim(fname), form='unformatted', access="direct", recl=reclength)
+        write(unit=10, rec=1) cbuffer,part,npart,cblock,(((iblank(i,j,k),i=1,NX),j=1,NY),k=1,NZ)
+        close(10)
+     end if
+
      ! ... counter
      num = num + 1
   end do
@@ -448,7 +434,7 @@ program data2ensight
   close(10)
 
   ! Clean up & leave
-  deallocate(X, Y, Z, rbuffer, time)
+  deallocate(x, y, z, rbuffer, time)
   if (use_iblank) deallocate(iblank)
 
 end program data2ensight
