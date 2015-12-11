@@ -149,7 +149,7 @@ contains
     real(wp) :: x, y, z, dx, dz, ytilde, r, delta
     real(wp) :: tripLocation, tripWidth, tripHeight
     real(wp) :: gritSize, rnd, gauss, amp, sig, x0, y0, z0, z12, alpha, theta
-    logical :: includeSandpaper, includeGrit, stretchY
+    logical :: includeSandpaper, includeGrit, stretchY, conformToJet
 
     ! Read in grid size and dimensions.
     call getRequiredOption("nx", nx)
@@ -344,117 +344,121 @@ contains
     end do
 
     ! Conform the mesh to the jet perimeter.
-    j = 1
-    r = 0.5_wp * jetDiameter - 1.0e-9_wp
-    allocate(jetBox(iJet1-1:iJet2+1, kJet1-1:kJet2+1))
-    jetBox = 0
+    conformToJet = getOption("conform_grid_to_jet", .false.)
+    if (conformToJet) then
+       j = 1
+       r = 0.5_wp * jetDiameter - 1.0e-9_wp
+       allocate(jetBox(iJet1-1:iJet2+1, kJet1-1:kJet2+1))
+       jetBox = 0
 
-    ! Find a point at `i` by shifting in `k`.
-    do i = iJet1, iJet2
-       k = 1
-       x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
-
-       ! First quadrant.
-       delta = x - xJet
-       theta = asin(delta / r)
-       delta = r * cos(theta)
-       z0 = 0.5_wp * (zmax + zmin) + delta
-       delta = zmax - zmin
-       do k = kJet1 - 1, kJet2 + 1
-          ! Find the closest point to the jet perimeter.
-          z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
-          if (abs(z - z0) < delta) then
-             delta = abs(z - z0)
-             n = k
-          end if
-       end do
-       ! Shift the corresponding grid point.
-       k = n
-       if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),3) = z0
-       jetBox(i, k) = 1 ! Tag it.
-
-       ! Second quadrant.
-       delta = x - xJet
-       theta = acos(delta / r)
-       delta = r * sin(theta)
-       z0 = 0.5_wp * (zmax + zmin) - delta
-       delta = zmax - zmin
-       do k = kJet1 - 1, kJet2 + 1
-          ! Find the closest point to the jet perimeter.
-          z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
-          if (abs(z - z0) < delta) then
-             delta = abs(z - z0)
-             n = k
-          end if
-       end do
-       ! Shift the corresponding grid point.
-       k = n
-       if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),3) = z0
-       jetBox(i, k) = 1 ! Tag it.
-    end do
-
-    ! Find a point at `k` by shifting in `i`.
-    do k = kJet1, kJet2
-       i = 1
-       z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
-
-       ! Third quadrant.
-       delta = z - 0.5_wp * (zmax + zmin)
-       theta = asin(delta / r)
-       delta = r * cos(theta)
-       x0 = xJet - delta
-       delta = xmaxo - xmino
-       do i = iJet1 - 1, iJet2 + 1
-          ! Find the closest point to the jet perimeter.
+       ! Find a point at `i` by shifting in `k`.
+       do i = iJet1, iJet2
+          k = 1
           x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
-          if (abs(x - x0) < delta) then
-             delta = abs(x - x0)
-             n = i
-          end if
-       end do
-       ! Shift the corresponding grid point.
-       i = n
-       if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),1) = x0
-       jetBox(i, k) = 1 ! Tag it.
 
-       ! Fourth quadrant.
-       delta = z - 0.5_wp * (zmax + zmin)
-       theta = acos(delta / r)
-       delta = r * sin(theta)
-       x0 = xJet + delta
-       delta = xmaxo - xmino
-       do i = iJet1 - 1, iJet2 + 1
-          ! Find the closest point to the jet perimeter.
-          x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
-          if (abs(x - x0) < delta) then
-             delta = abs(x - x0)
-             n = i
-          end if
-       end do
-       ! Shift the corresponding grid point.
-       i = n
-       if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),1) = x0
-       jetBox(i, k) = 1 ! Tag it.
-    end do
-    deallocate(jetBox)
+          ! First quadrant.
+          delta = x - xJet
+          theta = asin(delta / r)
+          delta = r * cos(theta)
+          z0 = 0.5_wp * (zmax + zmin) + delta
+          delta = zmax - zmin
+          do k = kJet1 - 1, kJet2 + 1
+             ! Find the closest point to the jet perimeter.
+             z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
+             if (abs(z - z0) < delta) then
+                delta = abs(z - z0)
+                n = k
+             end if
+          end do
+          ! Shift the corresponding grid point.
+          k = n
+          if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),3) = z0
+          jetBox(i, k) = 1 ! Tag it.
 
-    ! Find the new jet extents.
-    iJet1 = nx; iJet2 = 1
-    kJet1 = nz; kJet2 = 1
-    j = 1
-    do k = 1, nz
-       do i = iTrip2, nx
-          x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
+          ! Second quadrant.
+          delta = x - xJet
+          theta = acos(delta / r)
+          delta = r * sin(theta)
+          z0 = 0.5_wp * (zmax + zmin) - delta
+          delta = zmax - zmin
+          do k = kJet1 - 1, kJet2 + 1
+             ! Find the closest point to the jet perimeter.
+             z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
+             if (abs(z - z0) < delta) then
+                delta = abs(z - z0)
+                n = k
+             end if
+          end do
+          ! Shift the corresponding grid point.
+          k = n
+          if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),3) = z0
+          jetBox(i, k) = 1 ! Tag it.
+       end do
+
+       ! Find a point at `k` by shifting in `i`.
+       do k = kJet1, kJet2
+          i = 1
           z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
-          r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-          if (r <= 0.5_wp * jetDiameter) then
-             iJet1 = min(iJet1, i)
-             iJet2 = max(iJet2, i)
-             kJet1 = min(kJet1, k)
-             kJet2 = max(kJet2, k)
-          end if
+
+          ! Third quadrant.
+          delta = z - 0.5_wp * (zmax + zmin)
+          theta = asin(delta / r)
+          delta = r * cos(theta)
+          x0 = xJet - delta
+          delta = xmaxo - xmino
+          do i = iJet1 - 1, iJet2 + 1
+             ! Find the closest point to the jet perimeter.
+             x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
+             if (abs(x - x0) < delta) then
+                delta = abs(x - x0)
+                n = i
+             end if
+          end do
+          ! Shift the corresponding grid point.
+          i = n
+          if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),1) = x0
+          jetBox(i, k) = 1 ! Tag it.
+
+          ! Fourth quadrant.
+          delta = z - 0.5_wp * (zmax + zmin)
+          theta = acos(delta / r)
+          delta = r * sin(theta)
+          x0 = xJet + delta
+          delta = xmaxo - xmino
+          do i = iJet1 - 1, iJet2 + 1
+             ! Find the closest point to the jet perimeter.
+             x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
+             if (abs(x - x0) < delta) then
+                delta = abs(x - x0)
+                n = i
+             end if
+          end do
+          ! Shift the corresponding grid point.
+          i = n
+          if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),1) = x0
+          jetBox(i, k) = 1 ! Tag it.
        end do
-    end do
+       deallocate(jetBox)
+
+       ! Find the new jet extents.
+       iJet1 = nx; iJet2 = 1
+       kJet1 = nz; kJet2 = 1
+       j = 1
+       do k = 1, nz
+          do i = iTrip2, nx
+             x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
+             z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
+             r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
+             if (r <= 0.5_wp * jetDiameter) then
+                iJet1 = min(iJet1, i)
+                iJet2 = max(iJet2, i)
+                kJet1 = min(kJet1, k)
+                kJet2 = max(kJet2, k)
+             end if
+          end do
+       end do
+    end if
+
     print *
     print *, 'Jet extents: [', iJet1, ',', iJet2, '] x [',kJet1, ',', kJet2,']'
 
@@ -782,7 +786,7 @@ contains
     ! Bottom BC (no-slip wall)
     bc = bc+1
     name   (bc) = 'bottomWall1'
-    type   (bc) = 'SAT_ISOTHERMAL_WALL'
+    type   (bc) = 'SAT_ADIABATIC_WALL'
     normDir(bc) =  2
     imin   (bc) =  1
     imax   (bc) = -1
@@ -793,7 +797,7 @@ contains
 
     bc = bc+1
     name   (bc) = 'bottomWall2'
-    type   (bc) = 'SAT_ISOTHERMAL_WALL'
+    type   (bc) = 'SAT_ADIABATIC_WALL'
     normDir(bc) =  2
     imin   (bc) =  1
     imax   (bc) = -1
@@ -804,7 +808,7 @@ contains
 
     bc = bc+1
     name   (bc) = 'bottomWall3'
-    type   (bc) = 'SAT_ISOTHERMAL_WALL'
+    type   (bc) = 'SAT_ADIABATIC_WALL'
     normDir(bc) =  2
     imin   (bc) =  1
     imax   (bc) =  iJet1 - 1
@@ -815,7 +819,7 @@ contains
 
     bc = bc+1
     name   (bc) = 'bottomWall4'
-    type   (bc) = 'SAT_ISOTHERMAL_WALL'
+    type   (bc) = 'SAT_ADIABATIC_WALL'
     normDir(bc) =  2
     imin   (bc) =  iJet2 + 1
     imax   (bc) = -1
