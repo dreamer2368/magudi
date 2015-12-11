@@ -781,7 +781,7 @@ contains
 
     ! Bottom BC (no-slip wall)
     bc = bc+1
-    name   (bc) = 'bottom'
+    name   (bc) = 'bottomWall1'
     type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
     imin   (bc) =  1
@@ -792,7 +792,7 @@ contains
     kmax   (bc) =  kJet1 - 1
 
     bc = bc+1
-    name   (bc) = 'bottom'
+    name   (bc) = 'bottomWall2'
     type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
     imin   (bc) =  1
@@ -803,7 +803,7 @@ contains
     kmax   (bc) = - 1
 
     bc = bc+1
-    name   (bc) = 'bottom'
+    name   (bc) = 'bottomWall3'
     type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
     imin   (bc) =  1
@@ -814,7 +814,7 @@ contains
     kmax   (bc) =  kJet2
 
     bc = bc+1
-    name   (bc) = 'bottom'
+    name   (bc) = 'bottomWall4'
     type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
     imin   (bc) =  iJet2 + 1
@@ -826,7 +826,7 @@ contains
 
     ! Bottom BC (inflow)
     bc = bc+1
-    name   (bc) = 'bottom inflow'
+    name   (bc) = 'bottomInflow'
     type   (bc) = 'SAT_FAR_FIELD'
     normDir(bc) =  2
     imin   (bc) =  iJet1
