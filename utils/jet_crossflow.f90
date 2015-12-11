@@ -39,6 +39,7 @@ program jet_crossflow
   real(KIND=8) :: zmin, zmax, jetDiameter, xJet
   character(len = STRING_LENGTH) :: inputname, filename
   integer, allocatable :: globalGridSizes(:,:)
+  logical :: includeSandpaper
 
   print *
   print *, '! ============================================= !'
@@ -149,7 +150,7 @@ contains
     real(wp) :: x, y, z, dx, dz, ytilde, r, delta
     real(wp) :: tripLocation, tripWidth, tripHeight
     real(wp) :: gritSize, rnd, gauss, amp, sig, x0, y0, z0, z12, alpha, theta
-    logical :: includeSandpaper, includeGrit, stretchY, conformToJet
+    logical :: includeGrit, stretchY, conformToJet
 
     ! Read in grid size and dimensions.
     call getRequiredOption("nx", nx)
@@ -232,7 +233,7 @@ contains
           tripHeight = tripHeight - gritSize
        end if
 
-       ! Blank out trip-strip location.
+       ! Find the sandpaper extents.
        j = 1; k = 1
        do i = 1, nx - 1
           if (grid%coordinates(i+nx*(j-1+ny*(k-1)),1) < tripLocation)                        &
@@ -246,15 +247,17 @@ contains
        do j = 1, ny
           if (grid%coordinates(i+nx*(j-1+ny*(k-1)),2) < tripHeight) jTrip = j
        end do
+       print *
+       print *, 'Sandpaper extents: [', iTrip1, ',', iTrip2, '] x [ 0, ', jTrip, ']'
+
+       ! Blank out the sandpaper.
        do k = 1, nz
-          do j = 1, jTrip
-             do i = iTrip1, iTrip2
+          do j = 1, jTrip - 1
+             do i = iTrip1 + 1, iTrip2 - 1
                 grid%iblank(i+nx*(j-1+ny*(k-1))) = 0   
              end do
           end do
        end do
-       print *
-       print *, 'Sandpaper extents: [', iTrip1, ',', iTrip2, '] x [ 0, ', jTrip, ']'
   
        ! Embed the particles.
        If (includeGrit) then
@@ -281,7 +284,7 @@ contains
                 do i = iTrip1, iTrip2
 
                    ! Get the coordinates.
-                   j = jTrip + 1
+                   j = jTrip
                    x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
                    y0= grid%coordinates(1+nx*(j-1+ny*(1-1)),2)
                    y = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
@@ -304,7 +307,7 @@ contains
                            grid%coordinates(i+nx*(j-1+ny*(k-1)),2) + gauss
                    
                       ! Shift grid points above (smoothly).
-                      do j = jTrip + 2, ny
+                      do j = jTrip + 1, ny
                          y = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
                          delta = grid%coordinates(1+nx*(j-1+ny*(1-1)),2) -                   &
                               grid%coordinates(1+nx*(j-2+ny*(1-1)),2)
@@ -457,7 +460,7 @@ contains
              end if
           end do
        end do
-    end if
+    end if !... conform to jet.
 
     print *
     print *, 'Jet extents: [', iJet1, ',', iJet2, '] x [',kJet1, ',', kJet2,']'
@@ -783,54 +786,115 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! Bottom BC (no-slip wall)
+    ! Bottom BCs (no-slip wall)
+    if (includeSandpaper) then
+       ! No-slip along sandpaper perimeter.
+       bc = bc+1
+       name   (bc) = 'sandpaper1'
+       type   (bc) = 'SAT_ISOTHERMAL_WALL'
+       normDir(bc) = -1
+       imin   (bc) =  iTrip1
+       imax   (bc) =  iTrip1
+       jmin   (bc) =  1
+       jmax   (bc) =  jTrip
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+
+       bc = bc+1
+       name   (bc) = 'sandpaper2'
+       type   (bc) = 'SAT_ISOTHERMAL_WALL'
+       normDir(bc) =  2
+       imin   (bc) =  iTrip1
+       imax   (bc) =  iTrip2
+       jmin   (bc) =  jTrip
+       jmax   (bc) =  jTrip
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+
+       bc = bc+1
+       name   (bc) = 'sandpaper3'
+       type   (bc) = 'SAT_ISOTHERMAL_WALL'
+       normDir(bc) =  1
+       imin   (bc) =  iTrip2
+       imax   (bc) =  iTrip2
+       jmin   (bc) =  1
+       jmax   (bc) =  jTrip
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+
+       bc = bc+1
+       name   (bc) = 'bottomWall1'
+       type   (bc) = 'SAT_ISOTHERMAL_WALL'
+       normDir(bc) =  2
+       imin   (bc) =  1
+       imax   (bc) =  iTrip1
+       jmin   (bc) =  1
+       jmax   (bc) =  1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+
+       bc = bc+1
+       name   (bc) = 'bottomWall2'
+       type   (bc) = 'SAT_ISOTHERMAL_WALL'
+       normDir(bc) =  2
+       imin   (bc) =  iTrip2
+       imax   (bc) =  iJet1 - 1
+       jmin   (bc) =  1
+       jmax   (bc) =  1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+
+    else
+
+       bc = bc+1
+       name   (bc) = 'bottomWall1'
+       type   (bc) = 'SAT_ISOTHERMAL_WALL'
+       normDir(bc) =  2
+       imin   (bc) =  1
+       imax   (bc) =  iJet1 - 1
+       jmin   (bc) =  1
+       jmax   (bc) =  1
+       kmin   (bc) =  1
+       kmax   (bc) = -1
+
+    end if !... includeSandpaper.
+
     bc = bc+1
-    name   (bc) = 'bottomWall1'
-    type   (bc) = 'SAT_ADIABATIC_WALL'
+    name   (bc) = 'bottomWall3'
+    type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
-    imin   (bc) =  1
-    imax   (bc) = -1
+    imin   (bc) =  iJet1
+    imax   (bc) =  iJet2
     jmin   (bc) =  1
     jmax   (bc) =  1
     kmin   (bc) =  1
     kmax   (bc) =  kJet1 - 1
 
     bc = bc+1
-    name   (bc) = 'bottomWall2'
-    type   (bc) = 'SAT_ADIABATIC_WALL'
+    name   (bc) = 'bottomWall4'
+    type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
-    imin   (bc) =  1
-    imax   (bc) = -1
+    imin   (bc) =  iJet1
+    imax   (bc) =  iJet2
     jmin   (bc) =  1
     jmax   (bc) =  1
     kmin   (bc) =  kJet2 + 1
-    kmax   (bc) = - 1
+    kmax   (bc) = -1
 
     bc = bc+1
-    name   (bc) = 'bottomWall3'
-    type   (bc) = 'SAT_ADIABATIC_WALL'
-    normDir(bc) =  2
-    imin   (bc) =  1
-    imax   (bc) =  iJet1 - 1
-    jmin   (bc) =  1
-    jmax   (bc) =  1
-    kmin   (bc) =  kjet1
-    kmax   (bc) =  kJet2
-
-    bc = bc+1
-    name   (bc) = 'bottomWall4'
-    type   (bc) = 'SAT_ADIABATIC_WALL'
+    name   (bc) = 'bottomWall5'
+    type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
     imin   (bc) =  iJet2 + 1
     imax   (bc) = -1
     jmin   (bc) =  1
     jmax   (bc) =  1
-    kmin   (bc) =  kjet1
-    kmax   (bc) =  kJet2
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
-    ! Bottom BC (inflow)
+    ! Bottom wall (inflow)
     bc = bc+1
-    name   (bc) = 'bottomInflow'
+    name   (bc) = 'jetInflow'
     type   (bc) = 'SAT_FAR_FIELD'
     normDir(bc) =  2
     imin   (bc) =  iJet1
