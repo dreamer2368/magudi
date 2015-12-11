@@ -85,7 +85,8 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, nDimensions, nUnknowns, nSpecies, direction, gridIndex, patchIndex
+  integer :: i, j, k, l, m, nDimensions, nUnknowns, nSpecies, direction, gridIndex,          &
+       patchIndex
   SCALAR_TYPE, allocatable :: localConservedVariables(:), metricsAlongNormalDirection(:),    &
        inviscidPenalty(:), deltaPressure(:), deltaInviscidPenalty(:,:)
   SCALAR_TYPE :: normalMomentum
@@ -142,6 +143,10 @@ subroutine addImpenetrableWallPenalty(this, mode, simulationFlags, solverOptions
            inviscidPenalty(nDimensions+2) =                                                  &
                 normalMomentum * state%specificVolume(gridIndex, 1) *                        &
                 (localConservedVariables(nDimensions+2) + state%pressure(gridIndex, 1))
+           do m = 1, nSpecies 
+              inviscidPenalty(nDimensions+2+m) = normalMomentum *                            &
+                   state%massFraction(gridIndex, m)
+           end do
 
            select case (mode)
 
