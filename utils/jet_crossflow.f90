@@ -345,7 +345,7 @@ contains
 
     ! Conform the mesh to the jet perimeter.
     j = 1
-    r = 0.5_wp * jetDiameter
+    r = 0.5_wp * jetDiameter - 1.0e-9_wp
     allocate(jetBox(iJet1-1:iJet2+1, kJet1-1:kJet2+1))
     jetBox = 0
 
@@ -631,8 +631,8 @@ contains
                (eta * blasius1 - blasius0)
 
           ! Conditions in the jet.
-          r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-          if (r <= 0.5_wp * jetDiameter + epsilon(1.0_wp) .and. y <= ymino + epsilon(1.0_wp)) then
+          r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
+          if (r <= 0.5_wp * jetDiameter .and. y <= ymino) then
              ! Pure fuel stream.
              fuel = 1.0_wp
              oxidizer = 0.0_wp
