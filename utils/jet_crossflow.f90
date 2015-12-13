@@ -217,9 +217,6 @@ contains
        end do
     end do
 
-    ! Initialize the iblank.
-    grid%iblank = 1
-
     ! Generate the sandpaper.
     includeSandpaper = getOption("include_sandpaper", .false.)
     if (includeSandpaper) Then
@@ -646,90 +643,81 @@ contains
              oxidizer = Yo0
              density = 1.0_wp
 
-             if (grid%iblank(l) /= 0) then
+             ! Virtual origin of the Blasius profile.
+             xx = x + x0
 
-                ! Virtual origin of the Blasius profile.
-                xx = x + x0
+             ! Return the first derivative of the Blasius function.
+             delta = sqrt(xx / Re_c / crossflowVelocity)
+             eta = y / delta
+             if (eta <= 0.0_WP) then
+                blasius0 = 0.0_wp
+                blasius1 = 0.0_wp
+             else if (eta >= 9.0_wp) then
+                blasius0 = by0(9) + (eta-9.0_WP)
+                blasius1 = 1.0_WP
+             else
+                kk = int(eta)
 
-                ! Return the first derivative of the Blasius function.
-                delta = sqrt(xx / Re_c / crossflowVelocity)
-                eta = y / delta
-                if (eta <= 0.0_WP) then
-                   blasius0 = 0.0_wp
-                   blasius1 = 0.0_wp
-                else if (eta >= 9.0_wp) then
-                   blasius0 = by0(9) + (eta-9.0_WP)
-                   blasius1 = 1.0_WP
-                else
-                   kk = int(eta)
+                f0l = by0(kk)
+                f0r = by0(kk + 1)
+                f2l = by2(kk)
+                f2r = by2(kk + 1)
+                blasius0 = &
+                     1.0_WP/6.0_wp*f2l*(real(kk+1, wp) - eta)**3 +                           &
+                     1.0_WP/6.0_wp*f2r*(eta-real(kk, wp))**3 +                               &
+                     (f0l-1.0_WP/6.0_WP*f2l)*(real(kk+1, wp) - eta) +                        &
+                     (f0r-1.0_WP/6.0_WP*f2r)*(eta-real(kk, wp))
 
-                   f0l = by0(kk)
-                   f0r = by0(kk + 1)
-                   f2l = by2(kk)
-                   f2r = by2(kk + 1)
-                   blasius0 = &
-                        1.0_WP/6.0_wp*f2l*(real(kk+1, wp) - eta)**3 +                        &
-                        1.0_WP/6.0_wp*f2r*(eta-real(kk, wp))**3 +                            &
-                        (f0l-1.0_WP/6.0_WP*f2l)*(real(kk+1, wp) - eta) +                     &
-                        (f0r-1.0_WP/6.0_WP*f2r)*(eta-real(kk, wp))
-
-                   f0l = by1(kk)
-                   f0r = by1(kk+1)
-                   f2l = -0.5_wp * by0(kk)*by2(kk)
-                   f2r = -0.5_wp * by0(kk+1)*by2(kk+1)
-                   blasius1 = &
-                        1.0_wp/6.0_wp*f2l*(real(kk+1, wp)-eta)**3 +                          &
-                        1.0_wp/6.0_wp*f2r*(eta-real(kk, wp))**3 +                            &
-                        (f0l-1.0_wp/6.0_WP*f2l)*(real(kk+1, wp) - eta) +                     &
-                        (f0r-1.0_wp/6.0_WP*f2r)*(eta-real(kk, wp))
-
-                end if
-    
-                ! Update the velocity.
-                velocity(1) = crossflowVelocity * blasius1
-                !velocity(2) = 0.5_WP*sqrt(crossflowVelocity / xx / Re_c) *                   &
-                !     (eta * blasius1 - blasius0)
-                if (i > 1 .and. i < nx) then
-                   if (grid%iblank(i-1+nx*(j-1+ny*(k-1))) == 0 .or.                          &
-                        grid%iblank(i+1+nx*(j-1+ny*(k-1))) == 0) velocity = 0.0_wp
-                end if
-                if (j > 1 .and. j < ny) then
-                   if (grid%iblank(i+nx*(j-2+ny*(k-1))) == 0 .or.                            &
-                        grid%iblank(i+nx*(j+ny*(k-1))) == 0) velocity = 0.0_wp
-                end if
-
-                ! Conditions in the jet.
-                r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-                if (r <= 0.5_wp * jetDiameter) then
-                   ! Vertical decay.
-                   yDecay = max(1.0_wp - 2.0_wp * y / jetDiameter, 0.0_wp)
-
-                   ! Fuel stream.
-                   fuel = Yf0 * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
-                   oxidizer = (1.0_wp - fuel) * Yo0
-
-                   ! Poiseuille velocity profile.
-                   velocity(2) = max(0.0_wp,                                                 &
-                        2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
-                        yDecay)
-                end if
-
-                ! Correct species mass fractions.
-                inert = 1.0_wp - fuel - oxidizer
-                if (inert < 0.0_wp) oxidizer = oxidizer + inert
-
-                ! Get density from the equation of state
-                select case (solverOptions%equationOfState)
-                case(IDEAL_GAS)
-                   density = ratioOfSpecificHeats * pressure /                               &
-                        (temperature * (ratioOfSpecificHeats - 1.0_wp))
-                case (IDEAL_GAS_MIXTURE)
-                   density = ratioOfSpecificHeats * pressure /                               &
-                        ( temperature * (ratioOfSpecificHeats - 1.0_wp) *                    &
-                        (fuel * (Wi(H2) - Wi(N2)) + oxidizer * (Wi(O2) - Wi(N2)) + Wi(N2)) )
-                end select
+                f0l = by1(kk)
+                f0r = by1(kk+1)
+                f2l = -0.5_wp * by0(kk)*by2(kk)
+                f2r = -0.5_wp * by0(kk+1)*by2(kk+1)
+                blasius1 = &
+                     1.0_wp/6.0_wp*f2l*(real(kk+1, wp)-eta)**3 +                             &
+                     1.0_wp/6.0_wp*f2r*(eta-real(kk, wp))**3 +                               &
+                     (f0l-1.0_wp/6.0_WP*f2l)*(real(kk+1, wp) - eta) +                        &
+                     (f0r-1.0_wp/6.0_WP*f2r)*(eta-real(kk, wp))
 
              end if
+    
+             ! Update the velocity.
+             velocity(1) = crossflowVelocity * blasius1
+             !velocity(2) = 0.5_WP*sqrt(crossflowVelocity / xx / Re_c) *                      &
+             !     (eta * blasius1 - blasius0)
+             
+             ! Ensure bottom grid points have zero velocity.
+             if (j == 1) velocity = 0.0_wp
+
+             ! Conditions in the jet.
+             r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
+             if (r <= 0.5_wp * jetDiameter) then
+                ! Vertical decay.
+                yDecay = max(1.0_wp - 2.0_wp * y / jetDiameter, 0.0_wp)
+
+                ! Fuel stream.
+                fuel = Yf0 * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
+                oxidizer = (1.0_wp - fuel) * Yo0
+
+                ! Poiseuille velocity profile.
+                velocity(2) = max(0.0_wp,                                                 &
+                     2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
+                     yDecay)
+             end if
+
+             ! Correct species mass fractions.
+             inert = 1.0_wp - fuel - oxidizer
+             if (inert < 0.0_wp) oxidizer = oxidizer + inert
+
+             ! Get density from the equation of state
+             select case (solverOptions%equationOfState)
+             case(IDEAL_GAS)
+                density = ratioOfSpecificHeats * pressure /                                  &
+                     (temperature * (ratioOfSpecificHeats - 1.0_wp))
+             case (IDEAL_GAS_MIXTURE)
+                density = ratioOfSpecificHeats * pressure /                                  &
+                     ( temperature * (ratioOfSpecificHeats - 1.0_wp) *                       &
+                     (fuel * (Wi(H2) - Wi(N2)) + oxidizer * (Wi(O2) - Wi(N2)) + Wi(N2)) )
+             end select
 
              ! State variables.
              state%conservedVariables(l,1) = density
