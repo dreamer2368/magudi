@@ -32,7 +32,7 @@ program jet_crossflow
   type(t_SolverOptions) :: solverOptions
   type(t_SimulationFlags) :: simulationFlags
   integer :: i, numProcs, ierror, nx, ny, nz
-  integer :: iTrip1, iTrip2, jTrip, iJet1, iJet2, kJet1, kJet2
+  integer :: iJet1, iJet2, kJet1, kJet2
   integer :: imin_sponge, imax_sponge, jmax_sponge
   real(KIND=8) :: xmini, xmaxi, ymaxi
   real(KIND=8) :: xmino, xmaxo, ymino, ymaxo
@@ -130,12 +130,12 @@ contains
     ! Jet in crossflow schematic and the corresponding indeces 
     !
     !
-    ! j = jTrip >          _~~~~~~~~~~~~~~~~~~~~~~~~~~_
+    ! y = tripHeight >     _~~~~~~~~~~~~~~~~~~~~~~~~~~_
     !                     |                            |
-    ! j = 1  > ___________|                            |_________________|___:___|__________
+    ! y = 0  > ___________|                            |_________________|___:___|__________
     !
-    !          ^          ^                            ^                 ^       ^         ^
-    !         i=1        i=iTrip1                   i=iTrip2          i=iJet1   i=iJet2  i=nx
+    !          ^          ^                                              ^       ^         ^
+    !         x=0        x=tripLocation                               i=iJet1   i=iJet2  i=nx
 
     ! <<< External modules >>>
     use MPI
@@ -146,7 +146,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, n, nGrit
-    integer, dimension(:,:), allocatable :: jetBox
+    integer, allocatable :: jetBox(:,:)
     real(wp) :: x, y, z, dx, dz, ytilde, r, delta
     real(wp) :: tripLocation, tripWidth, tripHeight
     real(wp) :: gritSize, rnd, gauss, amp, sig, x0, y0, z0, z12, alpha, theta
@@ -230,31 +230,29 @@ contains
        if (includeGrit) then
           call getRequiredOption("grit_diameter", gritSize)
           call getRequiredOption("number_of_particles", nGrit)
-          tripHeight = tripHeight - gritSize
+          if (tripHeight > gritSize) tripHeight = tripHeight - gritSize
        end if
 
-       ! Find the sandpaper extents.
-       j = 1; k = 1
-       do i = 1, nx - 1
-          if (grid%coordinates(i+nx*(j-1+ny*(k-1)),1) < tripLocation)                        &
-               iTrip1 = i + 1
-       end do
-       do i = nx, 2, -1
-          if (grid%coordinates(i+nx*(j-1+ny*(k-1)),1) > tripLocation +                       &
-               tripWidth) iTrip2 = i - 1
-       end do
-       i = 1; k=1
-       do j = 1, ny
-          if (grid%coordinates(i+nx*(j-1+ny*(k-1)),2) < tripHeight) jTrip = j
-       end do
-       print *
-       print *, 'Sandpaper extents: [', iTrip1, ',', iTrip2, '] x [ 0, ', jTrip, ']'
-
-       ! Blank out the sandpaper.
+       ! Deform the mesh to the sandpaper height.
        do k = 1, nz
-          do j = 1, jTrip - 1
-             do i = iTrip1 + 1, iTrip2 - 1
-                grid%iblank(i+nx*(j-1+ny*(k-1))) = 0   
+          do i = 1, nx
+             ! Create a smooth step.
+             j = 1
+             sig = 20.0_wp
+             x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
+             grid%coordinates(i+nx*(j-1+ny*(k-1)),2) = 0.5_wp * tripHeight *                 &
+                  (tanh(sig*(x - tripLocation)) - tanh(sig*(x - tripLocation-tripWidth)))
+
+             ! Shift grid points above (smoothly).
+             do j = 2, ny
+                y = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
+                delta = grid%coordinates(1+nx*(j-1+ny*(1-1)),2) -                            &
+                     grid%coordinates(1+nx*(j-2+ny*(1-1)),2)
+                ytilde = grid%coordinates(i+nx*(j-2+ny*(k-1)),2) +                           &
+                     delta
+                alpha = tanh(0.1_wp * (j - 2) / (ny - 2))
+                grid%coordinates(i+nx*(j-1+ny*(k-1)),2) =                                    &
+                     ytilde * (1.0_wp - alpha) + y * alpha
              end do
           end do
        end do
@@ -271,27 +269,28 @@ contains
              ! Compute amplitude.
              call random_number(rnd)
              amp = gritSize * (1.0_wp + 0.1_wp * (rnd - 0.5_wp))
+             call random_number(rnd)
+             if (rnd < 0.5_wp) amp = -amp
 
              ! Get a random location.
              call random_number(rnd)
-             x0 = tripLocation + 4.0_wp * sig + (tripWidth - 8.0_wp * sig) * rnd
+             x0 = tripLocation + 5.0_wp * sig + (tripWidth - 10.0_wp * sig) * rnd
              call random_number(rnd)
              z0 = (zmax - zmin - dz) * rnd + zmin
              if (nz == 1) z0 = 0.0_wp
 
              ! Modify the grid.
              do k = 1, nz
-                do i = iTrip1, iTrip2
+                do i = 1, nx
 
                    ! Get the coordinates.
-                   j = jTrip
+                   j = 1
                    x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
-                   y0= grid%coordinates(1+nx*(j-1+ny*(1-1)),2)
-                   y = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
+                   y0 = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
                    z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
 
                    ! Check if this location was already modified.
-                   if (y < 1.01_wp * y0) then
+                  ! if (y <= 1.01_wp * y0) then
                       
                       ! Represent sandpaper particles as Gaussian.
                       gauss = amp * exp(-((x - x0)**2 / (2.0_wp * sig**2) +                  &
@@ -307,24 +306,24 @@ contains
                            grid%coordinates(i+nx*(j-1+ny*(k-1)),2) + gauss
                    
                       ! Shift grid points above (smoothly).
-                      do j = jTrip + 1, ny
+                      do j = 2, ny
                          y = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
                          delta = grid%coordinates(1+nx*(j-1+ny*(1-1)),2) -                   &
                               grid%coordinates(1+nx*(j-2+ny*(1-1)),2)
                          ytilde = grid%coordinates(i+nx*(j-2+ny*(k-1)),2) +                  &
                               delta
-                         alpha = tanh(1.0_wp * (j - jTrip - 1) / (ny - jTrip - 1))
+                         alpha = tanh(1.0_wp * (j - 2) / (ny - 2))
                          grid%coordinates(i+nx*(j-1+ny*(k-1)),2) =                           &
                               ytilde * (1.0_wp - alpha) + y * alpha
                       end do
                       
-                   end if
+                  ! end if
                 end do
              end do
           end do
        end if !... includeGrit
 
-    end if
+    end if !...  includeSandpaper
 
     ! Find the original jet extents.
     call getRequiredOption("jet_diameter", jetDiameter)
@@ -333,7 +332,7 @@ contains
     kJet1 = nz; kJet2 = 1
     j = 1
     do k = 1, nz
-       do i = iTrip2, nx
+       do i = 1, nx
           x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
           z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
           r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
@@ -350,7 +349,7 @@ contains
     conformToJet = getOption("conform_grid_to_jet", .false.)
     if (conformToJet) then
        j = 1
-       r = 0.5_wp * jetDiameter - 1.0e-9_wp
+       r = 0.495_wp * jetDiameter
        allocate(jetBox(iJet1-1:iJet2+1, kJet1-1:kJet2+1))
        jetBox = 0
 
@@ -441,6 +440,56 @@ contains
           if (jetBox(i, k) == 0) grid%coordinates(i+nx*(j-1+ny*(k-1)),1) = x0
           jetBox(i, k) = 1 ! Tag it.
        end do
+
+       ! Smooth surrounding grid points.
+       j = 1
+       do k = kJet1 - 1, kJet2 + 1
+          do i = iJet1 - 1, iJet2 + 1
+             if (jetBox(i, k) == 1) then
+                do n = 1, 41
+                   ! Stretching parameter.
+                   alpha = tanh(1.0_wp * (n - 1) / 40)
+
+                   ! Shift left.
+                   x = grid%coordinates(i-n+nx*(j-1+ny*(k-1)),1)
+                   delta = grid%coordinates(i-n+nx*(j+ny*(k-1)),1) -                         &
+                        grid%coordinates(i-n+1+nx*(j+ny*(k-1)),1)
+                   ytilde = grid%coordinates(i-n+1+nx*(j-1+ny*(k-1)),1) +                    &
+                        delta
+                   grid%coordinates(i-n+nx*(j-1+ny*(k-1)),1) =                               &
+                        ytilde * (1.0_wp - alpha) + x * alpha
+
+                   ! Shift right.
+                   x = grid%coordinates(i+n+nx*(j-1+ny*(k-1)),1)
+                   delta = grid%coordinates(i+n+nx*(j+ny*(k-1)),1) -                         &
+                        grid%coordinates(i+n-1+nx*(j+ny*(k-1)),1)
+                   ytilde = grid%coordinates(i+n-1+nx*(j-1+ny*(k-1)),1) +                    &
+                        delta
+                   grid%coordinates(i+n+nx*(j-1+ny*(k-1)),1) =                               &
+                        ytilde * (1.0_wp - alpha) + x * alpha
+
+                   ! Shift up.
+                   x = grid%coordinates(i+nx*(j-1+ny*(k-1-n)),3)
+                   delta = grid%coordinates(i+nx*(j+ny*(k-1-n)),3) -                         &
+                        grid%coordinates(i+nx*(j+ny*(k-n)),3)
+                   ytilde = grid%coordinates(i+nx*(j-1+ny*(k-n)),3) +                        &
+                        delta
+                   grid%coordinates(i+nx*(j-1+ny*(k-1-n)),3) =                               &
+                        ytilde * (1.0_wp - alpha) + x * alpha
+
+                   ! Shift down.
+                   x = grid%coordinates(i+nx*(j-1+ny*(k-1+n)),3)
+                   delta = grid%coordinates(i+nx*(j+ny*(k-1+n)),3) -                         &
+                        grid%coordinates(i+nx*(j+ny*(k-2+n)),3)
+                   ytilde = grid%coordinates(i+nx*(j-1+ny*(k-2+n)),3) +                      &
+                        delta
+                   grid%coordinates(i+nx*(j-1+ny*(k-1+n)),3) =                               &
+                        ytilde * (1.0_wp - alpha) + x * alpha
+
+                end do
+             end if
+          end do
+       end do
        deallocate(jetBox)
 
        ! Find the new jet extents.
@@ -448,7 +497,7 @@ contains
        kJet1 = nz; kJet2 = 1
        j = 1
        do k = 1, nz
-          do i = iTrip2, nx
+          do i = 1, nx
              x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
              z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
              r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
@@ -507,9 +556,9 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, k, nDimensions, nSpecies, H2, O2, N2, ierror
+    integer :: i, j, k, l, kk, nDimensions, nSpecies, H2, O2, N2, ierror
     real(wp) :: ratioOfSpecificHeats, crossflowVelocity, jetVelocity, x, y, z, r,            &
-         density, velocity(3), temperature, pressure, fuel, oxidizer, inert, YF0, YO0
+         density, velocity(3), temperature, pressure, fuel, oxidizer, inert, YF0, Yo0, yDecay
     real(wp), dimension(:), allocatable :: Wi
 
     ! Solution to Blasius boundary layer
@@ -579,109 +628,127 @@ contains
     ! Get the ratio of specific heats.
     ratioOfSpecificHeats = solverOptions%ratioOfSpecificHeats
 
-    do i = 1, grid%nGridPoints
+    do k = 1, nz
+       do j = 1, ny
+          do i = 1, nx
 
-       ! Initialize the mixture.
-       velocity = 0.0_wp
-       pressure = 1.0_wp / ratioOfSpecificHeats
-       temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
-       fuel = 0.0_wp
-       oxidizer = YO0
-       density = 1.0_wp
+             ! Get the local coordinates.
+             l = i+nx*(j-1+ny*(k-1))
+             x = grid%coordinates(l,1)
+             y = grid%coordinates(l,2)
+             z = grid%coordinates(l,3)
 
-       if (grid%iblank(i) /= 0) then
+             ! Initialize the mixture.
+             velocity = 0.0_wp
+             pressure = 1.0_wp / ratioOfSpecificHeats
+             temperature =  1.0_wp / (ratioOfSpecificHeats - 1.0_wp)
+             fuel = 0.0_wp
+             oxidizer = Yo0
+             density = 1.0_wp
 
-          ! Local coordinates.
-          x = grid%coordinates(i,1)
-          y = grid%coordinates(i,2)
-          z = grid%coordinates(i,3)
+             if (grid%iblank(l) /= 0) then
 
-          ! Virtual origin of the Blasius profile.
-          xx = x + x0
+                ! Virtual origin of the Blasius profile.
+                xx = x + x0
 
-          ! Return the first derivative of the Blasius function.
-          delta = sqrt(xx / Re_c / crossflowVelocity)
-          eta = y / delta
-          if (eta.le.0.0_WP) then
-             blasius0 = 0.0_WP
-             blasius1 = 0.0_WP
-          else if (eta.ge.9.0_WP) then
-             blasius0 = by0(9) + (eta-9.0_WP)
-             blasius1 = 1.0_WP
-          else
-             k = int(eta)
+                ! Return the first derivative of the Blasius function.
+                delta = sqrt(xx / Re_c / crossflowVelocity)
+                eta = y / delta
+                if (eta <= 0.0_WP) then
+                   blasius0 = 0.0_wp
+                   blasius1 = 0.0_wp
+                else if (eta >= 9.0_wp) then
+                   blasius0 = by0(9) + (eta-9.0_WP)
+                   blasius1 = 1.0_WP
+                else
+                   kk = int(eta)
 
-             f0l = by0(k)
-             f0r = by0(k+1)
-             f2l = by2(k)
-             f2r = by2(k+1)
-             blasius0 = &
-                  1.0_WP/6.0_WP*f2l*(real(k+1,8)-eta)**3 +    &
-                  1.0_WP/6.0_WP*f2r*(eta-real(k,8))**3 +      &
-                  (f0l-1.0_WP/6.0_WP*f2l)*(real(k+1,8)-eta) + &
-                  (f0r-1.0_WP/6.0_WP*f2r)*(eta-real(k,8))
+                   f0l = by0(kk)
+                   f0r = by0(kk + 1)
+                   f2l = by2(kk)
+                   f2r = by2(kk + 1)
+                   blasius0 = &
+                        1.0_WP/6.0_wp*f2l*(real(kk+1, wp) - eta)**3 +                        &
+                        1.0_WP/6.0_wp*f2r*(eta-real(kk, wp))**3 +                            &
+                        (f0l-1.0_WP/6.0_WP*f2l)*(real(kk+1, wp) - eta) +                     &
+                        (f0r-1.0_WP/6.0_WP*f2r)*(eta-real(kk, wp))
 
-             f0l = by1(k)
-             f0r = by1(k+1)
-             f2l = -0.5_WP*by0(k)*by2(k)
-             f2r = -0.5_WP*by0(k+1)*by2(k+1)
-             blasius1 = &
-                  1.0_WP/6.0_WP*f2l*(real(k+1,8)-eta)**3 +    &
-                  1.0_WP/6.0_WP*f2r*(eta-real(k,8))**3 +      &
-                  (f0l-1.0_WP/6.0_WP*f2l)*(real(k+1,8)-eta) + &
-                  (f0r-1.0_WP/6.0_WP*f2r)*(eta-real(k,8))
-          end if
+                   f0l = by1(kk)
+                   f0r = by1(kk+1)
+                   f2l = -0.5_wp * by0(kk)*by2(kk)
+                   f2r = -0.5_wp * by0(kk+1)*by2(kk+1)
+                   blasius1 = &
+                        1.0_wp/6.0_wp*f2l*(real(kk+1, wp)-eta)**3 +                          &
+                        1.0_wp/6.0_wp*f2r*(eta-real(kk, wp))**3 +                            &
+                        (f0l-1.0_wp/6.0_WP*f2l)*(real(kk+1, wp) - eta) +                     &
+                        (f0r-1.0_wp/6.0_WP*f2r)*(eta-real(kk, wp))
+
+                end if
     
-          ! Update the velocity.
-          velocity(1) = crossflowVelocity * blasius1
-          velocity(2) = 0.5_WP*sqrt(crossflowVelocity / xx / Re_c) *                         &
-               (eta * blasius1 - blasius0)
+                ! Update the velocity.
+                velocity(1) = crossflowVelocity * blasius1
+                !velocity(2) = 0.5_WP*sqrt(crossflowVelocity / xx / Re_c) *                   &
+                !     (eta * blasius1 - blasius0)
+                if (i > 1 .and. i < nx) then
+                   if (grid%iblank(i-1+nx*(j-1+ny*(k-1))) == 0 .or.                          &
+                        grid%iblank(i+1+nx*(j-1+ny*(k-1))) == 0) velocity = 0.0_wp
+                end if
+                if (j > 1 .and. j < ny) then
+                   if (grid%iblank(i+nx*(j-2+ny*(k-1))) == 0 .or.                            &
+                        grid%iblank(i+nx*(j+ny*(k-1))) == 0) velocity = 0.0_wp
+                end if
 
-          ! Conditions in the jet.
-          r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-          if (r <= 0.5_wp * jetDiameter .and. y <= ymino) then
-             ! Pure fuel stream.
-             fuel = 1.0_wp
-             oxidizer = 0.0_wp
+                ! Conditions in the jet.
+                r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
+                if (r <= 0.5_wp * jetDiameter) then
+                   ! Vertical decay.
+                   yDecay = max(1.0_wp - 2.0_wp * y / jetDiameter, 0.0_wp)
 
-             ! Poiseuille velocity profile.
-             velocity(1) = 0.0_wp
-             velocity(2) = max(0.0_wp,                                                       &
-                  2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2))
-          end if
+                   ! Fuel stream.
+                   fuel = Yf0 * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
+                   oxidizer = (1.0_wp - fuel) * Yo0
 
-           ! Correct species mass fractions.
-          inert = 1.0_wp - fuel - oxidizer
-          if (inert.lt.0.0_wp) oxidizer = oxidizer + inert
+                   ! Poiseuille velocity profile.
+                   velocity(2) = max(0.0_wp,                                                 &
+                        2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
+                        yDecay)
+                end if
 
-          ! Get density from the equation of state
-          select case (solverOptions%equationOfState)
-          case(IDEAL_GAS)
-             density = ratioOfSpecificHeats * pressure /                                     &
-                  (temperature * (ratioOfSpecificHeats - 1.0_wp))
-          case (IDEAL_GAS_MIXTURE)
-             density = ratioOfSpecificHeats * pressure /                                     &
-                  ( temperature * (ratioOfSpecificHeats - 1.0_wp) *                          &
-                  (fuel * (Wi(H2) - Wi(N2)) + oxidizer * (Wi(O2) - Wi(N2)) + Wi(N2)) )
-          end select
+                ! Correct species mass fractions.
+                inert = 1.0_wp - fuel - oxidizer
+                if (inert < 0.0_wp) oxidizer = oxidizer + inert
 
-       end if
+                ! Get density from the equation of state
+                select case (solverOptions%equationOfState)
+                case(IDEAL_GAS)
+                   density = ratioOfSpecificHeats * pressure /                               &
+                        (temperature * (ratioOfSpecificHeats - 1.0_wp))
+                case (IDEAL_GAS_MIXTURE)
+                   density = ratioOfSpecificHeats * pressure /                               &
+                        ( temperature * (ratioOfSpecificHeats - 1.0_wp) *                    &
+                        (fuel * (Wi(H2) - Wi(N2)) + oxidizer * (Wi(O2) - Wi(N2)) + Wi(N2)) )
+                end select
 
-       ! State variables.
-       state%conservedVariables(i,1) = density
-       state%conservedVariables(i,2:nDimensions+1) = state%conservedVariables(i,1) * velocity
-       state%conservedVariables(i,nDimensions+2) = pressure /                                &
-            (ratioOfSpecificHeats - 1.0_wp) +                                                &
-            0.5_wp * state%conservedVariables(i,1) * sum(velocity ** 2)
-       if (nSpecies.gt.0) state%conservedVariables(i,nDimensions+2+H2) = fuel *              &
-            state%conservedVariables(i,1)
-       if (nSpecies.gt.1) state%conservedVariables(i,nDimensions+2+O2) = oxidizer *          &
-            state%conservedVariables(i,1)
+             end if
 
-       ! Target solution.
-       if (simulationFlags%useTargetState) state%targetState(i,:) =                          &
-            state%conservedVariables(i,:)
+             ! State variables.
+             state%conservedVariables(l,1) = density
+             state%conservedVariables(l,2:nDimensions+1) =                                   &
+                  state%conservedVariables(l,1) * velocity(1:nDimensions)
+             state%conservedVariables(l,nDimensions+2) = pressure /                          &
+                  (ratioOfSpecificHeats - 1.0_wp) +                                          &
+                  0.5_wp * state%conservedVariables(l,1) * sum(velocity ** 2)
+             if (nSpecies.gt.0) state%conservedVariables(l, nDimensions+2+H2) = fuel *       &
+                  state%conservedVariables(l,1)
+             if (nSpecies.gt.1) state%conservedVariables(l, nDimensions+2+O2) = oxidizer *   &
+                  state%conservedVariables(l,1)
 
+             ! Target solution.
+             if (simulationFlags%useTargetState) state%targetState(l,:) =                    &
+                  state%conservedVariables(l,:)
+
+          end do
+       end do
     end do
 
     return
@@ -700,9 +767,9 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, bc, nbc, iunit
+    integer :: i, bc, nbc, iunit
     integer, allocatable, dimension(:) :: normDir, imin, imax, jmin, jmax, kmin, kmax
-    real(wp) :: x, z, r
+    character(len = STRING_LENGTH) :: str
     character(len = 22), allocatable, dimension(:) :: name, type
 
     ! Initialize a large number of boundary conditions.
@@ -745,7 +812,7 @@ contains
     normDir(bc) = -1
     imin   (bc) = -1
     imax   (bc) = -1
-    jmin   (bc) =  1
+    jmin   (bc) =  2
     jmax   (bc) = -1
     kmin   (bc) =  1
     kmax   (bc) = -1
@@ -757,7 +824,7 @@ contains
     normDir(bc) = -1
     imin   (bc) =  imax_sponge
     imax   (bc) = -1
-    jmin   (bc) =  1
+    jmin   (bc) =  2
     jmax   (bc) = -1
     kmin   (bc) =  1
     kmax   (bc) = -1
@@ -787,102 +854,52 @@ contains
     kmax   (bc) = -1
 
     ! Bottom BCs (no-slip wall)
-    if (includeSandpaper) then
-       ! No-slip along sandpaper perimeter.
-       bc = bc+1
-       name   (bc) = 'sandpaper1'
-       type   (bc) = 'SAT_ISOTHERMAL_WALL'
-       normDir(bc) = -1
-       imin   (bc) =  iTrip1
-       imax   (bc) =  iTrip1
-       jmin   (bc) =  1
-       jmax   (bc) =  jTrip
-       kmin   (bc) =  1
-       kmax   (bc) = -1
-
-       bc = bc+1
-       name   (bc) = 'sandpaper2'
-       type   (bc) = 'SAT_ISOTHERMAL_WALL'
-       normDir(bc) =  2
-       imin   (bc) =  iTrip1
-       imax   (bc) =  iTrip2
-       jmin   (bc) =  jTrip
-       jmax   (bc) =  jTrip
-       kmin   (bc) =  1
-       kmax   (bc) = -1
-
-       bc = bc+1
-       name   (bc) = 'sandpaper3'
-       type   (bc) = 'SAT_ISOTHERMAL_WALL'
-       normDir(bc) =  1
-       imin   (bc) =  iTrip2
-       imax   (bc) =  iTrip2
-       jmin   (bc) =  1
-       jmax   (bc) =  jTrip
-       kmin   (bc) =  1
-       kmax   (bc) = -1
-
-       bc = bc+1
-       name   (bc) = 'bottomWall1'
-       type   (bc) = 'SAT_ISOTHERMAL_WALL'
-       normDir(bc) =  2
-       imin   (bc) =  1
-       imax   (bc) =  iTrip1
-       jmin   (bc) =  1
-       jmax   (bc) =  1
-       kmin   (bc) =  1
-       kmax   (bc) = -1
-
-       bc = bc+1
-       name   (bc) = 'bottomWall2'
-       type   (bc) = 'SAT_ISOTHERMAL_WALL'
-       normDir(bc) =  2
-       imin   (bc) =  iTrip2
-       imax   (bc) =  iJet1 - 1
-       jmin   (bc) =  1
-       jmax   (bc) =  1
-       kmin   (bc) =  1
-       kmax   (bc) = -1
-
-    else
-
-       bc = bc+1
-       name   (bc) = 'bottomWall1'
-       type   (bc) = 'SAT_ISOTHERMAL_WALL'
-       normDir(bc) =  2
-       imin   (bc) =  1
-       imax   (bc) =  iJet1 - 1
-       jmin   (bc) =  1
-       jmax   (bc) =  1
-       kmin   (bc) =  1
-       kmax   (bc) = -1
-
-    end if !... includeSandpaper.
-
+    i = 0
     bc = bc+1
-    name   (bc) = 'bottomWall3'
+    i = i + 1
+    write(str,'(A10,i1)') 'bottomWall', i
+    name   (bc) = trim(str)
     type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
-    imin   (bc) =  iJet1
-    imax   (bc) =  iJet2
+    imin   (bc) =  1
+    imax   (bc) =  iJet1 - 1
     jmin   (bc) =  1
     jmax   (bc) =  1
     kmin   (bc) =  1
-    kmax   (bc) =  kJet1 - 1
-
-    bc = bc+1
-    name   (bc) = 'bottomWall4'
-    type   (bc) = 'SAT_ISOTHERMAL_WALL'
-    normDir(bc) =  2
-    imin   (bc) =  iJet1
-    imax   (bc) =  iJet2
-    jmin   (bc) =  1
-    jmax   (bc) =  1
-    kmin   (bc) =  kJet2 + 1
     kmax   (bc) = -1
 
+    if (nz > 1) then
+       bc = bc+1
+       i = i + 1
+       write(str,'(A10,i1)') 'bottomWall', i
+       name   (bc) = trim(str)
+       type   (bc) = 'SAT_ISOTHERMAL_WALL'
+       normDir(bc) =  2
+       imin   (bc) =  iJet1
+       imax   (bc) =  iJet2
+       jmin   (bc) =  1
+       jmax   (bc) =  1
+       kmin   (bc) =  1
+       kmax   (bc) =  kJet1 - 1
+
+       bc = bc+1
+       i = i + 1
+       write(str,'(A10,i1)') 'bottomWall', i
+       name   (bc) = trim(str)
+       type   (bc) = 'SAT_ISOTHERMAL_WALL'
+       normDir(bc) =  2
+       imin   (bc) =  iJet1
+       imax   (bc) =  iJet2
+       jmin   (bc) =  1
+       jmax   (bc) =  1
+       kmin   (bc) =  kJet2 + 1
+       kmax   (bc) = -1
+    end if
+
     bc = bc+1
-    name   (bc) = 'bottomWall5'
+       i = i + 1
+       write(str,'(A10,i1)') 'bottomWall', i
+    name   (bc) = trim(str)
     type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
     imin   (bc) =  iJet2 + 1
@@ -903,19 +920,6 @@ contains
     jmax   (bc) =  1
     kmin   (bc) =  kJet1
     kmax   (bc) =  kJet2
-
-    j = 1
-    do k = 1, nz
-       do i = 1, nx
-          ! Local coordinates.
-          x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
-          z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
-          r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-          if (r <= jetDiameter) then
-             cycle
-          end if
-       end do
-    end do
 
     ! Target region
     bc = bc+1
