@@ -508,7 +508,7 @@ contains
              x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
              z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
              r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-             if (r <= 0.5_wp * jetDiameter) then
+             if (r <= 1.0_wp * jetDiameter) then
                 iJet1 = min(iJet1, i)
                 iJet2 = max(iJet2, i)
                 kJet1 = min(kJet1, k)
@@ -564,7 +564,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, l, kk, nDimensions, nSpecies, H2, O2, N2, ierror
-    real(wp) :: ratioOfSpecificHeats, crossflowVelocity, jetVelocity, x, y, z, r,            &
+    real(wp) :: ratioOfSpecificHeats, crossflowVelocity, jetVelocity, x, y, z, r, sig,       &
          density, velocity(3), temperature, pressure, fuel, oxidizer, inert, YF0, Yo0, yDecay
     real(wp), dimension(:), allocatable :: Wi
 
@@ -694,25 +694,29 @@ contains
              velocity(1) = crossflowVelocity * blasius1
              velocity(2) = 0.5_WP * sqrt(crossflowVelocity / xx / Re_c) *                    &
                   (eta * blasius1 - blasius0)
-             
+
              ! Ensure bottom grid points have zero velocity.
              if (j == 1) velocity = 0.0_wp
 
-             ! Conditions in the jet.
+             ! Jet conditions.
+             sig = 10.0_wp
              r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-             if (r <= 0.5_wp * jetDiameter) then
-                ! Vertical decay.
-                yDecay = max(1.0_wp - 2.0_wp * y / jetDiameter, 0.0_wp)
+             yDecay = max(1.0_wp - 2.0_wp * y / jetDiameter, 0.0_wp)
 
-                ! Fuel stream.
-                fuel = Yf0 * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
-                oxidizer = (1.0_wp - fuel) * Yo0
+             ! Fuel stream.
+             fuel = Yf0 * yDecay * 0.5_wp * (tanh(sig * (r + 0.5_wp * jetDiameter)) -        &
+                  tanh(sig * (r - 0.5_wp * jetDiameter)))
+             oxidizer = (1.0_wp - fuel) * Yo0
 
-                ! Poiseuille velocity profile.
-                velocity(2) = max(0.0_wp,                                                 &
-                     2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
-                     yDecay)
-             end if
+             ! Poiseuille velocity profile.
+             !velocity(2) = max(0.0_wp,                                                 &
+             !     2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
+             !     yDecay)
+             !velocity(2) = jetVelocity * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
+
+             ! Tanh velocity profile.
+             velocity(2) = jetVelocity * yDecay * 0.5_wp * (tanh(sig *                       &
+                  (r + 0.5_wp * jetDiameter)) - tanh(sig * (r - 0.5_wp * jetDiameter)))
 
              ! Correct species mass fractions.
              inert = 1.0_wp - fuel - oxidizer
