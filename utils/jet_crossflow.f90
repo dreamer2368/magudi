@@ -145,7 +145,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, n, nGrit
+    integer :: i, j, k, n, nGrit, iTrip1, iTrip2
     integer, allocatable :: jetBox(:,:)
     real(wp) :: x, y, z, dx, dz, ytilde, r, delta
     real(wp) :: tripLocation, tripWidth, tripHeight
@@ -230,6 +230,20 @@ contains
           if (tripHeight > gritSize) tripHeight = tripHeight - gritSize
        end if
 
+       ! Find the sandpaper extents.
+       j = 1; k = 1
+       do i = 1, nx - 1
+          if (grid%coordinates(i+nx*(j-1+ny*(k-1)),1) < tripLocation)                        &
+               iTrip1 = i + 1
+       end do
+       do i = nx, 2, -1
+          if (grid%coordinates(i+nx*(j-1+ny*(k-1)),1) > tripLocation +                       &
+               tripWidth) iTrip2 = i - 1
+       end do
+       print *
+       print *, 'Sandpaper extents: [', iTrip1, ',', iTrip2, ']'
+
+
        ! Deform the mesh to the sandpaper height.
        do k = 1, nz
           do i = 1, nx
@@ -278,7 +292,7 @@ contains
 
              ! Modify the grid.
              do k = 1, nz
-                do i = 1, nx
+                do i = iTrip1, iTrip2
 
                    ! Get the coordinates.
                    j = 1
@@ -682,8 +696,8 @@ contains
     
              ! Update the velocity.
              velocity(1) = crossflowVelocity * blasius1
-             !velocity(2) = 0.5_WP*sqrt(crossflowVelocity / xx / Re_c) *                      &
-             !     (eta * blasius1 - blasius0)
+             velocity(2) = 0.5_WP * sqrt(crossflowVelocity / xx / Re_c) *                    &
+                  (eta * blasius1 - blasius0)
              
              ! Ensure bottom grid points have zero velocity.
              if (j == 1) velocity = 0.0_wp
