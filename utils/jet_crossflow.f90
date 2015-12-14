@@ -299,36 +299,32 @@ contains
                    x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
                    y0 = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
                    z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
-
-                   ! Check if this location was already modified.
-                  ! if (y <= 1.01_wp * y0) then
                       
-                      ! Represent sandpaper particles as Gaussian.
-                      gauss = amp * exp(-((x - x0)**2 / (2.0_wp * sig**2) +                  &
-                           (z - z0)**2 / (2.0_wp * sig**2)))
+                   ! Represent sandpaper particles as Gaussian.
+                   gauss = amp * exp(-((x - x0)**2 / (2.0_wp * sig**2) +                     &
+                        (z - z0)**2 / (2.0_wp * sig**2)))
 
-                      ! Account for periodicity in z.
-                      z12 = (zmax - zmin) - abs(z - z0)
-                      If (nz > 1) gauss = gauss + amp *                                      &
-                           exp(-((x-x0)**2 / (2.0_wp * sig**2) + z12**2 / (2.0_wp * sig**2)))
+                   ! Account for periodicity in z.
+                   z12 = (zmax - zmin) - abs(z - z0)
+                   If (nz > 1) gauss = gauss + amp *                                         &
+                        exp(-((x-x0)**2 / (2.0_wp * sig**2) + z12**2 / (2.0_wp * sig**2)))
 
-                      ! Update the vertical coordinate.
-                      grid%coordinates(i+nx*(j-1+ny*(k-1)),2) =                              &
-                           grid%coordinates(i+nx*(j-1+ny*(k-1)),2) + gauss
+                   ! Update the vertical coordinate.
+                   grid%coordinates(i+nx*(j-1+ny*(k-1)),2) =                                 &
+                        grid%coordinates(i+nx*(j-1+ny*(k-1)),2) + gauss
                    
-                      ! Shift grid points above (smoothly).
-                      do j = 2, ny
-                         y = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
-                         delta = grid%coordinates(1+nx*(j-1+ny*(1-1)),2) -                   &
-                              grid%coordinates(1+nx*(j-2+ny*(1-1)),2)
-                         ytilde = grid%coordinates(i+nx*(j-2+ny*(k-1)),2) +                  &
-                              delta
-                         alpha = tanh(1.0_wp * (j - 2) / (ny - 2))
-                         grid%coordinates(i+nx*(j-1+ny*(k-1)),2) =                           &
-                              ytilde * (1.0_wp - alpha) + y * alpha
-                      end do
-                      
-                  ! end if
+                   ! Shift grid points above (smoothly).
+                   do j = 2, ny
+                      y = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
+                      delta = grid%coordinates(1+nx*(j-1+ny*(1-1)),2) -                      &
+                           grid%coordinates(1+nx*(j-2+ny*(1-1)),2)
+                      ytilde = grid%coordinates(i+nx*(j-2+ny*(k-1)),2) +                     &
+                           delta
+                      alpha = tanh(2.0_wp * (j - 2) / (ny - 2))
+                      grid%coordinates(i+nx*(j-1+ny*(k-1)),2) =                              &
+                           ytilde * (1.0_wp - alpha) + y * alpha
+                   end do
+
                 end do
              end do
           end do
@@ -814,7 +810,7 @@ contains
     normDir(bc) = -1
     imin   (bc) = -1
     imax   (bc) = -1
-    jmin   (bc) =  2
+    jmin   (bc) =  1
     jmax   (bc) = -1
     kmin   (bc) =  1
     kmax   (bc) = -1
@@ -826,7 +822,7 @@ contains
     normDir(bc) = -1
     imin   (bc) =  imax_sponge
     imax   (bc) = -1
-    jmin   (bc) =  2
+    jmin   (bc) =  1
     jmax   (bc) = -1
     kmin   (bc) =  1
     kmax   (bc) = -1
@@ -1000,7 +996,7 @@ contains
     real(wp), parameter :: s = 10.0_wp, r = 0.2_wp, eps = 1.0E-6_wp
 
     ! Make sure target mollifier is allocated.
-    if (region%simulationFlags%predictionOnly) then
+    if (simulationFlags%predictionOnly) then
        print *, 'WARNING: target mollifier requires disable_adjoint_solver = false'
        stop
     end if
@@ -1125,7 +1121,7 @@ contains
     real(wp), parameter :: s = 10.0_wp, r = 0.2_wp, eps = 1.0e-6_wp
 
     ! Make sure control mollifier is allocated.
-    if (region%simulationFlags%predictionOnly) then
+    if (simulationFlags%predictionOnly) then
        print *, 'WARNING: control mollifier requires disable_adjoint_solver = false'
        stop
     end if
