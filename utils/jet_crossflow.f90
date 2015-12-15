@@ -361,7 +361,7 @@ contains
        do i = 1, nx
           x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
           z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
-          r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
+          r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
           if (r <= 0.5_wp * jetDiameter) then
              iJet1 = min(iJet1, i)
              iJet2 = max(iJet2, i)
@@ -518,24 +518,25 @@ contains
        end do
        deallocate(jetBox)
 
-       ! Find the new jet extents.
-       iJet1 = nx; iJet2 = 1
-       kJet1 = nz; kJet2 = 1
-       j = 1
-       do k = 1, nz
-          do i = 1, nx
-             x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
-             z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
-             r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-             if (r <= 2.0_wp * jetDiameter) then
-                iJet1 = min(iJet1, i)
-                iJet2 = max(iJet2, i)
-                kJet1 = min(kJet1, k)
-                kJet2 = max(kJet2, k)
-             end if
-          end do
-       end do
     end if !... conform to jet.
+
+    ! Find the new jet extents.
+    iJet1 = nx; iJet2 = 1
+    kJet1 = nz; kJet2 = 1
+    j = 1
+    do k = 1, nz
+       do i = 1, nx
+          x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
+          z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
+          r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
+          if (r <= 1.0_wp * jetDiameter) then
+             iJet1 = min(iJet1, i)
+             iJet2 = max(iJet2, i)
+             kJet1 = min(kJet1, k)
+             kJet2 = max(kJet2, k)
+          end if
+       end do
+    end do
 
     print *
     print *, 'Jet extents: [', iJet1, ',', iJet2, '] x [',kJet1, ',', kJet2,']'
@@ -727,25 +728,26 @@ contains
 !!$                oxidizer = (1.0_wp - fuel) * Yo0
 !!$             end if
              !if (r <= 2.0_wp * jetDiameter) then
-                sig = 2.0_wp
+                sig = 8.0_wp
                 yDecay = 1.0_wp
                 if (y > 0.5_wp * jetDiameter) yDecay = max(1.0_wp - 2.0_wp *                 &
                      (y - 0.5_wp * jetDiameter) / jetDiameter, 0.0_wp)
 
                 ! Fuel stream.
-                fuel = Yf0 * yDecay * 0.5_wp * (tanh(sig * (r + 0.5_wp * jetDiameter)) -     &
-                     tanh(sig * (r - 0.5_wp * jetDiameter)))
+                fuel = Yf0 * yDecay * 0.5_wp * (                                             &
+                     tanh(sig * (r + 0.5_wp * jetDiameter) / jetDiameter) -                  &
+                     tanh(sig * (r - 0.5_wp * jetDiameter) / jetDiameter))
                 oxidizer = (1.0_wp - fuel) * Yo0
 
                 ! Tanh velocity profile.
-                velocity(2) = jetVelocity * yDecay * 0.5_wp * (tanh(sig *                    &
-                     (r + 0.5_wp * jetDiameter)) - tanh(sig * (r - 0.5_wp * jetDiameter)))
+                !velocity(2) = jetVelocity * yDecay * 0.5_wp * (                              &
+                !     tanh(sig * (r + 0.5_wp * jetDiameter) / jetDiameter) -                  &
+                !     tanh(sig * (r- 0.5_wp * jetDiameter) / jetDiameter))
 
                 ! Poiseuille velocity profile.
-                !velocity(2) = max(0.0_wp,                                                 &
-                !     2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
-                !     yDecay)
-                !velocity(2) = jetVelocity * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
+                velocity(2) = max(0.0_wp,                                                    &
+                     2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *       &
+                     yDecay)
 
                 ! Self-similar velocity profile.
                 !eta = (x - xJet)
