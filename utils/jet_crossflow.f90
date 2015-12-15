@@ -645,7 +645,7 @@ contains
              x = grid%coordinates(l,1)
              y = grid%coordinates(l,2)
              z = grid%coordinates(l,3)
-             y0 = grid%coordinates(i+nx*(1-1+ny*(k-1)),2)
+             y0 = grid%coordinates(i+nx*(ny*(k-1)),2)
 
              ! Initialize the mixture.
              velocity = 0.0_wp
