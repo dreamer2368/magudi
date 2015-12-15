@@ -171,7 +171,7 @@ contains
     nz_ = region%grids(1)%localSize(3)
 
     ! Should we stretch the mesh?
-    stretch_y = getOption('stretch_y',.false.)
+    stretch_y = getOption('stretch_y', .false.)
 
     ! Generate the grid.
     do k = 1, nz_
@@ -316,7 +316,7 @@ contains
     character(len = 22), allocatable, dimension(:) :: name,type
 
     ! Number of BC
-    nbc = 9
+    nbc = 8
 
     ! Allocate BC
     allocate(name(nbc),type(nbc),grid(nbc),normDir(nbc),&
@@ -422,18 +422,6 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! BC 9
-    bc = 9
-    name   (bc) = 'localizedIgnition'
-    type   (bc) = 'GAUSSIAN_IGNITION'
-    normDir(bc) =  0
-    imin   (bc) =  imin_sponge
-    imax   (bc) =  imax_sponge
-    jmin   (bc) =  jmin_sponge
-    jmax   (bc) =  jmax_sponge
-    kmin   (bc) =  1
-    kmax   (bc) = -1
-
    ! Open the file
     iunit=11
     open(iunit,file="bc.dat")
@@ -486,7 +474,6 @@ contains
     real(SCALAR_KIND) :: ratioOfSpecificHeats, density, temperature, energy, u, v,                    &
          ujet, djet, Tjet, x0, halfWidth, eta, a,                                                     &
          T0, Yf0, Yo0, Z0, Z, fuel, oxidizer
-    real(SCALAR_KIND), parameter :: empiricalConstant = 5.8_wp
     real(SCALAR_KIND), parameter :: spreadingRate = 0.094_wp
 
     generateTargetState_ = .false.
@@ -529,6 +516,10 @@ contains
        
        ! Compute jet half-width.
        halfWidth = spreadingRate * (grid%coordinates(i,1) - x0)
+
+       u = ujet * 0.5_wp*Z0*( tanh(5.0_wp*(grid%coordinates(i,2)+halfWidth)) -                      &
+            tanh(5.0_wp*(grid%coordinates(i,2)-halfWidth)) )
+       v = 0.0_wp
 
        ! Mixture fraction
        Z = 0.5_wp*Z0*( tanh(5.0_wp*(grid%coordinates(i,2)+halfWidth)) -                      &
