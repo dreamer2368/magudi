@@ -564,9 +564,10 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, l, kk, nDimensions, nSpecies, H2, O2, N2, ierror
-    real(wp) :: ratioOfSpecificHeats, crossflowVelocity, jetVelocity, x, y, z, r, sig,       &
+    real(wp) :: ratioOfSpecificHeats, crossflowVelocity, jetVelocity, x, y, z, y0, r, sig,   &
          density, velocity(3), temperature, pressure, fuel, oxidizer, inert, YF0, Yo0, yDecay
     real(wp), dimension(:), allocatable :: Wi
+    real(SCALAR_KIND), parameter :: spreadingRate = 0.094_wp
 
     ! Solution to Blasius boundary layer
     real(wp) :: blasius0, blasius1, delta, eta, xx, x0, Re_c
@@ -644,6 +645,7 @@ contains
              x = grid%coordinates(l,1)
              y = grid%coordinates(l,2)
              z = grid%coordinates(l,3)
+             y0 = grid%coordinates(i+nx*(1-1+ny*(k-1)),2)
 
              ! Initialize the mixture.
              velocity = 0.0_wp
@@ -658,7 +660,7 @@ contains
 
              ! Return the first derivative of the Blasius function.
              delta = sqrt(xx / Re_c / crossflowVelocity)
-             eta = y / delta
+             eta = (y - y0) / delta
              if (eta <= 0.0_WP) then
                 blasius0 = 0.0_wp
                 blasius1 = 0.0_wp
@@ -695,28 +697,40 @@ contains
              velocity(2) = 0.5_WP * sqrt(crossflowVelocity / xx / Re_c) *                    &
                   (eta * blasius1 - blasius0)
 
-             ! Ensure bottom grid points have zero velocity.
-             if (j == 1) velocity = 0.0_wp
-
-             ! Jet conditions.
-             sig = 10.0_wp
+             ! Bottom wall.
              r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-             yDecay = max(1.0_wp - 2.0_wp * y / jetDiameter, 0.0_wp)
+             if (j == 1 .and. r <= jetDiameter) then
+                ! Start with zero velocity at the bottom.
+                velocity = 0.0_wp
 
-             ! Fuel stream.
-             fuel = Yf0 * yDecay * 0.5_wp * (tanh(sig * (r + 0.5_wp * jetDiameter)) -        &
-                  tanh(sig * (r - 0.5_wp * jetDiameter)))
-             oxidizer = (1.0_wp - fuel) * Yo0
+                ! Jet conditions.
+                sig = 10.0_wp
+                yDecay = 1.0_wp
+                if (y > 0.5_wp * jetDiameter) yDecay = max(1.0_wp - 2.0_wp *                 &
+                     (y - 0.5_wp * jetDiameter) / jetDiameter, 0.0_wp)
 
-             ! Poiseuille velocity profile.
-             !velocity(2) = max(0.0_wp,                                                 &
-             !     2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
-             !     yDecay)
-             !velocity(2) = jetVelocity * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
+                ! Fuel stream.
+                fuel = Yf0 * yDecay * 0.5_wp * (tanh(sig * (r + 0.5_wp * jetDiameter)) -     &
+                     tanh(sig * (r - 0.5_wp * jetDiameter)))
+                oxidizer = (1.0_wp - fuel) * Yo0
 
-             ! Tanh velocity profile.
-             velocity(2) = jetVelocity * yDecay * 0.5_wp * (tanh(sig *                       &
-                  (r + 0.5_wp * jetDiameter)) - tanh(sig * (r - 0.5_wp * jetDiameter)))
+                ! Poiseuille velocity profile.
+                !velocity(2) = max(0.0_wp,                                                 &
+                !     2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
+                !     yDecay)
+                !velocity(2) = jetVelocity * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
+
+                ! Tanh velocity profile.
+                velocity(2) = jetVelocity * yDecay * 0.5_wp * (tanh(sig *                    &
+                     (r + 0.5_wp * jetDiameter)) - tanh(sig * (r - 0.5_wp * jetDiameter)))
+
+                ! Self-similar velocity profile.
+                !eta = (x - xJet)
+                !a = (sqrt(2.0_wp) - 1.0_wp) / (0.5_wp * jetDiameter)**2
+                !velocity(2) = jetVelocity * (1.0_wp + a * eta**2) ** (-2.0_wp)
+                !velocity(1) = 0.5_wp * jetVelocity * (eta - a * eta**3) / (1.0_wp + a * eta**2)**2
+
+             end if
 
              ! Correct species mass fractions.
              inert = 1.0_wp - fuel - oxidizer
