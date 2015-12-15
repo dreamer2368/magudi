@@ -148,9 +148,10 @@ contains
     integer :: i, j, k, n, nGrit, iTrip1, iTrip2
     integer, allocatable :: jetBox(:,:)
     real(wp) :: x, y, z, dx, dz, ytilde, r, delta
-    real(wp) :: tripLocation, tripWidth, tripHeight
+    real(wp) :: tripLocation, tripWidth, tripHeight, totalHeight, peakHeight, valleyHeight
     real(wp) :: gritSize, rnd, gauss, amp, sig, x0, y0, z0, z12, alpha, theta
     logical :: includeGrit, stretchY, conformToJet
+    character(len = STRING_LENGTH) :: key
 
     ! Read in grid size and dimensions.
     call getRequiredOption("nx", nx)
@@ -219,15 +220,15 @@ contains
 
     ! Generate the sandpaper.
     includeSandpaper = getOption("include_sandpaper", .false.)
-    if (includeSandpaper) Then
-       call getRequiredOption("trip_location", tripLocation)
-       call getRequiredOption("trip_width", tripWidth)
-       call getRequiredOption("trip_height", tripHeight)
-       includeGrit = getOption("include_grit", .false.)
+    if (includeSandpaper) then
+       write(key, '(A)') "sandpaper/"
+       call getRequiredOption(trim(key)//"location", tripLocation)
+       call getRequiredOption(trim(key)//"width", tripWidth)
+       call getRequiredOption(trim(key)//"mean_plane_height", tripHeight)
+       includeGrit = getOption(trim(key)//"include_grit", .false.)
        if (includeGrit) then
-          call getRequiredOption("grit_diameter", gritSize)
-          call getRequiredOption("number_of_particles", nGrit)
-          if (tripHeight > gritSize) tripHeight = tripHeight - gritSize
+          call getRequiredOption(trim(key)//"grit_size", gritSize)
+          call getRequiredOption(trim(key)//"number_of_particles", nGrit)
        end if
 
        ! Find the sandpaper extents.
@@ -278,8 +279,7 @@ contains
           do n = 1, nGrit
 
              ! Compute amplitude.
-             call random_number(rnd)
-             amp = gritSize * (1.0_wp + 0.1_wp * (rnd - 0.5_wp))
+             amp = gritSize
              call random_number(rnd)
              if (rnd < 0.5_wp) amp = -amp
 
@@ -329,6 +329,25 @@ contains
              end do
           end do
        end if !... includeGrit
+
+       ! Output surface dimentions.
+       totalHeight = 0.0_wp
+       peakHeight = 0.0_wp
+       valleyHeight = huge(1.0_wp)
+       j = 1
+       do k = 1, nz
+          do i = iTrip1, iTrip2
+             y = grid%coordinates(i+nx*(j-1+ny*(k-1)),2)
+             totalHeight = max(totalHeight, y)
+             peakHeight = max(peakHeight, y - tripHeight)
+             valleyHeight = min(valleyHeight, y - tripHeight)
+          end do
+       end do
+       print *
+       print *, 'Max surface height:', real(totalHeight, 4)
+       print *, 'Peak height:', real(peakHeight, 4)
+       print *, 'Valley height:', real(valleyHeight, 4)
+       
 
     end if !...  includeSandpaper
 
@@ -508,7 +527,7 @@ contains
              x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
              z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
              r = sqrt((x-xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-             if (r <= 1.0_wp * jetDiameter) then
+             if (r <= 2.0_wp * jetDiameter) then
                 iJet1 = min(iJet1, i)
                 iJet2 = max(iJet2, i)
                 kJet1 = min(kJet1, k)
@@ -697,14 +716,18 @@ contains
              velocity(2) = 0.5_WP * sqrt(crossflowVelocity / xx / Re_c) *                    &
                   (eta * blasius1 - blasius0)
 
-             ! Bottom wall.
-             r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-             if (j == 1 .and. r <= jetDiameter) then
-                ! Start with zero velocity at the bottom.
-                velocity = 0.0_wp
+             ! Make sure wall velocities are zero.
+             if (j == 1) velocity = 0.0_wp
 
-                ! Jet conditions.
-                sig = 10.0_wp
+             ! Jet conditions.
+             r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
+!!$             if (r <= 0.5_wp * jetDiameter .and. j == 1) then
+!!$                velocity(2) = jetVelocity
+!!$                fuel = Yf0
+!!$                oxidizer = (1.0_wp - fuel) * Yo0
+!!$             end if
+             !if (r <= 2.0_wp * jetDiameter) then
+                sig = 2.0_wp
                 yDecay = 1.0_wp
                 if (y > 0.5_wp * jetDiameter) yDecay = max(1.0_wp - 2.0_wp *                 &
                      (y - 0.5_wp * jetDiameter) / jetDiameter, 0.0_wp)
@@ -714,15 +737,15 @@ contains
                      tanh(sig * (r - 0.5_wp * jetDiameter)))
                 oxidizer = (1.0_wp - fuel) * Yo0
 
+                ! Tanh velocity profile.
+                velocity(2) = jetVelocity * yDecay * 0.5_wp * (tanh(sig *                    &
+                     (r + 0.5_wp * jetDiameter)) - tanh(sig * (r - 0.5_wp * jetDiameter)))
+
                 ! Poiseuille velocity profile.
                 !velocity(2) = max(0.0_wp,                                                 &
                 !     2.0_wp * jetVelocity * (1.0_wp - (r / (0.5_wp*jetDiameter))**2) *    &
                 !     yDecay)
                 !velocity(2) = jetVelocity * tanh(4.0_wp * (1.0_wp - 2.0_wp * r / jetDiameter)) * yDecay
-
-                ! Tanh velocity profile.
-                velocity(2) = jetVelocity * yDecay * 0.5_wp * (tanh(sig *                    &
-                     (r + 0.5_wp * jetDiameter)) - tanh(sig * (r - 0.5_wp * jetDiameter)))
 
                 ! Self-similar velocity profile.
                 !eta = (x - xJet)
@@ -730,11 +753,14 @@ contains
                 !velocity(2) = jetVelocity * (1.0_wp + a * eta**2) ** (-2.0_wp)
                 !velocity(1) = 0.5_wp * jetVelocity * (eta - a * eta**3) / (1.0_wp + a * eta**2)**2
 
-             end if
+             !end if
 
              ! Correct species mass fractions.
              inert = 1.0_wp - fuel - oxidizer
-             if (inert < 0.0_wp) oxidizer = oxidizer + inert
+             if (inert < 0.0_wp) then
+                print *, 'Something is wrong with the species mass fraction!'
+                oxidizer = oxidizer + inert
+             end if
 
              ! Get density from the equation of state
              select case (solverOptions%equationOfState)
