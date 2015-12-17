@@ -103,17 +103,6 @@ program jet_crossflow
   end if
   call region%saveData(QOI_FORWARD_STATE, filename)
 
-  ! Save target state.
-  if (simulationFlags%useTargetState) then
-     i = len_trim(filename)
-     if (filename(i-4:i) == ".ic.q") then
-        filename = filename(:i-5) // ".target.q"
-     else
-        filename = PROJECT_NAME // ".target.q"
-     end if
-     call region%saveData(QOI_TARGET_STATE, filename)
-  end if
-
   ! Cleanup.
   call region%cleanup()
 
@@ -273,7 +262,7 @@ contains
        If (includeGrit) then
 
           ! Standard deviation
-          sig = 1.5_wp * gritSize
+          sig = 1.0_wp * gritSize
 
           ! Loop through number of particles.
           do n = 1, nGrit
@@ -529,7 +518,7 @@ contains
           x = grid%coordinates(i+nx*(j-1+ny*(k-1)),1)
           z = grid%coordinates(i+nx*(j-1+ny*(k-1)),3)
           r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-          if (r <= 1.0_wp * jetDiameter) then
+          if (r <= 0.5_wp * jetDiameter) then
              iJet1 = min(iJet1, i)
              iJet2 = max(iJet2, i)
              kJet1 = min(kJet1, k)
@@ -722,16 +711,11 @@ contains
 
              ! Jet conditions.
              r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-!!$             if (r <= 0.5_wp * jetDiameter .and. j == 1) then
-!!$                velocity(2) = jetVelocity
-!!$                fuel = Yf0
-!!$                oxidizer = (1.0_wp - fuel) * Yo0
-!!$             end if
-             !if (r <= 2.0_wp * jetDiameter) then
-                sig = 8.0_wp
+             if (r <= 1.5_wp * jetDiameter) then
+                sig = 4.0_wp
                 yDecay = 1.0_wp
-                if (y > 0.5_wp * jetDiameter) yDecay = max(1.0_wp - 2.0_wp *                 &
-                     (y - 0.5_wp * jetDiameter) / jetDiameter, 0.0_wp)
+                if (y > 2.0_wp * jetDiameter) yDecay = max(1.0_wp - 2.0_wp *                 &
+                     (y - 2.0_wp * jetDiameter) / jetDiameter, 0.0_wp)
 
                 ! Fuel stream.
                 fuel = Yf0 * yDecay * 0.5_wp * (                                             &
@@ -755,7 +739,7 @@ contains
                 !velocity(2) = jetVelocity * (1.0_wp + a * eta**2) ** (-2.0_wp)
                 !velocity(1) = 0.5_wp * jetVelocity * (eta - a * eta**3) / (1.0_wp + a * eta**2)**2
 
-             !end if
+             end if
 
              ! Correct species mass fractions.
              inert = 1.0_wp - fuel - oxidizer
@@ -786,10 +770,6 @@ contains
                   state%conservedVariables(l,1)
              if (nSpecies.gt.1) state%conservedVariables(l, nDimensions+2+O2) = oxidizer *   &
                   state%conservedVariables(l,1)
-
-             ! Target solution.
-             if (simulationFlags%useTargetState) state%targetState(l,:) =                    &
-                  state%conservedVariables(l,:)
 
           end do
        end do
@@ -953,13 +933,37 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! Bottom wall (inflow)
+    ! Jet inflow at the bottom wall
     bc = bc+1
     name   (bc) = 'jetInflow'
     type   (bc) = 'SAT_FAR_FIELD'
     normDir(bc) =  2
     imin   (bc) =  iJet1
     imax   (bc) =  iJet2
+    jmin   (bc) =  1
+    jmax   (bc) =  1
+    kmin   (bc) =  kJet1
+    kmax   (bc) =  kJet2
+
+    ! Side walls of the  jet.
+    bc = bc+1
+    name   (bc) = 'jetWall1'
+    type   (bc) = 'SAT_SLIP_WALL'
+    normDir(bc) =  1
+    imin   (bc) =  iJet1 - 1
+    imax   (bc) =  iJet1 - 1
+    jmin   (bc) =  1
+    jmax   (bc) =  1
+    kmin   (bc) =  kJet1
+    kmax   (bc) =  kJet2
+
+    ! Side walls of the  jet.
+    bc = bc+1
+    name   (bc) = 'jetWall2'
+    type   (bc) = 'SAT_SLIP_WALL'
+    normDir(bc) = -1
+    imin   (bc) =  iJet2 + 1
+    imax   (bc) =  iJet2 + 1
     jmin   (bc) =  1
     jmax   (bc) =  1
     kmin   (bc) =  kJet1
