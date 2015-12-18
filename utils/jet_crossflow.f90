@@ -421,7 +421,7 @@ contains
           x = grid%coordinates(gridIndex, 1)
           z = grid%coordinates(gridIndex, 3)
           r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
-          if (r <= 1.0_wp * jetDiameter) then
+          if (r <= 0.5_wp * jetDiameter) then
              iJet1 = min(iJet1, i)
              iJet2 = max(iJet2, i)
              kJet1 = min(kJet1, k)
@@ -499,7 +499,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, l, kk, nDimensions, nSpecies, H2, O2, N2, gridIndex, ierror
+    integer :: i, j, k, kk, nDimensions, nSpecies, H2, O2, N2, gridIndex, ierror
     real(wp) :: ratioOfSpecificHeats, crossflowVelocity, jetVelocity, x, y, z, y0, r, sig, a,&
          density, velocity(3), temperature, pressure, fuel, oxidizer, inert, YF0, Yo0, yDecay
     real(wp), dimension(:), allocatable :: Wi
@@ -657,7 +657,7 @@ contains
                 stop
              end select
 
-             if (insideJet) then
+             !if (insideJet) then
                 yDecay = max(0.0_wp, 0.5_wp * (1.0_wp + tanh((4.0_wp - y / jetDiameter))))
 
                 ! Fuel stream.
@@ -724,7 +724,7 @@ contains
 
                 end select
 
-             end if !... if (r <= 1.5 * jetDiameter)
+                !end if !... if (insideJet)
 
              ! Correct species mass fractions.
              inert = 1.0_wp - fuel - oxidizer
