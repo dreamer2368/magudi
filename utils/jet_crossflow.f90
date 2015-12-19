@@ -137,7 +137,7 @@ contains
     integer :: i, j, k, n, gridIndex, nGrit, iTrip1, iTrip2
     real(wp) :: x, y, z, dx, dz, ytilde, r, delta
     real(wp) :: tripLocation, tripWidth, tripHeight, totalHeight, peakHeight, valleyHeight
-    real(wp) :: gritHeight, gritWidth, rnd, gauss, amp, sig, x0, y0, z0, z12, alpha, theta
+    real(wp) :: gritHeight, gritWidth, rnd, gauss, amp, sig, x0, y0, z0, z12, alpha
     logical :: includeGrit, stretchY
     character(len = STRING_LENGTH) :: key
 
