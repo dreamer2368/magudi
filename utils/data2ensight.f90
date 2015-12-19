@@ -50,9 +50,9 @@ program data2ensight
   real(KIND=8), dimension(:), allocatable :: time, temperature
   character(LEN=80), dimension(:), allocatable :: names
   character(LEN=80) :: binary_form
-  character(LEN=80) :: file_description1,file_description2
+  character(LEN=80) :: file_description1, file_description2
   character(LEN=80) :: node_id,element_id
-  character(LEN=80) :: part,description_part,cblock,extents,cbuffer
+  character(LEN=80) :: part,description_part, cblock, extents, cbuffer
   logical :: useIblank
 
   ! Local variables
