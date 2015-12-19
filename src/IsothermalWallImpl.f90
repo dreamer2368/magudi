@@ -12,7 +12,7 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
 
   ! <<< Internal modules >>>
   use CNSHelper, only : computeTransportVariables
-  use InputHelper, only : getOption
+  use InputHelper, only : getOption, getRequiredOption
 
   implicit none
 
@@ -26,8 +26,8 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: key
-  SCALAR_TYPE :: wallTemperature
+  character(len = STRING_LENGTH) :: key, species
+  SCALAR_TYPE :: wallTemperature, wallMassFraction
   integer :: i
 
   call this%cleanup()
@@ -36,6 +36,9 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
 
   write(key, '(A,I0.0)') "patches/" // trim(patchDescriptor%name) // "/"
 
+  if (simulationFlags%viscosityOn) this%enforceWallMassFraction =                            &
+       getOption("defaults/enforce_wall_mass_fraction", .false.)
+
   if (this%nPatchPoints > 0 .and. simulationFlags%viscosityOn) then
 
      allocate(this%temperature(this%nPatchPoints))
@@ -43,12 +46,21 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
      allocate(this%secondCoefficientOfViscosity(this%nPatchPoints))
      allocate(this%thermalDiffusivity(this%nPatchPoints))
      allocate(this%massDiffusivity(this%nPatchPoints, solverOptions%nSpecies))
+     if (this%enforceWallMassFraction)                                                       &
+          allocate(this%massFraction(this%nPatchPoints, solverOptions%nSpecies))
 
-     ! Wall temperature (used only if target state is not present).
+     ! Wall temperature & mass fraction (used only if target state is not present).
      if (.not. simulationFlags%useTargetState) then
         wallTemperature = getOption(trim(key) // "temperature",                              &
              1.0_wp / (solverOptions%ratioOfSpecificHeats - 1.0_wp))
         this%temperature(:) = wallTemperature
+        if (this%enforceWallMassFraction) then
+           do i = 1, solverOptions%nSpecies
+              write(species, "(A,I1.1)") "mass_fraction_", i
+              call getRequiredOption(trim(key) // trim(species), wallMassFraction, comm)
+              this%massFraction(:,i) = wallMassFraction
+           end do
+        end if
         call computeTransportVariables(solverOptions%nSpecies, this%temperature,             &
              solverOptions%powerLawExponent, solverOptions%bulkViscosityRatio,               &
              solverOptions%ratioOfSpecificHeats, solverOptions%reynoldsNumberInverse,        &
@@ -93,6 +105,7 @@ subroutine cleanupIsothermalWall(this)
   call this%t_ImpenetrableWall%cleanup()
 
   SAFE_DEALLOCATE(this%temperature)
+  SAFE_DEALLOCATE(this%massFraction)
   SAFE_DEALLOCATE(this%dynamicViscosity)
   SAFE_DEALLOCATE(this%secondCoefficientOfViscosity)
   SAFE_DEALLOCATE(this%thermalDiffusivity)
@@ -256,9 +269,16 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
               penaltyAtBoundary(nDimensions+2) = penaltyAtBoundary(nDimensions+2) -          &
                    state%conservedVariables(gridIndex,1) *                                   &
                    this%temperature(patchIndex) / solverOptions%ratioOfSpecificHeats
-              do l = 1, nSpecies
-                 penaltyAtBoundary(nDimensions+2+l) = 0.0_wp
-              end do
+              if (this%enforceWallMassFraction) then
+                 do l = 1, nSpecies
+                    penaltyAtBoundary(nDimensions+2+l) =                                     &
+                         state%conservedVariables(gridIndex,nDimensions+2+l) -               &
+                         state%conservedVariables(gridIndex, 1) *                            &
+                         this%massFraction(patchIndex, l)
+                 end do
+              else
+                 penaltyAtBoundary(nDimensions+2+1:nDimensions+2+nSpecies) = 0.0_wp
+              end if
               penaltyAtBoundary = grid%jacobian(gridIndex, 1) * penaltyAtBoundary
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &

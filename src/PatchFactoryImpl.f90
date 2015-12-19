@@ -473,7 +473,8 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
   integer :: i, j, nDimensions, ierror
   logical :: flag
   class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: gridNorm(:,:), targetTemperature(:), targetViscousFluxes(:,:,:)
+  SCALAR_TYPE, allocatable :: gridNorm(:,:), targetTemperature(:), targetMassFraction(:,:),  &
+       targetViscousFluxes(:,:,:)
 
   call startTiming("updatePatches")
 
@@ -510,10 +511,18 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
      call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
      if (flag) then
         allocate(targetTemperature(grid%nGridPoints))
-        call computeDependentVariables(nDimensions, solverOptions%nSpecies,                  &
-             state%targetState, solverOptions%equationOfState,                               &
-             solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,       &
-             temperature = targetTemperature)
+        if (solverOptions%nSpecies > 0) then
+           allocate(targetMassFraction(grid%nGridPoints, solverOptions%nSpecies))
+           call computeDependentVariables(nDimensions, solverOptions%nSpecies,                  &
+                state%targetState, solverOptions%equationOfState,                               &
+                solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,       &
+                temperature = targetTemperature, massFraction = targetMassFraction)
+        else
+           call computeDependentVariables(nDimensions, solverOptions%nSpecies,                  &
+                state%targetState, solverOptions%equationOfState,                               &
+                solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,       &
+                temperature = targetTemperature)
+        end if
      end if
 
      if (allocated(patchFactories)) then
@@ -526,6 +535,8 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
            select type (patch)
            class is (t_IsothermalWall)
               call patch%collect(targetTemperature, patch%temperature)
+              if (patch%enforceWallMassFraction)                                             &
+                   call patch%collect(targetMassFraction, patch%massFraction)
               call computeTransportVariables(solverOptions%nSpecies, patch%temperature,      &
                    solverOptions%powerLawExponent, solverOptions%bulkViscosityRatio,         &
                    solverOptions%ratioOfSpecificHeats, solverOptions%reynoldsNumberInverse,  &
@@ -539,6 +550,7 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
      end if
 
      SAFE_DEALLOCATE(targetTemperature)
+     SAFE_DEALLOCATE(targetMassFraction)
 
      flag = queryPatchTypeExists(patchFactories, 'SAT_FAR_FIELD', grid%index)
      call MPI_Allreduce(MPI_IN_PLACE, flag, 1, MPI_LOGICAL, MPI_LOR, grid%comm, ierror)
