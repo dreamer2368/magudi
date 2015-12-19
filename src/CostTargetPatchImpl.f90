@@ -105,7 +105,7 @@ subroutine addAdjointForcing(this, mode, simulationFlags, solverOptions, grid, s
 
   call startTiming("addCostTargetPenalty")
 
-  if (simulationFlags%useContinuousAdjoint .or. simulationFlags%steadyStateSimulation) then
+  if (simulationFlags%useContinuousAdjoint) then
      forcingFactor = 1.0_wp
   else
      forcingFactor = state%adjointForcingFactor

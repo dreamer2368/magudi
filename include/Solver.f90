@@ -4,7 +4,6 @@ module Solver_mod
 
   use Controller_factory, only : t_ControllerFactory
   use Functional_factory, only : t_FunctionalFactory
-  use ResidualManager_mod, only : t_ResidualManager
   use ReverseMigrator_mod, only : t_ReverseMigrator
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
 
@@ -12,7 +11,6 @@ module Solver_mod
 
   type, public :: t_Solver
 
-     type(t_ResidualManager) :: residualManager
      type(t_ControllerFactory) :: controllerFactory
      type(t_FunctionalFactory) :: functionalFactory
      type(t_TimeIntegratorFactory) :: timeIntegratorFactory

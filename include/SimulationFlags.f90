@@ -16,7 +16,6 @@ module SimulationFlags_mod
                 enableSolutionLimits  = .false., &
                 useConstantCfl        = .true.,  &
                 filterOn              = .false., &
-                steadyStateSimulation = .false., &
                 isBaselineAvailable   = .false., &
                 useContinuousAdjoint  = .false., &
                 compositeDissipation  = .true.,  &

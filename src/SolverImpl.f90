@@ -37,7 +37,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, nDimensions, ierror, controlIteration_
-    real(SCALAR_KIND) :: timeStepSize, cfl, residuals(3), maxTemperature
+    real(SCALAR_KIND) :: timeStepSize, cfl, maxTemperature
     character(len = STRING_LENGTH) :: str, str_, filename
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
@@ -154,49 +154,6 @@ contains
              call region%saveData(QOI_ADJOINT_STATE, filename)
           end if
        end select
-
-    end if
-
-    if (region%simulationFlags%steadyStateSimulation .and.                                   &
-         this%residualManager%reportInterval > 0 .and.                                       &
-         mod(timestep, max(1, this%residualManager%reportInterval)) == 0) then
-
-       call this%residualManager%compute(region)
-
-       select case (mode)
-
-       case (FORWARD)
-          call this%residualManager%writeToFile(region%comm, trim(this%outputPrefix) //      &
-               ".residuals.txt", timestep, time,                                             &
-               timestep - startTimestep > this%residualManager%reportInterval)
-       case (ADJOINT)
-          call this%residualManager%writeToFile(region%comm, trim(this%outputPrefix) //      &
-               ".adjoint_residuals.txt", timestep, time,                                     &
-               timestep - startTimestep > this%residualManager%reportInterval)
-       end select
-
-       residuals(1) = this%residualManager%residuals(1)
-       residuals(2) = maxval(this%residualManager%residuals(1:nDimensions))
-       residuals(3) = this%residualManager%residuals(nDimensions+2)
-
-       write(str, '(2X,3(A,(ES11.4E2)))') "residuals: density = ", residuals(1),             &
-            ", momentum = ", residuals(2), ", energy = ", residuals(3)
-       call writeAndFlush(region%comm, output_unit, str)
-
-       if (this%residualManager%hasSimulationConverged) then
-
-          call writeAndFlush(region%comm, output_unit, "Solution has converged!")
-
-          select case (mode)
-          case (FORWARD)
-             call region%saveData(QOI_FORWARD_STATE,                                         &
-                  trim(this%outputPrefix) // ".steady_state.q")
-          case (ADJOINT)
-             call region%saveData(QOI_ADJOINT_STATE,                                         &
-                  trim(this%outputPrefix) // ".steady_state.adjoint.q")
-          end select
-
-       end if
 
     end if
 
@@ -369,7 +326,6 @@ contains
        end if
 
        if (allocated(region%patchFactories) .and.                                            &
-            .not. region%simulationFlags%steadyStateSimulation .and.                         &
             .not. region%simulationFlags%useContinuousAdjoint) then
 
           timeStepSize = region%getTimeStepSize()
@@ -629,10 +585,6 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
      functional%runningTimeQuadrature = 0.0_wp
   end if
 
-  ! Setup residual manager if this is a steady-state simulation.
-  if (region%simulationFlags%steadyStateSimulation)                                          &
-       call this%residualManager%setup("", region)
-
   ! Load the initial condition.
   if (present(restartFilename)) then
      call loadInitialCondition(this, region, FORWARD, restartFilename)
@@ -716,9 +668,6 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
      if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
           call region%saveProbeData(FORWARD)
 
-     ! Stop if this is a steady-state simulation and solution has converged.
-     if (this%residualManager%hasSimulationConverged) exit
-
      ! Filter solution if required.
      if (region%simulationFlags%filterOn) then
         do j = 1, size(region%grids)
@@ -735,8 +684,6 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
        abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
        call controller%hookAfterTimemarch(region, FORWARD)
-
-  call this%residualManager%cleanup()
 
   if (region%simulationFlags%computeTimeAverage) then
      do i = 1, size(region%states)
@@ -813,20 +760,12 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
   call this%functionalFactory%connect(functional)
   assert(associated(functional))
 
-  ! Setup residual manager if this is a steady-state simulation
-  if (region%simulationFlags%steadyStateSimulation)                                          &
-       call this%residualManager%setup("adjoint_residuals", region)
-
   ! Load the initial condition.
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
-  if (region%simulationFlags%steadyStateSimulation) then
-     write(filename, '(2A)') trim(this%outputPrefix), ".steady_state.q"
-  else
-     write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-",                            &
-          region%timestep + this%adjointIterations, ".q"
-  end if
+  write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-",                               &
+       region%timestep + this%adjointIterations, ".q"
   call region%loadData(QOI_FORWARD_STATE, filename)
   do i = 1, size(region%states) !... update state
      call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
@@ -841,15 +780,11 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
        region%solverOptions%checkpointingScheme)
   assert(associated(reverseMigrator))
 
-  ! Setup the revese-time migrator if this is not a steady-state simulation.
-  if (.not. region%simulationFlags%steadyStateSimulation)                                    &
-       call reverseMigrator%setup(region, timeIntegrator, this%outputPrefix,                 &
+  ! Setup the revese-time migrator.
+  call reverseMigrator%setup(region, timeIntegrator, this%outputPrefix,                      &
        startTimestep - this%adjointIterations, startTimestep, this%saveInterval,             &
        this%saveInterval * timeIntegrator%nStages)
-
-  ! March forward for adjoint steady-state simulation.
   timemarchDirection = -1
-  if (region%simulationFlags%steadyStateSimulation) timemarchDirection = 1
 
   ! Adjoint initial condition (if specified).
   call loadInitialCondition(this, region, ADJOINT)
@@ -879,13 +814,11 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
      do i = timeIntegrator%nStages, 1, -1
 
         ! Load adjoint coefficients.
-        if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
-           if (i == 1) then
-              call reverseMigrator%migrateTo(region, timeIntegrator,                         &
-                   timestep, timeIntegrator%nStages)
-           else
-              call reverseMigrator%migrateTo(region, timeIntegrator, timestep + 1, i - 1)
-           end if
+        if (i == 1) then
+           call reverseMigrator%migrateTo(region, timeIntegrator,                            &
+                timestep, timeIntegrator%nStages)
+        else
+           call reverseMigrator%migrateTo(region, timeIntegrator, timestep + 1, i - 1)
         end if
 
         ! Update gradient.
@@ -922,9 +855,6 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
      if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
           call region%saveProbeData(ADJOINT)
 
-     ! Stop if this is a steady-state simulation and solution has converged.
-     if (this%residualManager%hasSimulationConverged) exit
-
      ! Filter solution if required.
      if (region%simulationFlags%filterOn) then
         do j = 1, size(region%grids)
@@ -940,7 +870,6 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
   ! Call controller hooks after time marching ends.
   call controller%hookAfterTimemarch(region, ADJOINT)
 
-  call this%residualManager%cleanup()
   call reverseMigratorFactory%cleanup()
 
   SAFE_DEALLOCATE(instantaneousCostSensitivity)

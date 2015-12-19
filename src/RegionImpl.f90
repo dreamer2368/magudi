@@ -941,19 +941,14 @@ subroutine loadRegionData(this, quantityOfInterest, filename, speciesFilename)
   end do
 
   if (isSolutionFile) then
-     if (.not. this%simulationFlags%steadyStateSimulation) then
-        auxiliaryData = real(this%states(1)%plot3dAuxiliaryData, wp)
-        call MPI_Bcast(auxiliaryData, 4, REAL_TYPE_MPI, 0, this%comm, ierror)
-        do i = 1, 4
-           this%states(:)%plot3dAuxiliaryData(i) = auxiliaryData(i)
-        end do
-        if (quantityOfInterest == QOI_FORWARD_STATE) then
-           this%states(:)%time = real(auxiliaryData(4), wp)
-           this%timestep = nint(real(auxiliaryData(1), wp))
-        end if
-     else
-        this%states(:)%time = 0.0_wp
-        this%timestep = 0
+     auxiliaryData = real(this%states(1)%plot3dAuxiliaryData, wp)
+     call MPI_Bcast(auxiliaryData, 4, REAL_TYPE_MPI, 0, this%comm, ierror)
+     do i = 1, 4
+        this%states(:)%plot3dAuxiliaryData(i) = auxiliaryData(i)
+     end do
+     if (quantityOfInterest == QOI_FORWARD_STATE) then
+        this%states(:)%time = real(auxiliaryData(4), wp)
+        this%timestep = nint(real(auxiliaryData(1), wp))
      end if
   end if
 
@@ -1081,16 +1076,9 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   end select
 
   if (isSolutionFile) then
-     if (.not. this%simulationFlags%steadyStateSimulation) then
-        do i = 1, size(this%states)
-           this%states(:)%plot3dAuxiliaryData(1) =                                           &
-                real(this%timestep, wp)
-        end do
-     else
-        do i = 1, size(this%states)
-           this%states(:)%plot3dAuxiliaryData(1) = 0.0_wp
-        end do
-     end if
+     do i = 1, size(this%states)
+        this%states(:)%plot3dAuxiliaryData(1) = real(this%timestep, wp)
+     end do
   end if
 
   do i = 1, size(this%gridCommunicators)
