@@ -184,7 +184,7 @@ contains
     jmax = region%grids(1)%offset(2) + ny_
     kmin = region%grids(1)%offset(3) + 1
     kmax = region%grids(1)%offset(3) + nz_
-    print *, 'Proc', iRank, 'local size:',nx_, ny_, nz_
+    print *, 'Proc', iRank + 1, 'local size:',nx_, ny_, nz_
 
     ! Exit if processors are decomposed in x or y.
     if (nx_ /= nx .or. ny_ /= ny) then
@@ -408,10 +408,19 @@ contains
 
     ! Conform the mesh to the jet perimeter.
     conformToJet = getOption("conform_grid_to_jet", .false.)
+
+    ! Do not conform 2D grids.
     if (nz == 1 .and. conformToJet) then
        print *
        print *, 'Warning, conform_to_jet only enabled for 3D geometries.'
        conformToJet = .false.
+    end if
+
+    ! Stop if running in parallel.
+    if (conformToJet .and. numProcs > 1) then
+       print *
+       print *, 'Warning, conform_to_jet currently implemented in serial!'
+       stop
     end if
     if (conformToJet) then
        j = 1
