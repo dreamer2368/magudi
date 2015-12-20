@@ -27,8 +27,6 @@ program jet_crossflow
 
   ! <<< Global Parameters >>>
   type(t_Region) :: region
-  type(t_Grid) :: grid
-  type(t_State) :: state
   type(t_SolverOptions) :: solverOptions
   type(t_SimulationFlags) :: simulationFlags
   integer :: i, numProcs, iRank, ierror, nx, ny, nz, nx_, ny_, nz_
@@ -40,7 +38,7 @@ program jet_crossflow
   real(KIND=8) :: zmin, zmax, jetDiameter, xJet
   character(len = STRING_LENGTH) :: inputname, filename
   integer, allocatable :: globalGridSizes(:,:)
-  logical :: includeSandpaper
+  logical :: includeSandpaper, conformToJet
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -73,7 +71,6 @@ program jet_crossflow
   call jetCrossFlowGrid(imin_sponge, imax_sponge, jmax_sponge)
 
   ! Save the grid.
-  region%grids(1) = grid
   call getRequiredOption("grid_file", filename)
   call region%saveData(QOI_GRID, filename)
 
@@ -93,7 +90,6 @@ program jet_crossflow
   call jetCrossFlowInitialCondition
 
   ! Save initial condition.
-  region%states(1) = state
   call getRequiredOption("grid_file", filename)
   i = len_trim(filename)
   if (filename(i-3:i) == ".xyz") then
@@ -134,8 +130,9 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, n, gridIndex, nGrit, iTrip1, iTrip2
-    real(wp) :: x, y, z, dx, dz, ytilde, r, delta
+    integer :: i, j, k, n, nGrit, iTrip1, iTrip2
+    integer, allocatable :: jetBox(:,:)
+    real(wp) :: x, y, z, dx, dz, ytilde, r, delta, theta
     real(wp) :: tripLocation, tripWidth, tripHeight, totalHeight, peakHeight, valleyHeight
     real(wp) :: gritHeight, gritWidth, rnd, gauss, amp, sig, x0, y0, z0, z12, alpha
     logical :: includeGrit, stretchY
@@ -172,23 +169,21 @@ contains
 
     ! Setup the region and simplify.
     call region%setup(MPI_COMM_WORLD, globalGridSizes)
-    grid = region%grids(1)
     simulationFlags = region%simulationFlags
     solverOptions = region%solverOptions
-    state = region%states(1)
 
     ! Store local grid size.
-    nx_ = grid%localSize(1)
-    ny_ = grid%localSize(2)
-    nz_ = grid%localSize(3)
+    nx_ = region%grids(1)%localSize(1)
+    ny_ = region%grids(1)%localSize(2)
+    nz_ = region%grids(1)%localSize(3)
 
     ! Get the grid partition
-    imin = grid%offset(1) + 1
-    imax = grid%offset(1) + nx_
-    jmin = grid%offset(2) + 1
-    jmax = grid%offset(2) + ny_
-    kmin = grid%offset(3) + 1
-    kmax = grid%offset(3) + nz_
+    imin = region%grids(1)%offset(1) + 1
+    imax = region%grids(1)%offset(1) + nx_
+    jmin = region%grids(1)%offset(2) + 1
+    jmax = region%grids(1)%offset(2) + ny_
+    kmin = region%grids(1)%offset(3) + 1
+    kmax = region%grids(1)%offset(3) + nz_
     print *, 'Proc', iRank, 'local size:',nx_, ny_, nz_
 
     ! Exit if processors are decomposed in x or y.
@@ -206,25 +201,23 @@ contains
     do k = kmin, kmax
        do j = jmin, jmax
           do i = imin, imax
-             gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *          &
-                  (k - 1 - grid%offset(3)))
 
              ! Create X
-             grid%coordinates(gridIndex, 1) =                                                &
+             region%grids(1)%coordinates(grid_index(i,j,k), 1) =                             &
                   (xmaxo - xmino) * real(i-1, wp) / real(nx-1, wp) + xmino
 
              ! Create Y
              if (stretchY) then
                 ytilde = real(ny-j, wp)/real(ny-1, wp)
-                grid%coordinates(gridIndex, 2) =                                             &
+                region%grids(1)%coordinates(grid_index(i,j,k), 2) =                          &
                      (ymaxo - ymino) * (1.0_wp - tanh(r * ytilde) / tanh(r)) + ymino
              else
-                grid%coordinates(gridIndex, 2) =                                             &
+                region%grids(1)%coordinates(grid_index(i,j,k), 2) =                          &
                      (ymaxo - ymino) * real(j-1,wp) / real(ny-1, wp) + ymino
              end if
 
              ! Create Z
-             if (nz.ne.1) grid%coordinates(gridIndex, 3) =                                   &
+             if (nz.ne.1) region%grids(1)%coordinates(grid_index(i,j,k), 3) =                &
                   (zmax - zmin - dz) * real(k-1, wp) / real(nz-1, wp) + zmin
           end do
        end do
@@ -248,14 +241,12 @@ contains
        iTrip1 = 1; iTrip2 = nx
        j = jmin; k = kmin
        do i = imin, imax
-          gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *             &
-               (k - 1 - grid%offset(3)))
-          if (grid%coordinates(gridIndex, 1) < tripLocation) iTrip1 = i + 1
+          if (region%grids(1)%coordinates(grid_index(i,j,k), 1) < tripLocation)              &
+               iTrip1 = i + 1
        end do
        do i = imax, imin, -1
-          gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *             &
-               (k - 1 - grid%offset(3)))
-          if (grid%coordinates(gridIndex,1) > tripLocation + tripWidth) iTrip2 = i - 1
+          if (region%grids(1)%coordinates(grid_index(i,j,k),1) > tripLocation + tripWidth)   &
+               iTrip2 = i - 1
        end do
        call MPI_Allreduce(MPI_IN_PLACE, iTrip1, 1, MPI_INTEGER, MPI_MAX,                     &
             MPI_COMM_WORLD, ierror)
@@ -270,35 +261,27 @@ contains
        do k = kmin, kmax
           do i = imin, imax
              j = 1
-             gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *          &
-               (k - 1 - grid%offset(3)))
 
              ! Create a smooth step.
              sig = 20.0_wp
-             x = grid%coordinates(gridIndex, 1)
-             grid%coordinates(gridIndex, 2) = 0.5_wp * tripHeight *                          &
+             x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
+             region%grids(1)%coordinates(grid_index(i,j,k), 2) = 0.5_wp * tripHeight *       &
                   (tanh(sig * (x - tripLocation)) - tanh(sig*(x - tripLocation - tripWidth)))
 
              ! Shift grid points above (smoothly).
              do j = 2, ny
                 ! Get unperturbed height variation.
-                gridIndex = 1 - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *       &
-                     (k - 1 - grid%offset(3)))
-                y0 = grid%coordinates(gridIndex, 2)
-                gridIndex = 1 - grid%offset(1) + nx_ * (j - 2 - grid%offset(2) + ny_ *       &
-                     (k - 1 - grid%offset(3)))
-                delta = y0 - grid%coordinates(gridIndex, 2)
+                y0 = region%grids(1)%coordinates(grid_index(1,j,k), 2)
+                delta = y0 - region%grids(1)%coordinates(grid_index(1,j-1,k), 2)
 
                 ! Get the current height.
-                gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *       &
-                     (k - 1 - grid%offset(3)))
-                y = grid%coordinates(gridIndex, 2)
+                y = region%grids(1)%coordinates(grid_index(i,j,k), 2)
 
                 ! Adjust the current height.
-                ytilde = grid%coordinates(i-grid%offset(1)+nx_*(j-2-grid%offset(2)+ny_*&
-                     (k-1-grid%offset(3))),2) + delta
+                ytilde = region%grids(1)%coordinates(grid_index(i,j-1,k),2) + delta
                 alpha = tanh(0.1_wp * (j - 2) / (ny - 2))
-                grid%coordinates(gridIndex, 2) = ytilde * (1.0_wp - alpha) + y * alpha
+                region%grids(1)%coordinates(grid_index(i,j,k), 2) =                          &
+                     ytilde * (1.0_wp - alpha) + y * alpha
              end do
           end do
        end do
@@ -328,14 +311,11 @@ contains
              do k = kmin, kmax
                 do i = iTrip1, iTrip2
                    j = 1
-                   gridIndex = i - grid%offset(1) + nx_ *                                    &
-                        (j - 1 - grid%offset(2) + ny_ *                                      &
-                        (k - 1 - grid%offset(3)))
 
                    ! Get the coordinates.
-                   x = grid%coordinates(gridIndex, 1)
-                   y = grid%coordinates(gridIndex, 2)
-                   z = grid%coordinates(gridIndex, 3)
+                   x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
+                   y = region%grids(1)%coordinates(grid_index(i,j,k), 2)
+                   z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
                       
                    ! Represent sandpaper particles as Gaussian.
                    gauss = amp * exp(-((x - x0)**2 / (2.0_wp * sig**2) +                     &
@@ -347,29 +327,22 @@ contains
                         exp(-((x-x0)**2 / (2.0_wp * sig**2) + z12**2 / (2.0_wp * sig**2)))
 
                    ! Update the vertical coordinate.
-                   grid%coordinates(gridIndex, 2) = y + gauss
+                   region%grids(1)%coordinates(grid_index(i,j,k), 2) = y + gauss
                    
                    ! Shift grid points above (smoothly).
                    do j = 2, ny
                       ! Get unperturbed height variation.
-                      gridIndex = 1 - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ * &
-                           (k - 1 - grid%offset(3)))
-                      y0 = grid%coordinates(gridIndex, 2)
-                      gridIndex = 1 - grid%offset(1) + nx_ *                                 &
-                           (j - 2 - grid%offset(2) + ny_ *                                   &
-                           (k - 1 - grid%offset(3)))
-                      delta = y0 - grid%coordinates(gridIndex, 2)
+                      y0 = region%grids(1)%coordinates(grid_index(1,j,k), 2)
+                      delta = y0 - region%grids(1)%coordinates(grid_index(i,j-1,k), 2)
 
                       ! Get the current height.
-                      gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ * &
-                           (k - 1 - grid%offset(3)))
-                      y = grid%coordinates(gridIndex, 2)
+                      y = region%grids(1)%coordinates(grid_index(i,j,k), 2)
                       
                       ! Adjust the current height.
-                      ytilde = grid%coordinates(i-grid%offset(1)+nx_*(j-2-grid%offset(2)+ny_*&
-                           (k-1-grid%offset(3))),2) + delta
+                      ytilde = region%grids(1)%coordinates(grid_index(i,j-2,k),2) + delta
                       alpha = tanh(4.0_wp * (j - 2) / (ny - 2))
-                      grid%coordinates(gridIndex, 2) = ytilde * (1.0_wp - alpha) + y * alpha
+                      region%grids(1)%coordinates(grid_index(i,j,k), 2) =                    &
+                           ytilde * (1.0_wp - alpha) + y * alpha
                    end do
 
                 end do
@@ -384,10 +357,7 @@ contains
        j = 1
        do k = kmin, kmax
           do i = iTrip1, iTrip2
-             gridIndex = i - grid%offset(1) + nx_ *                                          &
-                  (j - 1 - grid%offset(2) + ny_ *                                            &
-                  (k - 1 - grid%offset(3)))
-             y = grid%coordinates(gridIndex, 2)
+             y = region%grids(1)%coordinates(grid_index(i,j,k), 2)
              totalHeight = max(totalHeight, y)
              peakHeight = max(peakHeight, y - tripHeight)
              valleyHeight = min(valleyHeight, y - tripHeight)
@@ -416,10 +386,188 @@ contains
     j = 1
     do k = kmin, kmax
        do i = 1, nx
-          gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *             &
-               (k - 1 - grid%offset(3)))
-          x = grid%coordinates(gridIndex, 1)
-          z = grid%coordinates(gridIndex, 3)
+          x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
+          z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
+          r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
+          if (r <= 0.5_wp * jetDiameter) then
+             iJet1 = min(iJet1, i)
+             iJet2 = max(iJet2, i)
+             kJet1 = min(kJet1, k)
+             kJet2 = max(kJet2, k)
+          end if
+       end do
+    end do
+    call MPI_Allreduce(MPI_IN_PLACE, iJet1, 1, MPI_INTEGER, MPI_MIN,                         &
+         MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce(MPI_IN_PLACE, kJet1, 1, MPI_INTEGER, MPI_MIN,                         &
+         MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce(MPI_IN_PLACE, iJet2, 1, MPI_INTEGER, MPI_MAX,                         &
+         MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce(MPI_IN_PLACE, kJet2, 1, MPI_INTEGER, MPI_MAX,                         &
+         MPI_COMM_WORLD, ierror)
+
+    ! Conform the mesh to the jet perimeter.
+    conformToJet = getOption("conform_grid_to_jet", .false.)
+    if (nz == 1 .and. conformToJet) then
+       print *
+       print *, 'Warning, conform_to_jet only enabled for 3D geometries.'
+       conformToJet = .false.
+    end if
+    if (conformToJet) then
+       j = 1
+       r = 0.495_wp * jetDiameter
+       allocate(jetBox(iJet1-1:iJet2+1, kJet1-1:kJet2+1))
+       jetBox = 0
+
+       ! Find a point at `i` by shifting in `k`.
+       do i = iJet1, iJet2
+          k = kmin
+          x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
+
+          ! First quadrant.
+          delta = x - xJet
+          theta = asin(delta / r)
+          delta = r * cos(theta)
+          z0 = 0.5_wp * (zmax + zmin) + delta
+          delta = zmax - zmin
+          do k = kJet1 - 1, kJet2 + 1
+             ! Find the closest point to the jet perimeter.
+             z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
+             if (abs(z - z0) < delta) then
+                delta = abs(z - z0)
+                n = k
+             end if
+          end do
+          ! Shift the corresponding grid point.
+          k = n
+          if (jetBox(i, k) == 0) region%grids(1)%coordinates(grid_index(i,j,k), 3) = z0
+          jetBox(i, k) = 1 ! Tag it.
+
+          ! Second quadrant.
+          delta = x - xJet
+          theta = acos(delta / r)
+          delta = r * sin(theta)
+          z0 = 0.5_wp * (zmax + zmin) - delta
+          delta = zmax - zmin
+          do k = kJet1 - 1, kJet2 + 1
+             ! Find the closest point to the jet perimeter.
+             z = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3)
+             if (abs(z - z0) < delta) then
+                delta = abs(z - z0)
+                n = k
+             end if
+          end do
+          ! Shift the corresponding grid point.
+          k = n
+          if (jetBox(i, k) == 0) region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3) = z0
+          jetBox(i, k) = 1 ! Tag it.
+       end do
+
+       ! Find a point at `k` by shifting in `i`.
+       do k = kJet1, kJet2
+          i = 1
+          z = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),3)
+
+          ! Third quadrant.
+          delta = z - 0.5_wp * (zmax + zmin)
+          theta = asin(delta / r)
+          delta = r * cos(theta)
+          x0 = xJet - delta
+          delta = xmaxo - xmino
+          do i = iJet1 - 1, iJet2 + 1
+             ! Find the closest point to the jet perimeter.
+             x = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1)
+             if (abs(x - x0) < delta) then
+                delta = abs(x - x0)
+                n = i
+             end if
+          end do
+          ! Shift the corresponding grid point.
+          i = n
+          if (jetBox(i, k) == 0) region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1) = x0
+          jetBox(i, k) = 1 ! Tag it.
+
+          ! Fourth quadrant.
+          delta = z - 0.5_wp * (zmax + zmin)
+          theta = acos(delta / r)
+          delta = r * sin(theta)
+          x0 = xJet + delta
+          delta = xmaxo - xmino
+          do i = iJet1 - 1, iJet2 + 1
+             ! Find the closest point to the jet perimeter.
+             x = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1)
+             if (abs(x - x0) < delta) then
+                delta = abs(x - x0)
+                n = i
+             end if
+          end do
+          ! Shift the corresponding grid point.
+          i = n
+          if (jetBox(i, k) == 0) region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1)),1) = x0
+          jetBox(i, k) = 1 ! Tag it.
+       end do
+
+       ! Smooth surrounding grid points.
+       j = 1
+       do k = kJet1 - 1, kJet2 + 1
+          do i = iJet1 - 1, iJet2 + 1
+             if (jetBox(i, k) == 1) then
+                do n = 1, 41
+                   ! Stretching parameter.
+                   alpha = tanh(1.0_wp * (n - 1) / 40)
+
+                   ! Shift left.
+                   x = region%grids(1)%coordinates(i-n+nx*(j-1+ny*(k-1)),1)
+                   delta = region%grids(1)%coordinates(i-n+nx*(j+ny*(k-1)),1) -              &
+                        region%grids(1)%coordinates(i-n+1+nx*(j+ny*(k-1)),1)
+                   ytilde = region%grids(1)%coordinates(i-n+1+nx*(j-1+ny*(k-1)),1) +         &
+                        delta
+                   region%grids(1)%coordinates(i-n+nx*(j-1+ny*(k-1)),1) =                    &
+                        ytilde * (1.0_wp - alpha) + x * alpha
+
+                   ! Shift right.
+                   x = region%grids(1)%coordinates(i+n+nx*(j-1+ny*(k-1)),1)
+                   delta = region%grids(1)%coordinates(i+n+nx*(j+ny*(k-1)),1) -              &
+                        region%grids(1)%coordinates(i+n-1+nx*(j+ny*(k-1)),1)
+                   ytilde = region%grids(1)%coordinates(i+n-1+nx*(j-1+ny*(k-1)),1) +         &
+                        delta
+                   region%grids(1)%coordinates(i+n+nx*(j-1+ny*(k-1)),1) =                    &
+                        ytilde * (1.0_wp - alpha) + x * alpha
+
+                   ! Shift up.
+                   x = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1-n)),3)
+                   delta = region%grids(1)%coordinates(i+nx*(j+ny*(k-1-n)),3) -              &
+                        region%grids(1)%coordinates(i+nx*(j+ny*(k-n)),3)
+                   ytilde = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-n)),3) +             &
+                        delta
+                   region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1-n)),3) =                    &
+                        ytilde * (1.0_wp - alpha) + x * alpha
+
+                   ! Shift down.
+                   x = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1+n)),3)
+                   delta = region%grids(1)%coordinates(i+nx*(j+ny*(k-1+n)),3) -              &
+                        region%grids(1)%coordinates(i+nx*(j+ny*(k-2+n)),3)
+                   ytilde = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-2+n)),3) +           &
+                        delta
+                   region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1+n)),3) =                    &
+                        ytilde * (1.0_wp - alpha) + x * alpha
+
+                end do
+             end if
+          end do
+       end do
+       deallocate(jetBox)
+
+    end if !... conform to jet.
+
+    ! Find the new jet extents.
+    iJet1 = nx; iJet2 = 1
+    kJet1 = nz; kJet2 = 1
+    j = 1
+    do k = kmin, kmax
+       do i = 1, nx
+          x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
+          z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
           r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
           if (r <= 0.5_wp * jetDiameter) then
              iJet1 = min(iJet1, i)
@@ -447,22 +595,16 @@ contains
     j = 1; k = kmin
     i1 = 1
     do i = 1, nx
-       gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *                &
-            (k - 1 - grid%offset(3)))
-       if (grid%coordinates(gridIndex, 1) <= xmini) i1 = i + 1
+       if (region%grids(1)%coordinates(grid_index(i,j,k), 1) <= xmini) i1 = i + 1
     end do
     i2 = nx
     do i = nx,1,-1
-       gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *                &
-            (k - 1 - grid%offset(3)))
-       if (grid%coordinates(gridIndex, 1) >= xmaxi) i2 = i
+       if (region%grids(1)%coordinates(grid_index(i,j,k), 1) >= xmaxi) i2 = i
     end do
     i = 1
     j2 = ny
     do j = ny, 1, -1
-       gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *                &
-            (k - 1 - grid%offset(3)))
-       if (grid%coordinates(gridIndex, 2) >= ymaxi) j2=j
+       if (region%grids(1)%coordinates(grid_index(i,j,k), 2) >= ymaxi) j2=j
     end do
     call MPI_Allreduce(MPI_IN_PLACE, i1, 1, MPI_INTEGER, MPI_MAX,                            &
          MPI_COMM_WORLD, ierror)
@@ -499,7 +641,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, kk, nDimensions, nSpecies, H2, O2, N2, gridIndex, ierror
+    integer :: i, j, k, kk, nDimensions, nSpecies, H2, O2, N2, ierror
     real(wp) :: ratioOfSpecificHeats, crossflowVelocity, jetVelocity, x, y, z, y0, r, sig, a,&
          density, velocity(3), temperature, pressure, fuel, oxidizer, inert, YF0, Yo0, yDecay
     real(wp), dimension(:), allocatable :: Wi
@@ -523,7 +665,7 @@ contains
          0.06423404047594_8, 0.01590689966410_8, 0.00240199722109_8,                         &
          0.00022016340923_8, 0.00001224984692_8, 0.00000041090325_8 /)
 
-    call MPI_Cartdim_get(grid%comm, nDimensions, ierror)
+    call MPI_Cartdim_get(region%grids(1)%comm, nDimensions, ierror)
 
     ! Species
     nSpecies = solverOptions%nSpecies
@@ -579,15 +721,12 @@ contains
     do k = kmin, kmax
        do j = jmin, jmax
           do i = imin, imax
-             gridIndex = i - grid%offset(1) + nx_ * (j - 1 - grid%offset(2) + ny_ *          &
-                  (k - 1 - grid%offset(3)))
 
              ! Get the local coordinates.
-             x = grid%coordinates(gridIndex, 1)
-             y = grid%coordinates(gridIndex, 2)
-             z = grid%coordinates(gridIndex, 3)
-             y0 = grid%coordinates(i-grid%offset(1)+nx_*(- grid%offset(2)+ny_*               &
-                  (k - 1 - grid%offset(3))), 2)
+             x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
+             y = region%grids(1)%coordinates(grid_index(i,j,k), 2)
+             z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
+             y0= region%grids(1)%coordinates(grid_index(i,1,k), 2)
 
              ! Initialize the mixture.
              velocity = 0.0_wp
@@ -648,7 +787,7 @@ contains
              case('ROUND')
                 if (r <= 1.0_wp * jetDiameter) insideJet = .true.
              case('SQUARE')
-                if (i >= iJet1 .and. i <= iJet2 .and. k >= kJet1 .and. k <= kJet2)       &
+                if (i >= iJet1 .and. i <= iJet2 .and. k >= kJet1 .and. k <= kJet2)           &
                      insideJet = .true.
              case ('NONE')
                 ! Nothing to do.
@@ -745,15 +884,16 @@ contains
              end select
 
              ! State variables.
-             state%conservedVariables(gridIndex, 1) = density
-             state%conservedVariables(gridIndex, 2:nDimensions+1) = density *                &
-                  velocity(1:nDimensions)
-             state%conservedVariables(gridIndex,nDimensions+2) = pressure /                  &
-                  (ratioOfSpecificHeats - 1.0_wp) + 0.5_wp * density * sum(velocity ** 2)
-             if (nSpecies.gt.0) state%conservedVariables(gridIndex, nDimensions+2+H2) =      &
-                  density * fuel
-             if (nSpecies.gt.1) state%conservedVariables(gridIndex, nDimensions+2+O2) =      &
-                  density * oxidizer
+             region%states(1)%conservedVariables(grid_index(i,j,k), 1) = density
+             region%states(1)%conservedVariables(grid_index(i,j,k), 2:nDimensions+1) =       &
+                  density * velocity(1:nDimensions)
+             region%states(1)%conservedVariables(grid_index(i,j,k),nDimensions+2) =          &
+                  pressure / (ratioOfSpecificHeats - 1.0_wp) + 0.5_wp * density *            &
+                  sum(velocity ** 2)
+             if (nSpecies.gt.0) region%states(1)%conservedVariables(grid_index(i,j,k),       &
+                  nDimensions+2+H2) = density * fuel
+             if (nSpecies.gt.1) region%states(1)%conservedVariables(grid_index(i,j,k),       &
+                  nDimensions+2+O2) = density * oxidizer
 
           end do !... do i = imin, imax
        end do !... do j = jmin, jmax
@@ -1047,7 +1187,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, gridIndex
+    integer :: i, j, k
     integer, intent(out) :: imin, imax, jmin, jmax
     integer :: nx, ny, nz
     real(wp) :: xmin, xmax, ymin, ymax
@@ -1075,8 +1215,8 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             gridIndex = i+nx*(j-1+ny*(k-1))
-             x = 2.0_wp * (grid%coordinates(gridIndex,2) - ymin) / (ymax - ymin) - 1.0_wp
+             x = 2.0_wp * (region%grids(1)%coordinates(grid_index(i,j,k), 2) - ymin) /                  &
+                  (ymax - ymin) - 1.0_wp
              mollifier(i,j,k,1) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                        &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
           end do
@@ -1088,8 +1228,8 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             gridIndex = i+nx*(j-1+ny*(k-1))
-             x = 2.0_wp * (grid%coordinates(gridIndex,1) - xmin) / (xmax - xmin) - 1.0_wp
+             x = 2.0_wp * (region%grids(1)%coordinates(grid_index(i,j,k), 1) - xmin) /                  &
+                  (xmax - xmin) - 1.0_wp
              mollifier(i,j,k,2) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                        &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
           end do
@@ -1101,8 +1241,8 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             gridIndex = i+nx*(j-1+ny*(k-1))
-             grid%targetMollifier(gridIndex,1) = mollifier(i,j,k,1) * mollifier(i,j,k,2)
+             region%grids(1)%targetMollifier(grid_index(i,j,k),1) = mollifier(i,j,k,1) *                &
+                  mollifier(i,j,k,2)
           end do
        end do
     end do
@@ -1111,9 +1251,8 @@ contains
     jmin = 1; jmax = 1
     i = 1; k = 1
     do j = 1, ny
-       gridIndex = i+nx*(j-1+ny*(k-1))
-       if (grid%coordinates(gridIndex,2) <= ymin) jmin = j
-       if (grid%coordinates(gridIndex,2) < ymax) jmax = j+1
+       if (region%grids(1)%coordinates(grid_index(i,j,k), 2) <= ymin) jmin = j
+       if (region%grids(1)%coordinates(grid_index(i,j,k), 2) < ymax) jmax = j + 1
     end do
 
     ! Find new extents in x.
@@ -1175,7 +1314,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, gridIndex
+    integer :: i, j, k
     integer, intent(out) :: imin, imax, jmin, jmax
     real(wp) :: xmin, xmax, ymin, ymax
     real(wp) :: x
@@ -1202,9 +1341,9 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             gridIndex = i+nx*(j-1+ny*(k-1))
-             x = 2.0_wp * (grid%coordinates(gridIndex,2) - ymin) / (ymax - ymin) - 1.0_wp
-             mollifier(i,j,k,1) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                 &
+             x = 2.0_wp * (region%grids(1)%coordinates(grid_index(i,j,k), 2) - ymin) /       &
+                  (ymax - ymin) - 1.0_wp
+             mollifier(i,j,k,1) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                        &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
           end do
        end do
@@ -1215,9 +1354,9 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             gridIndex = i+nx*(j-1+ny*(k-1))
-             x = 2.0_wp * (grid%coordinates(gridIndex,1) - xmin) / (xmax - xmin) - 1.0_wp
-             mollifier(i,j,k,2) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                         &
+             x = 2.0_wp * (region%grids(1)%coordinates(grid_index(i,j,k), 1) - xmin) /       &
+                  (xmax - xmin) - 1.0_wp
+             mollifier(i,j,k,2) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                        &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
           end do
        end do
@@ -1228,8 +1367,8 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             gridIndex = i+nx*(j-1+ny*(k-1))
-             grid%controlMollifier(gridIndex,1) = mollifier(i,j,k,1) * mollifier(i,j,k,2)
+             region%grids(1)%controlMollifier(grid_index(i,j,k), 1) = mollifier(i,j,k,1) *   &
+                  mollifier(i,j,k,2)
           end do
        end do
     end do
@@ -1238,9 +1377,8 @@ contains
     jmin = 1; jmax = 1
     i = 1; k = 1
     do j = 1, ny
-       gridIndex = i+nx*(j-1+ny*(k-1))
-       if (grid%coordinates(gridIndex,2) <= ymin) jmin = j
-       if (grid%coordinates(gridIndex,2) < ymax) jmax = j+1
+       if (region%grids(1)%coordinates(grid_index(i,j,k), 2) <= ymin) jmin = j
+       if (region%grids(1)%coordinates(grid_index(i,j,k), 2) < ymax) jmax = j+1
     end do
 
     ! Find new extents in x.
@@ -1286,5 +1424,20 @@ contains
 
     return
   end subroutine jetCrossFlowControlMollifier
+
+
+  ! Returns the lexicographic grid index
+  function grid_index(i, j, k) result(l)
+    implicit none
+
+    integer, intent(in) :: i, j, k
+    integer :: l
+    
+    l = i - region%grids(1)%offset(1) + region%grids(1)%localSize(1) *                       &
+         (j - 1 - region%grids(1)%offset(2) + region%grids(1)%localSize(2) *                 &
+         (k - 1 - region%grids(1)%offset(3)))
+    
+    return
+  end function grid_index
 
 end program jet_crossflow
