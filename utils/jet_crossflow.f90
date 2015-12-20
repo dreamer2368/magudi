@@ -333,13 +333,13 @@ contains
                    do j = 2, ny
                       ! Get unperturbed height variation.
                       y0 = region%grids(1)%coordinates(grid_index(1,j,k), 2)
-                      delta = y0 - region%grids(1)%coordinates(grid_index(i,j-1,k), 2)
+                      delta = y0 - region%grids(1)%coordinates(grid_index(1,j-1,k), 2)
 
                       ! Get the current height.
                       y = region%grids(1)%coordinates(grid_index(i,j,k), 2)
                       
                       ! Adjust the current height.
-                      ytilde = region%grids(1)%coordinates(grid_index(i,j-2,k),2) + delta
+                      ytilde = region%grids(1)%coordinates(grid_index(i,j-1,k),2) + delta
                       alpha = tanh(4.0_wp * (j - 2) / (ny - 2))
                       region%grids(1)%coordinates(grid_index(i,j,k), 2) =                    &
                            ytilde * (1.0_wp - alpha) + y * alpha
@@ -523,7 +523,7 @@ contains
              if (jetBox(i, k) == 1) then
                 do n = 1, 41
                    ! Stretching parameter.
-                   alpha = tanh(1.0_wp * (n - 1) / 40)
+                   alpha = tanh(1.0_wp * real((n - 1), wp) / 40.0_wp)
 
                    ! Shift left.
                    x = region%grids(1)%coordinates(i-n+nx*(j-1+ny*(k-1)),1)
