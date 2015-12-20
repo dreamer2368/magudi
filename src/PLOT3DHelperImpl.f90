@@ -569,7 +569,7 @@ subroutine plot3dWriteSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSub
   integer, intent(in) :: mpiDerivedTypeScalarSubarray,                                       &
        mpiDerivedTypeIntegerSubarray,                                                        &
        globalGridSize(3)
-  SCALAR_TYPE, intent(in) :: coordinates(:,:)
+  real(SCALAR_KIND), intent(in) :: coordinates(:,:)
   integer, intent(in) :: iblank(:)
   logical, intent(out) :: success
 
@@ -664,7 +664,7 @@ subroutine plot3dWriteSingleAuxiliarySolutionData(comm, filename,               
   integer, intent(in) :: comm
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-  SCALAR_TYPE, intent(in) :: auxiliarySolutionData(4)
+  real(SCALAR_KIND), intent(in) :: auxiliarySolutionData(4)
   logical, intent(out) :: success
 
   ! <<< Local variables >>>
@@ -712,7 +712,7 @@ subroutine plot3dWriteSingleSolution(comm, filename, offset, mpiDerivedTypeScala
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
   integer, intent(in) :: mpiDerivedTypeScalarSubarray, globalGridSize(3)
-  SCALAR_TYPE, intent(in) :: solutionVector(:,:)
+  real(SCALAR_KIND), intent(in) :: solutionVector(:,:)
   logical, intent(out) :: success
 
   ! <<< Local variables >>>
@@ -799,7 +799,7 @@ subroutine plot3dWriteSingleFunction(comm, filename, offset, mpiDerivedTypeScala
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
   integer, intent(in) :: mpiDerivedTypeScalarSubarray, globalGridSize(3)
-  SCALAR_TYPE, intent(in) :: functionVector(:,:)
+  real(SCALAR_KIND), intent(in) :: functionVector(:,:)
   logical, intent(out) :: success
 
   ! <<< Local variables >>>
@@ -881,7 +881,7 @@ subroutine plot3dReadSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSuba
   integer, intent(in) :: mpiDerivedTypeScalarSubarray,                                       &
        mpiDerivedTypeIntegerSubarray,                                                        &
        globalGridSize(3)
-  SCALAR_TYPE, intent(out) :: coordinates(:,:)
+  real(SCALAR_KIND), intent(out) :: coordinates(:,:)
   integer, intent(out) :: iblank(:)
   logical, intent(out) :: success
 
@@ -1008,7 +1008,7 @@ subroutine plot3dReadSingleAuxiliarySolutionData(comm, filename,                
   integer, intent(in) :: comm
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-  SCALAR_TYPE, intent(out) :: auxiliarySolutionData(4)
+  real(SCALAR_KIND), intent(out) :: auxiliarySolutionData(4)
   logical, intent(out) :: success
 
   ! <<< Local variables >>>
@@ -1079,7 +1079,7 @@ subroutine plot3dReadSingleSolution(comm, filename, offset, mpiDerivedTypeScalar
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
   integer, intent(in) :: mpiDerivedTypeScalarSubarray, globalGridSize(3)
-  SCALAR_TYPE, intent(out) :: solutionVector(:,:)
+  real(SCALAR_KIND), intent(out) :: solutionVector(:,:)
   logical, intent(out) :: success
 
   ! <<< Local variables >>>
@@ -1199,7 +1199,7 @@ subroutine plot3dReadSingleFunction(comm, filename, offset, mpiDerivedTypeScalar
   character(len = *), intent(in) :: filename
   integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
   integer, intent(in) :: mpiDerivedTypeScalarSubarray, globalGridSize(3)
-  SCALAR_TYPE, intent(out) :: functionVector(:,:)
+  real(SCALAR_KIND), intent(out) :: functionVector(:,:)
   logical, intent(out) :: success
 
   ! <<< Local variables >>>
