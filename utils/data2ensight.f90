@@ -33,7 +33,7 @@ program data2ensight
 
   ! I/O
   integer :: useAdjoint, ierror
-  character(len = STRING_LENGTH) :: grid_name, fname, prefix
+  character(len = STRING_LENGTH) :: gridName, fname, prefix
   character(LEN=80) :: directory
 
   ! Magudi stuff
@@ -69,15 +69,6 @@ program data2ensight
   ! Get file prefix
   call getRequiredOption("output_prefix", prefix)
 
-  ! Get combustion parameters
-  call getRequiredOption("ratio_of_specific_heats", gamma)
-  call getRequiredOption("heat_release", heatRelease)
-  call getRequiredOption("Zel_Dovich", zelDovich)
-  call getRequiredOption("Damkohler_number", Da)
-  referenceTemperature = 1.0_8 / (gamma - 1.0_8)
-  flameTemperature = referenceTemperature / (1.0_8 - heatRelease)
-  activationTemperature = zelDovich / heatRelease * flameTemperature
-
   ! Read information from standard input
   print*,'==========================================='
   print*,'| Magudi - data to ENSIGHT GOLD converter |'
@@ -100,32 +91,41 @@ program data2ensight
   end if
 
   ! Set the grid name.
-  grid_name = trim(prefix)//'.xyz'
+  gridName = trim(prefix)//'.xyz'
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
-  call plot3dDetectFormat(MPI_COMM_WORLD, grid_name,                                         &
-       success, globalGridSizes = globalGridSizes)
+  call plot3dDetectFormat(MPI_COMM_WORLD, gridName, success,                                 &
+       globalGridSizes = globalGridSizes)
   if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
 
   ! Setup the region and load the grid file.
   call region%setup(MPI_COMM_WORLD, globalGridSizes)
-  call region%loadData(QOI_GRID, grid_name)
+  call region%loadData(QOI_GRID, gridName)
 
   ! Compute normalized metrics, norm matrix and Jacobian.
-  do i = 1, size(region%grids)
-     call region%grids(i)%update()
-  end do
-  call MPI_Barrier(MPI_COMM_WORLD, ierror)
-
-  ! Write out some useful information.
-  call region%reportGridDiagnostics()
+!!$  do i = 1, size(region%grids)
+!!$     call region%grids(i)%update()
+!!$  end do
+!!$  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+!!$
+!!$  ! Write out some useful information.
+!!$  call region%reportGridDiagnostics()
 
   ! Get number of dimensions.
   nDimensions = region%grids(1)%nDimensions
 
   ! Get number of species.
   nSpecies = region%solverOptions%nSpecies
+
+  ! Get combustion parameters
+  call getRequiredOption("ratio_of_specific_heats", gamma)
+  call getRequiredOption("heat_release", heatRelease)
+  call getRequiredOption("Zel_Dovich", zelDovich)
+  call getRequiredOption("Damkohler_number", Da)
+  referenceTemperature = 1.0_8 / (gamma - 1.0_8)
+  flameTemperature = referenceTemperature / (1.0_8 - heatRelease)
+  activationTemperature = zelDovich / heatRelease * flameTemperature
 
   ! Get number of variables.
   write(fname,'(2A,I8.8,A)') trim(prefix),'-', startIter, '.q'
