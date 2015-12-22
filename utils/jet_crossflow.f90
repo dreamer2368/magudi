@@ -130,7 +130,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, k, n, nGrit, iTrip1, iTrip2
+    integer :: i, j, k, n, nGrit, iTrip1, iTrip2, jetExtent
     integer, allocatable :: jetBox(:,:)
     real(wp) :: x, y, z, dx, dz, ytilde, r, delta, theta
     real(wp) :: tripLocation, tripWidth, tripHeight, totalHeight, peakHeight, valleyHeight
@@ -217,7 +217,7 @@ contains
              end if
 
              ! Create Z
-             if (nz.ne.1) region%grids(1)%coordinates(grid_index(i,j,k), 3) =                &
+             if (nz > 1) region%grids(1)%coordinates(grid_index(i,j,k), 3) =                &
                   (zmax - zmin - dz) * real(k-1, wp) / real(nz-1, wp) + zmin
           end do
        end do
@@ -517,49 +517,84 @@ contains
        end do
 
        ! Smooth surrounding grid points.
-       j = 1
+       jetExtent = floor(0.5_wp * real(nz, wp)) - int(jetDiameter / dz)
+       sig = 1.0_wp / 40.0_wp
        do k = kJet1 - 1, kJet2 + 1
           do i = iJet1 - 1, iJet2 + 1
              if (jetBox(i, k) == 1) then
-                do n = 1, 41
-                   ! Stretching parameter.
-                   alpha = tanh(1.0_wp * real((n - 1), wp) / 40.0_wp)
+                do n = 1, jetExtent
 
-                   ! Shift left.
-                   x = region%grids(1)%coordinates(i-n+nx*(j-1+ny*(k-1)),1)
-                   delta = region%grids(1)%coordinates(i-n+nx*(j+ny*(k-1)),1) -              &
-                        region%grids(1)%coordinates(i-n+1+nx*(j+ny*(k-1)),1)
-                   ytilde = region%grids(1)%coordinates(i-n+1+nx*(j-1+ny*(k-1)),1) +         &
+                   ! Shift left (x-direction).
+                   j = 1
+                   alpha = tanh(sig * real((n - 1), wp))
+                   x = region%grids(1)%coordinates(grid_index(i-n,j,k), 1)
+                   delta = region%grids(1)%coordinates(grid_index(i-n,j+1,k), 1) -           &
+                        region%grids(1)%coordinates(grid_index(i-n+1,j+1,k), 1)
+                   ytilde = region%grids(1)%coordinates(grid_index(i-n+1,j,k), 1) +          &
                         delta
-                   region%grids(1)%coordinates(i-n+nx*(j-1+ny*(k-1)),1) =                    &
+                   region%grids(1)%coordinates(grid_index(i-n,j,k), 1) =                     &
                         ytilde * (1.0_wp - alpha) + x * alpha
+                   do j = 2, jetExtent
+                      alpha = tanh(sig * real((j - 2), wp))
+                      x = region%grids(1)%coordinates(grid_index(i-n,j,k), 1)
+                      region%grids(1)%coordinates(grid_index(i-n,j,k), 1) =                  &
+                           region%grids(1)%coordinates(grid_index(i-n,j-1,k), 1) *           &
+                           (1.0_wp - alpha) + x * alpha
+                   end do
 
-                   ! Shift right.
-                   x = region%grids(1)%coordinates(i+n+nx*(j-1+ny*(k-1)),1)
-                   delta = region%grids(1)%coordinates(i+n+nx*(j+ny*(k-1)),1) -              &
-                        region%grids(1)%coordinates(i+n-1+nx*(j+ny*(k-1)),1)
-                   ytilde = region%grids(1)%coordinates(i+n-1+nx*(j-1+ny*(k-1)),1) +         &
+                   ! Shift right (x-direction).
+                   j = 1
+                   alpha = tanh(sig * real((n - 1), wp))
+                   x = region%grids(1)%coordinates(grid_index(i+n,j,k), 1)
+                   delta = region%grids(1)%coordinates(grid_index(i+n,j+1,k), 1) -           &
+                        region%grids(1)%coordinates(grid_index(i+n-1,j+1,k),1)
+                   ytilde = region%grids(1)%coordinates(grid_index(i+n-1,j,k), 1) +          &
                         delta
-                   region%grids(1)%coordinates(i+n+nx*(j-1+ny*(k-1)),1) =                    &
+                   region%grids(1)%coordinates(grid_index(i+n,j,k), 1) =                     &
                         ytilde * (1.0_wp - alpha) + x * alpha
+                   do j = 2, jetExtent
+                      alpha =  tanh(sig * real((j - 1), wp))
+                      x = region%grids(1)%coordinates(grid_index(i+n,j,k), 1)
+                      region%grids(1)%coordinates(grid_index(i+n,j,k), 1) =                  &
+                           region%grids(1)%coordinates(grid_index(i+n,j-1,k), 1) *           &
+                           (1.0_wp - alpha) + x * alpha
+                   end do
 
-                   ! Shift up.
-                   x = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1-n)),3)
-                   delta = region%grids(1)%coordinates(i+nx*(j+ny*(k-1-n)),3) -              &
-                        region%grids(1)%coordinates(i+nx*(j+ny*(k-n)),3)
-                   ytilde = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-n)),3) +             &
+                   ! Shift up (z-direction).
+                   j = 1
+                   alpha = tanh(sig * real((n - 1), wp))
+                   z = region%grids(1)%coordinates(grid_index(i,j,k-n), 3)
+                   delta = region%grids(1)%coordinates(grid_index(i,j+1,k-n), 3) -           &
+                        region%grids(1)%coordinates(grid_index(i,j+1,k-n+1), 3)
+                   ytilde = region%grids(1)%coordinates(grid_index(i,j,k-n+1), 3) +          &
                         delta
-                   region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1-n)),3) =                    &
-                        ytilde * (1.0_wp - alpha) + x * alpha
+                   region%grids(1)%coordinates(grid_index(i,j,k-n), 3) =                     &
+                        ytilde * (1.0_wp - alpha) + z * alpha
+                   do j = 2, jetExtent
+                      alpha =  tanh(sig * real((j - 2), wp))
+                      z = region%grids(1)%coordinates(grid_index(i,j,k-n), 3)
+                      region%grids(1)%coordinates(grid_index(i,j,k-n), 3) =                  &
+                           region%grids(1)%coordinates(grid_index(i,j-1,k-n), 3) *           &
+                           (1.0_wp - alpha) + z * alpha
+                   end do
 
-                   ! Shift down.
-                   x = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1+n)),3)
-                   delta = region%grids(1)%coordinates(i+nx*(j+ny*(k-1+n)),3) -              &
-                        region%grids(1)%coordinates(i+nx*(j+ny*(k-2+n)),3)
-                   ytilde = region%grids(1)%coordinates(i+nx*(j-1+ny*(k-2+n)),3) +           &
+                   ! Shift down (z-direction).
+                   j = 1
+                   alpha = tanh(sig * real((n - 1), wp))
+                   z = region%grids(1)%coordinates(grid_index(i,j,k+n), 3)
+                   delta = region%grids(1)%coordinates(grid_index(i,j+1,k+n), 3) -           &
+                        region%grids(1)%coordinates(grid_index(i,j+1,k+n-1), 3)
+                   ytilde = region%grids(1)%coordinates(grid_index(i,j,k+n-1), 3) +          &
                         delta
-                   region%grids(1)%coordinates(i+nx*(j-1+ny*(k-1+n)),3) =                    &
-                        ytilde * (1.0_wp - alpha) + x * alpha
+                   region%grids(1)%coordinates(grid_index(i,j,k+n), 3) =                     &
+                        ytilde * (1.0_wp - alpha) + z * alpha
+                   do j = 2, jetExtent
+                      alpha =  tanh(sig * real((j - 2), wp))
+                      z = region%grids(1)%coordinates(grid_index(i,j,k+n), 3)
+                      region%grids(1)%coordinates(grid_index(i,j,k+n), 3) =                  &
+                           region%grids(1)%coordinates(grid_index(i,j-1,k+n), 3) *           &
+                           (1.0_wp - alpha) + z * alpha
+                   end do
 
                 end do
              end if
