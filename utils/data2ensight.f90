@@ -90,6 +90,9 @@ program data2ensight
      stop
   end if
 
+  ! Create the directory
+  call Execute_Command_Line('mkdir -p '//trim(adjustl(directory)))
+
   ! Set the grid name.
   gridName = trim(prefix)//'.xyz'
 
