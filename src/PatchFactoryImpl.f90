@@ -5,7 +5,6 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Patch_factory, only : t_PatchFactory
-  use ProbePatch_mod, only : t_ProbePatch
   use SpongePatch_mod, only : t_SpongePatch
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use AdiabaticWall_mod, only : t_AdiabaticWall
@@ -69,9 +68,6 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
 
      case ('JET_EXCITATION')
         allocate(t_JetExcitationPatch :: this%patch)
-
-     case ('PROBE')
-        allocate(t_ProbePatch :: this%patch)
 
      case default
         this%patchType = ""

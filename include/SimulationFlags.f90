@@ -19,7 +19,8 @@ module SimulationFlags_mod
                 isBaselineAvailable   = .false., &
                 useContinuousAdjoint  = .false., &
                 compositeDissipation  = .true.,  &
-                computeTimeAverage    = .false.
+                computeTimeAverage    = .false., &
+                outputToEnsight       = .false.
 
    contains
 

@@ -50,8 +50,6 @@ module Region_mod
      procedure, pass :: reportGridDiagnostics
      procedure, pass :: computeRhs
      procedure, pass :: saveSpongeStrength
-     procedure, pass :: resetProbes
-     procedure, pass :: saveProbeData
 
   end type t_Region
 
@@ -195,32 +193,6 @@ module Region_mod
        character(len = *), intent(in) :: filename
 
      end subroutine saveSpongeStrength
-
-  end interface
-
-  interface
-
-     subroutine resetProbes(this)
-
-       import :: t_Region
-
-       class(t_Region) :: this
-
-     end subroutine resetProbes
-
-  end interface
-
-  interface
-
-     subroutine saveProbeData(this, mode, finish)
-
-       import :: t_Region
-
-       class(t_Region) :: this
-       integer, intent(in) :: mode
-       logical, intent(in), optional :: finish
-
-     end subroutine saveProbeData
 
   end interface
 

@@ -94,6 +94,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/RhsHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/InterfaceHelper.f90
   ${PROJECT_SOURCE_DIR}/src/InterfaceHelperImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/EnsightHelper.f90
+  ${PROJECT_SOURCE_DIR}/src/EnsightHelperImpl.f90
 
   # Factories.
   ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
@@ -195,8 +197,6 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ReactantDepletionImpl.f90
   ${PROJECT_SOURCE_DIR}/include/UniformMap.f90
   ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
-  ${PROJECT_SOURCE_DIR}/include/ProbePatch.f90
-  ${PROJECT_SOURCE_DIR}/src/ProbePatchImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

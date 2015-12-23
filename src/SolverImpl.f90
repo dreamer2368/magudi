@@ -414,8 +414,8 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   this%reportInterval = getOption("report_interval", 1)
   if (this%reportInterval == 0) this%reportInterval = -1
 
-  this%probeInterval = getOption("probe_interval", -1)
-  if (this%probeInterval == 0) this%probeInterval = -1
+  if (region%simulationFlags%outputToEnsight)                                                &
+       call getRequiredOption("ensight_frequency", ensightFrequency)
 
   this%adjointIterations = getOption("adjoint_iterations", this%nTimesteps)
   this%adjointIterations = max(0, this%adjointIterations)
@@ -664,9 +664,10 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
              time, instantaneousCostFunctional)
      end if
 
-     ! Save solution on probe patches.
-     if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
-          call region%saveProbeData(FORWARD)
+     ! EnSight output.
+     if (region%simulationFlags%outputToEnsight) then
+        call showProgress(this, region, FORWARD, time)
+     end if
 
      ! Filter solution if required.
      if (region%simulationFlags%filterOn) then
@@ -676,9 +677,6 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
      end if
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
-
-  ! Finish writing remaining data gathered on probes.
-  if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   ! Call controller hooks after time marching ends.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
@@ -795,9 +793,6 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
   ! Call controller hooks before time marching starts.
   call controller%hookBeforeTimemarch(region, ADJOINT)
 
-  ! Reset probes.
-  if (this%probeInterval > 0) call region%resetProbes()
-
   allocate(costSensitivity(controller%nParameters))
   allocate(instantaneousCostSensitivity(controller%nParameters))
   costSensitivity = 0.0_wp
@@ -851,10 +846,6 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
              time, sum(instantaneousCostSensitivity**2))
      end if
 
-     ! Save solution on probe patches.
-     if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
-          call region%saveProbeData(ADJOINT)
-
      ! Filter solution if required.
      if (region%simulationFlags%filterOn) then
         do j = 1, size(region%grids)
@@ -863,9 +854,6 @@ function runAdjoint(this, region, controlIteration) result(costSensitivity)
      end if
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
-
-  ! Finish writing remaining data gathered on probes.
-  if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
 
   ! Call controller hooks after time marching ends.
   call controller%hookAfterTimemarch(region, ADJOINT)

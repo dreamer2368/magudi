@@ -26,6 +26,7 @@ subroutine initializeSimulationFlags(this)
   this%isBaselineAvailable   = getOption("baseline_prediction_available", .false.)
   this%useContinuousAdjoint  = getOption("use_continuous_adjoint", .false.)
   this%compositeDissipation  = getOption("composite_dissipation", .true.)
+  this%outputToEnsight  = getOption("output_to_ensight", .false.)
 
   this%computeTimeAverage = .false.
   if (.not. this%useConstantCfl)                                                             &
