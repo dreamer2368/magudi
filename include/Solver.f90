@@ -6,6 +6,7 @@ module Solver_mod
   use Functional_factory, only : t_FunctionalFactory
   use ReverseMigrator_mod, only : t_ReverseMigrator
   use TimeIntegrator_factory, only : t_TimeIntegratorFactory
+  use EnsightHelper, only : t_Ensight
 
   implicit none
 
@@ -14,8 +15,10 @@ module Solver_mod
      type(t_ControllerFactory) :: controllerFactory
      type(t_FunctionalFactory) :: functionalFactory
      type(t_TimeIntegratorFactory) :: timeIntegratorFactory
+     type(t_Ensight), allocatable :: ensight(:)
 
-     integer :: nTimesteps, saveInterval, reportInterval, outputInterval, adjointIterations
+     integer :: nTimesteps, saveInterval, reportInterval, outputInterval, adjointIterations, &
+          ensightSave
      real(SCALAR_KIND) :: ensightFrequency
      character(len = STRING_LENGTH) :: outputPrefix
 

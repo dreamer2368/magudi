@@ -414,8 +414,15 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   this%reportInterval = getOption("report_interval", 1)
   if (this%reportInterval == 0) this%reportInterval = -1
 
-  if (region%simulationFlags%outputToEnsight)                                                &
-       call getRequiredOption("ensight_frequency", ensightFrequency)
+  if (region%simulationFlags%outputToEnsight) then
+     call getRequiredOption("ensight_frequency", this%ensightFrequency)
+     this%ensightSave = int(region%states(1)%time / this%ensightFrequency)
+     allocate(this%ensight(size(region%grids)))
+     do i = 1, size(region%grids)
+        call this%ensight(i)%setup(region%comm, i, region%grids(i)%localSize,                &
+             region%grids(i)%globalSize, region%grids(i)%offset, region%states(i)%time)
+     end do
+  end if
 
   this%adjointIterations = getOption("adjoint_iterations", this%nTimesteps)
   this%adjointIterations = max(0, this%adjointIterations)
@@ -513,6 +520,7 @@ subroutine cleanupSolver(this)
   call this%timeIntegratorFactory%cleanup()
   call this%controllerFactory%cleanup()
   call this%functionalFactory%cleanup()
+  SAFE_DEALLOCATE(this%ensight)
 
 end subroutine cleanupSolver
 
@@ -655,6 +663,13 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
 
      end do !... i = 1, timeIntegrator%nStages
 
+     ! Filter solution if required.
+     if (region%simulationFlags%filterOn) then
+        do j = 1, size(region%grids)
+           call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
+        end do
+     end if
+
      ! Report simulation progess.
      if (present(controlIteration)) then
         call showProgress(this, region, FORWARD, startTimestep, timestep,                    &
@@ -664,16 +679,14 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
              time, instantaneousCostFunctional)
      end if
 
-     ! EnSight output.
+     ! Ensight output.
      if (region%simulationFlags%outputToEnsight) then
-        call showProgress(this, region, FORWARD, time)
-     end if
-
-     ! Filter solution if required.
-     if (region%simulationFlags%filterOn) then
-        do j = 1, size(region%grids)
-           call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
-        end do
+        if (int(time / this%ensightFrequency) .ne. this%ensightSave) then
+           this%ensightSave = int(time / this%ensightFrequency)
+           do i = 1, size(region%states)
+              call this%ensight(i)%output(region%states(i), i, FORWARD, time)
+           end do
+        end if
      end if
 
   end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps

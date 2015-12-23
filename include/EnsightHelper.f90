@@ -5,268 +5,54 @@ module EnsightHelper
   implicit none
   public
 
-  interface
+  type, public :: t_Ensight
 
-     subroutine plot3dDetectFormat(comm, filename, success,                                  &
-          descriptor, globalGridSizes, includeFunctionFiles)
+     integer :: nOutputTimes, fileview, dataSize, gdataSize
+     real(SCALAR_KIND), allocatable :: outputTimes(:)
+     real(KIND=4), allocatable :: buffer1_sp(:), buffer3_sp(:,:)
+     character(len = STRING_LENGTH) :: directory, filename
 
-       !> Detects the format of a PLOT3D file `filename` and reads the grid sizes. This
-       !> subroutine must be called collectively from all processes in the MPI communicator
-       !> `comm`.
+   contains
 
-       use PLOT3DDescriptor_type
+     procedure, public, pass :: setup => setupEnsight
+     procedure, public, pass :: output => outputEnsight
 
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       logical, intent(out) :: success
-
-       type(t_PLOT3DDescriptor), intent(out), optional :: descriptor
-       integer, allocatable, intent(out), optional :: globalGridSizes(:,:)
-       logical, intent(in), optional :: includeFunctionFiles
-
-     end subroutine plot3dDetectFormat
-
-  end interface
-
-  interface plot3dGetOffset
-
-     function plot3dGetOffsetFromGridSizes_(fileType, globalGridSizes, gridIndex, hasIblank, &
-          success, nScalars) result(offset)
-
-       !> Computes the offset, in bytes, to the beginning of the data corresponding to block
-       !> `gridIndex` in a 3D multi-block whole-format PLOT3D file. The offset counts past the
-       !> leading record size and points directly to the beginning of the actual data.
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: fileType, globalGridSizes(:,:), gridIndex
-       logical, intent(in) :: hasIblank
-       logical, intent(out) :: success
-
-       integer, intent(in), optional :: nScalars
-
-       integer(kind = MPI_OFFSET_KIND) :: offset
-
-     end function plot3dGetOffsetFromGridSizes_
-
-     function plot3dGetOffsetFromFile_(comm, filename, gridIndex, success) result(offset)
-
-       !> Computes the offset, in bytes, to the beginning of the data corresponding to block
-       !> `gridIndex` in a 3D multi-block whole-format PLOT3D file. The offset counts past the
-       !> leading record size and points directly to the beginning of the actual data.
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer, intent(in) :: gridIndex
-       logical, intent(out) :: success
-
-       integer(kind = MPI_OFFSET_KIND) :: offset
-
-     end function plot3dGetOffsetFromFile_
-
-  end interface plot3dGetOffset
+  end type t_Ensight
 
   interface
 
-     subroutine plot3dWriteSkeleton(comm, filename, fileType,                                &
-          globalGridSizes, success, nScalars)
+     subroutine setupEnsight(this, comm, gridIndex, localSize, globalSize, offset, time)
 
-       !> Writes the skeleton of a PLOT3D file to `filename`, including the header, and the
-       !> leading and trailing record sizes. This subroutine must be called collectively from
-       !> all processes in the MPI communicator `comm`.
+       !> Sets up the EnSight files, including timing and file types.
 
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer, intent(in) :: fileType, globalGridSizes(:,:)
-       logical, intent(out) :: success
+       import :: t_Ensight
 
-       integer, intent(in), optional :: nScalars
+       class(t_Ensight) :: this
+       integer, intent(in) :: comm, gridIndex, localSize(3), globalSize(3), offset(3)
+       real(SCALAR_KIND), intent(in) :: time
 
-     end subroutine plot3dWriteSkeleton
+     end subroutine setupEnsight
 
   end interface
 
   interface
 
-     subroutine plot3dWriteSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSubarray,  &
-          mpiDerivedTypeIntegerSubarray, globalGridSize, coordinates, iblank, success)
+     subroutine outputEnsight(this, state, gridIndex, mode, time)
 
-       !> Writes the coordinates and IBLANK values corresponding to a single block at offset
-       !> `offset` from the beginning of file `filename`.
+       !> Writes the primitive variables (density, velocity, temperature, mass fraction)
+       !> or adjoint variables in EnSight Gold format for visualization purposes.
 
-       use MPI, only : MPI_OFFSET_KIND
+       use State_mod, only : t_State
 
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       integer, intent(in) :: mpiDerivedTypeScalarSubarray, mpiDerivedTypeIntegerSubarray,   &
-            globalGridSize(3)
-       SCALAR_TYPE, intent(in) :: coordinates(:,:)
-       integer, intent(in) :: iblank(:)
-       logical, intent(out) :: success
+       import :: t_Ensight
 
-     end subroutine plot3dWriteSingleGrid
+       class(t_Ensight) :: this
+       class(t_State) :: state
+       integer, intent(in) :: gridIndex, mode
+       real(SCALAR_KIND), intent(in) :: time
+
+     end subroutine outputEnsight
 
   end interface
-
-  interface
-
-     subroutine plot3dWriteSingleAuxiliarySolutionData(comm,                                 &
-          filename, offset, auxiliarySolutionData, success)
-
-       !> Writes the auxiliary solution data (consisting of 4 SCALAR_TYPE values)
-       !> `auxiliarySolutionData` corresponding to a single block at offset `offset` from the
-       !> beginning of a file `filename`.
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       SCALAR_TYPE, intent(in) :: auxiliarySolutionData(4)
-       logical, intent(out) :: success
-
-     end subroutine plot3dWriteSingleAuxiliarySolutionData
-
-  end interface
-
-  interface
-
-     subroutine plot3dWriteSingleSolution(comm, filename, offset,                            &
-          mpiDerivedTypeScalarSubarray, globalGridSize,                                      &
-          solutionVector, success)
-
-       !> Writes the solution `solutionVector` corresponding to a single block at offset
-       !> `offset` from the beginning of a file `filename`.
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       integer, intent(in) :: mpiDerivedTypeScalarSubarray, globalGridSize(3)
-       SCALAR_TYPE, intent(in) :: solutionVector(:,:)
-       logical, intent(out) :: success
-
-     end subroutine plot3dWriteSingleSolution
-
-  end interface
-
-  interface
-
-     subroutine plot3dWriteSingleFunction(comm, filename, offset,                            &
-          mpiDerivedTypeScalarSubarray, globalGridSize,                                      &
-          functionVector, success)
-
-       !> Writes the function `functionVector` corresponding to a single block at offset
-       !> `offset` from the beginning of a file `filename`.
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       integer, intent(in) :: mpiDerivedTypeScalarSubarray, globalGridSize(3)
-       SCALAR_TYPE, intent(in) :: functionVector(:,:)
-       logical, intent(out) :: success
-
-     end subroutine plot3dWriteSingleFunction
-
-  end interface
-
-  interface
-
-     subroutine plot3dReadSingleGrid(comm, filename, offset, mpiDerivedTypeScalarSubarray,   &
-          mpiDerivedTypeIntegerSubarray, globalGridSize, coordinates, iblank, success)
-
-       !> Reads the coordinates and IBLANK values corresponding to a single block at offset
-       !> `offset` from the beginning of a file `filename`. The offset may be obtained by
-       !> calling `plot3dGetOffset`. If IBLANK values are not present in `filename`,
-       !> `iblank` is set to 1.
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       integer, intent(in) :: mpiDerivedTypeScalarSubarray,                                  &
-            mpiDerivedTypeIntegerSubarray, globalGridSize(3)
-       SCALAR_TYPE, intent(out) :: coordinates(:,:)
-       integer, intent(out) :: iblank(:)
-       logical, intent(out) :: success
-
-     end subroutine plot3dReadSingleGrid
-
-  end interface
-
-  interface
-
-     subroutine plot3dReadSingleAuxiliarySolutionData(comm, filename,                        &
-          offset, auxiliarySolutionData, success)
-
-       !> Reads the auxiliary solution data (consisting of 4 SCALAR_TYPE values)
-       !> `auxiliarySolutionData` corresponding to a single block at offset `offset` from the
-       !> beginning of a file `filename`. The offset may be obtained by calling
-       !> `plot3dGetOffset`.
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       SCALAR_TYPE, intent(out) :: auxiliarySolutionData(4)
-       logical, intent(out) :: success
-
-     end subroutine plot3dReadSingleAuxiliarySolutionData
-
-  end interface
-
-  interface
-
-     subroutine plot3dReadSingleSolution(comm, filename, offset,                             &
-          mpiDerivedTypeScalarSubarray, globalGridSize,                                      &
-          solutionVector, success)
-
-       !> Reads the solution `solutionVector` corresponding to a single block at offset
-       !> `offset` from the beginning of a file `filename`. The offset may be obtained by
-       !> calling `PLOT3D_get_offset`.
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       integer, intent(in) :: mpiDerivedTypeScalarSubarray, globalGridSize(3)
-       SCALAR_TYPE, intent(out) :: solutionVector(:,:)
-       logical, intent(out) :: success
-
-     end subroutine plot3dReadSingleSolution
-
-  end interface
-
-  interface
-
-     subroutine plot3dReadSingleFunction(comm, filename, offset,                             &
-          mpiDerivedTypeScalarSubarray, globalGridSize,                                      &
-          functionVector, success)
-
-       use MPI, only : MPI_OFFSET_KIND
-
-       integer, intent(in) :: comm
-       character(len = *), intent(in) :: filename
-       integer(kind = MPI_OFFSET_KIND), intent(inout) :: offset
-       integer, intent(in) :: mpiDerivedTypeScalarSubarray, globalGridSize(3)
-       SCALAR_TYPE, intent(out) :: functionVector(:,:)
-       logical, intent(out) :: success
-
-     end subroutine plot3dReadSingleFunction
-
-  end interface
-
-  character(len = STRING_LENGTH), public :: plot3dErrorMessage
-
-  private :: plot3dGetOffsetFromGridSizes_, plot3dGetOffsetFromFile_
 
 end module EnsightHelper
