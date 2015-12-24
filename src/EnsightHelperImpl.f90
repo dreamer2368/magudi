@@ -32,7 +32,7 @@ contains
     ! Update the time info.
     if (this%nOutputTimes > 0) then
        allocate(buffer(this%nOutputTimes))
-       buffer(1:this%nOutputTimes) = this%outputTimes(this%nOutputTimes)
+       buffer(1:this%nOutputTimes) = this%outputTimes(1:this%nOutputTimes)
        deallocate(this%outputTimes)
        this%nOutputTimes = this%nOutputTimes + 1
        allocate(this%outputTimes(this%nOutputTimes))
@@ -41,10 +41,12 @@ contains
        deallocate(buffer)
     else
        deallocate(this%outputTimes)
-       this%nOutputTimes = this%nOutputTimes + 1
+       this%nOutputTimes = 1
        allocate(this%outputTimes(this%nOutputTimes))
        this%outputTimes(this%nOutputTimes) = time
     end if
+
+    print *, time
   
     ! Open the file.
     str = trim(adjustl(this%directory))//'/'//trim(adjustl(this%filename))
@@ -181,9 +183,12 @@ contains
           buffer = 'block'
        end if
        call MPI_FILE_WRITE(iunit, buffer, 80, MPI_CHARACTER, MPI_STATUS_IGNORE, ierror)
-       call MPI_FILE_WRITE(iunit, grid%globalSize(1), 1, MPI_INTEGER, MPI_STATUS_IGNORE, ierror)
-       call MPI_FILE_WRITE(iunit, grid%globalSize(2), 1, MPI_INTEGER, MPI_STATUS_IGNORE, ierror)
-       call MPI_FILE_WRITE(iunit, grid%globalSize(3), 1, MPI_INTEGER, MPI_STATUS_IGNORE, ierror)
+       call MPI_FILE_WRITE(iunit, grid%globalSize(1), 1, MPI_INTEGER, MPI_STATUS_IGNORE,     &
+            ierror)
+       call MPI_FILE_WRITE(iunit, grid%globalSize(2), 1, MPI_INTEGER, MPI_STATUS_IGNORE,     &
+            ierror)
+       call MPI_FILE_WRITE(iunit, grid%globalSize(3), 1, MPI_INTEGER, MPI_STATUS_IGNORE,     &
+            ierror)
     end if
 
     ! Store coordinates in single-precision array.
@@ -247,12 +252,17 @@ contains
     call MPI_Comm_rank(comm, procRank, ierror)
 
     ! Generate the file.
-    if (procRank == 0) call Execute_Command_Line('mkdir -p ' //                              &
-         trim(adjustl(this%directory)) // '/' // trim(adjustl(name)))
-    filename = trim(adjustl(this%directory)) // '/' // trim(adjustl(name)) // "/" //         &
-         trim(adjustl(name)) // "."
-    write(filename(len_trim(filename) + 1 : len_trim(filename) + 6), '(i6.6)')               &
-         this%nOutputTimes
+    if (procRank == 0) then
+       call Execute_Command_Line('mkdir -p ' // trim(adjustl(this%directory)) // '/' //      &
+            trim(adjustl(name)))
+       filename = trim(adjustl(this%directory)) // '/' // trim(adjustl(name)) // "/" //      &
+            trim(adjustl(name)) // "."
+       write(filename(len_trim(filename) + 1 : len_trim(filename) + 6), '(i6.6)')            &
+            this%nOutputTimes
+    end if
+
+    ! Communicate the filename.
+    call MPI_Bcast(filename, 80, MPI_CHARACTER, 0, comm, ierror)     
 
     ! Output to screen.
     write(message, '(3A)') "Writing '", trim(filename), "'..."
@@ -321,12 +331,17 @@ contains
     call MPI_Comm_rank(comm, procRank, ierror)
 
     ! Generate the file.
-    if (procRank == 0) call Execute_Command_Line('mkdir -p ' //                              &
-         trim(adjustl(this%directory)) // '/' // trim(adjustl(name)))
-    filename = trim(adjustl(this%directory)) // '/' // trim(adjustl(name)) // "/" //         &
-         trim(adjustl(name)) // "."
-    write(filename(len_trim(filename) + 1 : len_trim(filename) + 6), '(i6.6)')               &
-         this%nOutputTimes
+    if (procRank == 0) then
+       call Execute_Command_Line('mkdir -p ' // trim(adjustl(this%directory)) // '/' //      &
+            trim(adjustl(name)))
+       filename = trim(adjustl(this%directory)) // '/' // trim(adjustl(name)) // "/" //      &
+            trim(adjustl(name)) // "."
+       write(filename(len_trim(filename) + 1 : len_trim(filename) + 6), '(i6.6)')            &
+            this%nOutputTimes
+    end if
+
+    ! Communicate the filename.
+    call MPI_Bcast(filename, 80, MPI_CHARACTER, 0, comm, ierror)
 
     ! Output to screen.
     write(message, '(3A)') "Writing '", trim(filename), "'..."
@@ -522,26 +537,24 @@ subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, procRank, nSpecies_, ierror
+  integer :: i, procRank, nDimensions, nSpecies_, ierror
   character(len = STRING_LENGTH) :: name
 
   ! Get my rank in `comm`.
   call MPI_Comm_rank(comm, procRank, ierror)
 
+  nDimensions = size(state%velocity, 2)
+  assert_key(nDimensions, (1, 2, 3))
+
   nSpecies_ = 0
   if (present(nSpecies)) nSpecies_ = nSpecies
+  assert(nSpecies_ == size(state%massFraction, 2))
 
   select case(mode)
   case (FORWARD)
 
      ! Update the case file (root process only).
      if (procRank == 0) call writeEnsightCase(this, time, gridIndex, nSpecies_)
-
-     ! Get the primative variables.
-    ! call computeDependentVariables(nDimensions, nSpecies_, state%conservedVariables,        &
-    !      solverOptions%equationOfState, solverOptions%ratioOfSpecificHeats,                 &
-    !      solverOptions%molecularWeightInverse, this%specificVolume(:,1), this%velocity,     &
-    !      this%pressure(:,1), this%temperature(:,1), this%massFraction)
 
      ! Density.
      name = 'DENSITY'
@@ -551,7 +564,7 @@ subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
      ! Velocity.
      name = 'VELOCITY'
      this%buffer3_sp = 0.0_4
-     do i = 1, size(state%velocity, 2)
+     do i = 1, nDimensions
         this%buffer3_sp(:, i) = real(state%velocity(:, i), 4)
      end do
      call writeEnsightVector(this, name, comm)
@@ -561,16 +574,24 @@ subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
      this%buffer1_sp = real(state%temperature(:,1), 4)
      call writeEnsightScalar(this, name, comm)
 
-     ! Mass fraction.
-     if (nSpecies_ > 0) then
-        do i = 1, size(state%massFraction, 2)
-           write(name, "(A,I2.2)") "MASS_FRACTION_", i
-           this%buffer1_sp = real(state%massFraction(:,i), 4)
-           call writeEnsightScalar(this, name, comm)
-        end do
-     end if
+     ! Mass fractions.
+     do i = 1, nSpecies_
+        write(name, "(A,I2.2)") "MASS_FRACTION_", i
+        this%buffer1_sp = real(state%massFraction(:,i), 4)
+        call writeEnsightScalar(this, name, comm)
+     end do
 
   case (ADJOINT)
+
+     ! Step the counter back in time.
+     if (procRank == 0) this%nOutputTimes = this%nOutputTimes - 1
+
+     ! Write the adjoint variables.
+     do i = 1, nDimensions + 2 + nSpecies_
+        write(name, "(A,I2.2)") "ADJOINT_", i
+        this%buffer1_sp = real(state%adjointVariables(:,i), 4)
+        call writeEnsightScalar(this, name, comm)
+     end do
 
   end select
 
