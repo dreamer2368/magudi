@@ -13,7 +13,6 @@ subroutine setupReactantDepletion(this, region)
   use State_enum, only : QOI_DUMMY_FUNCTION
 
   ! <<< Internal modules >>>
-  use CNSHelper, only : computeDependentVariables
   use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : gracefulExit
 
