@@ -7,7 +7,7 @@ module EnsightHelper
 
   type, public :: t_Ensight
 
-     integer :: nOutputTimes, fileview, dataSize, gdataSize
+     integer :: nOutputTimes, fileview, dataSize, gDataSize
      real(SCALAR_KIND), allocatable :: outputTimes(:)
      real(KIND=4), allocatable :: buffer1_sp(:), buffer3_sp(:,:)
      character(len = STRING_LENGTH) :: directory, filename
@@ -21,14 +21,17 @@ module EnsightHelper
 
   interface
 
-     subroutine setupEnsight(this, comm, gridIndex, localSize, globalSize, offset, time)
+     subroutine setupEnsight(this, grid, gridIndex, time)
 
        !> Sets up the EnSight files, including timing and file types.
+
+       use Grid_mod, only : t_Grid
 
        import :: t_Ensight
 
        class(t_Ensight) :: this
-       integer, intent(in) :: comm, gridIndex, localSize(3), globalSize(3), offset(3)
+       class(t_Grid) :: grid
+       integer, intent(in) :: gridIndex
        real(SCALAR_KIND), intent(in) :: time
 
      end subroutine setupEnsight
