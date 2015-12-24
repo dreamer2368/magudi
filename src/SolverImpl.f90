@@ -684,7 +684,8 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
         if (int(time / this%ensightFrequency) .ne. this%ensightSave) then
            this%ensightSave = int(time / this%ensightFrequency)
            do i = 1, size(region%states)
-              call this%ensight(i)%output(region%states(i), i, FORWARD, time)
+              call this%ensight(i)%output(region%states(i), region%comm, i, FORWARD, time,   &
+                   region%solverOptions%nSpecies)
            end do
         end if
      end if

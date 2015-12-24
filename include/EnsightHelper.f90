@@ -37,7 +37,7 @@ module EnsightHelper
 
   interface
 
-     subroutine outputEnsight(this, state, gridIndex, mode, time)
+     subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
 
        !> Writes the primitive variables (density, velocity, temperature, mass fraction)
        !> or adjoint variables in EnSight Gold format for visualization purposes.
@@ -48,7 +48,8 @@ module EnsightHelper
 
        class(t_Ensight) :: this
        class(t_State) :: state
-       integer, intent(in) :: gridIndex, mode
+       integer, intent(in) :: comm, gridIndex, mode
+       integer, intent(in), optional :: nSpecies
        real(SCALAR_KIND), intent(in) :: time
 
      end subroutine outputEnsight

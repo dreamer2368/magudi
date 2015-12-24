@@ -7,39 +7,121 @@ module EnsightHelperImpl
 
 contains
 
-  pure subroutine swapIntegerEndianness_(a)
+  subroutine writeEnsightCase(this, time, nSpecies)
+
+    ! <<< Internal modules >>>
+    use InputHelper, only : getFreeUnit
+
+    ! <<< Derived types >>>
+    use EnsightHelper, only : t_Ensight
+
+    implicit none
 
     ! <<< Arguments >>>
-    integer, intent(inout) :: a
+    class(t_Ensight) :: this
+    integer, intent(in), optional :: nSpecies
+    real(SCALAR_KIND), intent(in) :: time
 
     ! <<< Local variables >>>
-    integer :: b
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, nSpecies_, iunit, ierror
+    real(wp), dimension(:), allocatable :: buffer
+    character(len = STRING_LENGTH) :: str, name
 
-    call mvbits(a,  0, 8, b, 24)
-    call mvbits(a,  8, 8, b, 16)
-    call mvbits(a, 16, 8, b,  8)
-    call mvbits(a, 24, 8, b,  0)
+    ! Update the time info.
+    allocate(buffer(this%nOutputTimes))
+    buffer(1:this%nOutputTimes) = this%outputTimes(this%nOutputTimes)
+    deallocate(this%outputTimes)
+    this%nOutputTimes = this%nOutputTimes + 1
+    allocate(this%outputTimes(this%nOutputTimes))
+    this%outputTimes(1:this%nOutputTimes - 1) = buffer(1:this%nOutputTimes - 1)
+    this%outputTimes(this%nOutputTimes) = time
+    deallocate(buffer)
+  
+    ! Open the file.
+    str = trim(adjustl(this%directory))//'/'//trim(adjustl(this%filename))
+    open(unit = getFreeUnit(iunit), file=trim(str), form="formatted", iostat=ierror,               &
+         status="REPLACE")
 
-    a = b
+    ! Write the case.
+    str='FORMAT'
+    write(iunit, '(a80)') str
+    str='type: ensight gold'
+    write(iunit, '(a80)') str
+    str='GEOMETRY'
+    write(iunit, '(a80)') str
+    str='model: geometry'
+    write(iunit, '(a80)') str
+    str='VARIABLE'
+    write(iunit, '(a80)') str
 
-  end subroutine swapIntegerEndianness_
+    ! Density.
+    str='scalar per node: 1 DENSITY DENSITY/DENSITY.******'
+    write(iunit,'(a80)') str
 
-  pure subroutine swapScalarEndianness_(a)
+    ! Velocity.
+    str='vector per node: 1 VELOCITY VELOCITY/VELOCITY.******'
+    write(iunit,'(a80)') str
+
+    ! Temperature.
+    str='scalar per node: 1 TEMPERATURE TEMPERATURE/TEMPERATURE.******'
+    write(iunit,'(a80)') str
+
+    ! Mass fraction.
+    nSpecies_ = 0
+    if (present(nSpecies)) nSpecies_ = nSpecies
+    if (nSpecies_ > 0) then
+       do i = 1, nSpecies_
+          write(name, "(A,I2.2)") "MASS_FRACTION_", i
+          str = 'scalar per node: 1 ' // trim(adjustl(name)) // ' ' //                       &
+               trim(adjustl(name)) // '/' // trim(adjustl(name))//'.******'
+          write(iunit,'(a80)') str
+       end do
+    end if
+
+    ! Time section
+    str='TIME'
+    write(iunit,'(a80)') str
+    str='time set: 1'
+    write(iunit,'(a80)') str
+    str='number of steps:'
+    write(iunit,'(a16, i12)') str, this%nOutputTimes
+    str='filename start number: 1'
+    write(iunit,'(a80)') str
+    str='filename increment: 1'
+    write(iunit,'(a80)') str
+    str='time values:'
+    write(iunit,'(a80)') str
+    write(iunit, '(10000000(1(ES12.5)))') this%OutputTimes
+
+    ! Close the file
+    close(iunit)
+
+  end subroutine writeEnsightCase
+
+  subroutine writeEnsightScalar(scalar, name)
 
     ! <<< Arguments >>>
-    SCALAR_TYPE, intent(inout) :: a
+    real(KIND=4), dimension(:), intent(in) :: scalar
+    character(len = STRING_LENGTH), intent(in) :: name
 
     ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
     integer :: i
-    integer(kind = 1) :: b(SIZEOF_SCALAR), c(SIZEOF_SCALAR)
 
-    b = transfer(a, b)
-    do i = 1, SIZEOF_SCALAR
-       c(i) = b(SIZEOF_SCALAR+1-i)
-    end do
-    a = transfer(c, a)
+  end subroutine writeEnsightScalar
 
-  end subroutine swapScalarEndianness_
+  subroutine writeEnsightVector(vector, name)
+
+    ! <<< Arguments >>>
+    real(KIND=4), dimension(:,:), intent(in) :: vector
+    character(len = STRING_LENGTH), intent(in) :: name
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i
+
+  end subroutine writeEnsightVector
 
 end module EnsightHelperImpl
 
@@ -149,7 +231,7 @@ subroutine setupEnsight(this, comm, gridIndex, localSize, globalSize, offset, ti
 
 end subroutine setupEnsight
 
-subroutine outputEnsight(this, state, gridIndex, mode, time)
+subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
 
   ! <<< Derived types >>>
   use EnsightHelper, only : t_Ensight
@@ -171,13 +253,56 @@ subroutine outputEnsight(this, state, gridIndex, mode, time)
   ! <<< Arguments >>>
   class(t_Ensight) :: this
   class(t_State) :: state
-  integer, intent(in) :: gridIndex, mode
+  integer, intent(in) :: comm, gridIndex, mode
+  integer, intent(in), optional :: nSpecies
   real(SCALAR_KIND), intent(in) :: time
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, mpiFileHandle, ierror
+  integer :: i, procRank, nSpecies_, ierror
+  character(len = STRING_LENGTH) :: name
 
-  print *, 'hiii'
+  nSpecies_ = 0
+  if (present(nSpecies)) nSpecies_ = nSpecies
+
+  ! Get my rank in `comm`.
+  call MPI_Comm_rank(comm, procRank, ierror)
+
+  select case(mode)
+  case (FORWARD)
+
+     ! Update the case file (root process only).
+     if (procRank == 0) call writeEnsightCase(this, time, nSpecies_)
+
+     ! Density.
+     name = 'DENSITY'
+     this%buffer1_sp = real(state%conservedVariables(:,1), 4)
+     call writeEnsightScalar(this%buffer1_sp, name)
+
+     ! Velocity.
+     name = 'VELOCITY'
+     this%buffer3_sp = 0.0_4
+     do i = 1, size(state%velocity, 2)
+        this%buffer3_sp(:, i) = real(state%velocity(:, i), 4)
+     end do
+     call writeEnsightVector(this%buffer3_sp, name)
+
+     ! Temperature.
+     name = 'TEMPERATURE'
+     this%buffer1_sp = real(state%temperature(:,1), 4)
+     call writeEnsightScalar(this%buffer1_sp, name)
+
+     ! Mass fraction.
+     if (nSpecies_ > 0) then
+        do i = 1, size(state%massFraction, 2)
+           write(name, "(A,I2.2)") "MASS_FRACTION_", i
+           this%buffer1_sp = real(state%massFraction(:,i), 4)
+           call writeEnsightScalar(this%buffer1_sp, name)
+        end do
+     end if
+
+  case (ADJOINT)
+
+  end select
 
 end subroutine outputEnsight
