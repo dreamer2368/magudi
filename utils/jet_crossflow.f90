@@ -315,7 +315,8 @@ contains
                    ! Get the coordinates.
                    x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
                    y = region%grids(1)%coordinates(grid_index(i,j,k), 2)
-                   z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
+                   z = 0.0_wp
+                   if (nz > 1) z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
                       
                    ! Represent sandpaper particles as Gaussian.
                    gauss = amp * exp(-((x - x0)**2 / (2.0_wp * sig**2) +                     &
@@ -387,7 +388,8 @@ contains
     do k = kmin, kmax
        do i = 1, nx
           x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
-          z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
+          z = 0.0_wp
+          if (nz > 1) z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
           r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
           if (r <= 0.5_wp * jetDiameter) then
              iJet1 = min(iJet1, i)
@@ -518,7 +520,7 @@ contains
 
        ! Smooth surrounding grid points.
        jetExtent = floor(0.5_wp * real(nz, wp)) - int(jetDiameter / dz)
-       sig = 1.0_wp / 40.0_wp
+       sig = 1.0_wp / 20.0_wp
        do k = kJet1 - 1, kJet2 + 1
           do i = iJet1 - 1, iJet2 + 1
              if (jetBox(i, k) == 1) then
@@ -611,7 +613,8 @@ contains
     do k = kmin, kmax
        do i = 1, nx
           x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
-          z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
+          z = 0.0_wp
+          if (nz > 1) z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
           r = sqrt((x - xJet)**2 + (z - 0.5_wp * (zmax + zmin))**2)
           if (r <= 0.5_wp * jetDiameter) then
              iJet1 = min(iJet1, i)
@@ -769,8 +772,9 @@ contains
              ! Get the local coordinates.
              x = region%grids(1)%coordinates(grid_index(i,j,k), 1)
              y = region%grids(1)%coordinates(grid_index(i,j,k), 2)
-             z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
              y0= region%grids(1)%coordinates(grid_index(i,1,k), 2)
+             z = 0.0_wp
+             if (nz > 1) z = region%grids(1)%coordinates(grid_index(i,j,k), 3)
 
              ! Initialize the mixture.
              velocity = 0.0_wp
