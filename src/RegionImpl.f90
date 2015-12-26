@@ -1246,8 +1246,8 @@ subroutine computeRhs(this, mode)
         call computeRhsForward(this%simulationFlags, this%solverOptions, this%grids(i),      &
              this%states(i), this%patchFactories)
      case (ADJOINT)
-        call computeRhsAdjoint(this%simulationFlags, this%solverOptions,                     &
-             this%states(i)%combustion, this%grids(i), this%states(i), this%patchFactories)
+        call computeRhsAdjoint(this%simulationFlags, this%solverOptions, this%grids(i),      &
+             this%states(i), this%patchFactories)
      end select
   end do
 
