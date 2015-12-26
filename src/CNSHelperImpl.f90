@@ -193,8 +193,8 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
         assert(size(massDiffusivity,2) == nSpecies)
         assert(present(schmidtNumberInverse))
         assert(size(schmidtNumberInverse) == nSpecies+1)
-        assert(schmidtNumberInverse > 0.0_wp)
         do k = 1, nSpecies
+           assert(schmidtNumberInverse(k) > 0.0_wp)
            massDiffusivity(:,k) = reynoldsNumberInverse * schmidtNumberInverse(k)
         end do
      end if
@@ -244,9 +244,9 @@ PURE_SUBROUTINE computeTransportVariables(nSpecies, temperature, powerLawExponen
         assert(size(massDiffusivity,2) == nSpecies)
         assert(present(schmidtNumberInverse))
         assert(size(schmidtNumberInverse) == nSpecies+1)
-        assert(schmidtNumberInverse > 0.0_wp)
         if (present(dynamicViscosity)) then
            do k = 1, nSpecies
+              assert(schmidtNumberInverse(k) > 0.0_wp)
               massDiffusivity(:,k) = dynamicViscosity * schmidtNumberInverse(k)
            end do
         else
