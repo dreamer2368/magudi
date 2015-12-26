@@ -45,8 +45,6 @@ contains
        allocate(this%outputTimes(this%nOutputTimes))
        this%outputTimes(this%nOutputTimes) = time
     end if
-
-    print *, time
   
     ! Open the file.
     str = trim(adjustl(this%directory))//'/'//trim(adjustl(this%filename))
