@@ -136,6 +136,7 @@ program data2ensight
 
      if (useAdjoint == 1) then
         write(filename,'(2A,I8.8,A)') trim(prefix),'-', iter, '.adjoint.q'
+        print *
         call region%loadData(QOI_ADJOINT_STATE, filename)
         do i = 1, size(region%states)
            call solver%ensight(i)%output(region%states(i), region%grids(i)%comm, i, ADJOINT, &

@@ -29,7 +29,7 @@ program jet_crossflow
   type(t_Region) :: region
   type(t_SolverOptions) :: solverOptions
   type(t_SimulationFlags) :: simulationFlags
-  integer :: i, numProcs, iRank, ierror, nx, ny, nz, nx_, ny_, nz_
+  integer :: i, numProcs, procRank, ierror, nx, ny, nz, nx_, ny_, nz_
   integer :: imin, imax, jmin, jmax, kmin, kmax
   integer :: iJet1, iJet2, kJet1, kJet2
   integer :: imin_sponge, imax_sponge, jmax_sponge
@@ -43,9 +43,9 @@ program jet_crossflow
   ! Initialize MPI.
   call MPI_Init(ierror)
   call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
-  call MPI_Comm_rank(MPI_COMM_WORLD, iRank, ierror)
+  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
 
-  if (iRank == 0) then
+  if (procRank == 0) then
      print *
      print *, '! ============================================= !'
      print *, '!                                               !'
@@ -184,7 +184,7 @@ contains
     jmax = region%grids(1)%offset(2) + ny_
     kmin = region%grids(1)%offset(3) + 1
     kmax = region%grids(1)%offset(3) + nz_
-    print *, 'Proc', iRank + 1, 'local size:',nx_, ny_, nz_
+    print *, 'Proc', procRank + 1, 'local size:',nx_, ny_, nz_
 
     ! Exit if processors are decomposed in x or y.
     if (nx_ /= nx .or. ny_ /= ny) then
@@ -252,7 +252,7 @@ contains
             MPI_COMM_WORLD, ierror)
        call MPI_Allreduce(MPI_IN_PLACE, iTrip2, 1, MPI_INTEGER, MPI_MIN,                     &
             MPI_COMM_WORLD, ierror)
-       if (iRank == 0) then
+       if (procRank == 0) then
           print *
           print *, 'Sandpaper extents: [', iTrip1, ',', iTrip2, ']'
        end if
@@ -370,7 +370,7 @@ contains
             MPI_COMM_WORLD, ierror)
        call MPI_Allreduce(MPI_IN_PLACE, valleyHeight, 1, MPI_REAL8, MPI_MIN,                 &
             MPI_COMM_WORLD, ierror)
-       if (iRank == 0) then
+       if (procRank == 0) then
           print *
           print *, 'Max surface height:', real(totalHeight, 4)
           print *, 'Peak height:', real(peakHeight, 4)
@@ -633,7 +633,7 @@ contains
     call MPI_Allreduce(MPI_IN_PLACE, kJet2, 1, MPI_INTEGER, MPI_MAX,                         &
          MPI_COMM_WORLD, ierror)
 
-    if (iRank == 0) then
+    if (procRank == 0) then
        print *
        print *, 'Jet extents: [', iJet1, ',', iJet2, '] x [',kJet1, ',', kJet2,']'
     end if
@@ -660,7 +660,7 @@ contains
     call MPI_Allreduce(MPI_IN_PLACE, j2, 1, MPI_INTEGER, MPI_MIN,                            &
          MPI_COMM_WORLD, ierror)
 
-    if (iRank == 0) then
+    if (procRank == 0) then
        print *
        print *, 'Interior domain extents: [',i1,',',i2,'] x [',1,',',j2,']'
        print*
@@ -916,7 +916,7 @@ contains
              ! Correct species mass fractions.
              inert = 1.0_wp - fuel - oxidizer
              if (inert < 0.0_wp) then
-                if (iRank == 0) print *, 'Something is wrong with the species mass fraction!'
+                if (procRank == 0) print *, 'Something is wrong with the species mass fraction!'
                 oxidizer = oxidizer + inert
              end if
 
@@ -969,7 +969,7 @@ contains
     character(len = 22), allocatable, dimension(:) :: name, type
 
     ! Only root process writes boundary conditions
-    if (iRank /= 0) return
+    if (procRank /= 0) return
 
     ! Initialize a large number of boundary conditions.
     nbc = 99
@@ -1263,7 +1263,7 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             x = 2.0_wp * (region%grids(1)%coordinates(grid_index(i,j,k), 2) - ymin) /                  &
+             x = 2.0_wp * (region%grids(1)%coordinates(grid_index(i,j,k), 2) - ymin) /       &
                   (ymax - ymin) - 1.0_wp
              mollifier(i,j,k,1) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                        &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
@@ -1276,7 +1276,7 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             x = 2.0_wp * (region%grids(1)%coordinates(grid_index(i,j,k), 1) - xmin) /                  &
+             x = 2.0_wp * (region%grids(1)%coordinates(grid_index(i,j,k), 1) - xmin) /       &
                   (xmax - xmin) - 1.0_wp
              mollifier(i,j,k,2) = tanh(s * (x + 1.0_wp - 0.5_wp*r)) -                        &
                   tanh(s * (x - 1.0_wp + 0.5_wp*r))
@@ -1289,7 +1289,7 @@ contains
     do k = 1, nz
        do j = 1, ny
           do i = 1, nx
-             region%grids(1)%targetMollifier(grid_index(i,j,k),1) = mollifier(i,j,k,1) *                &
+             region%grids(1)%targetMollifier(grid_index(i,j,k),1) = mollifier(i,j,k,1) *     &
                   mollifier(i,j,k,2)
           end do
        end do
@@ -1335,7 +1335,7 @@ contains
        end if
     end do
 
-    if (iRank == 0) then
+    if (procRank == 0) then
        print *
        print *, 'Target mollifier extents: [',imin,',',imax,'] x [',jmin,',',jmax,']'
        print *
@@ -1461,7 +1461,7 @@ contains
        end if
     end do
 
-    if (iRank == 0) then
+    if (procRank == 0) then
        print *
        print *, 'Control mollifier extents: [',imin,',',imax,'] x [',jmin,',',jmax,']'
        print *
