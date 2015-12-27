@@ -10,7 +10,6 @@ subroutine setupFlameTemperature(this, region)
   use FlameTemperature_mod, only : t_FlameTemperature
 
   ! <<< Internal modules >>>
-  use CNSHelper, only : computeDependentVariables
   use InputHelper, only : getOption, getRequiredOption
 
   implicit none
@@ -112,7 +111,7 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, H2, O2, ierror
   SCALAR_TYPE :: YF0, YO0, s, Z, Zst, gaussianFactor, referenceTemperature, timeRampFactor
-  SCALAR_TYPE, allocatable :: F(:,:), W(:)
+  SCALAR_TYPE, allocatable :: F(:), W(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -171,13 +170,12 @@ function computeFlameTemperature(this, region) result(instantaneousFunctional)
 
      end if
 
-     allocate(F(region%grids(i)%nGridPoints, 1))
+     allocate(F(region%grids(i)%nGridPoints))
 
-     F = (region%states(i)%temperature - referenceTemperature) /                             &
-          (this%data_(j)%flameTemperature(1,1) - referenceTemperature)
+     F = region%states(i)%temperature(:,1)
 
      instantaneousFunctional = instantaneousFunctional +                                     &
-          region%grids(i)%computeInnerProduct(F(:,1), W)
+          region%grids(i)%computeInnerProduct(F, W)
 
      SAFE_DEALLOCATE(W)
      SAFE_DEALLOCATE(F)
@@ -294,23 +292,23 @@ subroutine computeFlameTemperatureAdjointForcing(this, simulationFlags, solverOp
                    state%massFraction(gridIndex, O2) / s  + YO0 / s ) / (YF0 + YO0 / s)
               W = grid%targetMollifier(gridIndex, 1) * exp(gaussianFactor * (Z - Zst) **2)
 
-              ! First apply -W/(Tf-T0)*dT/dQ.
-              F = - W * timeRampFactor / (flameTemperature - referenceTemperature)
+              ! First apply -W*dT/dQ.
+              F = - W * timeRampFactor
 
               patch%adjointForcing(patchIndex,:) = F * deltaTemperature
 
-              ! Now apply -((T-Tf)/(Tf-T0))*dW/dQ.
-              F = W * timeRampFactor *                                                       &
-                   ( (state%temperature(gridIndex, 1) - referenceTemperature) /              &
-                   (flameTemperature - referenceTemperature) ) *                             &
+              ! Now apply -T*dW/dQ.
+              F = W * timeRampFactor * state%temperature(gridIndex, 1) *                     &
                    ( (Z - Zst) / this%burnRadius**2 ) * state%specificVolume(gridIndex,1) /  &
                    (YF0 + YO0 / s)
 
               patch%adjointForcing(patchIndex,1) = patch%adjointForcing(patchIndex,1) +      &
                    (state%massFraction(gridIndex, O2) / s -                                  &
                    state%massFraction(gridIndex, H2)) * F
-              patch%adjointForcing(patchIndex,nDimensions+2+H2) = F
-              patch%adjointForcing(patchIndex,nDimensions+2+O2) = - F / s
+              patch%adjointForcing(patchIndex,nDimensions+2+H2) =                            &
+                   patch%adjointForcing(patchIndex,nDimensions+2+H2) + F
+              patch%adjointForcing(patchIndex,nDimensions+2+O2) =                            &
+                   patch%adjointForcing(patchIndex,nDimensions+2+O2) - F / s
 
            else
 

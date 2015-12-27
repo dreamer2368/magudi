@@ -418,9 +418,6 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      call getRequiredOption("ensight_frequency", this%ensightFrequency)
      this%ensightSave = int(region%states(1)%time / this%ensightFrequency)
      allocate(this%ensight(size(region%grids)))
-     do i = 1, size(region%grids)
-        call this%ensight(i)%setup(region%grids(i), i, region%states(i)%time)
-     end do
   end if
 
   this%adjointIterations = getOption("adjoint_iterations", this%nTimesteps)
@@ -608,14 +605,6 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
      call region%saveData(QOI_FORWARD_STATE, filename)
   end if
 
-  ! Output initial condition to EnSight.
-  if (region%simulationFlags%outputToEnsight) then
-     do i = 1, size(region%states)
-        call this%ensight(i)%output(region%states(i), region%grids(i)%comm, i, FORWARD,      &
-             region%states(1)%time, region%solverOptions%nSpecies)
-     end do
-  end if
-
   ! Call controller hooks before time marching starts.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
        abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
@@ -627,6 +616,21 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
      call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
           region%solverOptions)
   end do
+
+  ! Setup EnSight output.
+  if (region%simulationFlags%outputToEnsight) then
+     do i = 1, size(region%grids)
+        call this%ensight(i)%setup(region%grids(i), i, region%states(i)%time)
+     end do
+     ! Output to EnSight if necessary.
+     if (int(time / this%ensightFrequency) .ne. this%ensightSave .or. startTimestep == 0) then
+        this%ensightSave = int(time / this%ensightFrequency)
+        do i = 1, size(region%states)
+           call this%ensight(i)%output(region%states(i), region%grids(i)%comm, i,            &
+                FORWARD, time, region%solverOptions%nSpecies)
+        end do
+     end if
+  end if
 
   do timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
