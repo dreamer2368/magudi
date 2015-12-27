@@ -99,10 +99,7 @@ contains
     str='filename increment: 1'
     write(iunit,'(a80)') str
     str='time values:'
-    write(iunit,'(a80)') str
-    do i = 1, this%nOutputTimes
-       write(iunit, '(ES12.5)') this%OutputTimes(i)
-    end do
+    write(iunit,'(a12, 10000000(3(ES12.5),/))') str, this%outputTimes
 
     ! Close the file
     close(iunit)
@@ -394,6 +391,7 @@ subroutine setupEnsight(this, grid, gridIndex, time)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getFreeUnit
+  use Parser, only : parseFile, parserGetSize, parserRead
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -427,52 +425,12 @@ subroutine setupEnsight(this, grid, gridIndex, time)
   if (procRank == 0) then
      inquire(file = trim(this%directory)//'/'//trim(this%filename), exist = fileExists)
      if (fileExists) then
-        ! Get the number of time values.
-        this%nOutputTimes = 0
-        lineFound = .false.
-        open(unit = getFreeUnit(iunit), file = trim(this%directory) // '/' //                &
-             trim(this%filename))
-        do i = 1, maxrecs
-           read(iunit,'(A)', iostat = iostat) line
-
-           if ( iostat < 0 ) exit 
-
-           if (lineFound) this%nOutputTimes = this%nOutputTimes + 1
-
-           if (.not. lineFound .and. trim(adjustl(line)) == 'time values:') lineFound = .true.
-
-           if (i == maxrecs) then
-              write(*,*) 'Error:  Maximum number of records exceeded reading ',              &
-                   trim(this%directory)//'/'//trim(this%filename)
-              stop
-           end if
-        end do
-        rewind(iunit)
-
-        ! Read in the time values.
+        ! Read the file.
+        call parseFile(trim(this%directory)//'/'//trim(this%filename))
+        ! Get the time values.
+        call parserGetSize('time values', this%noutputTimes)
         allocate(this%outputTimes(this%nOutputTimes))
-        lineFound = .false.
-        j = 0
-        do i = 1, maxrecs
-           read(iunit,'(A)', iostat = iostat) line
-
-           if ( iostat < 0 ) exit 
-
-           if (lineFound) then
-              j = j + 1
-              backspace(iunit)
-              read (iunit, *, iostat = iostat) this%outputTimes(j)
-           end if
-
-           if (.not. lineFound .and. trim(adjustl(line)) == 'time values:') lineFound = .true.
-
-           if (i == maxrecs) then
-              write(*,*) 'Error:  Maximum number of records exceeded reading ',              &
-                   trim(this%directory)//'/'//trim(this%filename)
-              stop
-           end if
-        end do
-        close(iunit)
+        call parserRead('time values', this%outputTimes)
 
         ! Remove future time
         future: do i = 1, size(this%outputTimes)
