@@ -10,7 +10,7 @@ contains
   subroutine writeEnsightCase(this, time, gridIndex, nSpecies)
 
     ! <<< Internal modules >>>
-    use InputHelper, only : getFreeUnit
+    use IOHelper
 
     ! <<< Derived types >>>
     use EnsightHelper, only : t_Ensight
@@ -48,7 +48,8 @@ contains
   
     ! Open the file.
     str = trim(adjustl(this%directory))//'/'//trim(adjustl(this%filename))
-    open(unit = getFreeUnit(iunit), file=trim(str), form="formatted", iostat=ierror,               &
+    iunit = iopen()
+    open(iunit, file=trim(str), form="formatted", iostat=ierror,               &
          status="REPLACE")
 
     ! Write the case.
@@ -101,8 +102,8 @@ contains
     str='time values:'
     write(iunit,'(a12, 10000000(3(ES12.5),/))') str, this%outputTimes
 
-    ! Close the file
-    close(iunit)
+    ! Close the file.
+    close(iclose(iunit))
 
   end subroutine writeEnsightCase
 
