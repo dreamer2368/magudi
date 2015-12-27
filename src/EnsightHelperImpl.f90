@@ -426,9 +426,12 @@ subroutine setupEnsight(this, grid, gridIndex, time)
   if (procRank == 0) then
      inquire(file = trim(this%directory)//'/'//trim(this%filename), exist = fileExists)
      if (fileExists) then
+
         ! Read the file.
         call parseFile(trim(this%directory)//'/'//trim(this%filename))
+
         ! Get the time values.
+
         call parserGetSize('time values', this%noutputTimes)
         allocate(this%outputTimes(this%nOutputTimes))
         call parserRead('time values', this%outputTimes)
@@ -440,12 +443,16 @@ subroutine setupEnsight(this, grid, gridIndex, time)
               exit future
            end if
         end do future
+
      else
+
         ! Create directory
         call Execute_Command_Line('mkdir -p ' // trim(adjustl(this%directory)))
+
         ! Set the time
         this%nOutputTimes = 0
         allocate(this%outputTimes(1))
+
      end if
   end if
 
