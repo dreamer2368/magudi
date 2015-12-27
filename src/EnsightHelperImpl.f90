@@ -304,7 +304,6 @@ contains
     use, intrinsic :: iso_fortran_env, only : output_unit
 
     ! <<< Internal modules >>>
-    use InputHelper, only : getFreeUnit
     use ErrorHandler, only : writeAndFlush
 
     ! <<< Derived types >>>
@@ -391,7 +390,6 @@ subroutine setupEnsight(this, grid, gridIndex, time)
   use MPI
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getFreeUnit
   use Parser, only : parseFile, parserGetSize, parserRead
 
   ! <<< Derived types >>>
