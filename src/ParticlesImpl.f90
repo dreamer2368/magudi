@@ -96,3 +96,19 @@ subroutine loadParticleData(this, simulationFlags, filename)
   if (.not. simulationFlags%particlesOn) return
 
 end subroutine loadParticleData
+
+subroutine particleSource(this, simulationFlags)
+
+  ! <<< Derived types >>>
+  use Particles_mod, only : t_Particles
+  use SimulationFlags_mod, only : t_SimulationFlags
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Particles) :: this
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+
+  if (.not. simulationFlags%particlesOn) return
+
+end subroutine particleSource

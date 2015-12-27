@@ -106,4 +106,19 @@ module Particles_mod
 
   end interface
 
+  interface
+
+     subroutine particleSource(this, simulationFlags)
+
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_Particles
+
+       class(t_Particles) :: this
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+
+     end subroutine particleSource
+
+  end interface
+
 end module Particles_mod
