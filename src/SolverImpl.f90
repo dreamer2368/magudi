@@ -1023,6 +1023,7 @@ subroutine checkGradientAccuracy(this, region)
 
   ! Turn off output for controlled predictions.
   region%outputOn = getOption("output_control_iterations", .false.)
+  region%simulationFlags%outputToEnsight = .false.
 
   if (restartIteration == 0) restartIteration = restartIteration + 1
 
@@ -1201,6 +1202,7 @@ subroutine findOptimalForcing(this, region)
 
   ! Turn off output for controlled predictions.
   region%outputOn = getOption("output_control_iterations", .false.)
+  region%simulationFlags%outputToEnsight = .false.
 
   call getRequiredOption("optimization_type", optimizationType)
 
