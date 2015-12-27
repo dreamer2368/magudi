@@ -82,10 +82,14 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/MPIHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/MPITimingsHelper.f90
   ${PROJECT_SOURCE_DIR}/src/MPITimingsHelperImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/IOHelper.f90
+  ${PROJECT_SOURCE_DIR}/src/IOHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PLOT3DHelper.f90
   ${PROJECT_SOURCE_DIR}/src/PLOT3DHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/InputHelper.f90
   ${PROJECT_SOURCE_DIR}/src/InputHelperImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/Parser.f90
+  ${PROJECT_SOURCE_DIR}/src/ParserImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Solver.f90
   ${PROJECT_SOURCE_DIR}/src/SolverImpl.f90
   ${PROJECT_SOURCE_DIR}/include/CNSHelper.f90
