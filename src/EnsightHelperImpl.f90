@@ -430,7 +430,7 @@ subroutine setupEnsight(this, grid, gridIndex, time)
 
         ! Get the time values.
 
-        call parserGetSize('time values', this%noutputTimes)
+        call parserGetSize('time values', this%nOutputTimes)
         allocate(this%outputTimes(this%nOutputTimes))
         call parserRead('time values', this%outputTimes)
 

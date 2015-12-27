@@ -416,7 +416,6 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
   if (region%simulationFlags%outputToEnsight) then
      call getRequiredOption("ensight_frequency", this%ensightFrequency)
-     this%ensightSave = int(region%states(1)%time / this%ensightFrequency)
      allocate(this%ensight(size(region%grids)))
   end if
 
@@ -619,8 +618,9 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
 
   ! Setup EnSight output.
   if (region%simulationFlags%outputToEnsight) then
+     this%ensightSave = int(time / this%ensightFrequency)
      do i = 1, size(region%grids)
-        call this%ensight(i)%setup(region%grids(i), i, region%states(i)%time)
+        call this%ensight(i)%setup(region%grids(i), i, time)
      end do
      ! Output the initial condition to EnSight.
      if (startTimestep == 0) then
