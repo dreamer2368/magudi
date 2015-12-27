@@ -20,7 +20,8 @@ module SimulationFlags_mod
                 useContinuousAdjoint  = .false., &
                 compositeDissipation  = .true.,  &
                 computeTimeAverage    = .false., &
-                outputToEnsight       = .false.
+                outputToEnsight       = .false., &
+                particlesOn           = .false.
 
    contains
 
