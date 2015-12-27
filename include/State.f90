@@ -22,6 +22,7 @@ module State_mod
   use IgnitionSource_mod, only : t_IgnitionSource
   use FuelSource_mod, only : t_FuelSource
   use Combustion_mod, only : t_Combustion
+  use Particles_mod, only : t_Particles
 
   implicit none
 
@@ -56,6 +57,7 @@ module State_mod
      type(t_AcousticSource), allocatable :: acousticSources(:)
      type(t_IgnitionSource), allocatable :: ignitionSources(:)
      type(t_FuelSource), allocatable :: fuelSources(:)
+     type(t_Particles), allocatable :: particles(:)
      type(t_Combustion) :: combustion
 
      integer :: nSpecies, gradientDirection = -1
@@ -69,7 +71,7 @@ module State_mod
           specificVolume, velocity, velocityGradient, stressTensor, pressure, temperature,   &
           massFraction, heatFlux, dynamicViscosity, secondCoefficientOfViscosity,            &
           thermalDiffusivity, massDiffusivity, enthalpyFlux, targetState, adjointVariables,  &
-          timeAverage
+          timeAverage, volumeFraction
 
      SCALAR_TYPE, dimension(:,:,:), allocatable :: speciesFlux
 
