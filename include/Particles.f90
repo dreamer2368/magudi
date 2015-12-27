@@ -32,7 +32,7 @@ module Particles_mod
      integer :: nParticlesLocal, nParticlesGlobal, dragModel
      integer, dimension(:,:,:), allocatable   :: nPartInCell
      integer, dimension(:,:,:,:), allocatable :: partInCell
-     SCALAR_TYPE, dimension(:), allocatable :: auxilaryGrid
+     SCALAR_TYPE, dimension(:,:,:), allocatable :: auxilaryGrid
      real(SCALAR_KIND) :: densityRatio, ReynoldsNumber, stokesNumber,                        &
           coefficientOfRestitution, coefficientOfFriction, collisionTime
      logical :: twoWayCoupling, collisionsOn
@@ -61,11 +61,14 @@ module Particles_mod
 
   interface
 
-     subroutine setupParticles(this, comm)
+     subroutine setupParticles(this, simulationFlags, comm)
+
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Particles
 
        class(t_Particles) :: this
+       type(t_SimulationFlags), intent(in) :: simulationFlags
        integer, intent(in) :: comm
 
      end subroutine setupParticles
@@ -74,11 +77,14 @@ module Particles_mod
 
   interface
 
-     subroutine cleanupParticles(this)
+     subroutine cleanupParticles(this, simulationFlags)
+
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Particles
 
        class(t_Particles) :: this
+       type(t_SimulationFlags), intent(in) :: simulationFlags
 
      end subroutine cleanupParticles
 
@@ -86,11 +92,14 @@ module Particles_mod
 
   interface
 
-     subroutine loadParticleData(this, filename)
+     subroutine loadParticleData(this, simulationFlags, filename)
+
+       use SimulationFlags_mod, only : t_SimulationFlags
 
        import :: t_Particles
 
        class(t_Particles) :: this
+       type(t_SimulationFlags), intent(in) :: simulationFlags
        character(len = *), intent(in) :: filename
 
      end subroutine loadParticleData
