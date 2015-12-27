@@ -622,8 +622,8 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
      do i = 1, size(region%grids)
         call this%ensight(i)%setup(region%grids(i), i, region%states(i)%time)
      end do
-     ! Output to EnSight if necessary.
-     if (int(time / this%ensightFrequency) .ne. this%ensightSave .or. startTimestep == 0) then
+     ! Output the initial condition to EnSight.
+     if (startTimestep == 0) then
         this%ensightSave = int(time / this%ensightFrequency)
         do i = 1, size(region%states)
            call this%ensight(i)%output(region%states(i), region%grids(i)%comm, i,            &
