@@ -27,6 +27,38 @@ module Particles_mod
 
   end type t_Particles
 
+  type, public :: t_particleOptions
+
+     integer :: nParticlesLocal, nParticlesGlobal, dragModel
+     integer, dimension(:,:,:), allocatable   :: nPartInCell
+     integer, dimension(:,:,:,:), allocatable :: partInCell
+     SCALAR_TYPE, dimension(:), allocatable :: auxilaryGrid
+     real(SCALAR_KIND) :: densityRatio, ReynoldsNumber, stokesNumber,                        &
+          coefficientOfRestitution, coefficientOfFriction, collisionTime
+     logical :: twoWayCoupling, collisionsOn
+
+   contains
+
+     procedure, pass :: initialize => initializeParticleOptions
+
+  end type t_particleOptions
+
+  interface
+
+     subroutine initializeParticleOptions(this, simulationFlags, comm)
+
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_ParticleOptions
+
+       class(t_ParticleOptions), intent(out) :: this
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+       integer, intent(in), optional :: comm
+
+     end subroutine initializeParticleOptions
+
+  end interface
+
   interface
 
      subroutine setupParticles(this, comm)

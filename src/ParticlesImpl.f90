@@ -1,5 +1,39 @@
 #include "config.h"
 
+subroutine initializeParticleOptions(this, simulationFlags, comm)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Particles_mod, only : t_ParticleOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
+
+  ! <<< Internal modules >>>
+  use InputHelper, only : getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit
+
+  ! <<< Enumerations >>>
+  use Particles_enum
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_ParticleOptions), intent(out) :: this
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  integer, intent(in), optional :: comm
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: comm_
+
+  comm_ = MPI_COMM_WORLD
+  if (present(comm)) comm_ = comm
+
+  this%coefficientOfRestitution = getOption("coefficient_of_restitution", 0.85_wp)
+
+end subroutine initializeParticleOptions
+
 subroutine setupParticles(this, comm)
 
   ! <<< Derived types >>>
