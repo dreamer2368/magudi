@@ -121,6 +121,9 @@ end module InputHelperImpl
 
 subroutine getInputName(filename)
 
+  ! <<< Internal modules >>>
+  use ErrorHandler, only : writeAndFlush
+
   ! <<< External modules >>>
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
