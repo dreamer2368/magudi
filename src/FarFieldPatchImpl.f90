@@ -81,6 +81,9 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   write(key, '(A,I0.0)') "patches/" // trim(patchDescriptor%name) // "/"
   if (getOption(trim(key) // "include_hole", .false.)) then
 
+     allocate(this%hole(this%nPatchPoints))
+     this%hole = 0
+
      holeInsideShape = getOption(trim(key) // "hole_inside_shape", .true.)
      call getRequiredOption(trim(key) // "hole_shape", holeShape, comm)
 
@@ -95,8 +98,6 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
            call getRequiredOption(trim(message), holePosition(i), comm)
         end do
 
-        allocate(this%hole(this%nPatchPoints))
-        this%hole = 0
         do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
            do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
               do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)

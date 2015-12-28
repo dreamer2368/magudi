@@ -28,7 +28,7 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i
-  character(len = STRING_LENGTH) :: key, species, message
+  character(len = STRING_LENGTH) :: key, species
   SCALAR_TYPE :: wallTemperature, wallMassFraction
 
   call this%cleanup()
