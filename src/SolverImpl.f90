@@ -297,7 +297,7 @@ contains
        if (present(restartFilename) .and. region%simulationFlags%predictionOnly) then
           call region%loadData(QOI_FORWARD_STATE, restartFilename)
        else if (region%simulationFlags%useTargetState) then
-          filename = getOption("initial_condition_file", "")
+          filename = getOption("solution_file", "")
           if (len_trim(filename) == 0) then
              region%timestep = 0
              do i = 1, size(region%states) !... initialize from target state.
@@ -308,14 +308,14 @@ contains
              call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
           end if
        else
-          call getRequiredOption("initial_condition_file", filename, region%comm)
+          call getRequiredOption("solution_file", filename, region%comm)
           call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
        end if
 
     case (ADJOINT) !... initialize adjoint variables.
 
        if (.not. region%simulationFlags%predictionOnly) then
-          filename = getOption("adjoint_initial_condition_file", "")
+          filename = getOption("adjoint_file_to_read", "")
           if (len_trim(filename) == 0) then
              do i = 1, size(region%states)
                 region%states(i)%adjointVariables = 0.0_wp
