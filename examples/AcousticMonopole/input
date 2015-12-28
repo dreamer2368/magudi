@@ -1,10 +1,10 @@
-# magudi.inp
+# Magudi input file
 # Written by Ramanathan Vishnampet
 
 # Filenames, etc.
 output_prefix = "AcousticMonopole"
 grid_file = "AcousticMonopole.xyz"
-initial_condition_file = "AcousticMonopole.ic.q"
+solution_file = "AcousticMonopole.ic.q"
 boundary_condition_file = "bc.dat"
 control_mollifier_file = "AcousticMonopole.control_mollifier.f"
 target_mollifier_file = "AcousticMonopole.target_mollifier.f"

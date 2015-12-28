@@ -1,4 +1,4 @@
-# magudi.inp
+# Magudi input file
 
 #############################################################################################
 # Filenames                                                                                 #
@@ -7,7 +7,7 @@
 # Filenames, etc.
 output_prefix = "JetXFlow"
 grid_file = "JetXFlow.xyz"
-initial_condition_file = "JetXFlow.ic.q"
+solution_file = "JetXFlow.ic.q"
 boundary_condition_file = "bc.dat"
 target_state_file = "JetXFlow.ic.q"
 target_mollifier_file = "JetXFlow.target_mollifier.f"

@@ -1,4 +1,3 @@
-# magudi.inp
 # Input file to magudi for simulation of a two-dimensional spatially developing mixing layer
 # Reference: Wei, Mingjun, and Jonathan B. Freund. "A noise-controlled free shear flow." Journal of Fluid Mechanics 546 (2006): 123-152.
 # Written by Ramanathan Vishnampet
@@ -6,7 +5,7 @@
 # Filenames, etc.
 output_prefix = "WeiFreundSDML"
 grid_file = "WeiFreundSDML.xyz"
-initial_condition_file = "WeiFreundSDML.ic.q"
+solution_file = "WeiFreundSDML.ic.q"
 target_state_file = "WeiFreundSDML.target.q"
 boundary_condition_file = "bc.dat"
 control_mollifier_file = "WeiFreundSDML.control_mollifier.f"

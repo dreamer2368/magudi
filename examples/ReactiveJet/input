@@ -1,9 +1,9 @@
-# magudi.inp
+# Magudi input file
 
 # Filenames, etc.
 output_prefix = "ReactiveJet"
 grid_file = "ReactiveJet.xyz"
-initial_condition_file = "ReactiveJet.ic.q"
+solution_file = "ReactiveJet.ic.q"
 boundary_condition_file = "bc.dat"
 target_state_file = "ReactiveJet.target.q"
 target_mollifier_file = "ReactiveJet.target_mollifier.f"

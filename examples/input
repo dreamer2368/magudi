@@ -1,4 +1,3 @@
-# magudi.inp
 # Sample input file to magudi with a documented list of (almost) all parameters
 # Written by Ramanathan Vishnampet
 
@@ -30,7 +29,7 @@ grid_file = "magudi.xyz"
 # auxiliary variables are ignored. The behavior is undefined if the auxiliary variables are
 # not the same across the blocks of a multi-block solution file. If this parameter is not
 # specified, a quiescent state is used as the initial condition.
-initial_condition_file = ""
+solution_file = ""
 
 # Relative/absolute path to a 3D multi-block whole format PLOT3D solution file to be used as
 # the target state. Used only if the flag `use_target_state` is set to `true`. The primal

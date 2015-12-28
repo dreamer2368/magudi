@@ -1,11 +1,10 @@
-# magudi.inp
 # Input file to magudi for simulation of a three-dimensional temporally developing boundary layer
 # Written by Ramanathan Vishnampet
 
 # Filenames, etc.
 output_prefix = "BoundaryLayer"
 grid_file = "BoundaryLayer.xyz"
-initial_condition_file = "BoundaryLayer.ic.q"
+solution_file = "BoundaryLayer.ic.q"
 target_state_file = "BoundaryLayer.target.q"
 boundary_condition_file = "bc.dat"
 

@@ -1,9 +1,9 @@
-# magudi.inp
+# Magudi input file
 
 # Filenames, etc.
 output_prefix = "MixingLayer"
 grid_file = "MixingLayer.xyz"
-initial_condition_file = "MixingLayer.ic.q"
+solution_file = "MixingLayer.ic.q"
 boundary_condition_file = "bc.dat"
 target_state_file = "MixingLayer.target.q"
 target_mollifier_file = "MixingLayer.target_mollifier.f"

@@ -1,11 +1,10 @@
-# magudi.inp
 # Input file to magudi for simulation of flow over a cylinder
 # Written by Ramanathan Vishnampet
 
 # Filenames, etc.
 output_prefix = "Cylinder"
 grid_file = "Cylinder.xyz"
-initial_condition_file = "Cylinder.ic.q"
+solution_file = "Cylinder.ic.q"
 target_state_file = "Cylinder.target.q"
 boundary_condition_file = "bc.dat"
 control_mollifier_file = "Cylinder.control_mollifier.f"
