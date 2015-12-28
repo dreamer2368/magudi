@@ -36,7 +36,7 @@ program jet_crossflow
   real(KIND=8) :: xmini, xmaxi, ymaxi
   real(KIND=8) :: xmino, xmaxo, ymino, ymaxo
   real(KIND=8) :: zmin, zmax, jetDiameter, xJet
-  character(len = STRING_LENGTH) :: inputname, filename
+  character(len = STRING_LENGTH) :: filename, message
   integer, allocatable :: globalGridSizes(:,:)
   logical :: includeSandpaper, conformToJet
 
@@ -63,9 +63,35 @@ program jet_crossflow
      print *
   end if
 
+  if (command_argument_count() > 1) then
+     write(message, '(A)') "Usage: magudi [INPUT]"
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     write(message, '(A)')                                                                   &
+          "Maximum of 1 INPUT file allowed."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     call cleanupErrorHandler()
+     call MPI_Finalize(ierror)
+     stop -1
+  end if
+
+  ! Get the input file name.
+  if (command_argument_count() == 1) then
+     call get_command_argument(1, filename)
+     if (filename(1:1) == '-' .or. len_trim(filename) == 0) then
+        write(message, '(A)') "No input file name was detected, using 'input'."
+        call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+        filename = 'input'
+     end if
+  else
+     write(message, '(A)') "No input file name was detected, using 'input'."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     filename = 'input'
+  end if
+
   ! Parse options from the input file.
-  inputname = "magudi.inp"
-  call parseInputFile(inputname)
+  call parseInputFile(filename)
 
   ! Generate and partition the grid.
   call jetCrossFlowGrid(imin_sponge, imax_sponge, jmax_sponge)
