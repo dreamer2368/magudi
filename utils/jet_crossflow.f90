@@ -965,7 +965,6 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, bc, nbc, iunit
     integer, allocatable, dimension(:) :: normDir, imin, imax, jmin, jmax, kmin, kmax
-    character(len = STRING_LENGTH) :: str
     character(len = 22), allocatable, dimension(:) :: name, type
 
     ! Only root process writes boundary conditions
