@@ -10,7 +10,7 @@ contains
   subroutine writeEnsightCase(this, time, gridIndex, nSpecies)
 
     ! <<< Internal modules >>>
-    use IOHelper
+    use InputHelper, only : getFreeUnit
 
     ! <<< Derived types >>>
     use EnsightHelper, only : t_Ensight
@@ -48,9 +48,8 @@ contains
   
     ! Open the file.
     str = trim(adjustl(this%directory))//'/'//trim(adjustl(this%filename))
-    iunit = iopen()
-    open(iunit, file=trim(str), form="formatted", iostat=ierror,               &
-         status="REPLACE")
+    open(unit = getFreeUnit(iunit), file=trim(str), form="formatted", iostat = ierror,       &
+         status = "REPLACE")
 
     ! Write the case.
     str='FORMAT'
@@ -100,10 +99,13 @@ contains
     str='filename increment: 1'
     write(iunit,'(a80)') str
     str='time values:'
-    write(iunit,'(a12, 10000000(3(ES12.5),/))') str, this%outputTimes
+    write(iunit,'(a80)') str
+    do i = 1, this%nOutputTimes
+       write(iunit, '(ES12.5)') this%outputTimes(i)
+    end do
 
-    ! Close the file.
-    close(iclose(iunit))
+    ! Close the file
+    close(iunit)
 
   end subroutine writeEnsightCase
 
@@ -390,7 +392,7 @@ subroutine setupEnsight(this, grid, gridIndex, time)
   use MPI
 
   ! <<< Internal modules >>>
-  use Parser, only : parseFile, parserGetSize, parserRead
+  use InputHelper, only : getFreeUnit
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -424,15 +426,53 @@ subroutine setupEnsight(this, grid, gridIndex, time)
   if (procRank == 0) then
      inquire(file = trim(this%directory)//'/'//trim(this%filename), exist = fileExists)
      if (fileExists) then
+        ! Get the number of time values.
+        this%nOutputTimes = 0
+        lineFound = .false.
+        open(unit = getFreeUnit(iunit), file = trim(this%directory) // '/' //                &
+             trim(this%filename))
+        do i = 1, maxrecs
+           read(iunit,'(A)', iostat = iostat) line
 
-        ! Read the file.
-        call parseFile(trim(this%directory)//'/'//trim(this%filename))
+           if ( iostat < 0 ) exit 
 
-        ! Get the time values.
+           if (lineFound) this%nOutputTimes = this%nOutputTimes + 1
 
-        call parserGetSize('time values', this%nOutputTimes)
+           if (.not. lineFound .and. trim(adjustl(line)) == 'time values:') lineFound = .true.
+
+           if (i == maxrecs) then
+              write(*,*) 'Error:  Maximum number of records exceeded reading ',              &
+                   trim(this%directory)//'/'//trim(this%filename)
+              stop
+           end if
+        end do
+        rewind(iunit)
+
+        ! Read in the time values.
         allocate(this%outputTimes(this%nOutputTimes))
-        call parserRead('time values', this%outputTimes)
+        lineFound = .false.
+        j = 0
+        do i = 1, maxrecs
+           read(iunit,'(A)', iostat = iostat) line
+
+           if ( iostat < 0 ) exit 
+
+           if (lineFound) then
+              j = j + 1
+              backspace(iunit)
+              read (iunit, *, iostat = iostat) this%outputTimes(j)
+           end if
+
+           if (.not. lineFound .and. trim(adjustl(line)) == 'time values:') lineFound = .true.
+
+           if (i == maxrecs) then
+              write(*,*) 'Error:  Maximum number of records exceeded reading ',              &
+                   trim(this%directory)//'/'//trim(this%filename)
+              stop
+           end if
+        end do
+        close(iunit)
+
 
         ! Remove future time
         future: do i = 1, size(this%outputTimes)
