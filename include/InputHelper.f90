@@ -19,6 +19,16 @@ module InputHelper
 
   interface
 
+     subroutine getInputName(filename)
+
+       character(len = STRING_LENGTH), intent(out) :: filename
+
+     end subroutine getInputName
+
+  end interface
+
+  interface
+
      subroutine parseInputFile(filename, commentMarker, separator)
 
        character(len = *), intent(in) :: filename

@@ -119,6 +119,50 @@ contains
 
 end module InputHelperImpl
 
+subroutine getInputName(filename)
+
+  ! <<< External modules >>>
+  use MPI
+  use, intrinsic :: iso_fortran_env, only : output_unit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  character(len = STRING_LENGTH), intent(out) :: filename
+
+  ! <<< Local variables >>>
+  integer :: ierror
+  character(len = STRING_LENGTH) :: message
+
+  if (command_argument_count() > 1) then
+     write(message, '(A)') "Usage: magudi [INPUT]"
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     write(message, '(A)')                                                                   &
+          "Maximum of 1 INPUT file allowed."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     call cleanupErrorHandler()
+     call MPI_Finalize(ierror)
+     stop -1
+  end if
+
+  ! Get the input file name.
+  if (command_argument_count() == 1) then
+     call get_command_argument(1, filename)
+     if (filename(1:1) == '-' .or. len_trim(filename) == 0) then
+        write(message, '(A)') "No input file name was detected, using 'input'."
+        call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+        filename = 'input'
+     end if
+  else
+     write(message, '(A)') "No input file name was detected, using 'input'."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     filename = 'input'
+  end if
+
+end subroutine getInputName
+
 function getFreeUnit(fileUnit) result(freeUnit)
 
   ! <<< Arguments >>>

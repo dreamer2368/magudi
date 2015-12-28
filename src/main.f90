@@ -3,7 +3,6 @@
 program main
 
   use MPI
-  use, intrinsic :: iso_fortran_env, only : output_unit
 
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
@@ -11,7 +10,7 @@ program main
   use Grid_enum
   use State_enum
 
-  use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use InputHelper, only : getInputName, parseInputFile, getOption, getRequiredOption
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
@@ -20,7 +19,7 @@ program main
 
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, procRank, numProcs, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
+  character(len = STRING_LENGTH) :: filename, outputPrefix
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
@@ -37,34 +36,8 @@ program main
 
   call startTiming("total")
 
-  if (command_argument_count() > 1) then
-     write(message, '(A)') "Usage: magudi [INPUT]"
-     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-     write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
-     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-     write(message, '(A)')                                                                   &
-          "Maximum of 1 INPUT file allowed."
-     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-     call cleanupErrorHandler()
-     call MPI_Finalize(ierror)
-     stop -1
-  end if
-
-  ! Get the input file name.
-  if (command_argument_count() == 1) then
-     call get_command_argument(1, filename)
-     if (filename(1:1) == '-' .or. len_trim(filename) == 0) then
-        write(message, '(A)') "No input file name was detected, using 'input'."
-        call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-        filename = 'input'
-     end if
-  else
-     write(message, '(A)') "No input file name was detected, using 'input'."
-     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-     filename = 'input'
-  end if
-
   ! Parse options from the input file.
+  call getInputName(filename)
   call parseInputFile(filename)
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)

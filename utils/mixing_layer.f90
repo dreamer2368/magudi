@@ -14,7 +14,7 @@ program mixing_layer
   use State_enum
 
   ! <<< Internal modules >>>
-  use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use InputHelper, only : getInputName, parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat
 
@@ -24,7 +24,7 @@ program mixing_layer
   type(t_Region) :: region
   integer :: i, numProcs, ierror
   integer :: imin_sponge, imax_sponge, jmin_sponge, jmax_sponge
-  character(len = STRING_LENGTH) :: inputname, filename
+  character(len = STRING_LENGTH) :: filename
   integer, allocatable :: globalGridSizes(:,:)
 
   print *
@@ -51,8 +51,8 @@ program mixing_layer
   end if
 
   ! Parse options from the input file.
-  inputname = "magudi.inp"
-  call parseInputFile(inputname)
+  call getInputName(filename)
+  call parseInputFile(filename)
 
   ! Generate the grid.
   call mixingLayerGrid(imin_sponge, imax_sponge, jmin_sponge, jmax_sponge)
