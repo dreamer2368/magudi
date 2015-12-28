@@ -13,6 +13,7 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
   ! <<< Internal modules >>>
   use CNSHelper, only : computeTransportVariables
   use InputHelper, only : getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -26,9 +27,9 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: key, species
-  SCALAR_TYPE :: wallTemperature, wallMassFraction
   integer :: i
+  character(len = STRING_LENGTH) :: key, species, message
+  SCALAR_TYPE :: wallTemperature, wallMassFraction
 
   call this%cleanup()
   call this%t_ImpenetrableWall%setup(index, comm, patchDescriptor,                           &
@@ -202,6 +203,11 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
         do k = 1, nSpecies
            temp(:,nDimensions+1+k) = this%massDiffusivity(:,k) * massFraction(:,k)
         end do
+        if (allocated(this%hole)) then
+           do i = 1, size(temp, 2)
+              where (this%hole == 1) temp(:, i) = 0.0_wp
+           end do
+        end if
 
         call this%disperse(temp, penaltyNearBoundary)
 
@@ -255,6 +261,9 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
            patchIndex = i - this%offset(1) + this%localSize(1) *                             &
                 (j - 1 - this%offset(2) + this%localSize(2) *                                &
                 (k - 1 - this%offset(3)))
+           if (allocated(this%hole)) then
+              if (this%hole(patchIndex) == 1) cycle
+           end if
 
            metricsAlongNormalDirection =                                                     &
                 grid%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)

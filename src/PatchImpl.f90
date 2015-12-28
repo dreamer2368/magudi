@@ -173,6 +173,7 @@ subroutine cleanupPatch(this)
      end do
   end if
   SAFE_DEALLOCATE(this%mpiAllScalarSubarrayTypes)
+  SAFE_DEALLOCATE(this%hole)
 
   if (this%mpiScalarSubarrayType /= MPI_DATATYPE_NULL)                                       &
        call MPI_Type_free(this%mpiScalarSubarrayType, ierror)

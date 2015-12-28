@@ -11,7 +11,7 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption
+  use InputHelper, only : getOption, getRequiredOption
 
   implicit none
 
@@ -25,8 +25,10 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: key
-  integer :: nDimensions, nUnknowns, nSpecies, direction
+  integer :: nDimensions, nUnknowns, nSpecies, direction, i, j, k, gridIndex, patchIndex
+  real(SCALAR_KIND) :: radius, holeRadius, holePosition(3)
+  logical :: holeInsideShape
+  character(len = STRING_LENGTH) :: key, message, holeShape
 
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
@@ -73,6 +75,59 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
           grid%firstDerivative(direction)%normBoundary(1)
   else
      this%viscousPenaltyAmount = 0.0_wp
+  end if
+
+  ! Add a hole to the patch.
+  write(key, '(A,I0.0)') "patches/" // trim(patchDescriptor%name) // "/"
+  if (getOption(trim(key) // "include_hole", .false.)) then
+
+     holeInsideShape = getOption(trim(key) // "hole_inside_shape", .true.)
+     call getRequiredOption(trim(key) // "hole_shape", holeShape, comm)
+
+     select case(trim(holeShape))
+
+     case("CIRCLE")
+
+        call getRequiredOption(trim(key) // "hole_radius", holeRadius, comm)
+        holePosition = 0.0_wp
+        do i = 1, grid%nDimensions
+           write(message, '(A,I0.0)') trim(key) // "hole_position_", i
+           call getRequiredOption(trim(message), holePosition(i), comm)
+        end do
+
+        allocate(this%hole(this%nPatchPoints))
+        this%hole = 0
+        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+           do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+              do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+                 gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                &
+                      (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                  &
+                      (k - 1 - this%gridOffset(3)))
+                 if (grid%iblank(gridIndex) == 0) cycle
+                 patchIndex = i - this%offset(1) + this%localSize(1) *                       &
+                      (j - 1 - this%offset(2) + this%localSize(2) *                          &
+                      (k - 1 - this%offset(3)))
+
+                 radius = sqrt(sum((grid%coordinates(gridIndex, 1:grid%nDimensions) -        &
+                      holePosition(1:grid%nDimensions)) ** 2))
+                 if (holeInsideShape .and. radius <= holeRadius) then
+                    this%hole(patchIndex) = 1
+                 else if (.not.holeInsideShape .and. radius > holeRadius) then
+                    this%hole(patchIndex) = 1
+                 end if
+
+              end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+           end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+
+        case default
+
+        write(message, '(A)') "Unknown hole shape on patch " //                              &
+             trim(patchDescriptor%name) // " `" // trim(holeShape) // "'"
+        call gracefulExit(comm, message)
+
+     end select
+
   end if
 
 end subroutine setupFarFieldPatch
@@ -167,6 +222,9 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
            patchIndex = i - this%offset(1) + this%localSize(1) *                             &
                 (j - 1 - this%offset(2) + this%localSize(2) *                                &
                 (k - 1 - this%offset(3)))
+           if (allocated(this%hole)) then
+              if (this%hole(patchIndex) == 1) cycle
+           end if
 
            localTargetState = state%targetState(gridIndex,:)
            metricsAlongNormalDirection =                                                     &

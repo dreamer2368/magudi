@@ -1052,120 +1052,30 @@ contains
     kmin   (bc) =  1
     kmax   (bc) = -1
 
-    ! Bottom BCs (no-slip wall)
-    i = 0
+    ! Bottom wall
     bc = bc+1
-    i = i + 1
-    write(str,'(A10,i1)') 'bottomWall', i
-    name   (bc) = trim(str)
+    name   (bc) = 'bottomWall'
     type   (bc) = 'SAT_ISOTHERMAL_WALL'
     normDir(bc) =  2
     imin   (bc) =  1
-    imax   (bc) =  iJet1 - 1
-    jmin   (bc) =  1
-    jmax   (bc) =  1
-    kmin   (bc) =  1
-    kmax   (bc) = -1
-
-    if (nz > 1) then
-       bc = bc+1
-       i = i + 1
-       write(str,'(A10,i1)') 'bottomWall', i
-       name   (bc) = trim(str)
-       type   (bc) = 'SAT_ISOTHERMAL_WALL'
-       normDir(bc) =  2
-       imin   (bc) =  iJet1
-       imax   (bc) =  iJet2
-       jmin   (bc) =  1
-       jmax   (bc) =  1
-       kmin   (bc) =  1
-       kmax   (bc) =  kJet1 - 1
-
-       bc = bc+1
-       i = i + 1
-       write(str,'(A10,i1)') 'bottomWall', i
-       name   (bc) = trim(str)
-       type   (bc) = 'SAT_ISOTHERMAL_WALL'
-       normDir(bc) =  2
-       imin   (bc) =  iJet1
-       imax   (bc) =  iJet2
-       jmin   (bc) =  1
-       jmax   (bc) =  1
-       kmin   (bc) =  kJet2 + 1
-       kmax   (bc) = -1
-    end if
-
-    bc = bc+1
-       i = i + 1
-       write(str,'(A10,i1)') 'bottomWall', i
-    name   (bc) = trim(str)
-    type   (bc) = 'SAT_ISOTHERMAL_WALL'
-    normDir(bc) =  2
-    imin   (bc) =  iJet2 + 1
     imax   (bc) = -1
     jmin   (bc) =  1
     jmax   (bc) =  1
     kmin   (bc) =  1
     kmax   (bc) = -1
 
+
     ! Jet inflow at the bottom wall
     bc = bc+1
     name   (bc) = 'jetInflow'
     type   (bc) = 'SAT_FAR_FIELD'
     normDir(bc) =  2
-    imin   (bc) =  iJet1
-    imax   (bc) =  iJet2
+    imin   (bc) =  1
+    imax   (bc) = -1
     jmin   (bc) =  1
     jmax   (bc) =  1
-    kmin   (bc) =  kJet1
-    kmax   (bc) =  kJet2
-
-    ! Side walls of the  jet.
-    bc = bc+1
-    name   (bc) = 'jetWall1'
-    type   (bc) = 'SAT_SLIP_WALL'
-    normDir(bc) =  1
-    imin   (bc) =  iJet1 - 1
-    imax   (bc) =  iJet1 - 1
-    jmin   (bc) =  1
-    jmax   (bc) =  1
-    kmin   (bc) =  kJet1
-    kmax   (bc) =  kJet2
-
-    bc = bc+1
-    name   (bc) = 'jetWall2'
-    type   (bc) = 'SAT_SLIP_WALL'
-    normDir(bc) = -1
-    imin   (bc) =  iJet2 + 1
-    imax   (bc) =  iJet2 + 1
-    jmin   (bc) =  1
-    jmax   (bc) =  1
-    kmin   (bc) =  kJet1
-    kmax   (bc) =  kJet2
-
-    if (nz > 1) then
-       bc = bc+1
-       name   (bc) = 'jetWall3'
-       type   (bc) = 'SAT_SLIP_WALL'
-       normDir(bc) =  3
-       imin   (bc) =  iJet1
-       imax   (bc) =  iJet2
-       jmin   (bc) =  1
-       jmax   (bc) =  1
-       kmin   (bc) =  kJet1 - 1
-       kmax   (bc) =  kJet1 - 1
-
-       bc = bc+1
-       name   (bc) = 'jetWall4'
-       type   (bc) = 'SAT_SLIP_WALL'
-       normDir(bc) = -3
-       imin   (bc) =  iJet1
-       imax   (bc) =  iJet2
-       jmin   (bc) =  1
-       jmax   (bc) =  1
-       kmin   (bc) =  kJet2 + 1
-       kmax   (bc) =  kJet2 + 1
-    end if
+    kmin   (bc) =  1
+    kmax   (bc) = -1
 
     ! Target region
     bc = bc+1
@@ -1206,7 +1116,7 @@ contains
     write(iunit,'(1a87)') "# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ===="
 
     ! Write the boundary conditions.
-    do i=1,nbc
+    do i = 1, nbc
        write(iunit,'(a2,2a21,8I5)') '  ',adjustl(name(i)),adjustl(type(i)),                  &
             1, normDir(i), imin(i), imax(i), jmin(i), jmax(i), kmin(i), kmax(i)
     end do
