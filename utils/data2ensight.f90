@@ -51,7 +51,8 @@ program data2ensight
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
 
   ! Parse the input file.
-  call parseInputFile("magudi.inp")
+  call getInputName(filename)
+  call parseInputFile(filename)
 
   ! Read information from standard input.
   if (procRank == 0) then
