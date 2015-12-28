@@ -35,23 +35,36 @@ program main
 
   call initializeErrorHandler()
 
+  call startTiming("total")
+
   if (command_argument_count() > 1) then
-     write(message, '(A)') "Usage: magudi [FILE]"
+     write(message, '(A)') "Usage: magudi [INPUT]"
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
      write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
      write(message, '(A)')                                                                   &
-          "FILE is an optional restart file used if running in prediction-only mode."
+          "Maximum of 1 INPUT file allowed."
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
      call cleanupErrorHandler()
      call MPI_Finalize(ierror)
      stop -1
   end if
 
-  call startTiming("total")
+  ! Get the input file name.
+  if (command_argument_count() == 1) then
+     call get_command_argument(1, filename)
+     if (filename(1:1) == '-' .or. len_trim(filename) == 0) then
+        write(message, '(A)') "No input file name was detected, using 'input'."
+        call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+        filename = 'input'
+     end if
+  else
+     write(message, '(A)') "No input file name was detected, using 'input'."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     filename = 'input'
+  end if
 
   ! Parse options from the input file.
-  filename = PROJECT_NAME // ".inp"
   call parseInputFile(filename)
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
@@ -100,12 +113,7 @@ program main
 
   ! Main code logic.
   if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
-     if (command_argument_count() == 1) then
-        call get_command_argument(1, filename)
-        dummyValue = solver%runForward(region, restartFilename = filename)
-     else
-        dummyValue = solver%runForward(region)
-     end if
+     dummyValue = solver%runForward(region)
   else if (getOption("check_gradient_accuracy", .true.)) then !... verify gradient is exact.
      call solver%checkGradientAccuracy(region)
   else if (getOption("find_optimal_forcing", .true.)) then !... adjoint optimization.
