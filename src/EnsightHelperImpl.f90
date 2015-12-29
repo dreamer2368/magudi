@@ -87,6 +87,10 @@ contains
        end do
     end if
 
+    ! Q-criterion.
+    str='scalar per node: 1 QCRIT QCRIT/QCRIT.******'
+    write(iunit,'(a80)') str
+
     ! Time section
     str='TIME'
     write(iunit,'(a80)') str
@@ -109,7 +113,7 @@ contains
 
   end subroutine writeEnsightCase
 
-  subroutine writeEnsightGeometry(this, grid, gridIndex)
+  subroutine writeEnsightGeometry(this, grid)
 
     ! <<< External modules >>>
     use MPI
@@ -127,7 +131,6 @@ contains
     ! <<< Arguments >>>
     class(t_Ensight) :: this
     class(t_Grid) :: grid
-    integer, intent(in) :: gridIndex
 
     ! <<< Local variables >>>
     integer :: i, procRank, iunit, ierror
@@ -146,7 +149,7 @@ contains
 
     ! Open the file to write.
     filename = trim(adjustl(this%directory)) // "/geometry_"
-    write(filename, '(A,I2.2)') trim(adjustl(filename)), gridIndex
+    write(filename, '(A,I2.2)') trim(adjustl(filename)), grid%index
 
     ! Output to screen.
     write(message, '(3A)') "Writing '", trim(filename), "'..."
@@ -173,7 +176,7 @@ contains
        call MPI_FILE_WRITE(iunit, buffer, 80, MPI_CHARACTER, MPI_STATUS_IGNORE, ierror)
        i = 1
        call MPI_FILE_WRITE(iunit, i, 1, MPI_INTEGER, MPI_STATUS_IGNORE, ierror)
-       write(buffer, '(A,I2.2)') "Grid_", gridIndex
+       write(buffer, '(A,I2.2)') "Grid_", grid%index
        call MPI_FILE_WRITE(iunit, buffer, 80, MPI_CHARACTER, MPI_STATUS_IGNORE, ierror)
        if (useIblank) then
           buffer = 'block curvilinear iblanked'
@@ -386,13 +389,14 @@ contains
 
 end module EnsightHelperImpl
 
-subroutine setupEnsight(this, grid, gridIndex, time)
+subroutine setupEnsight(this, grid, time)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Internal modules >>>
   use InputHelper, only : getFreeUnit
+  use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -406,7 +410,6 @@ subroutine setupEnsight(this, grid, gridIndex, time)
   ! <<< Arguments >>>
   class(t_Ensight) :: this
   class(t_Grid) :: grid
-  integer, intent(in) :: gridIndex
   real(SCALAR_KIND), intent(in) :: time
 
   ! <<< Local variables >>>
@@ -417,12 +420,14 @@ subroutine setupEnsight(this, grid, gridIndex, time)
   character(len = STRING_LENGTH) :: line
   logical :: lineFound
 
+  call startTiming("outputEnsight")
+
   ! Get my rank in `comm`.
   call MPI_Comm_rank(grid%comm, procRank, ierror)
 
   ! Open the case file.
   this%directory = 'ensight-3D'
-  write(this%filename, '(A,I2.2,A)') "magudi_grid", gridIndex, ".case"
+  write(this%filename, '(A,I2.2,A)') "magudi_grid", grid%index, ".case"
   if (procRank == 0) then
      inquire(file = trim(this%directory)//'/'//trim(this%filename), exist = fileExists)
      if (fileExists) then
@@ -506,11 +511,13 @@ subroutine setupEnsight(this, grid, gridIndex, time)
   allocate(this%buffer3_sp(this%dataSize, 3))
 
   ! Write the geometry.
-  call writeEnsightGeometry(this, grid, gridIndex)
+  call writeEnsightGeometry(this, grid)
+
+  call endTiming("outputEnsight")
 
 end subroutine setupEnsight
 
-subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
+subroutine outputEnsight(this, state, grid, mode, time, nSpecies)
 
   ! <<< External modules >>>
   use MPI
@@ -518,9 +525,11 @@ subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
   ! <<< Derived types >>>
   use EnsightHelper, only : t_Ensight
   use State_mod, only : t_State
+  use Grid_mod, only : t_Grid
 
   ! <<< Internal modules >>>
-  use CNSHelper, only : computeDependentVariables
+  use CNSHelper
+  use MPITimingsHelper, only : startTiming, endTiming
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT
@@ -533,35 +542,41 @@ subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
   ! <<< Arguments >>>
   class(t_Ensight) :: this
   class(t_State) :: state
-  integer, intent(in) :: comm, gridIndex, mode
+  class(t_Grid) :: grid
+  integer, intent(in) :: mode
   integer, intent(in), optional :: nSpecies
   real(SCALAR_KIND), intent(in) :: time
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, procRank, nDimensions, nSpecies_, ierror
+  real(wp), dimension(:,:), allocatable :: temp
   character(len = STRING_LENGTH) :: name
 
-  ! Get my rank in `comm`.
-  call MPI_Comm_rank(comm, procRank, ierror)
+  call startTiming("outputEnsight")
 
-  nDimensions = size(state%velocity, 2)
+  ! Get my rank in `comm`.
+  call MPI_Comm_rank(grid%comm, procRank, ierror)
+
+  nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   nSpecies_ = 0
   if (present(nSpecies)) nSpecies_ = nSpecies
   assert(nSpecies_ == size(state%massFraction, 2))
 
+  assert(size(state%velocity, 1) == grid%nGridPoints)
+
   select case(mode)
   case (FORWARD)
 
      ! Update the case file (root process only).
-     if (procRank == 0) call writeEnsightCase(this, time, gridIndex, nSpecies_)
+     if (procRank == 0) call writeEnsightCase(this, time, grid%index, nSpecies_)
 
      ! Density.
      name = 'DENSITY'
      this%buffer1_sp = real(state%conservedVariables(:,1), 4)
-     call writeEnsightScalar(this, name, comm)
+     call writeEnsightScalar(this, name, grid%comm)
 
      ! Velocity.
      name = 'VELOCITY'
@@ -569,19 +584,28 @@ subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
      do i = 1, nDimensions
         this%buffer3_sp(:, i) = real(state%velocity(:, i), 4)
      end do
-     call writeEnsightVector(this, name, comm)
+     call writeEnsightVector(this, name, grid%comm)
 
      ! Temperature.
      name = 'TEMPERATURE'
      this%buffer1_sp = real(state%temperature(:,1), 4)
-     call writeEnsightScalar(this, name, comm)
+     call writeEnsightScalar(this, name, grid%comm)
 
      ! Mass fractions.
      do i = 1, nSpecies_
         write(name, "(A,I2.2)") "MASS_FRACTION_", i
         this%buffer1_sp = real(state%massFraction(:,i), 4)
-        call writeEnsightScalar(this, name, comm)
+        call writeEnsightScalar(this, name, grid%comm)
      end do
+
+     ! Q-criterion.
+     allocate(temp(grid%nGridPoints, nDimensions ** 2))
+     call grid%computeGradient(state%velocity, temp)
+     call computeQCriterion(nDimensions, temp, temp(:, 1))
+     name = 'QCRIT'
+     this%buffer1_sp = real(temp(:, 1), 4)
+     deallocate(temp)
+     call writeEnsightScalar(this, name, grid%comm)
 
   case (ADJOINT)
 
@@ -592,9 +616,11 @@ subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
      do i = 1, nDimensions + 2 + nSpecies_
         write(name, "(A,I2.2)") "ADJOINT_", i
         this%buffer1_sp = real(state%adjointVariables(:,i), 4)
-        call writeEnsightScalar(this, name, comm)
+        call writeEnsightScalar(this, name, grid%comm)
      end do
 
   end select
+
+  call endTiming("outputEnsight")
 
 end subroutine outputEnsight

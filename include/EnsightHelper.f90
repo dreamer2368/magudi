@@ -21,7 +21,7 @@ module EnsightHelper
 
   interface
 
-     subroutine setupEnsight(this, grid, gridIndex, time)
+     subroutine setupEnsight(this, grid, time)
 
        !> Sets up the EnSight files, including timing and file types.
 
@@ -31,7 +31,6 @@ module EnsightHelper
 
        class(t_Ensight) :: this
        class(t_Grid) :: grid
-       integer, intent(in) :: gridIndex
        real(SCALAR_KIND), intent(in) :: time
 
      end subroutine setupEnsight
@@ -40,18 +39,20 @@ module EnsightHelper
 
   interface
 
-     subroutine outputEnsight(this, state, comm, gridIndex, mode, time, nSpecies)
+     subroutine outputEnsight(this, state, grid, mode, time, nSpecies)
 
        !> Writes the primitive variables (density, velocity, temperature, mass fraction)
        !> or adjoint variables in EnSight Gold format for visualization purposes.
 
        use State_mod, only : t_State
+       use Grid_mod, only : t_Grid
 
        import :: t_Ensight
 
        class(t_Ensight) :: this
        class(t_State) :: state
-       integer, intent(in) :: comm, gridIndex, mode
+       class(t_Grid) :: grid
+       integer, intent(in) :: mode
        integer, intent(in), optional :: nSpecies
        real(SCALAR_KIND), intent(in) :: time
 

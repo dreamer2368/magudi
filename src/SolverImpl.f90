@@ -620,13 +620,13 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
   if (region%simulationFlags%outputToEnsight) then
      this%ensightSave = int(time / this%ensightFrequency)
      do i = 1, size(region%grids)
-        call this%ensight(i)%setup(region%grids(i), i, time)
+        call this%ensight(i)%setup(region%grids(i), time)
      end do
      ! Output the initial condition to EnSight.
      if (startTimestep == 0) then
         do i = 1, size(region%states)
-           call this%ensight(i)%output(region%states(i), region%grids(i)%comm, i,            &
-                FORWARD, time, region%solverOptions%nSpecies)
+           call this%ensight(i)%output(region%states(i), region%grids(i), FORWARD, time,     &
+                region%solverOptions%nSpecies)
         end do
      end if
   end if
@@ -694,8 +694,8 @@ function runForward(this, region, actuationAmount, controlIteration, restartFile
         if (int(time / this%ensightFrequency) .ne. this%ensightSave) then
            this%ensightSave = int(time / this%ensightFrequency)
            do i = 1, size(region%states)
-              call this%ensight(i)%output(region%states(i), region%grids(i)%comm, i,         &
-                   FORWARD, time, region%solverOptions%nSpecies)
+              call this%ensight(i)%output(region%states(i), region%grids(i), FORWARD, time,  &
+                   region%solverOptions%nSpecies)
            end do
         end if
      end if

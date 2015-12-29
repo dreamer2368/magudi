@@ -98,10 +98,16 @@ program data2ensight
   print *
   call region%loadData(QOI_GRID, filename)
 
+  ! Compute normalized metrics, norm matrix and Jacobian.
+  do i = 1, size(region%grids)
+     call region%grids(i)%update()
+  end do
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
   ! Setup EnSight directory and write geometry.
   allocate(solver%ensight(size(region%grids)))
   do i = 1, size(region%grids)
-     call solver%ensight(i)%setup(region%grids(i), i, region%states(i)%time)
+     call solver%ensight(i)%setup(region%grids(i), region%states(i)%time)
   end do
 
   ! Get number of files to read in.
@@ -131,7 +137,7 @@ program data2ensight
              region%states(i)%specificVolume(:,1), region%states(i)%velocity,                &
              region%states(i)%pressure(:,1), region%states(i)%temperature(:,1),              &
              region%states(i)%massFraction)
-        call solver%ensight(i)%output(region%states(i), region%grids(i)%comm, i, FORWARD,    &
+        call solver%ensight(i)%output(region%states(i), region%grids(i),FORWARD,             &
              region%states(1)%time, region%solverOptions%nSpecies)
      end do
 
@@ -140,11 +146,17 @@ program data2ensight
         print *
         call region%loadData(QOI_ADJOINT_STATE, filename)
         do i = 1, size(region%states)
-           call solver%ensight(i)%output(region%states(i), region%grids(i)%comm, i, ADJOINT, &
+           call solver%ensight(i)%output(region%states(i), region%grids(i), ADJOINT,         &
                 region%states(1)%time, region%solverOptions%nSpecies)
         end do
      end if
 
   end do
+
+  ! Cleanup.
+  call region%cleanup()
+
+  ! Finalize MPI.
+  call MPI_Finalize(ierror)
 
 end program data2ensight
