@@ -25,7 +25,7 @@ program jet_crossflow
 
   implicit none
 
-  ! <<< Global Parameters >>>
+  ! <<< Global parameters >>>
   type(t_Region) :: region
   type(t_SolverOptions) :: solverOptions
   type(t_SimulationFlags) :: simulationFlags
@@ -845,7 +845,8 @@ contains
              end select
 
              !if (insideJet) then
-                yDecay = max(0.0_wp, 0.5_wp * (1.0_wp + tanh((4.0_wp - y / jetDiameter))))
+                yDecay = max(0.0_wp,                                                         &
+                     0.5_wp * (1.0_wp + tanh(10.0_wp * (0.5_wp - y / jetDiameter))))
 
                 ! Fuel stream.
                 sig = 6.0_wp

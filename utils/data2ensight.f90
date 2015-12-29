@@ -1,37 +1,21 @@
 #include "config.h"
 
 program data2ensight
-! ============================================================= !
-!                                                               !
-! Converts PLOT3D data file to EnSight format                   !
-!                                                               !
-! ============================================================= !
-!                                                               !
-! Written by Jesse Capecelatro (jcaps@illinois.edu)             !
-! 9 August 2014                                                 !
-!                                                               !
-! ============================================================= !
 
-  ! <<< External modules >>>
   use MPI
   use, intrinsic :: iso_fortran_env
 
- ! <<< Derived types >>>
-  use Region_mod, only : t_Region
-  use Solver_mod, only : t_Solver
-
-  ! <<< Enumerations >>>
   use Grid_enum
   use State_enum
   use Region_enum, only : FORWARD, ADJOINT
 
-  ! <<< Internal modules >>>
-  use CNSHelper, only : computeDependentVariables
-  use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use Region_mod, only : t_Region
+  use Solver_mod, only : t_Solver
+
+  use InputHelper, only : getInputName, parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
-
-  use EnsightHelperImpl
+  use CNSHelper, only : computeDependentVariables
 
   implicit none
 
