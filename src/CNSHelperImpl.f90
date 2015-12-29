@@ -628,11 +628,10 @@ PURE_SUBROUTINE computeQCriterion(nDimensions, velocityGradient, QCriterion)
   assert_key(nDimensions, (1, 2, 3))
   assert(size(velocityGradient, 2) == nDimensions ** 2)
 
-  do i = 1, size(QCriterion)
+  select case (nDimensions)
 
-     select case (nDimensions)
-
-     case (1)
+  case (1)
+     do i = 1, size(QCriterion)
         rateOfStrainTensor(1) = velocityGradient(i,1)
 
         vorticityTensor(1) = 0.0_wp
@@ -641,7 +640,11 @@ PURE_SUBROUTINE computeQCriterion(nDimensions, velocityGradient, QCriterion)
         temp1 = rateOfStrainTensor(1) * rateOfStrainTensor(1)
         temp2 = vorticityTensor(1) * vorticityTensor(1)
 
-     case (2)
+        QCriterion(i) = 0.5_wp * (PCriterion ** 2 - temp1 - temp2)
+     end do
+
+  case (2)
+     do i = 1, size(QCriterion)
         rateOfStrainTensor(1) = velocityGradient(i,1)
         rateOfStrainTensor(2) = 0.5_wp * (velocityGradient(i,2) + velocityGradient(i,3))
         rateOfStrainTensor(3) = rateOfStrainTensor(2)
@@ -660,7 +663,11 @@ PURE_SUBROUTINE computeQCriterion(nDimensions, velocityGradient, QCriterion)
              vorticityTensor(3) + vorticityTensor(3) * vorticityTensor(2) +                  &
              vorticityTensor(4) * vorticityTensor(4)
 
-     case (3)
+        QCriterion(i) = 0.5_wp * (PCriterion ** 2 - temp1 - temp2)
+     end do
+
+  case (3)
+     do i = 1, size(QCriterion)
         rateOfStrainTensor(1) = velocityGradient(i,1)
         rateOfStrainTensor(2) = 0.5_wp * (velocityGradient(i,2) + velocityGradient(i,4))
         rateOfStrainTensor(3) = 0.5_wp * (velocityGradient(i,3) + velocityGradient(i,7))
@@ -695,11 +702,10 @@ PURE_SUBROUTINE computeQCriterion(nDimensions, velocityGradient, QCriterion)
              vorticityTensor(7) * vorticityTensor(3) + vorticityTensor(8) *                  &
              vorticityTensor(6) + vorticityTensor(9) * vorticityTensor(9)
 
-     end select !... nDimensions
+        QCriterion(i) = 0.5_wp * (PCriterion ** 2 - temp1 - temp2)
+     end do
 
-     QCriterion(i) = 0.5_wp * (PCriterion ** 2 - temp1 - temp2)
-
-  end do
+  end select !... nDimensions
 
 end subroutine computeQCriterion
 
