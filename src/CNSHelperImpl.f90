@@ -623,9 +623,9 @@ PURE_SUBROUTINE computeQCriterion(nDimensions, velocityGradient, QCriterion)
   real(wp), dimension(nDimensions ** 2) :: rateOfStrainTensor, vorticityTensor
   real(wp) :: PCriterion, temp1, temp2
 
+  assert_key(nDimensions, (1, 2, 3))
   assert(size(velocityGradient, 1) > 0)
   assert(size(QCriterion) == size(velocityGradient, 1))
-  assert_key(nDimensions, (1, 2, 3))
   assert(size(velocityGradient, 2) == nDimensions ** 2)
 
   select case (nDimensions)
