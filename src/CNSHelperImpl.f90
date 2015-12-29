@@ -608,6 +608,101 @@ PURE_SUBROUTINE computeVorticityMagnitudeAndDilatation(nDimensions, velocityGrad
 
 end subroutine computeVorticityMagnitudeAndDilatation
 
+PURE_SUBROUTINE computeQCriterion(nDimensions, velocityGradient, QCriterion)
+
+  implicit none
+
+  ! <<< Arguments >>>
+  integer, intent(in) :: nDimensions
+  SCALAR_TYPE, intent(in) :: velocityGradient(:,:)
+  SCALAR_TYPE, intent(out) :: QCriterion(:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i
+  real(wp), dimension(nDimensions ** 2) :: rateOfStrainTensor, vorticityTensor
+  real(wp) :: PCriterion, temp1, temp2
+
+  assert(size(velocityGradient, 1) > 0)
+  assert(size(QCriterion) == size(velocityGradient, 1))
+  assert_key(nDimensions, (1, 2, 3))
+  assert(size(velocityGradient, 2) == nDimensions ** 2)
+
+  do i = 1, size(QCriterion)
+
+     select case (nDimensions)
+
+     case (1)
+        rateOfStrainTensor(1) = velocityGradient(i,1)
+
+        vorticityTensor(1) = 0.0_wp
+
+        PCriterion = - rateOfStrainTensor(1)
+        temp1 = rateOfStrainTensor(1) * rateOfStrainTensor(1)
+        temp2 = vorticityTensor(1) * vorticityTensor(1)
+
+     case (2)
+        rateOfStrainTensor(1) = velocityGradient(i,1)
+        rateOfStrainTensor(2) = 0.5_wp * (velocityGradient(i,2) + velocityGradient(i,3))
+        rateOfStrainTensor(3) = rateOfStrainTensor(2)
+        rateOfStrainTensor(4) = velocityGradient(i,4)
+
+        vorticityTensor(1) = 0.0_wp
+        vorticityTensor(2) = 0.5_wp * (velocityGradient(i,2) - velocityGradient(i,3))
+        vorticityTensor(3) = 0.5_wp * (velocityGradient(i,3) - velocityGradient(i,2))
+        vorticityTensor(4) = 0.0_wp
+
+        PCriterion = - rateOfStrainTensor(1) - rateOfStrainTensor(4)
+        temp1 = rateOfStrainTensor(1) * rateOfStrainTensor(1) + rateOfStrainTensor(2) *      &
+             rateOfStrainTensor(3) + rateOfStrainTensor(3) * rateOfStrainTensor(2) +         &
+             rateOfStrainTensor(4) * rateOfStrainTensor(4)
+        temp2 = vorticityTensor(1) * vorticityTensor(1) + vorticityTensor(2) *               &
+             vorticityTensor(3) + vorticityTensor(3) * vorticityTensor(2) +                  &
+             vorticityTensor(4) * vorticityTensor(4)
+
+     case (3)
+        rateOfStrainTensor(1) = velocityGradient(i,1)
+        rateOfStrainTensor(2) = 0.5_wp * (velocityGradient(i,2) + velocityGradient(i,4))
+        rateOfStrainTensor(3) = 0.5_wp * (velocityGradient(i,3) + velocityGradient(i,7))
+        rateOfStrainTensor(4) = rateOfStrainTensor(2)
+        rateOfStrainTensor(5) = velocityGradient(i,5)
+        rateOfStrainTensor(6) = 0.5_wp * (velocityGradient(i,6) + velocityGradient(i,8))
+        rateOfStrainTensor(7) = rateOfStrainTensor(3)
+        rateOfStrainTensor(8) = rateOfStrainTensor(6)
+        rateOfStrainTensor(9) = velocityGradient(i,9)
+
+        vorticityTensor(1) = 0.0_wp
+        vorticityTensor(2) = 0.5_wp * (velocityGradient(i,2) - velocityGradient(i,4))
+        vorticityTensor(3) = 0.5_wp * (velocityGradient(i,3) - velocityGradient(i,7))
+        vorticityTensor(4) = 0.5_wp * (velocityGradient(i,4) - velocityGradient(i,2))
+        vorticityTensor(5) = 0.0_wp
+        vorticityTensor(6) = 0.5_wp * (velocityGradient(i,6) - velocityGradient(i,8))
+        vorticityTensor(7) = 0.5_wp * (velocityGradient(i,7) - velocityGradient(i,3))
+        vorticityTensor(8) = 0.5_wp * (velocityGradient(i,8) + velocityGradient(i,6))
+        vorticityTensor(9) = 0.0_wp
+
+        PCriterion = - rateOfStrainTensor(1) - rateOfStrainTensor(5) - rateOfStrainTensor(9)
+        temp1 = rateOfStrainTensor(1) * rateOfStrainTensor(1) + rateOfStrainTensor(2) *      &
+             rateOfStrainTensor(4) + rateOfStrainTensor(3) * rateOfStrainTensor(7) +         &
+             rateOfStrainTensor(4) * rateOfStrainTensor(2) + rateOfStrainTensor(5) *         &
+             rateOfStrainTensor(5) + rateOfStrainTensor(6) * rateOfStrainTensor(8) +         &
+             rateOfStrainTensor(7) * rateOfStrainTensor(3) + rateOfStrainTensor(8) *         &
+             rateOfStrainTensor(6) + rateOfStrainTensor(9) * rateOfStrainTensor(9)
+        temp2 = vorticityTensor(1) * vorticityTensor(1) + vorticityTensor(2) *               &
+             vorticityTensor(4) + vorticityTensor(3) * vorticityTensor(7) +                  &
+             vorticityTensor(4) * vorticityTensor(2) + vorticityTensor(5) *                  &
+             vorticityTensor(5) + vorticityTensor(6) * vorticityTensor(8) +                  &
+             vorticityTensor(7) * vorticityTensor(3) + vorticityTensor(8) *                  &
+             vorticityTensor(6) + vorticityTensor(9) * vorticityTensor(9)
+
+     end select !... nDimensions
+
+     QCriterion(i) = 0.5_wp * (PCriterion ** 2 - temp1 - temp2)
+
+  end do
+
+end subroutine computeQCriterion
+
 PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, nSpecies, conservedVariables,    &
      velocity, pressure, inviscidFluxes)
 

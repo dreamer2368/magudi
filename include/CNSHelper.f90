@@ -122,6 +122,20 @@ module CNSHelper
 
   interface
 
+     pure subroutine computeQcriterion(nDimensions, velocityGradient, Qcriterion)
+
+       !> Computes the second invariant of the velocity gradient tensor (Q-criterion).
+
+       integer, intent(in) :: nDimensions
+       SCALAR_TYPE, intent(in) :: velocityGradient(:,:)
+       SCALAR_TYPE, intent(out) :: Qcriterion(:)
+
+     end subroutine computeQcriterion
+
+  end interface
+
+  interface
+
      pure subroutine computeCartesianInvsicidFluxes(nDimensions, nSpecies,                   &
        conservedVariables, velocity, pressure, inviscidFluxes)
 
