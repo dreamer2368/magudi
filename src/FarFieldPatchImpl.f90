@@ -27,7 +27,7 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
   integer, parameter :: wp = SCALAR_KIND
   integer :: nDimensions, nUnknowns, nSpecies, direction, i, j, k, gridIndex, patchIndex
   real(SCALAR_KIND) :: radius, holeRadius, holePosition(3)
-  logical :: holeInsideShape
+  logical :: inverted
   character(len = STRING_LENGTH) :: key, message, holeShape
 
   call this%cleanup()
@@ -84,7 +84,7 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
      allocate(this%hole(this%nPatchPoints))
      this%hole = 0
 
-     holeInsideShape = getOption(trim(key) // "hole_inside_shape", .true.)
+     inverted = getOption(trim(key) // "hole_is_inverted", .false.)
      call getRequiredOption(trim(key) // "hole_shape", holeShape, comm)
 
      select case(trim(holeShape))
@@ -111,9 +111,9 @@ subroutine setupFarFieldPatch(this, index, comm, patchDescriptor,               
 
                  radius = sqrt(sum((grid%coordinates(gridIndex, 1:grid%nDimensions) -        &
                       holePosition(1:grid%nDimensions)) ** 2))
-                 if (holeInsideShape .and. radius <= holeRadius) then
+                 if (.not.inverted .and. radius <= holeRadius) then
                     this%hole(patchIndex) = 1
-                 else if (.not.holeInsideShape .and. radius > holeRadius) then
+                 else if (inverted .and. radius > holeRadius) then
                     this%hole(patchIndex) = 1
                  end if
 
