@@ -42,6 +42,9 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
   ! <<< Derived types >>>
   use IgnitionSource_mod, only : t_IgnitionSource
 
+  ! <<< Internal modules >>>
+  use MathHelper, only : pi
+
   implicit none
 
   ! <<< Arguments >>>
@@ -54,7 +57,6 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
   real(wp) :: power, timePortion, referenceTemperature, flameTemperature, gaussianFactor(3), &
        vorticityContribution, vorticityCoefficient
 
@@ -121,7 +123,6 @@ subroutine addAdjointIgnitionSource(this, time, coordinates, iblank, adjointVari
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, nDimensions, nUnknowns
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
   real(wp) :: gaussianFactor(3), timePortion, vorticityContribution, vorticityCoefficient
   SCALAR_TYPE, allocatable :: localSourceJacobian(:,:), temp(:)
 

@@ -5,6 +5,9 @@ subroutine setupAcousticSource(this, location, amplitude, frequency, radius, pha
   ! <<< Derived types >>>
   use AcousticSource_mod, only : t_AcousticSource
 
+  ! <<< Internal modules >>>
+  use MathHelper, only : pi
+
   implicit none
 
   ! <<< Arguments >>>
@@ -14,7 +17,6 @@ subroutine setupAcousticSource(this, location, amplitude, frequency, radius, pha
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
 
   assert(size(location) >= 1 .and. size(location) <= 3)
   assert(radius > 0.0_wp)

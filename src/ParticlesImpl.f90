@@ -45,6 +45,7 @@ subroutine setupParticles(this, simulationFlags, comm)
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : gracefulExit
+  use MathHelper, only : pi
 
   ! <<< Enumerations >>>
   use Particles_enum
@@ -58,7 +59,6 @@ subroutine setupParticles(this, simulationFlags, comm)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
 
   if (.not. simulationFlags%particlesOn) return
 

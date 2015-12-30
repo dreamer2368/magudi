@@ -5,6 +5,9 @@ subroutine setupFuelSource(this, fuelIndex, location, amplitude, frequency, radi
   ! <<< Derived types >>>
   use FuelSource_mod, only : t_FuelSource
 
+  ! <<< Internal modules >>>
+  use MathHelper, only : pi
+
   implicit none
 
   ! <<< Arguments >>>
@@ -15,7 +18,6 @@ subroutine setupFuelSource(this, fuelIndex, location, amplitude, frequency, radi
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
 
   assert(fuelIndex > 0)
   assert(size(location) >= 1 .and. size(location) <= 3)

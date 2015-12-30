@@ -21,7 +21,6 @@ subroutine setupCombustion(this, nSpecies, species, comm)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
   integer :: k
   character(len = STRING_LENGTH) :: message, val
 
