@@ -278,7 +278,7 @@ contains
 
                 ! Adjust the current height.
                 ytilde = region%grids(1)%coordinates(grid_index(i,j-1,k),2) + delta
-                alpha = tanh(0.1_wp * (j - 2) / (ny - 2))
+                alpha = tanh(0.1_wp * real(j - 2, wp) / real(ny - 2, wp))
                 region%grids(1)%coordinates(grid_index(i,j,k), 2) =                          &
                      ytilde * (1.0_wp - alpha) + y * alpha
              end do
@@ -324,7 +324,7 @@ contains
                    ! Account for periodicity in z.
                    z12 = (zmax - zmin) - abs(z - z0)
                    If (nz > 1) gauss = gauss + amp *                                         &
-                        exp(-((x-x0)**2 / (2.0_wp * sig**2) + z12**2 / (2.0_wp * sig**2)))
+                        exp(-((x - x0)**2 / (2.0_wp * sig**2) + z12**2 / (2.0_wp * sig**2)))
 
                    ! Update the vertical coordinate.
                    region%grids(1)%coordinates(grid_index(i,j,k), 2) = y + gauss
@@ -340,7 +340,7 @@ contains
                       
                       ! Adjust the current height.
                       ytilde = region%grids(1)%coordinates(grid_index(i,j-1,k),2) + delta
-                      alpha = tanh(4.0_wp * (j - 2) / (ny - 2))
+                      alpha = tanh(4.0_wp * real(j - 2, wp) / real(ny - 2, wp))
                       region%grids(1)%coordinates(grid_index(i,j,k), 2) =                    &
                            ytilde * (1.0_wp - alpha) + y * alpha
                    end do
