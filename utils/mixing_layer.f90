@@ -318,10 +318,12 @@ contains
   ! Grid stretching function !
   ! ======================== !
   Subroutine mapping_function(s, b, c, sigma, g)
+
+    use MathHelper, only : pi
+
     implicit none
 
     integer, parameter :: wp = SCALAR_KIND
-    real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
     real(wp), intent(in) :: s(:), b, c, sigma
     real(wp), intent(out) :: g(size(s))
 
