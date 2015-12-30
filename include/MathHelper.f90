@@ -18,7 +18,7 @@ module MathHelper
 
      pure function crossProduct(x, y) result(z)
 
-       !>  Returns cross product in 3 dimensions: z = cross(x, y).
+       !> Returns cross product in 3 dimensions: z = cross(x, y).
     
        real(SCALAR_KIND), dimension(3), intent(in) :: x, y
        real(SCALAR_KIND), dimension(3)             :: z
