@@ -352,7 +352,7 @@ contains
 
              ! Output the progress.
              if (mod(real(n, wp), real(nGrit, wp) / 10.0_wp) == 0 .and. procRank == 0)       &
-                  write(*,'(f6.2, A)') real(n, wp) / real(nGrit, wp) * 100.0_wp, '% complete'
+                  write(*,'(f5.1, A)') real(n, wp) / real(nGrit, wp) * 100.0_wp, '% complete'
 
           end do
        end if !... includeGrit
