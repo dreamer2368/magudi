@@ -252,8 +252,8 @@ contains
        call MPI_Allreduce(MPI_IN_PLACE, iTrip2, 1, MPI_INTEGER, MPI_MIN,                     &
             MPI_COMM_WORLD, ierror)
        if (procRank == 0) then
-          print *
-          print *, 'Sandpaper extents: [', iTrip1, ',', iTrip2, ']'
+          write (*,'(A)') ''
+          write (*,'(A, i0.0, A, i0.0, A)') 'Sandpaper extents: [', iTrip1, ', ', iTrip2, ']'
        end if
 
        ! Deform the mesh to the sandpaper height.
@@ -292,6 +292,8 @@ contains
           sig = gritWidth
 
           ! Loop through number of particles.
+          write (*,'(A)') ''
+          write (*,'(A, i0.0, A)') 'Adding ', nGrit, ' particles...'
           do n = 1, nGrit
 
              ! Compute amplitude.
@@ -347,6 +349,11 @@ contains
 
                 end do
              end do
+
+             ! Output the progress.
+             if (mod(real(n, wp), real(nGrit, wp) / 10.0_wp) == 0 .and. procRank == 0)       &
+                  write(*,'(f6.2, A)') real(n, wp) / real(nGrit, wp) * 100.0_wp, '% complete'
+
           end do
        end if !... includeGrit
 
@@ -370,7 +377,7 @@ contains
        call MPI_Allreduce(MPI_IN_PLACE, valleyHeight, 1, MPI_REAL8, MPI_MIN,                 &
             MPI_COMM_WORLD, ierror)
        if (procRank == 0) then
-          print *
+          write (*,'(A)') ''
           print *, 'Max surface height:', real(totalHeight, 4)
           print *, 'Peak height:', real(peakHeight, 4)
           print *, 'Valley height:', real(valleyHeight, 4)
