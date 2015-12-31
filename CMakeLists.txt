@@ -63,6 +63,7 @@ else()
 endif()
 set(CMAKE_Fortran_FORMAT "FREE")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/modules)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
 set(CMAKE_C_FLAGS_DEBUG "-std=c89 -pedantic-errors")
 
@@ -202,6 +203,13 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/include/UniformMap.f90
   ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
 
+  # Initialization files.
+  ${PROJECT_SOURCE_DIR}/utils/init_flow/CounterflowDiffusion.f90
+  ${PROJECT_SOURCE_DIR}/utils/init_flow/Jet.f90
+  ${PROJECT_SOURCE_DIR}/utils/init_flow/JetCrossFlow.f90
+  ${PROJECT_SOURCE_DIR}/utils/init_flow/MixingLayer.f90
+  ${PROJECT_SOURCE_DIR}/utils/init_flow/Premixed.f90	
+
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c
 
@@ -233,6 +241,7 @@ set(magudi_BUILD_FILES
   ${PROJECT_BINARY_DIR}/test
   ${PROJECT_BINARY_DIR}/Testing
   ${PROJECT_BINARY_DIR}/utils
+  ${PROJECT_BINARY_DIR}/bin
 
   )
 

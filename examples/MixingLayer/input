@@ -1,44 +1,55 @@
-# Magudi input file
+# magudi.inp
+
+#############################################################################################
+# Filenames                                                                                 #
+#############################################################################################
 
 # Filenames, etc.
 output_prefix = "MixingLayer"
 grid_file = "MixingLayer.xyz"
 solution_file = "MixingLayer.ic.q"
 boundary_condition_file = "bc.dat"
-target_state_file = "MixingLayer.target.q"
+target_state_file = "MixingLayer.ic.q"
 target_mollifier_file = "MixingLayer.target_mollifier.f"
-control_mollifier_file = "MixingLayer.control_mollifier.f"
-decomposition_map_file = "decomp.map"
+#decomposition_map_file = "decomp.map"
 
-# Grid information
-nx = 1025
-ny = 513
-#nz = 128
-xmin_interior = 0
-xmax_interior = 120
-ymin_interior = -30
-ymax_interior = 30
-xmin_outer = -40
-xmax_outer = 160
-ymin_outer = -50
-ymax_outer = 50
-#zmin = -25.0
-#zmax = 25.0
+#############################################################################################
+# Initialization parameters                                                                 #
+#############################################################################################
+
+simulation_name = "MIXING_LAYER"
+
+# Grid dimensions
+grid001/dir1/size = 1025
+grid001/dir2/size = 513
+
+# Grid extents
+grid001/dir1/min_length_interior = 0.0
+grid001/dir1/max_length_interior = 120.0
+grid001/dir2/min_length_interior = -30.0
+grid001/dir2/max_length_interior = 30.0
+grid001/dir1/min_length_outer = -30.0
+grid001/dir1/max_length_outer = 180.0
+grid001/dir2/min_length_outer = -50.0
+grid001/dir2/max_length_outer = 50.0
+
+# Grid stretching
+stretch_x = false
 stretch_y = true
-
-# Adjoint mollifiers
-targer_mollifier_xmin = 40.0
-targer_mollifier_xmax = 60.0
-targer_mollifier_ymin = -10.0
-targer_mollifier_ymax = 10.0
-control_mollifier_xmin = 4.0
-control_mollifier_xmax = 12.0
-control_mollifier_ymin = -4.0
-control_mollifier_ymax = 4.0
 
 # Periodicity
 #grid001/dir3/periodicity_type = 'PLANE'
 #grid001/dir3/periodic_length = 50.0
+
+# Mixture properties
+upper_velocity = 0.6
+lower_velocity = 0.1
+initial_fuel_mass_fraction = 1.0
+initial_oxidizer_mass_fraction = 0.233
+
+#############################################################################################
+# Forward parameters                                                                        #
+#############################################################################################
 
 # Simulation flags
 include_viscous_terms = true
@@ -49,7 +60,7 @@ compute_time_average = false
 use_manual_domain_decomposition = false
 
 # Non-dimensional constants
-Reynolds_number = 200.0
+Reynolds_number = 1000.0
 Prandtl_number = 0.7
 Schmidt_number_1 = 0.7
 Schmidt_number_2 = 0.7
@@ -58,23 +69,24 @@ bulk_viscosity_ratio = 0.6
 ratio_of_specific_heats = 1.4
 
 # Chemistry
+equation_of_state = "IDEAL_GAS"
+combustion_model = "ONE_STEP"
 number_of_species = 2
 number_of_reactions = 1
-initial_fuel_mass_fraction = 1.0
-initial_oxidizer_mass_fraction = 0.233
 stoichiometric_ratio = 8.0
 heat_release = 0.86
 Zel_Dovich = 6.0
 Damkohler_number = 50000.0
 
 # Discretization scheme
-defaults/discretization_scheme = "SBP 4-8"
+defaults/discretization_scheme = "SBP 3-6"
+#defaults/inviscid_penalty_amount = 2.
 
 # Time stepping options
-time_step_size = 0.004
+time_step_size = 0.008
 cfl = 0.3
-number_of_timesteps = 1000
-report_interval = 1
+number_of_timesteps = 6000
+report_interval = 10
 save_interval = 100
 
 # Artificial dissipation
@@ -82,21 +94,17 @@ add_dissipation = true
 dissipation_amount = 0.01
 
 # Solution limits
-enable_solution_limits = false
-minimum_density = 0.01
-minimum_temperature = 0.05
-maximum_density = 10.
-maximum_temperature = 100.
-minimum_massFraction = -0.1
-maximum_massFraction = 1.1
+enable_solution_limits = true
+minimum_density = 0.001
+minimum_temperature = 0.001
+maximum_density = 100.
+maximum_temperature = 1000.
+minimum_mass_fraction = -0.2
+maximum_mass_fraction = 1.2
 
 # Damping
-defaults/sponge_amount = 0.5
-defaults/viscous_penalty_amount = 0.
-
-# Mixing layer velocity
-upper_velocity = 0.6
-lower_velocity = 0.1
+defaults/sponge_amount = 0.2
+defaults/viscous_penalty_amount = 1.0
 
 # Inflow excitation
 patches/excitationSupport/number_of_modes = 8
@@ -107,20 +115,50 @@ patches/excitationSupport/frequency = 0.128
 patches/excitationSupport/radius = 4.7434164902525691
 patches/excitationSupport/random_seed = 685785
 
-# Localized ignition
-patches/localizedIgnition/amplitude = 1.0
-patches/localizedIgnition/radius = 0.25
-patches/localizedIgnition/origin_x = 8.0
-patches/localizedIgnition/time_start = 0.3
-patches/localizedIgnition/time_duration = 0.2
+number_of_ignition_sources = 1
+ignition_source01/amplitude = 0.8
+ignition_source01/radius_x = 1.0
+ignition_source01/radius_y = 2.0
+ignition_source01/x = 8.0
+ignition_source01/y = 1.0
+ignition_source01/time_start = 1640.0
+ignition_source01/time_duration = 2.0
+ignition_source01/shock_mach_number = 2.0
+
+#############################################################################################
+# Adjoint parameters                                                                        #
+#############################################################################################
 
 # Adjoint optimization flags
-disable_adjoint_solver = false
-baseline_prediction_available = false
-use_continuous_adjoint = true
+disable_adjoint_solver = true
+use_continuous_adjoint = false
+
+# Cost functional
 cost_functional_type = "TEMPERATURE"
-controller_type = "FLAME_IGNITION"
-partial_sensitivity = true
-sensitivity_dependence = "AMPLITUDE"
-number_of_control_iterations = 0
-gradient_buffer_size = 100
+flame_temperature/weight_burn_region = true
+flame_temperature/burn_radius = 0.01
+flame_temperature/use_time_ramp = true
+flame_temperature/ramp_width = 1.0
+flame_temperature/ramp_peak = 1640.0
+minimize_cost_functional = false
+
+# Control forcing
+controller_type = "IGNITION_ACTUATOR"
+number_of_parameters = 8
+sensitivity_parameter01 = "AMPLITUDE"
+sensitivity_parameter02 = "POSITION_X"
+sensitivity_parameter03 = "POSITION_Y"
+sensitivity_parameter04 = "RADIUS_X"
+sensitivity_parameter05 = "RADIUS_Y"
+sensitivity_parameter06 = "INITIAL_TIME"
+sensitivity_parameter07 = "DURATION"
+sensitivity_parameter08 = "SHOCK_MACH_NUMBER" 
+
+# Gradient accuracy options
+check_gradient_accuracy = true
+baseline_prediction_available = true
+number_of_control_iterations = 32
+initial_actuation_amount = 1e4
+restart_control_iteration = 1
+actuation_amount_geometric_growth = 0.5623413251903491
+output_control_iterations = false
