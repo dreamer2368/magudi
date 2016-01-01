@@ -39,32 +39,6 @@ module MathHelper
      end function normalize
 
   end interface
-
-  interface
-
-     function gamma(xx)
-
-       !> Returns the gamma function.
-    
-       real(SCALAR_KIND) :: gamma
-       real(SCALAR_KIND), intent(in) :: xx
-    
-     end function gamma
-
-  end interface
-  
-  interface
-
-     function gammaLn(xx)
-
-    !> Returns the log of the gamma function.
-  
-       real(SCALAR_KIND) :: gammaLn
-       real(SCALAR_KIND), intent(in) :: xx
-
-     end function gammaLn
-
-  end interface
   
   interface
 

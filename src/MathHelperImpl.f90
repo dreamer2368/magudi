@@ -35,55 +35,6 @@ PURE_FUNCTION normalize(v) result(w)
 
 end function normalize
 
-function gamma(xx)
-
-  ! <<< Public members >>>
-  use MathHelper, only : gammaLn
-
-  implicit none
-
-  ! <<< Arguments >>>
-  real(SCALAR_KIND), intent(in) :: xx
-
-  ! <<< Result >>>
-  real(SCALAR_KIND) :: gamma
-
-  gamma = exp(gammaLn(xx))
-
-end function gamma
-
-function gammaLn(xx)
-
-  implicit none
-
-  ! <<< Arguments >>>
-  real(SCALAR_KIND), intent(in) :: xx
-
-  ! <<< Result >>>
-  real(SCALAR_KIND) :: gammaLn
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  real(wp), parameter :: stp = 2.5066282746310005_WP
-  real(wp), dimension(6), parameter :: cof = (/ 76.18009172947146_WP,                        &
-       -86.50532032941677_wp, 24.01409824083091_wp, -1.231739572450155_wp,                   &
-       0.1208650973866179E-2_wp, -.5395239384953E-5_wp /)
-  real(wp) :: ser, tmp, x, y
-  integer :: j
-
-  x = xx
-  y = x
-  tmp = x + 5.5_wp
-  tmp = (x + 0.5_wp) * log(tmp) - tmp
-  ser = 1.000000000190015_wp
-  do j = 1, 6
-     y = y + 1.0_WP
-     ser = ser + cof(j) / y
-  end do
-  gammaLn = tmp + log(stp * ser / x)
-
-end function gammaLn
-
 function besselJ0(x)
 
   implicit none
