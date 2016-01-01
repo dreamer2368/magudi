@@ -33,7 +33,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: k, comm_
+  integer :: i, comm_
   character(len = STRING_LENGTH) :: message, referenceSpecies, val
   real(wp) :: referenceMolecularWeight
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
@@ -58,14 +58,25 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   this%nUnknowns = nDimensions + 2 + this%nSpecies
 
+  allocate(this%froudeNumberInverse(nDimensions))
+  do i = 1, nDimensions
+     write(val, '(A,I1.1)') "Froude_number_dir", i
+     this%froudeNumberInverse(i) = max(0.0_wp, getOption(trim(val), 0.0_wp))
+     if (this%froudeNumberInverse(i) <= 0.0_wp) then
+        this%froudeNumberInverse(i) = 0.0_wp
+     else
+        this%froudeNumberInverse(i) = 1.0_wp / this%froudeNumberInverse(i)
+     end if
+  end do
+
   if (simulationFlags%viscosityOn) then
 
      this%reynoldsNumberInverse = max(0.0_wp, getOption("Reynolds_number", 0.0_wp))
      this%prandtlNumberInverse = max(0.0_wp, getOption("Prandtl_number", 0.7_wp))
      allocate(this%schmidtNumberInverse(this%nSpecies+1))
-     do k = 1, this%nSpecies
-        write(message, "(A,I1.1)") "Schmidt_number_", k
-        this%schmidtNumberInverse(k) = max(0.0_wp, getOption(trim(message), 0.7_wp))
+     do i = 1, this%nSpecies
+        write(message, "(A,I1.1)") "Schmidt_number_", i
+        this%schmidtNumberInverse(i) = max(0.0_wp, getOption(trim(message), 0.7_wp))
      end do
      write(message, "(A)") "Schmidt_number_inert"
      this%schmidtNumberInverse(this%nSpecies+1) =                                            &
@@ -74,6 +85,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      if (this%reynoldsNumberInverse <= 0.0_wp .or. this%prandtlNumberInverse <= 0.0_wp) then
         this%powerLawExponent = 0.0_wp
         this%bulkViscosityRatio = 0.0_wp
+        if (this%nSpecies > 0) this%schmidtNumberInverse = 0.0_wp
      else
         this%reynoldsNumberInverse = 1.0_wp / this%reynoldsNumberInverse
         this%prandtlNumberInverse = 1.0_wp / this%prandtlNumberInverse
@@ -155,13 +167,13 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
         call getMolecularWeight(comm_, trim(referenceSpecies), referenceMolecularWeight)
 
         ! Get the molecular weights of each species.
-        do k = 1, this%nSpecies
-           write(message, "(A,I1.1)") "species_", k
-           call getRequiredOption(trim(message), this%speciesName(k), comm)
-           call getMolecularWeight(comm_, trim(this%speciesName(k)),                         &
-                this%molecularWeightInverse(k))
-           this%molecularWeightInverse(k) = referenceMolecularWeight /                       &
-                this%molecularWeightInverse(k)
+        do i = 1, this%nSpecies
+           write(message, "(A,I1.1)") "species_", i
+           call getRequiredOption(trim(message), this%speciesName(i), comm)
+           call getMolecularWeight(comm_, trim(this%speciesName(i)),                         &
+                this%molecularWeightInverse(i))
+           this%molecularWeightInverse(i) = referenceMolecularWeight /                       &
+                this%molecularWeightInverse(i)
         end do
 
         ! Get the molecular weight of the inert species.

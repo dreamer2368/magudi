@@ -787,6 +787,16 @@ subroutine addSources(this, mode, grid, solverOptions)
 
   call startTiming("addSources")
 
+  if (mode == FORWARD .and. allocated(solverOptions%froudeNumberInverse)) then
+     call this%gravity%addForward(grid%iblank, this%conservedVariables(:,1),                 &
+          solverOptions%froudeNumberInverse, this%rightHandSide)
+  end if
+
+  if (mode == ADJOINT .and. allocated(solverOptions%froudeNumberInverse)) then
+     call this%gravity%addAdjoint(grid%iblank, this%adjointVariables,                        &
+          solverOptions%froudeNumberInverse, this%rightHandSide)
+  end if
+
   if (mode == FORWARD .and. allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
         call this%acousticSources(i)%add(this%time, grid%coordinates,                        &

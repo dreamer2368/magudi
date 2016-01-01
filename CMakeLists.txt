@@ -131,6 +131,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/PatchDescriptorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Region.f90
   ${PROJECT_SOURCE_DIR}/src/RegionImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/Gravity.f90
+  ${PROJECT_SOURCE_DIR}/src/GravityImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticSource.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/IgnitionSource.f90

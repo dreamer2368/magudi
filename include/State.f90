@@ -18,6 +18,7 @@ end module State_enum
 
 module State_mod
 
+  use Gravity_mod, only : t_Gravity
   use AcousticSource_mod, only : t_AcousticSource
   use IgnitionSource_mod, only : t_IgnitionSource
   use FuelSource_mod, only : t_FuelSource
@@ -54,6 +55,7 @@ module State_mod
 
   type, public :: t_State
 
+     type(t_Gravity) :: gravity
      type(t_AcousticSource), allocatable :: acousticSources(:)
      type(t_IgnitionSource), allocatable :: ignitionSources(:)
      type(t_FuelSource), allocatable :: fuelSources(:)
