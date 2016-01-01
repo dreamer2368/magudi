@@ -191,7 +191,7 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
           region%solverOptions%ratioOfSpecificHeats, region%states(i)%combustion%heatRelease,&
           ignitionSource)
 
-     call region%states(i)%combustion%addForward(nDimensions, nSpecies,                      &
+     call region%states(i)%combustion%add(nDimensions, nSpecies,                             &
           region%solverOptions%ratioOfSpecificHeats, region%states(i)%conservedVariables,    &
           region%states(i)%temperature(:,1), region%states(i)%massFraction,                  &
           region%grids(i)%iblank, combustionSource)
