@@ -91,6 +91,9 @@ subroutine CounterflowDiffusionGrid(region)
      iEnd(i)   = region%grids(1)%offset(i) + region%grids(1)%localSize(i)
   end do
 
+  ! Should we stretch the grid?
+  stretchY = getOption('stretch_y',.false.)
+
   ! Generate the grid.
   do k = iStart(3), iEnd(3)
      do j = iStart(2), iEnd(2)
@@ -220,6 +223,29 @@ contains
     
     return
   end function grid_index
+
+  Subroutine mapping_function(s, b, c, sigma, g)
+
+    use MathHelper, only : pi
+
+    implicit none
+
+    integer, parameter :: wp = SCALAR_KIND
+    real(wp), intent(in) :: s(:), b, c, sigma
+    real(wp), intent(out) :: g(size(s))
+
+    g = ((s - 0.5_wp) * (1.0_wp + 2.0_wp * b) - b * sigma *                                  &
+         (exp(- ((s - 0.5_wp + c) / sigma) ** 2) / sqrt(pi) +                                &
+         ((s - 0.5_wp + c) / sigma) * erf((s - 0.5_wp + c) / sigma) -                        &
+         exp(- ((s - 0.5_wp - c) / sigma) ** 2) / sqrt(pi) -                                 &
+         ((s - 0.5_wp - c) / sigma) * erf((s - 0.5_wp - c) / sigma))) /                      &
+         (0.5_wp + b - b * sigma * (exp(- ((0.5_wp + c) / sigma) ** 2) /                     &
+         sqrt(pi) + ((0.5_wp + c) / sigma) * erf((0.5_wp + c) / sigma) -                     &
+         exp(- ((0.5_wp - c) / sigma) ** 2) / sqrt(pi) - ((0.5_wp - c) / sigma) *            &
+         erf((0.5_wp - c) / sigma)))
+
+    return
+  end subroutine mapping_function
 
 end subroutine CounterflowDiffusionGrid
 
