@@ -7,7 +7,7 @@
 # Filenames, etc.
 output_prefix = "JetXFlow"
 grid_file = "JetXFlow.xyz"
-solution_file  = "JetXFlow.ic.q"
+solution_file = "JetXFlow.ic.q"
 boundary_condition_file = "bc.dat"
 target_state_file = "JetXFlow.ic.q"
 target_mollifier_file = "JetXFlow.target_mollifier.f"
@@ -22,24 +22,25 @@ simulation_name = "JET_IN_CROSSFLOW"
 # Grid dimensions
 grid001/dir1/size = 2049
 grid001/dir2/size = 257
-grid001/dir3/size = 1
+grid001/dir3/size = 193
 
 # Grid extents
 grid001/dir1/min_length_interior = 1.0
 grid001/dir1/max_length_interior = 49.8
 grid001/dir2/min_length_interior = 0.0
 grid001/dir2/max_length_interior = 5.35
-grid001/dir3/min_length_interior = 0.0
-grid001/dir3/max_length_interior = 0.0
+grid001/dir3/min_length_interior = -2.38125
+grid001/dir3/max_length_interior =  2.38125
 grid001/dir1/min_length_outer = 0.0
 grid001/dir1/max_length_outer = 50.8
 grid001/dir2/min_length_outer = 0.0
 grid001/dir2/max_length_outer = 6.35
-grid001/dir3/min_length_outer = 0.0
-grid001/dir3/max_length_outer = 0.0
+grid001/dir3/min_length_outer = -2.38125
+grid001/dir3/max_length_outer =  2.38125
 
-# Grid stretching
-stretch_y = true
+# Periodicity
+grid001/dir3/periodicity_type = 'PLANE'
+grid001/dir3/periodic_length = 4.7625
 
 # Crossflow velocity
 crossflow_velocity = 0.3
@@ -51,6 +52,7 @@ jet_velocity = 0.15
 jet_position = 35.56
 jet_diameter = 0.4826
 jet_shape = 'ROUND'
+conform_grid_to_jet = false
 
 # Sandpaper properties
 include_sandpaper = true
@@ -58,8 +60,8 @@ sandpaper/location = 2.2225
 sandpaper/width = 5.08
 sandpaper/mean_plane_height = 0.0945
 sandpaper/include_grit = true
-sandpaper/number_of_particles = 34
-sandpaper/grit_height = 0.036
+sandpaper/number_of_particles = 1000
+sandpaper/grit_height = 0.034
 sandpaper/grit_width = 0.042
 
 # Mixture properties
@@ -80,6 +82,7 @@ use_manual_domain_decomposition = false
 
 # Non-dimensional constants
 Reynolds_number = 33333.333
+Froude_number_dir2 = 25484.1997961264
 Prandtl_number = 0.7
 Schmidt_number_1 = 0.7
 Schmidt_number_2 = 0.7
@@ -97,21 +100,20 @@ Zel_Dovich = 6.0
 Damkohler_number = 50000.0
 
 # Discretization scheme
-defaults/discretization_scheme = "SBP 3-6"
+defaults/discretization_scheme = "SBP 2-4"
 
 # Time stepping options
 time_step_size = 0.008
 cfl = 0.3
 number_of_timesteps = 100000
-report_interval = 1
+report_interval = 10
 save_interval = 1000
-output_to_ensight = true
-ensight_frequency = 0.0099999
+output_to_ensight = false
+ensight_frequency = 0.09999
 
 # Artificial dissipation
 add_dissipation = true
-dissipation_amount = 0.01
-#composite_dissipation = false
+dissipation_amount = 0.0001
 
 # Solution limits
 enable_solution_limits = true
@@ -129,20 +131,21 @@ defaults/viscous_penalty_amount = 0.0
 defaults/enforce_wall_mass_fraction = true
 patches/bottomWall/viscous_penalty_amount1 = 10.0
 patches/bottomWall/include_hole = true
-patches/bottomWall/hole_is_inverted = false
+patches/bottomWall/hole_inside_shape = true
 patches/bottomWall/hole_shape = "CIRCLE"
 patches/bottomWall/hole_radius = 0.2413
 patches/bottomWall/hole_position_1 = 35.56
 patches/bottomWall/hole_position_2 = 0.0
 patches/bottomWall/hole_position_3 = 0.0
 patches/jetInflow/include_hole = true
-patches/jetInflow/hole_is_inverted = true
+patches/jetInflow/hole_inside_shape = false
 patches/jetInflow/hole_shape = "CIRCLE"
 patches/jetInflow/hole_radius = 0.2413
 patches/jetInflow/hole_position_1 = 35.56
 patches/jetInflow/hole_position_2 = 0.0
 patches/jetInflow/hole_position_3 = 0.0
 
+# Ignition sources
 number_of_ignition_sources = 0
 ignition_source01/amplitude = 0.8
 ignition_source01/radius_x = 1.0
