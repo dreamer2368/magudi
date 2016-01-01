@@ -56,7 +56,7 @@ subroutine addGravityAdjoint(this, iblank, adjointVariables, froudeNumberInverse
 
   nUnknowns = size(adjointVariables, 2)
   assert(nUnknowns > 0)
-  assert(size(rightHandSide, 2) = nUnknowns)
+  assert(size(rightHandSide, 2) == nUnknowns)
 
   nGridPoints = size(adjointVariables,1)
   assert(nGridPoints > 0)
