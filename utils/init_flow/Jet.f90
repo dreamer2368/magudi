@@ -155,7 +155,7 @@ subroutine jetQ(region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: errorMessage
-  integer :: i, nDimensions, ierror
+  integer :: i
   real(wp) :: ratioOfSpecificHeats, machNumber, temperatureRatio,                            &
        axialCoordinateAtNozzleExit, momentumThicknessAtExit, slopeOfMomentumThickness,       &
        momentumThickness, radialCoordinate, normalizedExitVelocity,                          &
@@ -294,7 +294,7 @@ subroutine jetBC
        imin(nbc), imax(nbc), jmin(nbc), jmax(nbc), kmin(nbc), kmax(nbc))
 
   ! Target region
-  bc = bc+1
+  bc = 1
   name   (bc) = 'targetRegion'
   type   (bc) = 'COST_TARGET'
   normDir(bc) =  0
@@ -306,7 +306,7 @@ subroutine jetBC
   kmax   (bc) =  targetEnd(3)
 
   ! Control region
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'controlRegion'
   type   (bc) = 'ACTUATOR'
   normDir(bc) =  0

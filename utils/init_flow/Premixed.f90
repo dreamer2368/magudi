@@ -213,6 +213,13 @@ subroutine premixedQ(region)
   fuel = YF0 * Z0
   oxidizer = YO0 * (1.0_wp - Z0)
 
+  ! Correct species mass fractions.
+  inert = 1.0_wp - fuel - oxidizer
+  if (inert < 0.0_wp) then
+     if (procRank == 0) print *, 'Something is wrong with the species mass fraction!'
+     oxidizer = oxidizer + inert
+  end if
+
   ! Get the ratio of specific heats.
   ratioOfSpecificHeats = region%solverOptions%ratioOfSpecificHeats
 
@@ -339,7 +346,7 @@ subroutine premixedBC
        imin(nbc), imax(nbc), jmin(nbc), jmax(nbc), kmin(nbc), kmax(nbc))
 
   ! Target region
-  bc = bc+1
+  bc = 1
   name   (bc) = 'targetRegion'
   type   (bc) = 'COST_TARGET'
   normDir(bc) =  0
@@ -351,7 +358,7 @@ subroutine premixedBC
   kmax   (bc) =  targetEnd(3)
 
   ! Control region
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'controlRegion'
   type   (bc) = 'ACTUATOR'
   normDir(bc) =  0

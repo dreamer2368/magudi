@@ -277,7 +277,7 @@ subroutine jetCrossFlowGrid(region)
            end do
 
            ! Output the progress.
-           if (mod(real(n, wp), real(nGrit, wp) / 10.0_wp) == 0.0_wp .and. procRank == 0)    &
+           if (mod(real(n, wp), real(nGrit, wp) / 10.0_wp) <= 1.0E-9_wp .and. procRank == 0) &
                 write(*,'(f5.1, A)') real(n, wp) / real(nGrit, wp) * 100.0_wp, '% complete'
 
         end do
@@ -1055,7 +1055,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) = -1
 
   ! Inflow sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'inflowSponge'
   type   (bc) = 'SPONGE'
   normDir(bc) =  1
@@ -1067,7 +1067,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) = -1
 
   ! Outflow BC
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'outflow'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) = -1
@@ -1079,7 +1079,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) = -1
 
   ! Outflow sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'outflowSponge'
   type   (bc) = 'SPONGE'
   normDir(bc) = -1
@@ -1091,7 +1091,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) = -1
 
   ! Top BC
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'top'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) = -2
@@ -1103,7 +1103,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) = -1
 
   ! Top sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'topSponge'
   type   (bc) = 'SPONGE'
   normDir(bc) = -2
@@ -1115,7 +1115,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) = -1
 
   ! Bottom wall
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'bottomWall'
   type   (bc) = 'SAT_ISOTHERMAL_WALL'
   normDir(bc) =  2
@@ -1127,7 +1127,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) = -1
 
   ! Jet inflow at the bottom wall
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'jetInflow'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) =  2
@@ -1139,7 +1139,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) = -1
 
   ! Target region
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'targetRegion'
   type   (bc) = 'COST_TARGET'
   normDir(bc) =  0
@@ -1151,7 +1151,7 @@ subroutine jetCrossFlowBC
   kmax   (bc) =  targetEnd(3)
 
   ! Control region
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'controlRegion'
   type   (bc) = 'ACTUATOR'
   normDir(bc) =  0

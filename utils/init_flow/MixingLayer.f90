@@ -481,19 +481,11 @@ subroutine mixingLayerTargetMollifier(region)
   ! <<< Arguments >>>
   class(t_Region) :: region
 
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, procRank, ierror
-  real(wp) :: x
-  real(wp), parameter :: s = 10.0_wp, r = 0.2_wp, eps = 1.0E-6_wp
-
   ! Initialize mollifier extents.
   targetStart = 1; targetEnd = -1
 
   ! Return for now.
   return
-
-  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
 
 end subroutine mixingLayerTargetMollifier
 
@@ -517,19 +509,11 @@ subroutine mixingLayerControlMollifier(region)
   ! <<< Arguments >>>
   class(t_Region) :: region
 
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, procRank, ierror
-  real(wp) :: x
-  real(wp), parameter :: s = 10.0_wp, r = 0.2_wp, eps = 1.0E-6_wp
-
   ! Initialize mollifier extents.
   controlStart = 1; controlEnd = -1
 
   ! Return for now.
   return
-
-  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
 
 end subroutine mixingLayerControlMollifier
 
@@ -579,7 +563,7 @@ subroutine mixingLayerBC
   kmax   (bc) = -1
 
   ! Inflow sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'inflowSponge'
   type   (bc) = 'SPONGE'
   normDir(bc) =  1
@@ -591,7 +575,7 @@ subroutine mixingLayerBC
   kmax   (bc) = -1
 
   ! Outflow BC
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'outflow'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) = -1
@@ -603,7 +587,7 @@ subroutine mixingLayerBC
   kmax   (bc) = -1
 
   ! Outflow sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'outflowSponge'
   type   (bc) = 'SPONGE'
   normDir(bc) = -1
@@ -615,7 +599,7 @@ subroutine mixingLayerBC
   kmax   (bc) = -1
 
   ! Bottom BC
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'bottom'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) =  2
@@ -627,7 +611,7 @@ subroutine mixingLayerBC
   kmax   (bc) = -1
 
   ! Bottom sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'bottomSponge'
   type   (bc) = 'SPONGE'
   normDir(bc) =  2
@@ -639,7 +623,7 @@ subroutine mixingLayerBC
   kmax   (bc) = -1
 
   ! Top BC
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'top'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) = -2
@@ -675,7 +659,7 @@ subroutine mixingLayerBC
   kmax   (bc) = -1
 
   ! Target region
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'targetRegion'
   type   (bc) = 'COST_TARGET'
   normDir(bc) =  0
@@ -687,7 +671,7 @@ subroutine mixingLayerBC
   kmax   (bc) =  targetEnd(3)
 
   ! Control region
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'controlRegion'
   type   (bc) = 'ACTUATOR'
   normDir(bc) =  0

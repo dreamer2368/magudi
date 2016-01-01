@@ -527,7 +527,7 @@ subroutine CounterflowDiffusionBC
   kmax   (bc) = -1
 
   ! Inflow sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'sponge.W'
   type   (bc) = 'SPONGE'
   normDir(bc) =  1
@@ -539,7 +539,7 @@ subroutine CounterflowDiffusionBC
   kmax   (bc) = -1
 
   ! Outflow BC
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'farfield.E'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) = -1
@@ -551,7 +551,7 @@ subroutine CounterflowDiffusionBC
   kmax   (bc) = -1
 
   ! Outflow sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'sponge.E'
   type   (bc) = 'SPONGE'
   normDir(bc) = -1
@@ -563,7 +563,7 @@ subroutine CounterflowDiffusionBC
   kmax   (bc) = -1
 
   ! Bottom BC
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'farfield.S'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) =  2
@@ -575,7 +575,7 @@ subroutine CounterflowDiffusionBC
   kmax   (bc) = -1
 
   ! Bottom sponge
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'sponge.S'
   type   (bc) = 'SPONGE'
   normDir(bc) =  2
@@ -587,7 +587,7 @@ subroutine CounterflowDiffusionBC
   kmax   (bc) = -1
 
   ! Top BC
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'farfield.N'
   type   (bc) = 'SAT_FAR_FIELD'
   normDir(bc) = -2
@@ -611,7 +611,7 @@ subroutine CounterflowDiffusionBC
   kmax   (bc) = -1
 
   ! Target region
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'targetRegion'
   type   (bc) = 'COST_TARGET'
   normDir(bc) =  0
@@ -623,7 +623,7 @@ subroutine CounterflowDiffusionBC
   kmax   (bc) =  targetEnd(3)
 
   ! Control region
-  bc = bc+1
+  bc = bc + 1
   name   (bc) = 'controlRegion'
   type   (bc) = 'ACTUATOR'
   normDir(bc) =  0
