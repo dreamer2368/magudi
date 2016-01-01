@@ -30,7 +30,7 @@ module Combustion_mod
    contains
 
      procedure, public, pass :: setup => setupCombustion
-     procedure, public, pass :: addForward => addCombustionForward
+     procedure, public, pass :: add => addCombustion
      procedure, public, pass :: addAdjoint => addCombustionAdjoint
 
   end type t_Combustion
@@ -60,7 +60,7 @@ module Combustion_mod
 
   interface
 
-     subroutine addCombustionForward(this, nDimensions, nSpecies, ratioOfSpecificHeats,      &
+     subroutine addCombustion(this, nDimensions, nSpecies, ratioOfSpecificHeats,             &
           conservedVariables, temperature, massFraction, iblank, rightHandSide)
 
        import :: t_Combustion
@@ -71,7 +71,7 @@ module Combustion_mod
        integer, intent(in) :: nDimensions, nSpecies, iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
-     end subroutine addCombustionForward
+     end subroutine addCombustion
 
   end interface
 

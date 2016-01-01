@@ -788,7 +788,7 @@ subroutine addSources(this, mode, grid, solverOptions)
   call startTiming("addSources")
 
   if (mode == FORWARD .and. allocated(solverOptions%froudeNumberInverse)) then
-     call this%gravity%addForward(grid%iblank, this%conservedVariables(:,1),                 &
+     call this%gravity%add(grid%iblank, this%conservedVariables(:,1),                        &
           solverOptions%froudeNumberInverse, this%rightHandSide)
   end if
 
@@ -827,7 +827,7 @@ subroutine addSources(this, mode, grid, solverOptions)
   end if
 
   if (mode == FORWARD .and. this%nSpecies > 0) then
-     call this%combustion%addForward(grid%nDimensions, this%nSpecies,                        &
+     call this%combustion%add(grid%nDimensions, this%nSpecies,                               &
           solverOptions%ratioOfSpecificHeats, this%conservedVariables,                       &
           this%temperature(:,1), this%massFraction, grid%iblank, this%rightHandSide)
   end if

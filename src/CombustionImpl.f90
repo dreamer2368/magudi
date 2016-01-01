@@ -116,7 +116,7 @@ subroutine setupCombustion(this, nSpecies, species, comm)
 
 end subroutine setupCombustion
 
-subroutine addCombustionForward(this, nDimensions, nSpecies, ratioOfSpecificHeats,           &
+subroutine addCombustion(this, nDimensions, nSpecies, ratioOfSpecificHeats,                  &
      conservedVariables, temperature, massFraction, iblank, rightHandSide)
 
   ! <<< Derived types >>>
@@ -187,7 +187,7 @@ subroutine addCombustionForward(this, nDimensions, nSpecies, ratioOfSpecificHeat
 
   end if
 
-end subroutine addCombustionForward
+end subroutine addCombustion
 
 subroutine addCombustionAdjoint(this, nDimensions, nSpecies, nUnknowns, equationOfState,     &
      ratioOfSpecificHeats, conservedVariables, adjointVariables, velocity, massFraction,     &

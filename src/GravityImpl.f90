@@ -1,6 +1,6 @@
 #include "config.h"
 
-subroutine addGravityForward(this, iblank, density, froudeNumberInverse, rightHandSide)
+subroutine addGravity(this, iblank, density, froudeNumberInverse, rightHandSide)
 
   ! <<< Derived types >>>
   use Gravity_mod, only : t_Gravity
@@ -29,7 +29,7 @@ subroutine addGravityForward(this, iblank, density, froudeNumberInverse, rightHa
 
   end do
 
-end subroutine addGravityForward
+end subroutine addGravity
 
 subroutine addGravityAdjoint(this, iblank, adjointVariables, froudeNumberInverse,            &
      rightHandSide)

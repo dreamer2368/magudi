@@ -8,14 +8,14 @@ module Gravity_mod
 
    contains
 
-     procedure, public, pass :: addForward => addGravityForward
+     procedure, public, pass :: add => addGravity
      procedure, public, pass :: addAdjoint => addGravityAdjoint
 
   end type t_Gravity
 
   interface
 
-     subroutine addGravityForward(this, iblank, density, froudeNumberInverse, rightHandSide)
+     subroutine addGravity(this, iblank, density, froudeNumberInverse, rightHandSide)
 
        import :: t_Gravity
 
@@ -24,7 +24,7 @@ module Gravity_mod
        integer, intent(in) :: iblank(:)
        SCALAR_TYPE, intent(inout) :: rightHandSide(:,:)
 
-     end subroutine addGravityForward
+     end subroutine addGravity
 
   end interface
 
