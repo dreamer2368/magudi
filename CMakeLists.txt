@@ -208,7 +208,7 @@ set(magudiObj_SOURCES
   # Initialization files.
   ${PROJECT_SOURCE_DIR}/utils/init_flow/CounterflowDiffusion.f90
   ${PROJECT_SOURCE_DIR}/utils/init_flow/Jet.f90
-  ${PROJECT_SOURCE_DIR}/utils/init_flow/JetCrossFlow.f90
+  ${PROJECT_SOURCE_DIR}/utils/init_flow/JetCrossflow.f90
   ${PROJECT_SOURCE_DIR}/utils/init_flow/MixingLayer.f90
   ${PROJECT_SOURCE_DIR}/utils/init_flow/Premixed.f90	
 
