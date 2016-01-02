@@ -788,16 +788,17 @@ subroutine addSources(this, mode, grid, solverOptions)
 
   call startTiming("addSources")
 
+  ! Gravity.
   if (mode == FORWARD .and. minval(solverOptions%froudeNumberInverse) > 0.0_wp) then
      call this%gravity%add(grid%iblank, this%conservedVariables(:,1),                        &
           solverOptions%froudeNumberInverse, this%rightHandSide)
   end if
-
   if (mode == ADJOINT .and. minval(solverOptions%froudeNumberInverse) > 0.0_wp) then
      call this%gravity%addAdjoint(grid%iblank, this%adjointVariables,                        &
           solverOptions%froudeNumberInverse, this%rightHandSide)
   end if
 
+  ! Acourstic sources.
   if (mode == FORWARD .and. allocated(this%acousticSources)) then
      do i = 1, size(this%acousticSources)
         call this%acousticSources(i)%add(this%time, grid%coordinates,                        &
@@ -805,6 +806,7 @@ subroutine addSources(this, mode, grid, solverOptions)
      end do
   end if
 
+  ! Fuel sources.
   if (mode == FORWARD .and. allocated(this%fuelSources)) then
      do i = 1, size(this%fuelSources)
         call this%fuelSources(i)%add(this%time, grid%coordinates, grid%iblank,               &
@@ -812,6 +814,7 @@ subroutine addSources(this, mode, grid, solverOptions)
      end do
   end if
 
+  ! Ignition sources.
   if (mode == FORWARD .and. allocated(this%ignitionSources)) then
      do i = 1, size(this%ignitionSources)
         call this%ignitionSources(i)%add(this%time, grid%coordinates,                        &
@@ -819,7 +822,6 @@ subroutine addSources(this, mode, grid, solverOptions)
              this%combustion%heatRelease, this%rightHandSide)
      end do
   end if
-
   if (mode == ADJOINT .and. allocated(this%ignitionSources)) then
      do i = 1, size(this%ignitionSources)
         call this%ignitionSources(i)%addAdjoint(this%time, grid%coordinates, grid%iblank,    &
@@ -827,12 +829,12 @@ subroutine addSources(this, mode, grid, solverOptions)
      end do
   end if
 
+  ! Combustion sources.
   if (mode == FORWARD .and. this%nSpecies > 0) then
      call this%combustion%add(grid%nDimensions, this%nSpecies,                               &
           solverOptions%ratioOfSpecificHeats, this%conservedVariables,                       &
           this%temperature(:,1), this%massFraction, grid%iblank, this%rightHandSide)
   end if
-
   if (mode == ADJOINT .and. this%nSpecies > 0) then
      call this%combustion%addAdjoint(grid%nDimensions, this%nSpecies,                        &
           solverOptions%nUnknowns, solverOptions%equationOfState,                            &
