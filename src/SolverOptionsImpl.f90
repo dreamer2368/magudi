@@ -35,7 +35,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, comm_
   character(len = STRING_LENGTH) :: message, referenceSpecies, val
-  real(wp) :: froudeNumberMagnitude, referenceMolecularWeight
+  real(wp) :: froudeNumber, referenceMolecularWeight
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   class(t_TimeIntegrator), pointer :: dummyTimeIntegrator => null()
   type(t_ControllerFactory) :: controllerFactory
@@ -58,8 +58,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   this%nUnknowns = nDimensions + 2 + this%nSpecies
 
-  froudeNumberMagnitude = max(0.0_wp, getOption("Froude_number", 0.0_wp))
-  if (froudeNumberMagnitude > 0.0_wp) then
+  froudeNumber = max(0.0_wp, getOption("Froude_number", 0.0_wp))
+  if (froudeNumber > 0.0_wp) then
      allocate(this%froudeNumberInverse(nDimensions))
      do i = 1, nDimensions
         write(val, '(A,I1.1)') "gravity_norm_dir", i
@@ -73,7 +73,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
         if (abs(this%froudeNumberInverse(i)) <= epsilon(0.0_wp)) then
            this%froudeNumberInverse(i) = 0.0_wp
         else
-           this%froudeNumberInverse(i) = 1.0_wp / (froudeNumberMagnitude * this%froudeNumberInverse(i))
+           this%froudeNumberInverse(i) = 1.0_wp / (froudeNumber * this%froudeNumberInverse(i))
         end if
      end do
   end if
