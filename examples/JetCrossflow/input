@@ -4,7 +4,6 @@
 # Filenames                                                                                 #
 #############################################################################################
 
-# Filenames, etc.
 output_prefix = "JetXFlow"
 grid_file = "JetXFlow.xyz"
 solution_file = "JetXFlow.ic.q"
@@ -131,14 +130,14 @@ defaults/viscous_penalty_amount = 0.0
 defaults/enforce_wall_mass_fraction = true
 patches/bottomWall/viscous_penalty_amount1 = 10.0
 patches/bottomWall/include_hole = true
-patches/bottomWall/hole_inside_shape = true
+patches/bottomWall/hole_is_inverted = false
 patches/bottomWall/hole_shape = "CIRCLE"
 patches/bottomWall/hole_radius = 0.2413
 patches/bottomWall/hole_position_1 = 35.56
 patches/bottomWall/hole_position_2 = 0.0
 patches/bottomWall/hole_position_3 = 0.0
 patches/jetInflow/include_hole = true
-patches/jetInflow/hole_inside_shape = false
+patches/jetInflow/hole_is_inverted = true
 patches/jetInflow/hole_shape = "CIRCLE"
 patches/jetInflow/hole_radius = 0.2413
 patches/jetInflow/hole_position_1 = 35.56
