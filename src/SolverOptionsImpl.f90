@@ -35,7 +35,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, comm_
   character(len = STRING_LENGTH) :: message, referenceSpecies, val
-  real(wp) :: referenceMolecularWeight
+  real(wp) :: froudeNumberMagnitude, referenceMolecularWeight
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   class(t_TimeIntegrator), pointer :: dummyTimeIntegrator => null()
   type(t_ControllerFactory) :: controllerFactory
@@ -58,16 +58,25 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   this%nUnknowns = nDimensions + 2 + this%nSpecies
 
-  allocate(this%froudeNumberInverse(nDimensions))
-  do i = 1, nDimensions
-     write(val, '(A,I1.1)') "Froude_number_dir", i
-     this%froudeNumberInverse(i) = getOption(trim(val), 0.0_wp)
-     if (abs(this%froudeNumberInverse(i)) <= epsilon(0.0_wp)) then
-        this%froudeNumberInverse(i) = 0.0_wp
-     else
-        this%froudeNumberInverse(i) = 1.0_wp / this%froudeNumberInverse(i)
+  froudeNumberMagnitude = max(0.0_wp, getOption("Froude_number", 0.0_wp))
+  if (froudeNumberMagnitude > 0.0_wp) then
+     allocate(this%froudeNumberInverse(nDimensions))
+     do i = 1, nDimensions
+        write(val, '(A,I1.1)') "Gravity_norm_dir", i
+        this%froudeNumberInverse(i) = getOption(trim(val), 0.0_wp)
+     end do
+     if (abs(sqrt(sum(this%froudeNumberInverse ** 2)) - 1.0_wp) > epsilon(0.0_wp)) then
+        write(message, '(A)') "Gravity norm must sum to 1!"
+        call gracefulExit(comm_, message)
      end if
-  end do
+     do i = 1, nDimensions
+        if (abs(this%froudeNumberInverse(i)) <= epsilon(0.0_wp)) then
+           this%froudeNumberInverse(i) = 0.0_wp
+        else
+           this%froudeNumberInverse(i) = 1.0_wp / (froudeNumberMagnitude * this%froudeNumberInverse(i))
+        end if
+     end do
+  end if
 
   if (simulationFlags%viscosityOn) then
 
