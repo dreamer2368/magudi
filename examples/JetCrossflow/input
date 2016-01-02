@@ -81,13 +81,16 @@ use_manual_domain_decomposition = false
 
 # Non-dimensional constants
 Reynolds_number = 33333.333
-Froude_number_dir2 = -25484.1997961264
+Froude_number = 25484.1997961264
 Prandtl_number = 0.7
 Schmidt_number_1 = 0.7
 Schmidt_number_2 = 0.7
+
+# Solver options
 viscosity_power_law_exponent = 0.666
 bulk_viscosity_ratio = 0.6
 ratio_of_specific_heats = 1.4
+Gravity_norm_dir2 = -1.0
 
 # Chemistry
 equation_of_state = "IDEAL_GAS"
