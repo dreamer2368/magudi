@@ -783,16 +783,17 @@ subroutine addSources(this, mode, grid, solverOptions)
   type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i
 
   call startTiming("addSources")
 
-  if (mode == FORWARD .and. allocated(solverOptions%froudeNumberInverse)) then
+  if (mode == FORWARD .and. minval(solverOptions%froudeNumberInverse) > 0.0_wp) then
      call this%gravity%add(grid%iblank, this%conservedVariables(:,1),                        &
           solverOptions%froudeNumberInverse, this%rightHandSide)
   end if
 
-  if (mode == ADJOINT .and. allocated(solverOptions%froudeNumberInverse)) then
+  if (mode == ADJOINT .and. minval(solverOptions%froudeNumberInverse) > 0.0_wp) then
      call this%gravity%addAdjoint(grid%iblank, this%adjointVariables,                        &
           solverOptions%froudeNumberInverse, this%rightHandSide)
   end if
