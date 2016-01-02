@@ -90,7 +90,7 @@ Schmidt_number_2 = 0.7
 viscosity_power_law_exponent = 0.666
 bulk_viscosity_ratio = 0.6
 ratio_of_specific_heats = 1.4
-Gravity_norm_dir2 = -1.0
+gravity_norm_dir2 = -1.0
 
 # Chemistry
 equation_of_state = "IDEAL_GAS"
@@ -150,9 +150,10 @@ patches/jetInflow/hole_position_3 = 0.0
 # Ignition sources
 number_of_ignition_sources = 0
 ignition_source01/amplitude = 0.8
-ignition_source01/radius_x = 1.0
-ignition_source01/radius_y = 2.0
-ignition_source01/x = 8.0
+ignition_source01/radius_x = 0.1
+ignition_source01/radius_y = 0.1
+ignition_source01/radius_z = 0.1
+ignition_source01/x = 35.56
 ignition_source01/y = 1.0
 ignition_source01/time_start = 1640.0
 ignition_source01/time_duration = 2.0

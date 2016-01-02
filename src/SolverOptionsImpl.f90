@@ -62,7 +62,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   if (froudeNumberMagnitude > 0.0_wp) then
      allocate(this%froudeNumberInverse(nDimensions))
      do i = 1, nDimensions
-        write(val, '(A,I1.1)') "Gravity_norm_dir", i
+        write(val, '(A,I1.1)') "gravity_norm_dir", i
         this%froudeNumberInverse(i) = getOption(trim(val), 0.0_wp)
      end do
      if (abs(sqrt(sum(this%froudeNumberInverse ** 2)) - 1.0_wp) > epsilon(0.0_wp)) then
