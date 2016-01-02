@@ -61,8 +61,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   allocate(this%froudeNumberInverse(nDimensions))
   do i = 1, nDimensions
      write(val, '(A,I1.1)') "Froude_number_dir", i
-     this%froudeNumberInverse(i) = max(0.0_wp, getOption(trim(val), 0.0_wp))
-     if (this%froudeNumberInverse(i) <= 0.0_wp) then
+     this%froudeNumberInverse(i) = getOption(trim(val), 0.0_wp)
+     if (abs(this%froudeNumberInverse(i)) <= epsilon(0.0_wp)) then
         this%froudeNumberInverse(i) = 0.0_wp
      else
         this%froudeNumberInverse(i) = 1.0_wp / this%froudeNumberInverse(i)
