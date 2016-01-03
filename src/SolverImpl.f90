@@ -226,7 +226,7 @@ contains
                   region%grids(i)%index,                                                     &
                   " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, "): ",                     &
                   fOutsideRange, " out of range (",                                          &
-                  region%solverOptions%massFractionRange(1), ", ",                            &
+                  region%solverOptions%massFractionRange(1), ", ",                           &
                   region%solverOptions%massFractionRange(2), ")!"
              rankReportingError = procRank
              exit
