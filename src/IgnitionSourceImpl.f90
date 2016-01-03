@@ -89,9 +89,6 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
      vorticityLocation(1:nDimensions) = this%location(1:nDimensions)
 
      select case (nDimensions)
-     case(1)
-        vorticityCoefficient = 0.0_wp
-        vorticityExponent = 0
      case(2)
         vorticityCoefficient = 0.017_wp * (this%shockMach**4 - 1.0_wp)
         vorticityExponent = 1
@@ -145,14 +142,14 @@ subroutine addAdjointIgnitionSource(this, time, coordinates, iblank, adjointVari
        vorticityLocation(3)
   SCALAR_TYPE, allocatable :: localSourceJacobian(:,:), temp(:)
 
-  if (.not.this%depositVorticity) return
-
   nDimensions = size(coordinates, 2)
   nUnknowns = size(rightHandSide, 2)
   assert_key(nDimensions, (1, 2, 3))
   assert(size(rightHandSide, 2) >= nDimensions+2)
   assert(size(this%location) >= nDimensions)
   assert(size(this%radius) >= nDimensions)
+
+  if (.not.this%depositVorticity .or. nDimensions == 1) return
 
   allocate(localSourceJacobian(nUnknowns, nUnknowns))
   allocate(temp(nUnknowns))
@@ -173,9 +170,6 @@ subroutine addAdjointIgnitionSource(this, time, coordinates, iblank, adjointVari
   vorticityLocation(1:nDimensions) = this%location(1:nDimensions)
 
   select case (nDimensions)
-  case(1)
-     vorticityCoefficient = 0.0_wp
-     vorticityExponent = 0
   case(2)
      vorticityCoefficient = 0.017_wp * (this%shockMach**4 - 1.0_wp)
      vorticityExponent = 1
