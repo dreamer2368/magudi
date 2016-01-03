@@ -106,7 +106,7 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
 
      if (this%depositVorticity .and. nDimensions > 1) then
 
-        vorticityLocation(2) = coordinates(i,2)
+        vorticityLocation(2) = coordinates(i,2) !... cancel out the vertical direction.
         vorticityContribution = vorticityCoefficient *                                       &
              (1.0_wp - 2.0_wp * sum(gaussianFactor(1:nDimensions) *                          &
              (coordinates(i,:) - vorticityLocation(1:nDimensions))**2)) *                    &
