@@ -56,9 +56,9 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions
+  integer :: i, nDimensions, vorticityExponent
   real(wp) :: power, timePortion, referenceTemperature, flameTemperature, gaussianFactor(3), &
-       vorticityContribution, vorticityCoefficient
+       vorticityContribution, vorticityCoefficient, vorticityLocation(3)
 
   nDimensions = size(coordinates, 2)
   assert_key(nDimensions, (1, 2, 3))
@@ -83,7 +83,23 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
   if (minval(this%radius(1:nDimensions)) > 0.0_wp) gaussianFactor(1:nDimensions) =           &
        0.5_wp / this%radius(1:nDimensions)**2
 
-  if (this%depositVorticity) vorticityCoefficient = 0.017_wp * (this%shockMach**4 - 1.0_wp)
+  if (this%depositVorticity) then
+
+     vorticityLocation = 0.0_wp
+     vorticityLocation(1:nDimensions) = this%location(1:nDimensions)
+
+     select case (nDimensions)
+     case(1)
+        vorticityCoefficient = 0.0_wp
+        vorticityExponent = 0
+     case(2)
+        vorticityCoefficient = 0.017_wp * (this%shockMach**4 - 1.0_wp)
+        vorticityExponent = 1
+     case(3)
+        vorticityCoefficient = 0.022_wp * (this%shockMach**4 - 1.0_wp)
+        vorticityExponent = 2
+     end select
+  end if
 
   do i = 1, size(rightHandSide, 1)
      if (iblank(i) == 0) cycle
@@ -93,10 +109,12 @@ subroutine addIgnitionSource(this, time, coordinates, iblank, density, ratioOfSp
 
      if (this%depositVorticity .and. nDimensions > 1) then
 
-        vorticityContribution =  vorticityCoefficient *                                      &
-             (1.0_wp - (coordinates(i,1) - this%location(1))**2 / this%radius(1)**2) *       &
+        vorticityLocation(2) = coordinates(i,2)
+        vorticityContribution = vorticityCoefficient *                                       &
+             (1.0_wp - 2.0_wp * sum(gaussianFactor(1:nDimensions) *                          &
+             (coordinates(i,:) - vorticityLocation(1:nDimensions))**2)) *                    &
              exp(- sum(gaussianFactor(1:nDimensions) *                                       &
-             (coordinates(i,:) - this%location(1:nDimensions))**2) )
+             (coordinates(i,:) - this%location(1:nDimensions))**2) ) ** vorticityExponent
 
         rightHandSide(i,3) = rightHandSide(i,3) + timePortion * density(i) *                 &
              vorticityContribution
@@ -122,8 +140,9 @@ subroutine addAdjointIgnitionSource(this, time, coordinates, iblank, adjointVari
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, nUnknowns
-  real(wp) :: gaussianFactor(3), timePortion, vorticityContribution, vorticityCoefficient
+  integer :: i, nDimensions, nUnknowns, vorticityExponent
+  real(wp) :: gaussianFactor(3), timePortion, vorticityContribution, vorticityCoefficient,   &
+       vorticityLocation(3)
   SCALAR_TYPE, allocatable :: localSourceJacobian(:,:), temp(:)
 
   if (.not.this%depositVorticity) return
@@ -150,15 +169,30 @@ subroutine addAdjointIgnitionSource(this, time, coordinates, iblank, adjointVari
   if (minval(this%radius(1:nDimensions)) > 0.0_wp) gaussianFactor(1:nDimensions) =           &
        0.5_wp / this%radius(1:nDimensions)**2
 
-  vorticityCoefficient = 0.017_wp * (this%shockMach**4 - 1.0_wp)
+  vorticityLocation = 0.0_wp
+  vorticityLocation(1:nDimensions) = this%location(1:nDimensions)
+
+  select case (nDimensions)
+  case(1)
+     vorticityCoefficient = 0.0_wp
+     vorticityExponent = 0
+  case(2)
+     vorticityCoefficient = 0.017_wp * (this%shockMach**4 - 1.0_wp)
+     vorticityExponent = 1
+  case(3)
+     vorticityCoefficient = 0.022_wp * (this%shockMach**4 - 1.0_wp)
+     vorticityExponent = 2
+  end select
 
   do i = 1, size(rightHandSide, 1)
      if (iblank(i) == 0) cycle
 
+     vorticityLocation(2) = coordinates(i,2)
      vorticityContribution = vorticityCoefficient *                                          &
-          (1.0_wp - (coordinates(i,1) - this%location(1))**2 / this%radius(1)**2) *          &
+          (1.0_wp - 2.0_wp * sum(gaussianFactor(1:nDimensions) *                             &
+          (coordinates(i,:) - vorticityLocation(1:nDimensions))**2)) *                       &
           exp(- sum(gaussianFactor(1:nDimensions) *                                          &
-          (coordinates(i,:) - this%location(1:nDimensions))**2) )
+          (coordinates(i,:) - this%location(1:nDimensions))**2) ) ** vorticityExponent
 
      localSourceJacobian(3,1) = timePortion * vorticityContribution
 
