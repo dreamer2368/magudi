@@ -143,7 +143,8 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nSpecies, nUnknowns, ierror
-  real(SCALAR_KIND) ::  time, timeStart, timeDuration, amplitude, radius(3), location(3), M0
+  real(SCALAR_KIND) ::  time, timeStart, timeDuration, amplitude, radius(3), location(3),    &
+       M0, dimFactor
   SCALAR_TYPE, allocatable :: F(:,:), ignitionSource(:,:), combustionSource(:,:),            &
        instantaneousSensitivity(:)
 
@@ -168,6 +169,8 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
      radius = region%states(i)%ignitionSources(1)%radius
      location = region%states(i)%ignitionSources(1)%location
      M0 = region%states(i)%ignitionSources(1)%shockMach
+     dimFactor = 1.0_wp
+     if (nDimensions == 3) dimFactor = 2.0_wp
 
      assert_key(nDimensions, (1, 2, 3))
      assert(nSpecies >= 0)
@@ -222,6 +225,13 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
            instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
                 region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
+        case ('POSITION_Z')
+           F(:,2) = ignitionSource(:,nDimensions+2) *                                        &
+                (region%grids(i)%coordinates(:,3) - location(3)) / radius(3)**2
+
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+
         case ('RADIUS_X')
            F(:,2) = ignitionSource(:,nDimensions+2) *                                        &
                 (region%grids(i)%coordinates(:,1) - location(1))**2 / radius(1)**3
@@ -232,6 +242,13 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
         case ('RADIUS_Y')
            F(:,2) = ignitionSource(:,nDimensions+2) *                                        &
                 (region%grids(i)%coordinates(:,2) - location(2))**2 / radius(2)**3
+
+           instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
+                region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+
+        case ('RADIUS_Z')
+           F(:,2) = ignitionSource(:,nDimensions+2) *                                        &
+                (region%grids(i)%coordinates(:,3) - location(3))**2 / radius(3)**3
 
            instantaneousSensitivity(j) = instantaneousSensitivity(j) +                       &
                 region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
@@ -268,7 +285,7 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
            case ('POSITION_X')
               F(:,2) = ignitionSource(:,3) *                                                 &
                    (region%grids(i)%coordinates(:,1) - location(1)) / radius(1)**2 * (       &
-                   1.0_wp + 2.0_wp /                                                         &
+                   dimFactor + 2.0_wp /                                                      &
                    (1.0_wp - (region%grids(i)%coordinates(:,1) - location(1))**2) /          &
                    radius(1)**2 )
 
@@ -276,8 +293,18 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
                    region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
            case ('POSITION_Y')
-              F(:,2) = ignitionSource(:,3) *                                                 &
+              F(:,2) = ignitionSource(:,3) * dimFactor *                                     &
                    (region%grids(i)%coordinates(:,2) - location(2)) / radius(2)**2
+
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+
+           case ('POSITION_Z')
+              F(:,2) = ignitionSource(:,3) *                                                 &
+                   (region%grids(i)%coordinates(:,3) - location(3)) / radius(3)**2 * (       &
+                   dimFactor + 2.0_wp /                                                      &
+                   (1.0_wp - (region%grids(i)%coordinates(:,3) - location(3))**2) /          &
+                   radius(3)**2 )
 
               instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
                    region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
@@ -285,7 +312,7 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
            case ('RADIUS_X')
               F(:,2) = ignitionSource(:,3) *                                                 &
                    (region%grids(i)%coordinates(:,1) - location(1))**2 / radius(1)**3 * (    &
-                   1.0_wp + 2.0_wp /                                                         &
+                   dimFactor + 2.0_wp /                                                      &
                    (1.0_wp - (region%grids(i)%coordinates(:,1) - location(1))**2) /          &
                    radius(1)**2 )
 
@@ -293,8 +320,18 @@ subroutine computeIgnitionActuatorSensitivity(this, region)
                    region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
 
            case ('RADIUS_Y')
-              F(:,2) = ignitionSource(:,3) *                                                 &
+              F(:,2) = ignitionSource(:,3) * dimFactor *                                     &
                    (region%grids(i)%coordinates(:,2) - location(2))**2 / radius(2)**3
+
+              instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
+                   region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
+
+         case ('RADIUS_Z')
+              F(:,2) = ignitionSource(:,3) *                                                 &
+                   (region%grids(i)%coordinates(:,3) - location(3))**2 / radius(3)**3 * (    &
+                   dimFactor + 2.0_wp /                                                      &
+                   (1.0_wp - (region%grids(i)%coordinates(:,3) - location(3))**2) /          &
+                   radius(3)**2 )
 
               instantaneousSensitivity(j) = instantaneousSensitivity(j) +                    &
                    region%grids(i)%computeInnerProduct(F(:,1), F(:,2))
