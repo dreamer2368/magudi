@@ -123,8 +123,10 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/StencilOperatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Grid.f90
   ${PROJECT_SOURCE_DIR}/src/GridImpl.f90
-  ${PROJECT_SOURCE_DIR}/include/Particles.f90
-  ${PROJECT_SOURCE_DIR}/src/ParticlesImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/Particle.f90
+  ${PROJECT_SOURCE_DIR}/src/ParticleImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ParticleSolver.f90
+  ${PROJECT_SOURCE_DIR}/src/ParticleSolverImpl.f90
   ${PROJECT_SOURCE_DIR}/include/State.f90
   ${PROJECT_SOURCE_DIR}/src/StateImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PatchDescriptor.f90

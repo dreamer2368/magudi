@@ -22,7 +22,7 @@ module SolverOptions_mod
           densityRange(2),temperatureRange(2), massFractionRange(2), cfl, timeStepSize
      SCALAR_TYPE, dimension(:), allocatable :: froudeNumberInverse, schmidtNumberInverse,    &
           molecularWeightInverse
-     integer :: nSpecies, nUnknowns, equationOfState, nParticles
+     integer :: nSpecies, nUnknowns, equationOfState
      character(len = STRING_LENGTH) :: discretizationType, timeintegratorType,               &
           costFunctionalType, controllerType, checkpointingScheme
      character(len = STRING_LENGTH), dimension(:), allocatable :: speciesName

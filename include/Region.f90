@@ -19,7 +19,6 @@ module Region_mod
   use State_mod, only : t_State
   use Patch_factory, only : t_PatchFactory
   use SolverOptions_mod, only : t_SolverOptions
-  use Particles_mod, only : t_ParticleOptions
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
 
@@ -31,7 +30,6 @@ module Region_mod
      type(t_State), allocatable :: states(:)
      type(t_PatchFactory), allocatable :: patchFactories(:)
      type(t_SolverOptions) :: solverOptions
-     type(t_ParticleOptions) :: particleOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)
      integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL, timestep = 0

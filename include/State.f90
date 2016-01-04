@@ -23,7 +23,7 @@ module State_mod
   use IgnitionSource_mod, only : t_IgnitionSource
   use FuelSource_mod, only : t_FuelSource
   use Combustion_mod, only : t_Combustion
-  use Particles_mod, only : t_Particles
+  use Particle_mod, only : t_Particle
 
   implicit none
 
@@ -59,7 +59,7 @@ module State_mod
      type(t_AcousticSource), allocatable :: acousticSources(:)
      type(t_IgnitionSource), allocatable :: ignitionSources(:)
      type(t_FuelSource), allocatable :: fuelSources(:)
-     type(t_Particles), allocatable :: particles(:)
+     type(t_Particle), allocatable :: particles(:)
      type(t_Combustion) :: combustion
 
      integer :: nSpecies, gradientDirection = -1
