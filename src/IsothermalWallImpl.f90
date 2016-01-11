@@ -200,9 +200,16 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
                 sum(velocity * metrics, 2) * metrics(:,i)
         end do
         temp(:,nDimensions+1) = this%thermalDiffusivity * (temperature - this%temperature)
-        do k = 1, nSpecies
-           temp(:,nDimensions+1+k) = this%massDiffusivity(:,k) * massFraction(:,k)
-        end do
+        if (this%enforceWallMassFraction) then
+           do k = 1, nSpecies
+              temp(:,nDimensions+1+k) = this%massDiffusivity(:,k) * (massFraction(:,k) -     &
+                   this%massFraction(:,k))
+           end do
+        else
+           do k = 1, nSpecies
+              temp(:,nDimensions+1+k) = 0.0_wp
+           end do
+        end if
         if (allocated(this%hole)) then
            do i = 1, size(temp, 2)
               where (this%hole == 1) temp(:, i) = 0.0_wp
