@@ -509,14 +509,14 @@ subroutine updatePatchFactories(patchFactories, simulationFlags, solverOptions, 
         allocate(targetTemperature(grid%nGridPoints))
         if (solverOptions%nSpecies > 0) then
            allocate(targetMassFraction(grid%nGridPoints, solverOptions%nSpecies))
-           call computeDependentVariables(nDimensions, solverOptions%nSpecies,                  &
-                state%targetState, solverOptions%equationOfState,                               &
-                solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,       &
+           call computeDependentVariables(nDimensions, solverOptions%nSpecies,               &
+                state%targetState, solverOptions%equationOfState,                            &
+                solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,    &
                 temperature = targetTemperature, massFraction = targetMassFraction)
         else
-           call computeDependentVariables(nDimensions, solverOptions%nSpecies,                  &
-                state%targetState, solverOptions%equationOfState,                               &
-                solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,       &
+           call computeDependentVariables(nDimensions, solverOptions%nSpecies,               &
+                state%targetState, solverOptions%equationOfState,                            &
+                solverOptions%ratioOfSpecificHeats, solverOptions%molecularWeightInverse,    &
                 temperature = targetTemperature)
         end if
      end if
