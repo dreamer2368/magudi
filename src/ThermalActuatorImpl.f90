@@ -38,7 +38,6 @@ subroutine setupThermalActuator(this, region)
      this%rampWidthInverse = 1.0_wp / this%rampWidthInverse
      call getRequiredOption(trim(key) // "ramp_offset", this%rampOffset)
      this%rampOffset = 1.0_wp - 0.5_wp * this%rampOffset
-     call getRequiredOption(trim(key) // "start_timestep", this%onsetTime)
   end if
 
   gradientBufferSize = getOption("gradient_buffer_size", 1)
@@ -153,6 +152,10 @@ subroutine updateThermalActuatorForcing(this, region)
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use ThermalActuator_mod, only : t_ThermalActuator
 
+  ! <<< SeungWhan: debug:time_ramp printing >>>
+  use ErrorHandler, only : writeAndFlush
+  use, intrinsic :: iso_fortran_env, only : output_unit
+
   implicit none
 
   ! <<< Arguments >>>
@@ -165,6 +168,9 @@ subroutine updateThermalActuatorForcing(this, region)
   real(SCALAR_KIND) :: timeRampFactor
   class(t_Patch), pointer :: patch => null()
 
+  ! <<< SeungWhan: variable for time_ramp printing >>>
+  character(len = STRING_LENGTH) :: message
+
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
@@ -174,6 +180,12 @@ subroutine updateThermalActuatorForcing(this, region)
   if (this%useTimeRamp)                                                                      &
        timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
        this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
+!SeungWhan
+write(message,'(A)') 'Thermal Actuator'
+call writeAndFlush(region%comm, output_unit, message)
+write(message,'(F4.4, E4.4)') region%states(1)%time, timeRampFactor
+call writeAndFlush(region%comm, output_unit, message)
+!=========
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
