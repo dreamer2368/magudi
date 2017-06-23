@@ -38,6 +38,7 @@ subroutine setupThermalActuator(this, region)
      this%rampWidthInverse = 1.0_wp / this%rampWidthInverse
      call getRequiredOption(trim(key) // "ramp_offset", this%rampOffset)
      this%rampOffset = 1.0_wp - 0.5_wp * this%rampOffset
+     call getRequiredOption(trim(key) // "start_timestep", this%onsetTime)
   end if
 
   gradientBufferSize = getOption("gradient_buffer_size", 1)

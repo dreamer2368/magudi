@@ -20,7 +20,7 @@ contains
     use Functional_mod, only : t_Functional
 
     ! <<< Enumerations >>>
-    use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE
+    use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE    !SeungWhan: added rhs
     use Region_enum, only : FORWARD, ADJOINT
 
     ! <<< Internal modules >>>
@@ -39,6 +39,7 @@ contains
     character(len = STRING_LENGTH) :: str, str_, filename
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
+!integer :: j                                                    !SeungWhan: for debugging
 
     assert_key(mode, (FORWARD, ADJOINT))
     assert(startTimestep >= 0)
@@ -109,8 +110,17 @@ contains
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
           call region%saveData(QOI_FORWARD_STATE, filename)
        case (ADJOINT)
+!SeungWhan
+!        do j = 1, size(region%states) !... update state
+!           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
+!                region%solverOptions)
+!        end do
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adjoint.q"
           call region%saveData(QOI_ADJOINT_STATE, filename)
+!SeungWhan: save adjoint rhs for debugging========
+!write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adj_rhs.q"
+!call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
+!=========================================
        end select
 
     end if
@@ -582,11 +592,12 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call region%saveData(QOI_FORWARD_STATE, filename)
   end if
 
-  ! Call controller hooks before time marching starts.
+  ! Call controller hooks before time marching starts. SeungWhan: changed
+  ! duration, onsetTime.
   if (.not. region%simulationFlags%predictionOnly .and.                                      &
        abs(region%states(1)%actuationAmount) > 0.0_wp) then
-     controller%onsetTime = startTime
-     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+     controller%onsetTime = startTime + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
+     controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
      call controller%hookBeforeTimemarch(region, FORWARD)
   end if
 
@@ -754,8 +765,8 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! Load the initial condition.
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
-  controller%onsetTime = region%states(1)%time
-  controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+  controller%onsetTime = region%states(1)%time + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
+  controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
   if (region%simulationFlags%steadyStateSimulation) then

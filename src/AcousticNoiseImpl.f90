@@ -16,6 +16,7 @@ subroutine setupAcousticNoise(this, region)
   use CNSHelper, only : computeDependentVariables
   use InputHelper, only : getOption, getRequiredOption
 
+
   implicit none
 
   ! <<< Arguments >>>
@@ -48,11 +49,12 @@ subroutine setupAcousticNoise(this, region)
 
   if (.not. region%simulationFlags%useTargetState) then
      call getRequiredOption("mean_pressure_file", filename, region%comm)
-     call region%loadData(QOI_DUMMY_FUNCTION, filename)
+!SeungWhan: skip reading mean_pressure_file
+!     call region%loadData(QOI_DUMMY_FUNCTION, filename)
   else
      filename = getOption("mean_pressure_file", "")
      if (len_trim(filename) > 0) then
-        call region%loadData(QOI_DUMMY_FUNCTION, filename)
+!        call region%loadData(QOI_DUMMY_FUNCTION, filename)
      else
         do i = 1, size(region%states)
            assert(allocated(region%states(i)%targetState))
@@ -100,6 +102,10 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   use Region_mod, only : t_Region
   use AcousticNoise_mod, only : t_AcousticNoise
 
+  ! <<< SeungWhan: debugging >>>
+  use, intrinsic :: iso_fortran_env, only : output_unit
+  use ErrorHandler, only : writeAndFlush
+
   ! <<< Arguments >>>
   class(t_AcousticNoise) :: this
   class(t_Region), intent(in) :: region
@@ -111,6 +117,10 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
+  real(wp), parameter :: ratio_of_specific_heat = 1.4_wp
+
+  ! <<< SeungWhan: debugging variables >>
+  character(len=STRING_LENGTH) :: message
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -130,16 +140,30 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
      j = region%grids(i)%index
 
-     assert(associated(this%data_(j)%meanPressure))
-     assert(size(this%data_(j)%meanPressure, 1) == region%grids(i)%nGridPoints)
-     assert(size(this%data_(j)%meanPressure, 2) == 1)
+!     assert(associated(this%data_(j)%meanPressure))
+!     assert(size(this%data_(j)%meanPressure, 1) == region%grids(i)%nGridPoints)
+!     assert(size(this%data_(j)%meanPressure, 2) == 1)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
-     F = region%states(i)%pressure - this%data_(j)%meanPressure
+!     F = region%states(i)%pressure - this%data_(j)%meanPressure
+     F = region%states(i)%pressure - 1.0_wp/ratio_of_specific_heat
      instantaneousFunctional = instantaneousFunctional +                                     &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
+!SeungWhan=========
+!write(message,*) i,'-th grid target mollifier'
+!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+!write(message,*) SHAPE(region%grids(i)%targetMollifier)
+!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+!write(message,*) MAXVAL(region%grids(i)%targetMollifier(:,1)), MINVAL(region%grids(i)%targetMollifier(:,1))
+!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+!write(message,*) 'F'
+!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+!write(message,*) SHAPE(F)
+!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+!write(message,*) MAXVAL(F), MINVAL(F)
+!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+!==================
      SAFE_DEALLOCATE(F)
-
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
@@ -181,6 +205,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: meanPressure(:)
   SCALAR_TYPE :: F
+  real(wp), parameter :: ratio_of_specific_heat = 1.4_wp
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -202,7 +227,8 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
 
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
                 (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
-                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
+!                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
+                (state%pressure(gridIndex, 1) - 1.0_wp/ratio_of_specific_heat)
 
            patch%adjointForcing(patchIndex,nDimensions+2) = F
            patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &

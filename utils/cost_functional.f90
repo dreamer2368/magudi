@@ -4,7 +4,7 @@ program cost_functional
 
   use MPI
 
-  use Grid_enum, only : QOI_GRID
+  use Grid_enum, only : QOI_GRID, QOI_TARGET_MOLLIFIER
   use State_enum, only : QOI_FORWARD_STATE
 
   use Region_mod, only : t_Region
@@ -15,12 +15,15 @@ program cost_functional
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
-  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces  
+  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces 
+
+  use, intrinsic :: iso_fortran_env, only : output_unit
+  use CNSHelper, only : computeDependentVariables
 
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, startTimestep, endTimestep, saveInterval, ierror
+  integer :: i, j, startTimestep, endTimestep, saveInterval, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix
   logical :: success
   type(t_Region) :: region
@@ -28,6 +31,7 @@ program cost_functional
   type(t_FunctionalFactory) :: functionalFactory
   class(t_Functional), pointer :: functional => null()
   SCALAR_TYPE :: instantaneousFunctional
+  character(len = STRING_LENGTH) :: message  !SeungWhan: for debugging
 
   interface
 
@@ -76,6 +80,24 @@ program cost_functional
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
+  ! SeungWhan: allocate Target Mollifier
+  do i = 1, size(region%grids)
+     if ( .not. allocated(region%grids(i)%targetMollifier) ) then
+        allocate(region%grids(i)%targetMollifier(region%grids(i)%nGridPoints, 1))
+     end if
+  end do
+
+  ! SeungWhan: Load Target mollifier.
+  filename = getOption("target_mollifier_file", "")
+  if (len_trim(filename) == 0) then
+     do i = 1, size(region%grids)
+        assert(allocated(region%grids(i)%targetMollifier))
+        region%grids(i)%targetMollifier = 1.0_wp
+     end do
+  else
+     call region%loadData(QOI_TARGET_MOLLIFIER, filename)
+  end if
+
   ! Setup boundary conditions.
   call getRequiredOption("boundary_condition_file", filename)
   call region%setupBoundaryConditions(filename)
@@ -113,10 +135,20 @@ program cost_functional
      ! Load the solution file.
      call get_command_argument(1, filename)
      call region%loadData(QOI_FORWARD_STATE, filename)
+     do j = 1, size(region%states)
+        if (.not. allocated(region%states(j)%pressure))                                         &
+           allocate(region%states(j)%pressure(region%grids(j)%nGridPoints, 1))
+        call computeDependentVariables(region%grids(j)%nDimensions, region%states(j)%conservedVariables,        &
+                                        pressure = region%states(j)%pressure(:,1))
+     end do
 
      instantaneousFunctional = 0.0_wp
      if (.not. region%simulationFlags%predictionOnly) then
         instantaneousFunctional = functional%compute(region)
+!SeungWhan
+write(message,*) instantaneousFunctional
+call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+!=========
         call functional%writeToFile(region%comm, trim(outputPrefix) //                      &
              ".cost_functional.txt", region%timestep, region%states(1)%time,                &
              .false.)
@@ -134,10 +166,20 @@ program cost_functional
 
         write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".q"
         call region%loadData(QOI_FORWARD_STATE, filename)
+        do j = 1, size(region%states)
+           if (.not. allocated(region%states(j)%pressure))                                         &
+              allocate(region%states(j)%pressure(region%grids(j)%nGridPoints, 1))
+           call computeDependentVariables(region%grids(j)%nDimensions, region%states(j)%conservedVariables,        &
+                                           pressure = region%states(j)%pressure(:,1))
+        end do
 
         instantaneousFunctional = 0.0_wp
         if (.not. region%simulationFlags%predictionOnly) then
            instantaneousFunctional = functional%compute(region)
+!SeungWhan
+write(message,*) i,'-th step: ',instantaneousFunctional
+call writeAndFlush(region%comm, output_unit, message, advance = 'no')
+!=========
            call functional%writeToFile(region%comm, trim(outputPrefix) //                   &
                 ".cost_functional.txt", i, region%states(1)%time,                           &
                 i > startTimestep)
