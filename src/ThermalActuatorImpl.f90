@@ -83,6 +83,10 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
   use Region_mod, only : t_Region
   use ThermalActuator_mod, only : t_ThermalActuator
 
+  ! <<< SeungWhan: debug:time_ramp printing >>>
+  use ErrorHandler, only : writeAndFlush
+  use, intrinsic :: iso_fortran_env, only : output_unit
+
   implicit none
 
   ! <<< Arguments >>>
@@ -98,16 +102,30 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
   SCALAR_TYPE, allocatable :: F(:,:)
   real(SCALAR_KIND) :: timeRampFactor
 
+  ! <<< SeungWhan: variable for time_ramp printing >>>
+  character(len = STRING_LENGTH) :: message
+real(SCALAR_KIND) :: FWtime
+
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
 
   instantaneousSensitivity = 0.0_wp
 
-  timeRampFactor = 1.0_wp
+  timeRampFactor = 0.0_wp
+FWtime = region%states(1)%time - 0.5_wp * region%solverOptions%timeStepSize
+  if (FWtime>=this%onsetTime .and.                                            &
+      FWtime<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
   if (this%useTimeRamp)                                                                      &
        timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
        this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
+timeRampFactor = 1.0_wp
+!SeungWhan
+write(message,'(A)') 'Thermal Actuator-Adjoint'
+call writeAndFlush(region%comm, output_unit, message)
+write(message,'(ES9.2E2,ES9.2E2)') FWtime, timeRampFactor
+call writeAndFlush(region%comm, output_unit, message)
+!=========
 
   do i = 1, size(region%grids)
 
@@ -176,15 +194,18 @@ subroutine updateThermalActuatorForcing(this, region)
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
-  timeRampFactor = 1.0_wp
+  timeRampFactor = 0.0_wp
+  if (region%states(1)%time>=this%onsetTime .and.                                            &
+      region%states(1)%time<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
   if (this%useTimeRamp)                                                                      &
        timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
        this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
+timeRampFactor = 1.0_wp
 !SeungWhan
-write(message,'(A)') 'Thermal Actuator'
-call writeAndFlush(region%comm, output_unit, message)
-write(message,'(F4.4, E4.4)') region%states(1)%time, timeRampFactor
-call writeAndFlush(region%comm, output_unit, message)
+!write(message,'(A)') 'Thermal Actuator'
+!call writeAndFlush(region%comm, output_unit, message)
+!write(message,'(ES9.2E2, ES9.2E2)') region%states(1)%time, timeRampFactor
+!call writeAndFlush(region%comm, output_unit, message)
 !=========
 
   do i = 1, size(region%patchFactories)
@@ -238,15 +259,21 @@ subroutine updateThermalActuatorGradient(this, region)
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: F(:,:)
 
+real(SCALAR_KIND) :: FWtime
+
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
-  timeRampFactor = 1.0_wp
+  timeRampFactor = 0.0_wp
+FWtime = region%states(1)%time - 0.5_wp * region%solverOptions%timeStepSize
+  if (FWtime>=this%onsetTime .and.                                            &
+      FWtime<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
   if (this%useTimeRamp)                                                                      &
        timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
        this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
+timeRampFactor = 1.0_wp
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
@@ -263,7 +290,10 @@ subroutine updateThermalActuatorGradient(this, region)
            allocate(F(patch%nPatchPoints, 2))
            call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2), F(:,1))
            call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,2))
-           if (this%useTimeRamp) F(:,2) = F(:,2) * timeRampFactor
+           !SeungWhan
+!           if (this%useTimeRamp) F(:,2) = F(:,2) * timeRampFactor
+           F(:,2) = F(:,2) * timeRampFactor
+           !============
            patch%gradientBuffer(:,1,patch%iGradientBuffer) = product(F, dim = 2)
            SAFE_DEALLOCATE(F)
 

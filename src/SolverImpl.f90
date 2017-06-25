@@ -526,6 +526,11 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
 
+  ! <<< SeungWhan: debug >>>
+  use InputHelper, only : getOption
+  use, intrinsic :: iso_fortran_env, only : output_unit
+  use ErrorHandler, only : writeAndFlush
+
   implicit none
 
   ! <<< Arguments >>>
@@ -546,6 +551,9 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
+
+  ! <<< SeungWhan: message >>>
+  character(len = STRING_LENGTH) :: message
 
   call startTiming("runForward")
 
@@ -592,15 +600,35 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call region%saveData(QOI_FORWARD_STATE, filename)
   end if
 
-  ! Call controller hooks before time marching starts. SeungWhan: changed
-  ! duration, onsetTime.
-  if (.not. region%simulationFlags%predictionOnly .and.                                      &
-       abs(region%states(1)%actuationAmount) > 0.0_wp) then
-     controller%onsetTime = startTime
-     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-!     controller%onsetTime = startTime + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
-!     controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
+  ! Call controller hooks before time marching starts. 
+  !SeungWhan: set duration, onsetTime by option.
+  if (.not. region%simulationFlags%predictionOnly) then
+!        .and.                                      &
+!       abs(region%states(1)%actuationAmount) > 0.0_wp) then
+     controller%onsetTime = getOption("controller/onset_time",startTime)
+     controller%duration = getOption("controller/duration",                                  &
+                                     this%nTimesteps * region%solverOptions%timeStepSize)
+
+!     controller%onsetTime = startTime
+!     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
      call controller%hookBeforeTimemarch(region, FORWARD)
+
+     !SeungWhan: add duration, onsetTime for cost functional.
+     functional%onsetTime = getOption("functional/onset_time",startTime)
+     functional%duration = getOption("functional/duration",                                  &
+                                     this%nTimesteps * region%solverOptions%timeStepSize)
+!SeungWhan
+write(message,*) 'controller/onset_time: ',controller%onsetTime
+call writeAndFlush(region%comm, output_unit, message)
+write(message,*) 'controller/duration: ',controller%duration
+call writeAndFlush(region%comm, output_unit, message)
+!=========
+!SeungWhan
+write(message,*) 'functional/onset_time: ',functional%onsetTime
+call writeAndFlush(region%comm, output_unit, message)
+write(message,*) 'functional/duration: ',functional%duration
+call writeAndFlush(region%comm, output_unit, message)
+!=========
   end if
 
   ! Reset probes.
@@ -722,6 +750,11 @@ function runAdjoint(this, region) result(costSensitivity)
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
 
+  ! <<< SeungWhan: debug >>>
+  use InputHelper, only : getOption
+  use, intrinsic :: iso_fortran_env, only : output_unit
+  use ErrorHandler, only : writeAndFlush
+
   implicit none
 
   ! <<< Arguments >>>
@@ -742,6 +775,9 @@ function runAdjoint(this, region) result(costSensitivity)
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostSensitivity
+
+  ! <<< SeungWhan: message >>>
+  character(len = STRING_LENGTH) :: message
 
   assert(.not. region%simulationFlags%predictionOnly)
 
@@ -767,10 +803,26 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! Load the initial condition.
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
-  controller%onsetTime = region%states(1)%time
-  controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-!  controller%onsetTime = region%states(1)%time + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
-!  controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
+  controller%onsetTime = getOption("controller/onset_time",region%states(1)%time)
+  controller%duration = getOption("controller/duration",                                  &
+                                     this%nTimesteps * region%solverOptions%timeStepSize)
+
+  !SeungWhan: add duration, onsetTime for cost functional.
+  functional%onsetTime = getOption("functional/onset_time",region%states(1)%time)
+  functional%duration = getOption("functional/duration",                                  &
+                                     this%nTimesteps * region%solverOptions%timeStepSize)
+!SeungWhan
+write(message,*) 'controller/onset_time: ',controller%onsetTime
+call writeAndFlush(region%comm, output_unit, message)
+write(message,*) 'controller/duration: ',controller%duration
+call writeAndFlush(region%comm, output_unit, message)
+!=========
+!SeungWhan
+write(message,*) 'functional/onset_time: ',functional%onsetTime
+call writeAndFlush(region%comm, output_unit, message)
+write(message,*) 'functional/duration: ',functional%duration
+call writeAndFlush(region%comm, output_unit, message)
+!=========
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
   if (region%simulationFlags%steadyStateSimulation) then

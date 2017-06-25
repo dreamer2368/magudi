@@ -119,14 +119,20 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   SCALAR_TYPE, allocatable :: F(:,:)
   real(wp), parameter :: ratio_of_specific_heat = 1.4_wp
 
-  ! <<< SeungWhan: debugging variables >>
+  ! <<< SeungWhan: message, timeRampFactor >>
   character(len=STRING_LENGTH) :: message
+  real(wp) :: timeRampFactor
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
 
   instantaneousFunctional = 0.0_wp
+
+  ! SeungWhan: compute timeRampFactor
+  timeRampFactor = 0.0_wp
+  if (region%states(1)%time>=this%onsetTime .and.                                            &
+      region%states(1)%time<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
 
   do i = 1, size(region%grids)
 
@@ -148,21 +154,8 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 !     F = region%states(i)%pressure - this%data_(j)%meanPressure
      F = region%states(i)%pressure - 1.0_wp/ratio_of_specific_heat
      instantaneousFunctional = instantaneousFunctional +                                     &
+!          timeRampFactor *                                                                   &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
-!SeungWhan=========
-!write(message,*) i,'-th grid target mollifier'
-!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
-!write(message,*) SHAPE(region%grids(i)%targetMollifier)
-!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
-!write(message,*) MAXVAL(region%grids(i)%targetMollifier(:,1)), MINVAL(region%grids(i)%targetMollifier(:,1))
-!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
-!write(message,*) 'F'
-!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
-!write(message,*) SHAPE(F)
-!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
-!write(message,*) MAXVAL(F), MINVAL(F)
-!call writeAndFlush(region%comm, output_unit, message, advance = 'no')
-!==================
      SAFE_DEALLOCATE(F)
   end do
 
@@ -207,12 +200,20 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   SCALAR_TYPE :: F
   real(wp), parameter :: ratio_of_specific_heat = 1.4_wp
 
+  ! <<< SeungWhan: message, timeRampFactor >>
+  real(wp) :: timeRampFactor
+
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   allocate(meanPressure(patch%nPatchPoints))
   i = grid%index
   call patch%collect(this%data_(i)%meanPressure(:,1), meanPressure)
+
+  ! SeungWhan: compute timeRampFactor
+  timeRampFactor = 0.0_wp
+  if (state%time>=this%onsetTime .and.                                            &
+      state%time<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -228,7 +229,9 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
                 (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
 !                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
-                (state%pressure(gridIndex, 1) - 1.0_wp/ratio_of_specific_heat)
+                (state%pressure(gridIndex, 1) - 1.0_wp/ratio_of_specific_heat) *             &
+                 1.0_wp
+!                timeRampFactor
 
            patch%adjointForcing(patchIndex,nDimensions+2) = F
            patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
