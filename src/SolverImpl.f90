@@ -316,6 +316,7 @@ contains
           end do
        else
           call region%loadData(QOI_ADJOINT_STATE, filename)
+          return                                                !SeungWhan:to continue adjointrun
        end if
 
        if (allocated(region%patchFactories) .and.                                            &
@@ -507,6 +508,9 @@ end subroutine cleanupSolver
 
 function runForward(this, region, actuationAmount, restartFilename) result(costFunctional)
 
+  ! <<< External modules >>>
+  use iso_fortran_env, only : output_unit
+
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
@@ -525,6 +529,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
+  use ErrorHandler, only : writeAndFlush
 
   implicit none
 
@@ -539,7 +544,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: filename
+  character(len = STRING_LENGTH) :: filename, message
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
@@ -598,8 +603,6 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
        abs(region%states(1)%actuationAmount) > 0.0_wp) then
      controller%onsetTime = startTime
      controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-!     controller%onsetTime = startTime + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
-!     controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
      call controller%hookBeforeTimemarch(region, FORWARD)
   end if
 
@@ -692,14 +695,21 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call region%saveData(QOI_TIME_AVERAGED_STATE, trim(this%outputPrefix) // ".mean.q")
   end if
 
-  if (.not. region%simulationFlags%predictionOnly)                                           &
+  if (.not. region%simulationFlags%predictionOnly) then
        costFunctional = functional%runningTimeQuadrature
+       write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Forward run: cost functional = ', &
+                                                               costFunctional
+       call writeAndFlush(region%comm, output_unit, message)
+  end if
 
   call endTiming("runForward")
 
 end function runForward
 
 function runAdjoint(this, region) result(costSensitivity)
+
+  ! <<< External modules >>>
+  use iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -721,6 +731,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
+  use ErrorHandler, only : writeAndFlush
 
   implicit none
 
@@ -733,7 +744,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: filename
+  character(len = STRING_LENGTH) :: filename, message
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
@@ -885,6 +896,10 @@ function runAdjoint(this, region) result(costSensitivity)
   call reverseMigratorFactory%cleanup()
 
   costSensitivity = controller%runningTimeQuadrature
+
+  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Adjoint run: cost sensitivity = ', &
+                                                          costSensitivity
+  call writeAndFlush(region%comm, output_unit, message)
 
   call endTiming("runAdjoint")
 

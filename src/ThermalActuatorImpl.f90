@@ -180,12 +180,6 @@ subroutine updateThermalActuatorForcing(this, region)
   if (this%useTimeRamp)                                                                      &
        timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
        this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
-!SeungWhan
-write(message,'(A)') 'Thermal Actuator'
-call writeAndFlush(region%comm, output_unit, message)
-write(message,'(F4.4, E4.4)') region%states(1)%time, timeRampFactor
-call writeAndFlush(region%comm, output_unit, message)
-!=========
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
