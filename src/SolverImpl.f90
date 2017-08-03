@@ -950,7 +950,12 @@ subroutine checkGradientAccuracy(this, region)
 
   call MPI_Comm_rank(region%comm, procRank, ierror)
 
-  write(filename, '(2A)') trim(this%outputPrefix), ".gradient_error.txt"
+  !SeungWhan: add option for gradient_error_filename
+  filename = getOption("gradient_error_file", "")
+  if (len_trim(filename) == 0) then
+     write(filename, '(2A)') trim(this%outputPrefix), ".gradient_error.txt"
+  end if
+
   if (procRank == 0) then
      if (restartIteration == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
         open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'write',          &
