@@ -1,6 +1,27 @@
 import numpy as np
 import PLOT3D
+import plot3dnasa as p3d
 
+def mergeMeanSolutions(prefix,meanSolutionFileList, **kwargs):
+
+    """Merge multiple successive mean solution"""
+
+    N = len(meanSolutionFileList)
+
+    ratioOfSpecificHeats = kwargs.pop('ratioOfSpecificHeats', 1.4)
+
+    g = p3d.Grid('%s.xyz' % prefix)
+    s = p3d.Solution().copy_from(g).quiescent(ratioOfSpecificHeats)
+    for i, xyz in enumerate(g.xyz):
+        s.q[i] = np.zeros_like(s.q[i])
+
+    for k in range(0,N):
+        meanSoln = p3d.fromfile(meanSolutionFileList[k])
+        for i, xyz in enumerate(g.xyz):
+            s.q[i] += 1./N*meanSoln.q[i]
+
+    return s.fromprimitive(ratioOfSpecificHeats)
+ 
 def getCenterlineSubarray(gridFile, solutionFile = None, functionFile = None, hasIBLANK = False):
 
     """Extracts the centerline axial coordinate, solution and function
@@ -426,3 +447,13 @@ def interpolateOnAnnularGrid(gridFile, solutionFile, hasIBLANK = False, showProg
 
     soln.Q[0][-1,:,:,:] = soln.Q[0][0,:,:,:]
     return grid, soln
+
+
+if __name__ == '__main__':
+    prefix='MultiblockJet'
+    meanSolutionFileList=[]
+    for i in range(0,6):
+        istr = str(457000 + i*100000)
+        meanSolutionFileList += ['MultiblockJet-'+istr+'.100000.mean.q']
+    mergeMeanSolutions(prefix,meanSolutionFileList).save('MultiblockJet.mean.q')
+
