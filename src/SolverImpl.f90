@@ -254,6 +254,8 @@ contains
   end subroutine checkSolutionLimits
 
   subroutine loadInitialCondition(this, region, mode, restartFilename)
+  ! <<< External modules >>>
+  use iso_fortran_env, only : output_unit
 
     ! <<< Derived types >>>
     use Patch_mod, only : t_Patch
@@ -268,6 +270,7 @@ contains
 
     ! <<< Internal modules >>>
     use InputHelper, only : getOption, getRequiredOption
+use ErrorHandler, only : writeAndFlush
 
     implicit none
 
@@ -279,7 +282,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    character(len = STRING_LENGTH) :: filename
+    character(len = STRING_LENGTH) :: filename, message
     integer :: i, j
     real(wp) :: timeStepSize
     class(t_Functional), pointer :: functional => null()
@@ -329,7 +332,7 @@ contains
           ! Connect to the previously allocated functional.
           call this%functionalFactory%connect(functional)
           assert(associated(functional))
-          call functional%updateAdjointForcing(region)
+          call functional%updateAdjointForcing(region,.false.) !...SeungWhan:obviously not final step
 
           do i = 1, size(region%states)
              region%states(i)%rightHandSide = 0.0_wp
@@ -752,6 +755,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
+  logical :: IS_FINAL_STEP                                             ! SeungWhan
   SCALAR_TYPE :: instantaneousCostSensitivity
 
   assert(.not. region%simulationFlags%predictionOnly)
@@ -855,7 +859,14 @@ function runAdjoint(this, region) result(costSensitivity)
              timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
 
         ! Update adjoint forcing on cost target patches.
-        call functional%updateAdjointForcing(region)
+        ! SeungWhan: Bug fix for final step
+        if( (timestep.eq.startTimestep+sign(this%nTimesteps,timemarchDirection)) .and.       &
+            (i.eq.1) ) then
+            IS_FINAL_STEP = .true.
+        else
+            IS_FINAL_STEP = .false.
+        end if
+        call functional%updateAdjointForcing(region,IS_FINAL_STEP)
 
         ! Take a single adjoint sub-step using the time integrator.
         call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep, i)

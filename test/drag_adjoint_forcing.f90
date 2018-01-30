@@ -162,7 +162,9 @@ program drag_adjoint_forcing
            class is (t_PressureDrag)
               call dragCoefficient%setup(region(i))
               dragCoefficient%direction = dragDirection
-              call dragCoefficient%updateAdjointForcing(region(i))
+              !...SeungWhan: obviously there is no final step
+              call dragCoefficient%updateAdjointForcing(region(i),.false.)
+
 
            class default
               success = .false.

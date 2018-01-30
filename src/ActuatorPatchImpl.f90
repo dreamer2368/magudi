@@ -28,7 +28,7 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: outputPrefix
+  character(len = STRING_LENGTH) :: outputPrefix, gradientDirectory
 
 #ifdef DEBUG
   if (.not. simulationFlags%predictionOnly) then
@@ -42,9 +42,11 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
+  ! SeungWhan: gradient directory option
+  gradientDirectory = getOption("gradient_directory","")
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
-  write(this%gradientFilename, '(4A)') trim(outputPrefix), ".gradient_",                     &
-       trim(patchDescriptor%name), ".dat"
+  write(this%gradientFilename, '(4A)') trim(gradientDirectory)//trim(outputPrefix),             &
+       ".gradient_", trim(patchDescriptor%name), ".dat"
 
   if (.not. simulationFlags%predictionOnly .and. this%nPatchPoints > 0) then
      allocate(this%controlForcing(this%nPatchPoints, solverOptions%nUnknowns))
