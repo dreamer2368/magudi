@@ -54,6 +54,14 @@ subroutine setupThermalActuator(this, region)
            allocate(patch%gradientBuffer(patch%nPatchPoints, 1, gradientBufferSize))
            patch%gradientBuffer = 0.0_wp
 
+           !SeungWhan: baseline control gradient buffer allocation
+           if ( patch%controlledBaseline .and.                                                  &
+                abs(region%states(1)%baseActuationAmount)>=0.0_wp ) then
+              SAFE_DEALLOCATE(patch%baseGradientBuffer)
+              allocate(patch%baseGradientBuffer(patch%nPatchPoints, 1, gradientBufferSize))
+              patch%baseGradientBuffer = 0.0_wp
+           end if
+
         end select
      end do
   end if
@@ -167,6 +175,7 @@ subroutine updateThermalActuatorForcing(this, region)
   integer :: i, j, nDimensions
   real(SCALAR_KIND) :: timeRampFactor
   class(t_Patch), pointer :: patch => null()
+  SCALAR_TYPE, allocatable :: temp(:,:)
 
   ! <<< SeungWhan: variable for time_ramp printing >>>
   character(len = STRING_LENGTH) :: message
@@ -189,6 +198,9 @@ subroutine updateThermalActuatorForcing(this, region)
         select type (patch)
         class is (t_ActuatorPatch)
 
+           !SeungWhan: allocate temp = controlForcing
+           allocate(temp,MOLD=patch%controlForcing)
+
            patch%iGradientBuffer = patch%iGradientBuffer - 1
 
            assert(patch%iGradientBuffer >= 1)
@@ -197,10 +209,12 @@ subroutine updateThermalActuatorForcing(this, region)
            if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
                 call patch%loadGradient()
 
-           patch%controlForcing(:,1:nDimensions+1) = 0.0_wp
-           patch%controlForcing(:,nDimensions+2) = - region%states(j)%actuationAmount *      &
+           temp(:,1:nDimensions+1) = 0.0_wp
+           temp(:,nDimensions+2) = - region%states(j)%actuationAmount *                      &
                 patch%gradientBuffer(:,1,patch%iGradientBuffer)
-           patch%controlForcing = timeRampFactor * patch%controlForcing
+           patch%controlForcing = patch%controlForcing + timeRampFactor * temp
+
+           deallocate(temp)
 
            if (patch%iGradientBuffer == 1)                                                   &
                 patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
@@ -210,6 +224,72 @@ subroutine updateThermalActuatorForcing(this, region)
   end do
 
 end subroutine updateThermalActuatorForcing
+
+!SeungWhan: updateControlForcing routine for controlled baseline
+subroutine updateThermalActuatorBaselineForcing(this, region)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use ThermalActuator_mod, only : t_ThermalActuator
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_ThermalActuator) :: this
+  class(t_Region), intent(in) :: region
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions
+  real(SCALAR_KIND) :: timeRampFactor
+  class(t_Patch), pointer :: patch => null()
+  SCALAR_TYPE, allocatable :: temp(:,:)
+
+  if (.not. allocated(region%patchFactories)) return
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  timeRampFactor = 1.0_wp
+  if (this%useTimeRamp)                                                                      &
+       timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
+       this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(j)%index) cycle
+        select type (patch)
+        class is (t_ActuatorPatch)
+
+           allocate(temp,MOLD=patch%controlForcing)
+
+           patch%iBaseGradientBuffer = patch%iBaseGradientBuffer - 1
+
+           assert(patch%iBaseGradientBuffer >= 1)
+           assert(patch%iBaseGradientBuffer <= size(patch%baseGradientBuffer, 3))
+
+           if (patch%iBaseGradientBuffer == size(patch%baseGradientBuffer, 3))                   &
+                call patch%loadBaseGradient()
+
+           temp(:,1:nDimensions+1) = 0.0_wp
+           temp(:,nDimensions+2) = - region%states(j)%baseActuationAmount *                      &
+                patch%baseGradientBuffer(:,1,patch%iBaseGradientBuffer)
+           patch%controlForcing = patch%controlForcing + timeRampFactor * temp
+
+           deallocate(temp)
+
+           if (patch%iBaseGradientBuffer == 1)                                                   &
+                patch%iBaseGradientBuffer = size(patch%baseGradientBuffer, 3) + 1
+
+        end select
+     end do
+  end do
+
+end subroutine updateThermalActuatorBaselineForcing
 
 subroutine updateThermalActuatorGradient(this, region)
 
@@ -341,7 +421,7 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
   ! <<< Local variables >>>
   integer :: i, stat, fileUnit, mpiFileHandle, procRank, ierror
   class(t_Patch), pointer :: patch => null()
-  logical :: fileExists
+  logical :: gradientFileExists, baseGradientFileExists
   character(len = STRING_LENGTH) :: message
 
   if (.not. allocated(region%patchFactories)) return
@@ -358,18 +438,32 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
         select case (mode)
 
         case (FORWARD)
-           if (procRank == 0) inquire(file = trim(patch%gradientFilename), exist = fileExists)
-           call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
-           if (.not. fileExists) then
+           if (procRank == 0) then
+              inquire(file = trim(patch%gradientFilename), exist = gradientFileExists)
+              inquire(file = trim(patch%baseGradientFilename), exist = baseGradientFileExists)
+           end if
+           call MPI_Bcast(gradientFileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
+           call MPI_Bcast(baseGradientFileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
+           if (.not.(gradientFileExists .or.                                                 &
+                     baseGradientFileExists)) then
               write(message, '(3A,I0.0,A)') "No gradient information available for patch '", &
                    trim(patch%name), "' on grid ", patch%gridIndex, "!"
               call gracefulExit(patch%comm, message)
            end if
-           patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
-           call MPI_File_open(patch%comm, trim(patch%gradientFilename) // char(0),           &
-                MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
-           call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
-           call MPI_File_close(mpiFileHandle, ierror)
+           if (gradientFileExists) then
+              patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+              call MPI_File_open(patch%comm, trim(patch%gradientFilename) // char(0),           &
+                   MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
+              call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
+              call MPI_File_close(mpiFileHandle, ierror)
+           end if
+           if (baseGradientFileExists) then
+              patch%iBaseGradientBuffer = size(patch%baseGradientBuffer, 3) + 1
+              call MPI_File_open(patch%comm, trim(patch%baseGradientFilename) // char(0),           &
+                   MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
+              call MPI_File_get_size(mpiFileHandle, patch%baseGradientFileOffset, ierror)
+              call MPI_File_close(mpiFileHandle, ierror)
+           end if
 
         case (ADJOINT)
            if (procRank == 0) then
@@ -379,10 +473,26 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
               open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
                    action = 'write', status = 'unknown')
               close(fileUnit)
+              inquire(file = trim(patch%baseGradientFilename), exist = baseGradientFileExists)
            end if
-           call MPI_Barrier(patch%comm, ierror)
            patch%iGradientBuffer = 0
            patch%gradientFileOffset = int(0, MPI_OFFSET_KIND)
+
+           !SeungWhan: hook up baseline gradient file
+           call MPI_Bcast(baseGradientFileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
+           if (patch%controlledBaseline) then
+              if (.not. baseGradientFileExists) then
+                 write(message, '(3A,I0.0,A)') "No baseline gradient information "//         &
+                                               "available for patch '", trim(patch%name),    &
+                                                "' on grid ", patch%gridIndex, "!"
+                 call gracefulExit(patch%comm, message)
+              end if
+              patch%iBaseGradientBuffer = size(patch%baseGradientBuffer, 3) + 1
+              call MPI_File_open(patch%comm, trim(patch%baseGradientFilename) // char(0),           &
+                   MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
+              call MPI_File_get_size(mpiFileHandle, patch%baseGradientFileOffset, ierror)
+              call MPI_File_close(mpiFileHandle, ierror)
+           end if
 
         end select
 

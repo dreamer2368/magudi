@@ -89,15 +89,17 @@ module ReverseMigrator_mod
 
   abstract interface
 
-     subroutine migrateTo(this, region, timeIntegrator, timestep, stage)
+     subroutine migrateTo(this, region, controller, timeIntegrator, timestep, stage)
 
        use Region_mod, only : t_Region
+       use Controller_mod, only : t_Controller
        use TimeIntegrator_mod, only : t_TimeIntegrator
 
        import :: t_ReverseMigrator
 
        class(t_ReverseMigrator) :: this
        class(t_Region) :: region
+       class(t_Controller) :: controller
        class(t_TimeIntegrator) :: timeIntegrator
        integer, intent(in) :: timestep, stage
 

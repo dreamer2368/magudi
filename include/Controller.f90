@@ -20,7 +20,9 @@ module Controller_mod
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
      procedure(computeSensitivity), pass, deferred :: computeSensitivity
+     procedure, non_overridable, pass :: cleanupForcing => cleanUpControlForcing
      procedure(updateForcing), pass, deferred :: updateForcing
+     procedure(updateForcing), pass, deferred :: updateBaseForcing
      procedure(updateGradient), pass, deferred :: updateGradient
      procedure(isPatchValid), pass, deferred :: isPatchValid
      procedure(hookBeforeTimemarch), pass, deferred :: hookBeforeTimemarch
@@ -199,6 +201,26 @@ module Controller_mod
        logical, intent(in), optional :: append
 
      end subroutine writeSensitivityToFile
+
+  end interface
+
+  interface
+     !SeungWhan: clean up control forcing (not controller!)
+     subroutine cleanUpControlForcing(this,region)
+     
+       ! <<< Derived types >>>
+       use Patch_mod, only : t_Patch
+       use Region_mod, only : t_Region
+       use ActuatorPatch_mod, only : t_ActuatorPatch
+
+       import :: t_Controller
+     
+       implicit none
+     
+       class(t_Controller) :: this
+       class(t_Region) :: region
+
+     end subroutine
 
   end interface
 

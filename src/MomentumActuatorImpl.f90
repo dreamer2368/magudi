@@ -210,6 +210,24 @@ subroutine updateMomentumActuatorForcing(this, region)
 
 end subroutine updateMomentumActuatorForcing
 
+subroutine updateMomentumActuatorBaselineForcing(this, region)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use MomentumActuator_mod, only : t_MomentumActuator
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_MomentumActuator) :: this
+  class(t_Region), intent(in) :: region
+
+!SeungWhan: baseline momentum actuator is not made up yet!!!
+
+end subroutine updateMomentumActuatorBaselineForcing
+
 subroutine updateMomentumActuatorGradient(this, region)
 
   ! <<< Derived types >>>

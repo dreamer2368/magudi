@@ -533,6 +533,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
   use ErrorHandler, only : writeAndFlush
+  use InputHelper, only : getOption, getRequiredOption
 
   implicit none
 
@@ -553,15 +554,20 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   class(t_Functional), pointer :: functional => null()
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
+  logical :: baselineControl = .false., advancingControl = .false.
   SCALAR_TYPE :: instantaneousCostFunctional
 
   call startTiming("runForward")
 
   costFunctional = 0.0_wp
 
+  ! SeungWhan : Set up actuation amounts
   region%states(:)%actuationAmount = 0.0_wp
   if (present(actuationAmount) .and. .not. region%simulationFlags%predictionOnly)            &
        region%states(:)%actuationAmount = actuationAmount
+  if ( getOption('controlled_baseline',.false.) )                                            &
+       region%states(:)%baseActuationAmount =                                                &
+                    getOption('controlled_baseline/actuation_amount',1.0_wp)
 
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)
@@ -600,10 +606,23 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call region%saveData(QOI_FORWARD_STATE, filename)
   end if
 
+  ! SeungWhan: set up control forcing flag
+  advancingControl = .not. region%simulationFlags%predictionOnly .and.                       &
+                     abs(region%states(1)%actuationAmount) > 0.0_wp
+  baselineControl = getOption('controlled_baseline',.false.) .and.                           &
+                    abs(region%states(1)%baseActuationAmount) > 0.0_wp
+  write(message,'(A,L4,A,F16.8,A,F16.8)') 'Control Forcing Flag: ',                          &
+                                            baselineControl .or. advancingControl,           &
+                                          ', Baseline Actuation Amount:',                    &
+                                            region%states(1)%baseActuationAmount,            &
+                                          ', Advancing Actuation Amount: ',                  &
+                                            region%states(1)%actuationAmount
+  call writeAndFlush(region%comm, output_unit, message)
+
+
   ! Call controller hooks before time marching starts. SeungWhan: changed
   ! duration, onsetTime.
-  if (.not. region%simulationFlags%predictionOnly .and.                                      &
-       abs(region%states(1)%actuationAmount) > 0.0_wp) then
+  if (advancingControl .or. baselineControl) then
      controller%onsetTime = startTime
      controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
      call controller%hookBeforeTimemarch(region, FORWARD)
@@ -631,9 +650,11 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
              call checkSolutionLimits(region, FORWARD, this%outputPrefix)
 
         ! Update control forcing.
-        if (.not. region%simulationFlags%predictionOnly .and.                                &
-             abs(region%states(1)%actuationAmount) > 0.0_wp)                                 &
-             call controller%updateForcing(region)
+        !SeungWhan: flush out previous control forcing
+        if (baselineControl .or. advancingControl)                                           &
+            call controller%cleanupForcing(region)
+        if (baselineControl) call controller%updateBaseForcing(region)
+        if (advancingControl) call controller%updateForcing(region)
 
         ! Take a single sub-step using the time integrator.
         call timeIntegrator%substepForward(region, time, timeStepSize, timestep, i)
@@ -685,9 +706,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   ! Call controller hooks after time marching ends.
-  if (.not. region%simulationFlags%predictionOnly .and.                                      &
-       abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
-       call controller%hookAfterTimemarch(region, FORWARD)
+  if (baselineControl .or. advancingControl) call controller%hookAfterTimemarch(region, FORWARD)
 
   call this%residualManager%cleanup()
 
@@ -735,6 +754,7 @@ function runAdjoint(this, region) result(costSensitivity)
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
   use ErrorHandler, only : writeAndFlush
+  use InputHelper, only : getOption, getRequiredOption
 
   implicit none
 
@@ -763,6 +783,13 @@ function runAdjoint(this, region) result(costSensitivity)
   call startTiming("runAdjoint")
 
   costSensitivity = 0.0_wp
+
+  !SeungWhan: in case of adjoint for controlled baseline
+  region%states(:)%actuationAmount = 0.0_wp
+  region%states(:)%baseActuationAmount = 0.0_wp
+  if ( getOption('controlled_baseline',.false.) )                                            &
+       region%states(:)%baseActuationAmount =                                                &
+                    getOption('controlled_baseline/actuation_amount',1.0_wp)
 
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)
@@ -843,10 +870,11 @@ function runAdjoint(this, region) result(costSensitivity)
         ! Load adjoint coefficients.
         if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
            if (i == 1) then
-              call reverseMigrator%migrateTo(region, timeIntegrator,                         &
+              call reverseMigrator%migrateTo(region, controller, timeIntegrator,             &
                    timestep, timeIntegrator%nStages)
            else
-              call reverseMigrator%migrateTo(region, timeIntegrator, timestep + 1, i - 1)
+              call reverseMigrator%migrateTo(region, controller, timeIntegrator,             &
+                   timestep + 1, i - 1)
            end if
         end if
 

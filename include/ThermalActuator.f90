@@ -17,6 +17,7 @@ module ThermalActuator_mod
      procedure, pass :: cleanup => cleanupThermalActuator
      procedure, pass :: computeSensitivity => computeThermalActuatorSensitivity
      procedure, pass :: updateForcing => updateThermalActuatorForcing
+     procedure, pass :: updateBaseForcing => updateThermalActuatorBaselineForcing
      procedure, pass :: updateGradient => updateThermalActuatorGradient
      procedure, pass :: isPatchValid => isThermalActuatorPatchValid
      procedure, pass :: hookBeforeTimemarch => hookThermalActuatorBeforeTimemarch
@@ -81,6 +82,21 @@ module ThermalActuator_mod
        class(t_Region), intent(in) :: region
 
      end subroutine updateThermalActuatorForcing
+
+  end interface
+
+  interface
+
+     subroutine updateThermalActuatorBaselineForcing(this, region)
+
+       use Region_mod, only : t_Region
+
+       import :: t_ThermalActuator
+
+       class(t_ThermalActuator) :: this
+       class(t_Region), intent(in) :: region
+
+     end subroutine updateThermalActuatorBaselineForcing
 
   end interface
 

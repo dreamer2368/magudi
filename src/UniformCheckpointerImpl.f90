@@ -75,10 +75,11 @@ subroutine cleanupUniformCheckpointer(this)
 
 end subroutine cleanupUniformCheckpointer
 
-subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep, stage)
+subroutine uniformCheckpointingMigrateTo(this, region, controller, timeIntegrator, timestep, stage)
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
+  use Controller_mod, only : t_Controller
   use TimeIntegrator_mod, only : t_TimeIntegrator
   use UniformCheckpointer_mod, only : t_UniformCheckpointer
 
@@ -90,6 +91,7 @@ subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep,
   ! <<< Arguments >>>
   class(t_UniformCheckpointer) :: this
   class(t_Region) :: region
+  class(t_Controller) :: controller
   class(t_TimeIntegrator) :: timeIntegrator
   integer, intent(in) :: timestep, stage
 
@@ -148,6 +150,10 @@ subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep,
            timeStepSize = region%getTimeStepSize()
 
            do stage_ = 1, timeIntegrator%nStages
+
+               ! SeungWhan: Update control forcing for non-zero actuation amount.
+               if (abs(region%states(1)%baseActuationAmount) > 0.0_wp)                                 &
+                  call controller%updateBaseForcing(region)
 
               call timeIntegrator%substepForward(region, time,                               &
                    timeStepSize, timestep_, stage_)

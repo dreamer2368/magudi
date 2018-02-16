@@ -7,7 +7,9 @@ module Region_enum
 
   integer, parameter ::                                                                      &
        FORWARD = +1,                                                                         &
-       ADJOINT = -1
+       ADJOINT = -1,                                                                         &
+       !SeungWhan: Optimization flag
+       ONESTEP = 0
 
 end module Region_enum
 

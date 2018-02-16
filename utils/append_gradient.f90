@@ -1,6 +1,6 @@
 #include "config.h"
 
-program merge_gradient
+program append_gradient
 
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
@@ -367,4 +367,4 @@ contains
   
   end subroutine saveOutputGradient
 
-end program merge_gradient
+end program append_gradient
