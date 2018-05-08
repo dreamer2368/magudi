@@ -204,8 +204,8 @@ set(magudiObj_SOURCES
   )
 
 add_library(magudiObj OBJECT ${magudiObj_SOURCES})
-add_executable(magudi $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/src/main.f90)
 enable_testing()
+add_subdirectory(bin)
 add_subdirectory(test)
 add_subdirectory(utils)
 
@@ -221,6 +221,7 @@ set(magudi_BUILD_FILES
   # Build directories
   ${PROJECT_BINARY_DIR}/include
   ${PROJECT_BINARY_DIR}/modules
+  ${PROJECT_BINARY_DIR}/bin
   ${PROJECT_BINARY_DIR}/test
   ${PROJECT_BINARY_DIR}/Testing
   ${PROJECT_BINARY_DIR}/utils

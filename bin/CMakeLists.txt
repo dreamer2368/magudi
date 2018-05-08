@@ -1,0 +1,4 @@
+add_executable(magudi $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/main.f90)
+add_executable(forward $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/Forward.f90)
+add_executable(adjoint $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/Adjoint.f90)
+add_executable(gradient_accuracy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/CheckGradientAccuracy.f90)
