@@ -12,6 +12,7 @@ program adjoint
   use State_enum
 
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use InputHelperImpl, only: dict, find
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
@@ -19,7 +20,7 @@ program adjoint
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, procRank, numProcs, ierror
+  integer :: i, dictIndex, procRank, numProcs, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
@@ -54,7 +55,8 @@ program adjoint
   call parseInputFile(filename)
 
   ! adjoint run options
-  
+  call find("enable_adjoint_solver",dictIndex)
+  dict(dictIndex)%val = "true"
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
