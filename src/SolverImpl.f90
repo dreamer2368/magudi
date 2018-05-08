@@ -64,31 +64,31 @@ contains
                ", CFL = ", cfl, ", time = ", abs(time)
        end if
 
-       if (.not. region%simulationFlags%predictionOnly) then
-
-          select case (mode)
-          case (FORWARD)
+       select case (mode)
+       case (FORWARD)
+          if (region%simulationFlags%enableFunctional) then
              write(str_, '(A,E13.6)') ", cost = ", instantaneousFunctional
-          case (ADJOINT)
-             write(str_, '(A,E13.6)') ", gradient = ", instantaneousFunctional
-          end select
-
+             str = trim(str) // trim(str_)
+          end if
+       case (ADJOINT)
+          write(str_, '(A,E13.6)') ", gradient = ", instantaneousFunctional
           str = trim(str) // trim(str_)
-
-       end if
+       end select
 
        call writeAndFlush(region%comm, output_unit, str)
 
-       if (.not. region%simulationFlags%predictionOnly .and. region%outputOn) then
+       if (region%outputOn) then
 
           select case (mode)
 
           case (FORWARD)
-             call this%functionalFactory%connect(functional)
-             assert(associated(functional))
-             call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
-                  ".cost_functional.txt", timestep, time,                                    &
-                  timestep - startTimestep > this%reportInterval)
+             if (region%simulationFlags%enableFunctional) then
+                call this%functionalFactory%connect(functional)
+                assert(associated(functional))
+                call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
+                     ".cost_functional.txt", timestep, time,                                    &
+                     timestep - startTimestep > this%reportInterval)
+             end if
 
           case (ADJOINT)
              call this%controllerFactory%connect(controller)
@@ -292,7 +292,8 @@ use ErrorHandler, only : writeAndFlush
 
     case (FORWARD) !... initialize conserved variables.
 
-       if (present(restartFilename) .and. region%simulationFlags%predictionOnly) then
+       !SeungWhan: unclear use of predictionOnly. revisit later
+       if (present(restartFilename)) then ! .and. region%simulationFlags%predictionOnly) then
           call region%loadData(QOI_FORWARD_STATE, restartFilename)
        else if (region%simulationFlags%useTargetState) then
           filename = getOption("initial_condition_file", "")
@@ -434,7 +435,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      end if
   end if
 
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
 
      ! Initialize control mollifier.
      filename = getOption("control_mollifier_file", "")
@@ -445,6 +446,10 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      else
         call region%loadData(QOI_CONTROL_MOLLIFIER, filename)
      end if
+
+  end if
+
+  if (region%simulationFlags%enableFunctional) then
 
      ! Target mollifier.
      filename = getOption("target_mollifier_file", "")
@@ -477,12 +482,16 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
           region%solverOptions, region%grids(i), region%states(i))
   end do
 
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
 
      call this%controllerFactory%connect(controller,                                         &
           trim(region%solverOptions%controllerType))
      assert(associated(controller))
      call controller%setup(region)
+
+  end if
+
+  if (region%simulationFlags%enableFunctional) then
 
      call this%functionalFactory%connect(functional,                                         &
           trim(region%solverOptions%costFunctionalType))
@@ -563,7 +572,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
   ! SeungWhan : Set up actuation amounts
   region%states(:)%actuationAmount = 0.0_wp
-  if (present(actuationAmount) .and. .not. region%simulationFlags%predictionOnly)            &
+  if (present(actuationAmount) .and. region%simulationFlags%enableController)                &
        region%states(:)%actuationAmount = actuationAmount
   if ( getOption('controlled_baseline',.false.) )                                            &
        region%states(:)%baseActuationAmount =                                                &
@@ -574,13 +583,13 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   assert(associated(timeIntegrator))
 
   ! Connect to the previously allocated controller.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
      call this%controllerFactory%connect(controller)
      assert(associated(controller))
   end if
 
   ! Connect to the previously allocated functional.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableFunctional) then
      call this%functionalFactory%connect(functional)
      assert(associated(functional))
      functional%runningTimeQuadrature = 0.0_wp
@@ -607,7 +616,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   end if
 
   ! SeungWhan: set up control forcing flag
-  advancingControl = .not. region%simulationFlags%predictionOnly .and.                       &
+  advancingControl = region%simulationFlags%enableController .and.                           &
                      abs(region%states(1)%actuationAmount) > 0.0_wp
   baselineControl = getOption('controlled_baseline',.false.) .and.                           &
                     abs(region%states(1)%baseActuationAmount) > 0.0_wp
@@ -665,7 +674,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
         end do
 
         ! Update the cost functional.
-        if (.not. region%simulationFlags%predictionOnly) then
+        if (region%simulationFlags%enableFunctional) then
            instantaneousCostFunctional = functional%compute(region)
            functional%runningTimeQuadrature = functional%runningTimeQuadrature +             &
                 timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
@@ -717,7 +726,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call region%saveData(QOI_TIME_AVERAGED_STATE, trim(this%outputPrefix) // ".mean.q")
   end if
 
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableFunctional) then
        costFunctional = functional%runningTimeQuadrature
        write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Forward run: cost functional = ', &
                                                                costFunctional
@@ -778,7 +787,9 @@ function runAdjoint(this, region) result(costSensitivity)
   logical :: IS_FINAL_STEP                                             ! SeungWhan
   SCALAR_TYPE :: instantaneousCostSensitivity
 
-  assert(.not. region%simulationFlags%predictionOnly)
+  assert(region%simulationFlags%enableController)
+  assert(region%simulationFlags%enableFunctional)
+  assert(region%simulationFlags%enableAdjoint)
 
   call startTiming("runAdjoint")
 

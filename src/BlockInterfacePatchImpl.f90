@@ -47,7 +47,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
      allocate(this%conservedVariablesL(this%nPatchPoints, nUnknowns))
      allocate(this%conservedVariablesR(this%nPatchPoints, nUnknowns))
 
-     if (.not. simulationFlags%predictionOnly) then
+     if (simulationFlags%enableAdjoint) then
         allocate(this%adjointVariablesL(this%nPatchPoints, nUnknowns))
         allocate(this%adjointVariablesR(this%nPatchPoints, nUnknowns))
      end if
@@ -59,7 +59,8 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
      end if
 
      nExchangedVariables = nUnknowns
-     if (simulationFlags%viscosityOn .or. .not. simulationFlags%predictionOnly)              &
+     !SeungWhan: unclear use of predictionOnly. revisit later.
+     if (simulationFlags%viscosityOn .or. simulationFlags%enableAdjoint)              &
           nExchangedVariables = nExchangedVariables + nUnknowns
 
      call MPI_Comm_rank(this%comm, procRank, ierror)
@@ -500,7 +501,8 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   if (mode == ADJOINT)                                                                       &
        call this%collect(state%adjointVariables, this%adjointVariablesL)
 
-  if (.not. simulationFlags%viscosityOn .and. simulationFlags%predictionOnly) then
+  !SeungWhan: unclear use of predictionOnly. revisit later.
+  if (.not. simulationFlags%viscosityOn .and. .not. simulationFlags%enableAdjoint) then
      call this%gatherData(this%conservedVariablesL, this%sendBuffer)
      return
   end if
@@ -569,7 +571,8 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
   assert(this%nPatchPoints > 0)
 
   nExchangedVariables = nUnknowns
-  if (simulationFlags%viscosityOn .or. .not. simulationFlags%predictionOnly)                 &
+  !SeungWhan: unclear use of predictionOnly. revisit later.
+  if (simulationFlags%viscosityOn .or. simulationFlags%enableAdjoint)                 &
        nExchangedVariables = nExchangedVariables + nUnknowns
 
   allocate(receivedData(this%nPatchPoints, nExchangedVariables))

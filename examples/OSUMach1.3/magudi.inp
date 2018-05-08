@@ -22,10 +22,16 @@ use_target_state = true
 compute_time_average = false
 use_manual_domain_decomposition = true
 
-# Adjoint optimization flags                                                                                                                                                                   
-disable_adjoint_solver = true
-baseline_prediction_available = false
+# Controller flags
+enable_controller = false
+
+# Functional flags
+enable_functional = false
 cost_functional_type = "SOUND"
+
+# Adjoint optimization flags
+enable_adjoint_solver = false
+baseline_prediction_available = false
 use_continuous_adjoint = false
 gradient_buffer_size = 100
 

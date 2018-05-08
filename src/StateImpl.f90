@@ -50,7 +50,7 @@ contains
 
     end if
 
-    if (.not. simulationFlags%predictionOnly) then
+    if (simulationFlags%enableAdjoint) then
        allocate(this%adjointVariables(nGridPoints, solverOptions%nUnknowns))
     end if
 

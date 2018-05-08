@@ -35,7 +35,7 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
                                     message
 
 #ifdef DEBUG
-  if (.not. simulationFlags%predictionOnly) then
+  if (simulationFlags%enableController) then
      assert(grid%nGridPoints > 0)
      assert(allocated(grid%controlMollifier))
      assert(size(grid%controlMollifier, 1) == grid%nGridPoints)
@@ -53,7 +53,7 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
        ".gradient_", trim(patchDescriptor%name), ".dat"
   this%gradientFilename = getOption("gradient_filename",trim(gradientFilename))
 
-  if (.not. simulationFlags%predictionOnly .and. this%nPatchPoints > 0) then
+  if (simulationFlags%enableController .and. this%nPatchPoints > 0) then
      allocate(this%controlForcing(this%nPatchPoints, solverOptions%nUnknowns))
      this%controlForcing = 0.0_wp
   end if
@@ -201,8 +201,8 @@ function verifyActuatorPatchUsage(this, patchDescriptor, gridSize, normalDirecti
 
   success = .true.
 
-  isPatchUsed = .true.
-  if (simulationFlags%predictionOnly) isPatchUsed = .false.
+  isPatchUsed = .false.
+  if (simulationFlags%enableController) isPatchUsed = .true.
 
 end function verifyActuatorPatchUsage
 

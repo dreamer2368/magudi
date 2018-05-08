@@ -14,7 +14,10 @@ subroutine initializeSimulationFlags(this)
   class(t_SimulationFlags) :: this
 
   this%viscosityOn           = getOption("include_viscous_terms", .false.)
-  this%predictionOnly        = getOption("disable_adjoint_solver", .true.)
+  this%enableController      = getOption("enable_controller", .false.)
+  this%enableFunctional      = getOption("enable_functional", .false.)
+  this%enableAdjoint         = getOption("enable_adjoint_solver", .false.)
+!  this%predictionOnly        = getOption("disable_adjoint_solver", .true.)
   this%repeatFirstDerivative = getOption("repeat_first_derivative", .true.)
   this%useTargetState        = getOption("use_target_state", .true.)
   this%dissipationOn         = getOption("add_dissipation", .false.)
@@ -31,5 +34,10 @@ subroutine initializeSimulationFlags(this)
   this%computeTimeAverage = .false.
   if (.not. this%useConstantCfl)                                                             &
        this%computeTimeAverage = getOption("compute_time_average", .false.)
+
+  if (this%enableAdjoint) then
+     this%enableController = .true.
+     this%enableFunctional = .true.
+  end if
 
 end subroutine initializeSimulationFlags

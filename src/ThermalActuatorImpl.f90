@@ -25,7 +25,7 @@ subroutine setupThermalActuator(this, region)
 
   call this%cleanup()
 
-  if (region%simulationFlags%predictionOnly) return
+  if (.not. region%simulationFlags%enableController) return
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 

@@ -88,17 +88,19 @@ program main
   call solver%setup(region, outputPrefix = outputPrefix)
 
   ! Save the control and target mollifier if using code-generated values.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
      filename = getOption("control_mollifier_file", "")
      if (len_trim(filename) == 0) call region%saveData(QOI_CONTROL_MOLLIFIER,                &
           trim(outputPrefix) // ".control_mollifier.f")
+  end if
+  if (region%simulationFlags%enableFunctional) then
      filename = getOption("target_mollifier_file", "")
      if (len_trim(filename) == 0) call region%saveData(QOI_TARGET_MOLLIFIER,                 &
           trim(outputPrefix) // ".target_mollifier.f")
   end if
 
   ! Main code logic.
-  if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
+  if (.not. region%simulationFlags%enableAdjoint) then !... just a predictive simulation.
      if (command_argument_count() == 1) then
         call get_command_argument(1, filename)
         dummyValue = solver%runForward(region, restartFilename = filename)

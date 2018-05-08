@@ -16,10 +16,16 @@ include_viscous_terms = true
 Reynolds_number = 200.
 viscosity_power_law_exponent = 0.666
 
-# Adjoint optimization flags
-disable_adjoint_solver = false
-baseline_prediction_available = false
+# Controller flags
+enable_controller = true
+
+# Functional flags
+enable_functional = true
 cost_functional_type = "SOUND"
+
+# Adjoint optimization flags
+enable_adjoint_solver = true
+baseline_prediction_available = false
 
 # Discretization scheme
 defaults/discretization_scheme = "SBP 3-6"

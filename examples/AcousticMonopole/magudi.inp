@@ -16,10 +16,16 @@ use_constant_CFL_mode = false
 curvilinear_domain = false
 compute_time_average = false
 
-# Adjoint optimization flags
-disable_adjoint_solver = false
-baseline_prediction_available = false
+# Controller flags
+enable_controller = true
+
+# Functional flags
+enable_functional = true
 cost_functional_type = "SOUND"
+
+# Adjoint optimization flags
+enable_adjoint_solver = true
+baseline_prediction_available = false
 use_continuous_adjoint = false
 gradient_buffer_size = 20
 

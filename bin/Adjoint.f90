@@ -53,6 +53,9 @@ program adjoint
   filename = PROJECT_NAME // ".inp"
   call parseInputFile(filename)
 
+  ! adjoint run options
+  
+
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
@@ -88,10 +91,12 @@ program adjoint
   call solver%setup(region, outputPrefix = outputPrefix)
 
   ! Save the control and target mollifier if using code-generated values.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
      filename = getOption("control_mollifier_file", "")
      if (len_trim(filename) == 0) call region%saveData(QOI_CONTROL_MOLLIFIER,                &
           trim(outputPrefix) // ".control_mollifier.f")
+  end if
+  if (region%simulationFlags%enableFunctional) then
      filename = getOption("target_mollifier_file", "")
      if (len_trim(filename) == 0) call region%saveData(QOI_TARGET_MOLLIFIER,                 &
           trim(outputPrefix) // ".target_mollifier.f")

@@ -824,10 +824,10 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
      end do
   end if
 
-  if (.not. this%simulationFlags%predictionOnly) then
+  if (this%simulationFlags%enableController)                                                 &
      call normalizeControlMollifier(this)
+  if (this%simulationFlags%enableFunctional)                                                 &
      call normalizeTargetMollifier(this)
-  end if
 
   call endTiming("setupBoundaryConditions")
 

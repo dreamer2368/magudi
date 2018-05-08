@@ -245,7 +245,9 @@ subroutine setupTestRegion(region, discretizationType, gridSize, patchExtent,   
   success = .false.
 
   call simulationFlags%initialize()
-  simulationFlags%predictionOnly = .false.
+  simulationFlags%enableController = .true.
+  simulationFlags%enableFunctional = .true.
+  simulationFlags%enableAdjoint = .true.
   simulationFlags%isDomainCurvilinear = isDomainCurvilinear
   simulationFlags%useContinuousAdjoint = useContinuousAdjoint
 

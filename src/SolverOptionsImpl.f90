@@ -97,8 +97,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call gracefulExit(comm_, message)
   end if
 
-  if (.not. simulationFlags%predictionOnly) then
-
+  if (simulationFlags%enableController) then
      this%controllerType = getOption("controller_type", "THERMAL_ACTUATOR")
      call controllerFactory%connect(dummyController, trim(this%controllerType))
      if (.not. associated(dummyController)) then
@@ -106,7 +105,9 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
              trim(this%controllerType), "'!"
         call gracefulExit(comm_, message)
      end if
+  end if
 
+  if (simulationFlags%enableFunctional) then
      this%costFunctionalType = getOption("cost_functional_type", "SOUND")
      call functionalFactory%connect(dummyFunctional, trim(this%costFunctionalType))
      if (.not. associated(dummyFunctional)) then
@@ -114,9 +115,10 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
              trim(this%costFunctionalType), "'!"
         call gracefulExit(comm_, message)
      end if
+  end if
 
+  if (simulationFlags%enableAdjoint) then
      this%checkpointingScheme = getOption("checkpointing_scheme", "uniform checkpointing")
-
   end if
 
 end subroutine initializeSolverOptions

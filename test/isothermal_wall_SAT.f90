@@ -98,7 +98,9 @@ program isothermal_wall_SAT
   call initializeRandomNumberGenerator()
 
   call simulationFlags%initialize()
-  simulationFlags%predictionOnly = .false.
+  simulationFlags%enableController = .true.
+  simulationFlags%enableFunctional = .true.
+  simulationFlags%enableAdjoint = .true.
   simulationFlags%viscosityOn = .true.
 
   do nDimensions = 2, 2!1, 3

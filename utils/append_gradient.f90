@@ -102,10 +102,12 @@ program append_gradient
   call solver%setup(region, outputPrefix = outputPrefix)
 
   ! Save the control and target mollifier if using code-generated values.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
      filename = getOption("control_mollifier_file", "")
      if (len_trim(filename) == 0) call region%saveData(QOI_CONTROL_MOLLIFIER,                &
           trim(outputPrefix) // ".control_mollifier.f")
+  end if
+  if (region%simulationFlags%enableFunctional) then
      filename = getOption("target_mollifier_file", "")
      if (len_trim(filename) == 0) call region%saveData(QOI_TARGET_MOLLIFIER,                 &
           trim(outputPrefix) // ".target_mollifier.f")
@@ -118,13 +120,13 @@ program append_gradient
   assert(associated(timeIntegrator))
 
   ! Connect to the previously allocated controller.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
      call solver%controllerFactory%connect(controller)
      assert(associated(controller))
   end if
 
   ! Connect to the previously allocated functional.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableFunctional) then
      call solver%functionalFactory%connect(functional)
      assert(associated(functional))
      functional%runningTimeQuadrature = 0.0_wp
@@ -135,7 +137,7 @@ program append_gradient
        call solver%residualManager%setup("", region)
 
   ! Call controller hooks before time marching starts.
-  if (.not. region%simulationFlags%predictionOnly .and.                                      &
+  if (region%simulationFlags%enableController .and.                                          &
        abs(region%states(1)%actuationAmount) > 0.0_wp) then
 !     controller%onsetTime = startTime
      controller%duration = solver%nTimesteps * region%solverOptions%timeStepSize
@@ -229,7 +231,7 @@ program append_gradient
   end do
 
   ! Call controller hooks after time marching ends.
-  if (.not. region%simulationFlags%predictionOnly .and.                                      &
+  if (region%simulationFlags%enableController .and.                                          &
        abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
        call controller%hookAfterTimemarch(region, FORWARD)
 
