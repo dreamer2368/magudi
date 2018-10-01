@@ -16,7 +16,6 @@ module MomentumActuator_mod
      procedure, pass :: cleanup => cleanupMomentumActuator
      procedure, pass :: computeSensitivity => computeMomentumActuatorSensitivity
      procedure, pass :: updateForcing => updateMomentumActuatorForcing
-     procedure, pass :: updateBaseForcing => updateMomentumActuatorBaselineForcing
      procedure, pass :: updateGradient => updateMomentumActuatorGradient
      procedure, pass :: isPatchValid => isMomentumActuatorPatchValid
      procedure, pass :: hookBeforeTimemarch => hookMomentumActuatorBeforeTimemarch
@@ -80,21 +79,6 @@ module MomentumActuator_mod
        class(t_Region), intent(in) :: region
 
      end subroutine updateMomentumActuatorForcing
-
-  end interface
-
-  interface
-
-     subroutine updateMomentumActuatorBaselineForcing(this, region)
-
-       use Region_mod, only : t_Region
-
-       import :: t_MomentumActuator
-
-       class(t_MomentumActuator) :: this
-       class(t_Region), intent(in) :: region
-
-     end subroutine updateMomentumActuatorBaselineForcing
 
   end interface
 

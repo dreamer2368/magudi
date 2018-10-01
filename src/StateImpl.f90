@@ -170,7 +170,6 @@ subroutine cleanupState(this)
 
   this%adjointForcingFactor = 1.0_wp
   this%actuationAmount = 0.0_wp
-  this%baseActuationAmount = 0.0_wp
 
 end subroutine cleanupState
 

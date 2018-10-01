@@ -151,10 +151,6 @@ subroutine uniformCheckpointingMigrateTo(this, region, controller, timeIntegrato
 
            do stage_ = 1, timeIntegrator%nStages
 
-               ! SeungWhan: Update control forcing for non-zero actuation amount.
-               if (abs(region%states(1)%baseActuationAmount) > 0.0_wp)                                 &
-                  call controller%updateBaseForcing(region)
-
               call timeIntegrator%substepForward(region, time,                               &
                    timeStepSize, timestep_, stage_)
 

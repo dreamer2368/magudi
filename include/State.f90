@@ -53,9 +53,8 @@ module State_mod
      type(t_AcousticSource), allocatable :: acousticSources(:)
 
      integer :: nSpecies
-     !SeungWhan: add baseline actuation amount
      real(wp) :: time, timeProgressive, adjointForcingFactor = 1.0_wp,                       &
-          actuationAmount = 0.0_wp, baseActuationAmount = 0.0_wp
+          actuationAmount = 0.0_wp
      SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
      SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &

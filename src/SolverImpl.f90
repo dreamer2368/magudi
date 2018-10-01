@@ -563,7 +563,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   class(t_Functional), pointer :: functional => null()
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
-  logical :: baselineControl = .false., advancingControl = .false.
+  logical :: controlForcing = .false.
   SCALAR_TYPE :: instantaneousCostFunctional
 
   call startTiming("runForward")
@@ -574,9 +574,6 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   region%states(:)%actuationAmount = 0.0_wp
   if (present(actuationAmount) .and. region%simulationFlags%enableController)                &
        region%states(:)%actuationAmount = actuationAmount
-  if ( getOption('controlled_baseline',.false.) )                                            &
-       region%states(:)%baseActuationAmount =                                                &
-                    getOption('controlled_baseline/actuation_amount',1.0_wp)
 
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)
@@ -616,22 +613,17 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   end if
 
   ! SeungWhan: set up control forcing flag
-  advancingControl = region%simulationFlags%enableController .and.                           &
+  controlForcing = region%simulationFlags%enableController .and.                           &
                      abs(region%states(1)%actuationAmount) > 0.0_wp
-  baselineControl = getOption('controlled_baseline',.false.) .and.                           &
-                    abs(region%states(1)%baseActuationAmount) > 0.0_wp
   write(message,'(A,L4,A,F16.8,A,F16.8)') 'Control Forcing Flag: ',                          &
-                                            baselineControl .or. advancingControl,           &
-                                          ', Baseline Actuation Amount:',                    &
-                                            region%states(1)%baseActuationAmount,            &
+                                            controlForcing,                                  &
                                           ', Advancing Actuation Amount: ',                  &
                                             region%states(1)%actuationAmount
   call writeAndFlush(region%comm, output_unit, message)
 
-
   ! Call controller hooks before time marching starts. SeungWhan: changed
   ! duration, onsetTime.
-  if (advancingControl .or. baselineControl) then
+  if (controlForcing) then
      controller%onsetTime = startTime
      controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
      call controller%hookBeforeTimemarch(region, FORWARD)
@@ -660,10 +652,10 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
         ! Update control forcing.
         !SeungWhan: flush out previous control forcing
-        if (baselineControl .or. advancingControl)                                           &
-            call controller%cleanupForcing(region)
-        if (baselineControl) call controller%updateBaseForcing(region)
-        if (advancingControl) call controller%updateForcing(region)
+        if (controlForcing) then
+          call controller%cleanupForcing(region)
+          call controller%updateForcing(region)
+        end if
 
         ! Take a single sub-step using the time integrator.
         call timeIntegrator%substepForward(region, time, timeStepSize, timestep, i)
@@ -715,7 +707,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   ! Call controller hooks after time marching ends.
-  if (baselineControl .or. advancingControl) call controller%hookAfterTimemarch(region, FORWARD)
+  if (controlForcing) call controller%hookAfterTimemarch(region, FORWARD)
 
   call this%residualManager%cleanup()
 
@@ -797,10 +789,6 @@ function runAdjoint(this, region) result(costSensitivity)
 
   !SeungWhan: in case of adjoint for controlled baseline
   region%states(:)%actuationAmount = 0.0_wp
-  region%states(:)%baseActuationAmount = 0.0_wp
-  if ( getOption('controlled_baseline',.false.) )                                            &
-       region%states(:)%baseActuationAmount =                                                &
-                    getOption('controlled_baseline/actuation_amount',1.0_wp)
 
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)

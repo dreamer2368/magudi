@@ -31,8 +31,7 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: outputPrefix, gradientDirectory,                            &
-                                    gradientFilename, baseGradientFilename,                     &
-                                    message
+                                    gradientFilename, message
 
 #ifdef DEBUG
   if (simulationFlags%enableController) then
@@ -58,18 +57,6 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
      this%controlForcing = 0.0_wp
   end if
 
-  ! SeungWhan: setup for base gradient option
-  this%controlledBaseline = getOption("controlled_baseline", .false.)
-  if ( this%controlledBaseline ) then
-     call getRequiredOption("controlled_baseline/gradient_filename",                       &
-                            this%baseGradientFilename,comm)
-     write(this%baseGradientFilename,'(A)') trim(gradientDirectory)//                      &
-                                            trim(this%baseGradientFilename)
-  end if
-  write(message,'(A,L4)') 'Actuator patch controlled baseline flag:',                      &
-                            this%controlledBaseline
-  call writeAndFlush(comm,output_unit,message)
-
 end subroutine setupActuatorPatch
 
 subroutine cleanupActuatorPatch(this)
@@ -91,9 +78,7 @@ subroutine cleanupActuatorPatch(this)
   SAFE_DEALLOCATE(this%gradientBuffer)
 
   this%iGradientBuffer = 0
-  this%iBaseGradientBuffer = 0
   this%gradientFileOffset = int(0, MPI_OFFSET_KIND)
-  this%baseGradientFileOffset = int(0, MPI_OFFSET_KIND)
 
 end subroutine cleanupActuatorPatch
 
@@ -128,8 +113,7 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
 
-  if ( abs(state%baseActuationAmount) <= 0.0_wp .and.                                            &
-       abs(state%actuationAmount) <= 0.0_wp ) return
+  if ( abs(state%actuationAmount) <= 0.0_wp ) return
 
   call startTiming("updateActuatorPatch")
 
@@ -263,64 +247,6 @@ subroutine loadActuatorGradient(this)
   call MPI_Type_free(mpiScalarSubarrayType, ierror)
 
 end subroutine loadActuatorGradient
-
-subroutine loadActuatorBaselineGradient(this)
-
-  ! <<< External modules >>>
-  use MPI
-
-  ! <<< Derived types >>>
-  use ActuatorPatch_mod, only : t_ActuatorPatch
-
-  ! <<< Arguments >>>
-  class(t_ActuatorPatch) :: this
-
-  ! <<< Local variables >>>
-  integer :: arrayOfSizes(5), arrayOfSubsizes(5), arrayOfStarts(5),                          &
-       mpiScalarSubarrayType, mpiFileHandle, dataSize, ierror
-  integer(kind = MPI_OFFSET_KIND) :: nBytesToRead
-
-  if (this%comm == MPI_COMM_NULL) return
-
-  arrayOfSizes(1:3) = this%globalSize
-  arrayOfSizes(4) = size(this%baseGradientBuffer, 2)
-  arrayOfSizes(5) = this%iBaseGradientBuffer
-  arrayOfSubsizes(1:3) = this%localSize
-  arrayOfSubsizes(4) = size(this%baseGradientBuffer, 2)
-  arrayOfSubsizes(5) = this%iBaseGradientBuffer
-  arrayOfStarts(1:3) = this%offset - this%extent(1::2) + 1
-  arrayOfStarts(4:5) = 0
-  call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,             &
-       MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
-  call MPI_Type_commit(mpiScalarSubarrayType, ierror)
-
-  call MPI_File_open(this%comm, trim(this%baseGradientFilename) // char(0), MPI_MODE_RDONLY,     &
-       MPI_INFO_NULL, mpiFileHandle, ierror)
-
-  nBytesToRead = SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *            &
-       size(this%baseGradientBuffer, 2) * this%iBaseGradientBuffer
-  if (this%baseGradientFileOffset - nBytesToRead <= int(0, MPI_OFFSET_KIND)) then
-     this%iBaseGradientBuffer = int(this%baseGradientFileOffset / (SIZEOF_SCALAR * &
-          product(int(this%globalSize, MPI_OFFSET_KIND)) * size(this%baseGradientBuffer, 2)))
-     this%baseGradientFileOffset = 0
-  else
-     this%baseGradientFileOffset = this%baseGradientFileOffset - nBytesToRead
-  end if
-
-  assert(this%baseGradientFileOffset >= 0)
-
-  call MPI_File_set_view(mpiFileHandle, this%baseGradientFileOffset, SCALAR_TYPE_MPI,            &
-       mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
-
-  dataSize = this%nPatchPoints * size(this%baseGradientBuffer, 2) * this%iBaseGradientBuffer
-  call MPI_File_read_all(mpiFileHandle, this%baseGradientBuffer, dataSize,                       &
-       SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
-
-  call MPI_File_close(mpiFileHandle, ierror)
-
-  call MPI_Type_free(mpiScalarSubarrayType, ierror)
-
-end subroutine loadActuatorBaselineGradient
 
 subroutine saveActuatorGradient(this)
 
