@@ -19,7 +19,7 @@ subroutine setupMomentumActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, nActuatorComponents, gradientBufferSize
+  integer :: i, nDimensions, nActuatorComponents, controllerBufferSize
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
@@ -31,7 +31,7 @@ subroutine setupMomentumActuator(this, region)
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
-  gradientBufferSize = getOption("gradient_buffer_size", 1)
+  controllerBufferSize = getOption("controller_buffer_size", 1)
 
   this%direction = getOption("actuator_momentum_component", 0)
 
@@ -46,10 +46,16 @@ subroutine setupMomentumActuator(this, region)
            class is (t_ActuatorPatch)
            if (patch%nPatchPoints <= 0) cycle
 
-           SAFE_DEALLOCATE(patch%gradientBuffer)
-           allocate(patch%gradientBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
-                gradientBufferSize))
-           patch%gradientBuffer = 0.0_wp
+           if (region%simulationFlags%enableAdjoint) then
+             SAFE_DEALLOCATE(patch%gradientBuffer)
+             allocate(patch%gradientBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
+                  controllerBufferSize))
+             patch%gradientBuffer = 0.0_wp
+           end if
+           SAFE_DEALLOCATE(patch%controlForcingBuffer)
+           allocate(patch%controlForcingBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
+                controllerBufferSize))
+           patch%controlForcingBuffer = 0.0_wp
 
         end select
      end do
@@ -183,26 +189,26 @@ subroutine updateMomentumActuatorForcing(this, region)
         select type (patch)
         class is (t_ActuatorPatch)
 
-           patch%iGradientBuffer = patch%iGradientBuffer - 1
+           patch%iControlForcingBuffer = patch%iControlForcingBuffer - 1
 
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+           assert(patch%iControlForcingBuffer >= 1)
+           assert(patch%iControlForcingBuffer <= size(patch%controlForcingBuffer, 3))
 
-           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
-                call patch%loadGradient()
+           if (patch%iControlForcingBuffer == size(patch%controlForcingBuffer, 3))                       &
+                call patch%loadForcing()
 
            patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
            if (this%direction == 0) then
               patch%controlForcing(:,2:nDimensions+1) = - region%states(j)%actuationAmount * &
-                   patch%gradientBuffer(:,:,patch%iGradientBuffer)
+                   patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
            else
               patch%controlForcing(:,this%direction+1) =                                     &
                    - region%states(j)%actuationAmount *                                      &
-                   patch%gradientBuffer(:,1,patch%iGradientBuffer)
+                   patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
            end if
 
-           if (patch%iGradientBuffer == 1)                                                   &
-                patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+           if (patch%iControlForcingBuffer == 1)                                                   &
+                patch%iControlForcingBuffer = size(patch%controlForcingBuffer, 3) + 1
 
         end select
      end do
@@ -359,17 +365,17 @@ subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode)
         select case (mode)
 
         case (FORWARD)
-           if (procRank == 0) inquire(file = trim(patch%gradientFilename), exist = fileExists)
+           if (procRank == 0) inquire(file = trim(patch%controlForcingFilename), exist = fileExists)
            call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
            if (.not. fileExists) then
-              write(message, '(3A,I0.0,A)') "No gradient information available for patch '", &
+              write(message, '(3A,I0.0,A)') "No control forcing information available for patch '", &
                    trim(patch%name), "' on grid ", patch%gridIndex, "!"
               call gracefulExit(patch%comm, message)
            end if
-           patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
-           call MPI_File_open(patch%comm, trim(patch%gradientFilename) // char(0),           &
+           patch%iControlForcingBuffer = size(patch%controlForcingBuffer, 3) + 1
+           call MPI_File_open(patch%comm, trim(patch%controlForcingFilename) // char(0),           &
                 MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
-           call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
+           call MPI_File_get_size(mpiFileHandle, patch%controlForcingFileOffset, ierror)
            call MPI_File_close(mpiFileHandle, ierror)
 
         case (ADJOINT)

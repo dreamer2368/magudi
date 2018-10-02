@@ -30,8 +30,9 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: outputPrefix, gradientDirectory,                            &
-                                    gradientFilename, message
+  character(len = STRING_LENGTH) :: outputPrefix, message,                            &
+                                    gradientFilename, gradientDirectory,              &
+                                    controlForcingFilename, controlForcingDirectory
 
 #ifdef DEBUG
   if (simulationFlags%enableController) then
@@ -46,11 +47,22 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
   ! SeungWhan: gradient directory, filename option
-  gradientDirectory = getOption("gradient_directory","")
-  outputPrefix = getOption("output_prefix", PROJECT_NAME)
-  write(gradientFilename, '(4A)') trim(gradientDirectory)//trim(outputPrefix),             &
-       ".gradient_", trim(patchDescriptor%name), ".dat"
-  this%gradientFilename = getOption("gradient_filename",trim(gradientFilename))
+  if (simulationFlags%enableAdjoint) then
+    gradientDirectory = getOption("gradient_directory","")
+    outputPrefix = getOption("output_prefix", PROJECT_NAME)
+    write(gradientFilename, '(4A)') trim(gradientDirectory)//trim(outputPrefix),             &
+         ".gradient_", trim(patchDescriptor%name), ".dat"
+    this%gradientFilename = getOption("gradient_filename",trim(gradientFilename))
+  end if
+
+  ! SeungWhan: control forcing directory, filename option
+  if (simulationFlags%enableController) then
+    controlForcingDirectory = getOption("control_forcing_directory","")
+    outputPrefix = getOption("output_prefix", PROJECT_NAME)
+    write(controlForcingFilename, '(4A)') trim(controlForcingDirectory)//trim(outputPrefix),             &
+         ".control_forcing_", trim(patchDescriptor%name), ".dat"
+    this%controlForcingFilename = getOption("control_forcing_filename",trim(controlForcingFilename))
+  end if
 
   if (simulationFlags%enableController .and. this%nPatchPoints > 0) then
      allocate(this%controlForcing(this%nPatchPoints, solverOptions%nUnknowns))
@@ -76,9 +88,12 @@ subroutine cleanupActuatorPatch(this)
 
   SAFE_DEALLOCATE(this%controlForcing)
   SAFE_DEALLOCATE(this%gradientBuffer)
+  SAFE_DEALLOCATE(this%controlForcingBuffer)
 
   this%iGradientBuffer = 0
+  this%iControlForcingBuffer = 0
   this%gradientFileOffset = int(0, MPI_OFFSET_KIND)
+  this%controlForcingFileOffset = int(0, MPI_OFFSET_KIND)
 
 end subroutine cleanupActuatorPatch
 
@@ -190,7 +205,7 @@ function verifyActuatorPatchUsage(this, patchDescriptor, gridSize, normalDirecti
 
 end function verifyActuatorPatchUsage
 
-subroutine loadActuatorGradient(this)
+subroutine loadActuatorForcing(this)
 
   ! <<< External modules >>>
   use MPI
@@ -209,44 +224,44 @@ subroutine loadActuatorGradient(this)
   if (this%comm == MPI_COMM_NULL) return
 
   arrayOfSizes(1:3) = this%globalSize
-  arrayOfSizes(4) = size(this%gradientBuffer, 2)
-  arrayOfSizes(5) = this%iGradientBuffer
+  arrayOfSizes(4) = size(this%controlForcingBuffer, 2)
+  arrayOfSizes(5) = this%iControlForcingBuffer
   arrayOfSubsizes(1:3) = this%localSize
-  arrayOfSubsizes(4) = size(this%gradientBuffer, 2)
-  arrayOfSubsizes(5) = this%iGradientBuffer
+  arrayOfSubsizes(4) = size(this%controlForcingBuffer, 2)
+  arrayOfSubsizes(5) = this%iControlForcingBuffer
   arrayOfStarts(1:3) = this%offset - this%extent(1::2) + 1
   arrayOfStarts(4:5) = 0
   call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,             &
        MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
   call MPI_Type_commit(mpiScalarSubarrayType, ierror)
 
-  call MPI_File_open(this%comm, trim(this%gradientFilename) // char(0), MPI_MODE_RDONLY,     &
+  call MPI_File_open(this%comm, trim(this%controlForcingFilename) // char(0), MPI_MODE_RDONLY,     &
        MPI_INFO_NULL, mpiFileHandle, ierror)
 
   nBytesToRead = SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *            &
-       size(this%gradientBuffer, 2) * this%iGradientBuffer
-  if (this%gradientFileOffset - nBytesToRead <= int(0, MPI_OFFSET_KIND)) then
-     this%iGradientBuffer = int(this%gradientFileOffset / (SIZEOF_SCALAR * &
-          product(int(this%globalSize, MPI_OFFSET_KIND)) * size(this%gradientBuffer, 2)))
-     this%gradientFileOffset = 0
+       size(this%controlForcingBuffer, 2) * this%iControlForcingBuffer
+  if (this%controlForcingFileOffset - nBytesToRead <= int(0, MPI_OFFSET_KIND)) then
+     this%iControlForcingBuffer = int(this%controlForcingFileOffset / (SIZEOF_SCALAR * &
+          product(int(this%globalSize, MPI_OFFSET_KIND)) * size(this%controlForcingBuffer, 2)))
+     this%controlForcingFileOffset = 0
   else
-     this%gradientFileOffset = this%gradientFileOffset - nBytesToRead
+     this%controlForcingFileOffset = this%controlForcingFileOffset - nBytesToRead
   end if
 
-  assert(this%gradientFileOffset >= 0)
+  assert(this%controlForcingFileOffset >= 0)
 
-  call MPI_File_set_view(mpiFileHandle, this%gradientFileOffset, SCALAR_TYPE_MPI,            &
+  call MPI_File_set_view(mpiFileHandle, this%controlForcingFileOffset, SCALAR_TYPE_MPI,            &
        mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
 
-  dataSize = this%nPatchPoints * size(this%gradientBuffer, 2) * this%iGradientBuffer
-  call MPI_File_read_all(mpiFileHandle, this%gradientBuffer, dataSize,                       &
+  dataSize = this%nPatchPoints * size(this%controlForcingBuffer, 2) * this%iControlForcingBuffer
+  call MPI_File_read_all(mpiFileHandle, this%controlForcingBuffer, dataSize,                       &
        SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
 
   call MPI_File_close(mpiFileHandle, ierror)
 
   call MPI_Type_free(mpiScalarSubarrayType, ierror)
 
-end subroutine loadActuatorGradient
+end subroutine loadActuatorForcing
 
 subroutine saveActuatorGradient(this)
 

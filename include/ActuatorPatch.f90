@@ -12,10 +12,12 @@ module ActuatorPatch_mod
 
   type, extends(t_Patch), public :: t_ActuatorPatch
 
-     integer :: iGradientBuffer = 0
-     integer(kind = MPI_OFFSET_KIND) :: gradientFileOffset = int(0, MPI_OFFSET_KIND)
-     character(len = STRING_LENGTH) :: gradientFilename
-     SCALAR_TYPE, allocatable :: controlForcing(:,:), gradientBuffer(:,:,:)
+     integer :: iGradientBuffer = 0, iControlForcingBuffer = 0
+     integer(kind = MPI_OFFSET_KIND) :: gradientFileOffset = int(0, MPI_OFFSET_KIND),         &
+                                        controlForcingFileOffset = int(0, MPI_OFFSET_KIND)
+     character(len = STRING_LENGTH) :: gradientFilename, controlForcingFilename
+     SCALAR_TYPE, allocatable :: controlForcing(:,:),                                         &
+                                 gradientBuffer(:,:,:), controlForcingBuffer(:,:,:)
 
    contains
 
@@ -23,7 +25,7 @@ module ActuatorPatch_mod
      procedure, pass :: cleanup => cleanupActuatorPatch
      procedure, pass :: verifyUsage => verifyActuatorPatchUsage
      procedure, pass :: updateRhs => updateActuatorPatch
-     procedure, pass :: loadGradient => loadActuatorGradient
+     procedure, pass :: loadForcing => loadActuatorForcing
      procedure, pass :: saveGradient => saveActuatorGradient
 
   end type t_ActuatorPatch
@@ -110,13 +112,13 @@ module ActuatorPatch_mod
 
   interface
 
-     subroutine loadActuatorGradient(this)
+     subroutine loadActuatorForcing(this)
 
        import :: t_ActuatorPatch
 
        class(t_ActuatorPatch) :: this
 
-     end subroutine loadActuatorGradient
+     end subroutine loadActuatorForcing
 
   end interface
 

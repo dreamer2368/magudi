@@ -39,7 +39,7 @@ contains
     character(len = STRING_LENGTH) :: str, str_, filename
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
-!integer :: j                                                    !SeungWhan: for debugging
+    !integer :: j                                                    !SeungWhan: for debugging
 
     assert_key(mode, (FORWARD, ADJOINT))
     assert(startTimestep >= 0)
@@ -110,17 +110,17 @@ contains
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
           call region%saveData(QOI_FORWARD_STATE, filename)
        case (ADJOINT)
-!SeungWhan
-!        do j = 1, size(region%states) !... update state
-!           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
-!                region%solverOptions)
-!        end do
+          !SeungWhan
+          !        do j = 1, size(region%states) !... update state
+          !           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
+          !                region%solverOptions)
+          !        end do
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adjoint.q"
           call region%saveData(QOI_ADJOINT_STATE, filename)
-!SeungWhan: save adjoint rhs for debugging========
-!write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adj_rhs.q"
-!call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
-!=========================================
+          !SeungWhan: save adjoint rhs for debugging========
+          !write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adj_rhs.q"
+          !call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
+          !=========================================
        end select
 
     end if
@@ -254,8 +254,8 @@ contains
   end subroutine checkSolutionLimits
 
   subroutine loadInitialCondition(this, region, mode, restartFilename)
-  ! <<< External modules >>>
-  use iso_fortran_env, only : output_unit
+    ! <<< External modules >>>
+    use iso_fortran_env, only : output_unit
 
     ! <<< Derived types >>>
     use Patch_mod, only : t_Patch
@@ -270,7 +270,7 @@ contains
 
     ! <<< Internal modules >>>
     use InputHelper, only : getOption, getRequiredOption
-use ErrorHandler, only : writeAndFlush
+    use ErrorHandler, only : writeAndFlush
 
     implicit none
 
@@ -851,6 +851,7 @@ function runAdjoint(this, region) result(costSensitivity)
   call region%saveData(QOI_ADJOINT_STATE, filename)
 
   ! Call controller hooks before time marching starts.
+  !!!SeungWhan: need additional execution with FORWARD, in case of non-zero control forcing.
   call controller%hookBeforeTimemarch(region, ADJOINT)
 
   ! Reset probes.
