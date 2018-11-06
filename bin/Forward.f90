@@ -11,7 +11,7 @@ program forward
   use Grid_enum
   use State_enum
 
-  use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use InputHelper, only : parseInputFile, getFreeUnit, getOption, getRequiredOption
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
@@ -19,12 +19,15 @@ program forward
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, procRank, numProcs, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
-  logical :: success
+  integer :: i, stat, fileUnit, procRank, numProcs, ierror
+  character(len = STRING_LENGTH) :: filename, outputPrefix, message, resultFilename
+  logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_Solver) :: solver
+
+  ! << output variables >>
+  integer :: inputNumber, simulationNumber
   SCALAR_TYPE :: dummyValue
 
   ! Initialize MPI.
@@ -34,7 +37,7 @@ program forward
 
   call initializeErrorHandler()
 
-  if (command_argument_count() > 1) then
+  if (command_argument_count() > 2) then
      write(message, '(A)') "Usage: magudi [FILE]"
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
      write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
@@ -100,14 +103,25 @@ program forward
   end if
 
   ! Main code logic.
-  if (command_argument_count() == 1) then
-     call get_command_argument(1, filename)
+  if (command_argument_count() == 2) then
+     call get_command_argument(2, filename)
      dummyValue = solver%runForward(region, restartFilename = filename,                   &
                                      actuationAmount =                                    &
                                          getOption("actuation_amount", 0.0_wp))
   else
      dummyValue = solver%runForward(region, actuationAmount =                             &
                                          getOption("actuation_amount", 0.0_wp))
+  end if
+
+  if ( region%simulationFlags%enableFunctional ) then
+    if (procRank == 0) then
+      call get_command_argument(1, resultFilename)
+      ! resultFilename = trim(outputPrefix) // ".forward_run.txt"
+      open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
+           iostat = stat, status = 'replace')
+      write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
+      close(fileUnit)
+    end if
   end if
 
   call solver%cleanup()

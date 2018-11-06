@@ -810,8 +810,8 @@ function runAdjoint(this, region) result(costSensitivity)
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
   controller%onsetTime = region%states(1)%time
   controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-!  controller%onsetTime = region%states(1)%time + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
-!  controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
+  ! controller%onsetTime = region%states(1)%time + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
+  ! controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
   if (region%simulationFlags%steadyStateSimulation) then
@@ -950,13 +950,16 @@ subroutine checkGradientAccuracy(this, region)
   use MPI
 
   ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
+  use ActuatorPatch_mod, only : t_ActuatorPatch
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE
 
   ! <<< Internal modules >>>
+  use ControlSpaceAdvancer, only : ZAXPY
   use InputHelper, only : getFreeUnit, getOption, getRequiredOption
   use ErrorHandler, only : gracefulExit
 
@@ -969,7 +972,10 @@ subroutine checkGradientAccuracy(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
+  integer :: numberOfActuatorPatches
+  class(t_Patch), pointer :: patch => null()
   character(len = STRING_LENGTH) :: filename, message
+  character(len = STRING_LENGTH) :: gradientFilename, controlForcingFilename
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
 
@@ -1001,7 +1007,7 @@ subroutine checkGradientAccuracy(this, region)
              status = 'unknown', iostat = iostat)
      else
         open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'readwrite',      &
-             status = 'old', position = 'rewind', iostat = iostat)
+             status = 'old', position = 'append', iostat = iostat)
      end if
   end if
 
@@ -1049,6 +1055,22 @@ subroutine checkGradientAccuracy(this, region)
 
   if (nIterations == 0) return
 
+  ! Find filenames for gradient and control forcing
+  numberOfActuatorPatches = 0
+  do i = 1, size(region%patchFactories)
+    call region%patchFactories(i)%connect(patch)
+    print *, procRank, i, trim(region%patchData(i)%patchType)
+    if (.not. associated(patch)) cycle
+    select type (patch)
+    class is (t_ActuatorPatch)
+      if (patch%comm == MPI_COMM_NULL) cycle
+
+      numberOfActuatorPatches = numberOfActuatorPatches + 1
+      gradientFilename = trim(patch%gradientFilename)
+      controlForcingFilename = trim(patch%controlForcingFilename)
+    end select
+  end do
+
   ! Turn off output for controlled predictions.
   region%outputOn = .false.
 
@@ -1068,6 +1090,7 @@ subroutine checkGradientAccuracy(this, region)
 
   do i = restartIteration, restartIteration + nIterations - 1
      actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
+     call ZAXPY(region%comm,trim(controlForcingFilename),-actuationAmount,trim(gradientFilename))
      costFunctional = this%runForward(region, actuationAmount = actuationAmount)
      gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
           costSensitivity

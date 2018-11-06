@@ -199,12 +199,16 @@ subroutine updateMomentumActuatorForcing(this, region)
 
            patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
            if (this%direction == 0) then
-              patch%controlForcing(:,2:nDimensions+1) = - region%states(j)%actuationAmount * &
-                   patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
+             patch%controlForcing(:,2:nDimensions+1) =                                      &
+                 patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
+              ! patch%controlForcing(:,2:nDimensions+1) = - region%states(j)%actuationAmount * &
+              !      patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
            else
-              patch%controlForcing(:,this%direction+1) =                                     &
-                   - region%states(j)%actuationAmount *                                      &
-                   patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+             patch%controlForcing(:,this%direction+1) =                                     &
+                  patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+              ! patch%controlForcing(:,this%direction+1) =                                     &
+              !      - region%states(j)%actuationAmount *                                      &
+              !      patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
            end if
 
            if (patch%iControlForcingBuffer == 1)                                                   &

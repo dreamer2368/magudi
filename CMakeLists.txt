@@ -106,6 +106,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/RhsHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/InterfaceHelper.f90
   ${PROJECT_SOURCE_DIR}/src/InterfaceHelperImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ControlSpaceAdvancer.f90
+  ${PROJECT_SOURCE_DIR}/src/ControlSpaceAdvancerImpl.f90
 
   # Factories.
   ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
@@ -184,7 +186,7 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/include/ThermalActuator.f90
   ${PROJECT_SOURCE_DIR}/src/ThermalActuatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/MomentumActuator.f90
-  ${PROJECT_SOURCE_DIR}/src/MomentumActuatorImpl.f90  
+  ${PROJECT_SOURCE_DIR}/src/MomentumActuatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PressureDrag.f90

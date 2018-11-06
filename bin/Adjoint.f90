@@ -11,7 +11,7 @@ program adjoint
   use Grid_enum
   use State_enum
 
-  use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use InputHelper, only : parseInputFile, getFreeUnit, getOption, getRequiredOption
   use InputHelperImpl, only: dict, find
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
@@ -20,12 +20,15 @@ program adjoint
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, dictIndex, procRank, numProcs, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
+  integer :: i, stat, fileUnit, dictIndex, procRank, numProcs, ierror
+  character(len = STRING_LENGTH) :: filename, resultFilename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_Solver) :: solver
+
+  ! << output variables >>
+  integer :: inputNumber, simulationNumber
   SCALAR_TYPE :: dummyValue
 
   ! Initialize MPI.
@@ -105,9 +108,25 @@ program adjoint
   end if
 
   ! Main code logic.
-  if (.not. region%simulationFlags%isBaselineAvailable)                                   &
-       dummyValue = solver%runForward(region)
+  if (.not. region%simulationFlags%isBaselineAvailable) then
+    dummyValue = solver%runForward(region)
+    if (procRank == 0) then
+      resultFilename = trim(outputPrefix) // ".forward_run.txt"
+      open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
+        iostat = stat, status = 'replace')
+      write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
+      close(fileUnit)
+    end if
+  end if
   dummyValue = solver%runAdjoint(region)
+  if (procRank == 0) then
+    call get_command_argument(1, resultFilename)
+    ! resultFilename = trim(outputPrefix) // ".adjoint_run.txt"
+    open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
+      iostat = stat, status = 'replace')
+    write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
+    close(fileUnit)
+  end if
 
   call solver%cleanup()
   call region%cleanup()

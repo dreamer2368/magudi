@@ -207,8 +207,9 @@ subroutine updateThermalActuatorForcing(this, region)
                 call patch%loadForcing()
 
            temp(:,1:nDimensions+1) = 0.0_wp
-           temp(:,nDimensions+2) = - region%states(j)%actuationAmount *                      &
-                patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+           temp(:,nDimensions+2) = patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+           ! temp(:,nDimensions+2) = - region%states(j)%actuationAmount *                      &
+           !      patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
            patch%controlForcing = patch%controlForcing + timeRampFactor * temp
 
            deallocate(temp)
