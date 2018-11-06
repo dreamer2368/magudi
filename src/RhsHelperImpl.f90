@@ -152,10 +152,10 @@ contains
           assert(all(grid%localSize == patch%gridLocalSize))
 
           direction = abs(patch%normalDirection)
-          assert(direction >= 1 .and. direction <= nDimensions)
 
           select type (patch)
              class is (t_FarFieldPatch)
+             assert(direction >= 1 .and. direction <= nDimensions)
 
              do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
                 do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
