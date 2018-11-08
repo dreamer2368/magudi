@@ -169,7 +169,6 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%timeAverage)
 
   this%adjointForcingFactor = 1.0_wp
-  this%actuationAmount = 0.0_wp
 
 end subroutine cleanupState
 

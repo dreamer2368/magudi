@@ -202,14 +202,9 @@ subroutine updateMomentumActuatorForcing(this, region)
            if (this%direction == 0) then
              patch%controlForcing(:,2:nDimensions+1) =                                      &
                  patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
-              ! patch%controlForcing(:,2:nDimensions+1) = - region%states(j)%actuationAmount * &
-              !      patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
            else
              patch%controlForcing(:,this%direction+1) =                                     &
                   patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
-              ! patch%controlForcing(:,this%direction+1) =                                     &
-              !      - region%states(j)%actuationAmount *                                      &
-              !      patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
            end if
 
            if (patch%iControlForcingBuffer == 1)                                                   &
@@ -276,14 +271,9 @@ subroutine migrateToMomentumActuatorForcing(this, region, startTimeStep, endTime
            if (this%direction == 0) then
              patch%controlForcing(:,2:nDimensions+1) =                                      &
                  patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
-              ! patch%controlForcing(:,2:nDimensions+1) = - region%states(j)%actuationAmount * &
-              !      patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
            else
              patch%controlForcing(:,this%direction+1) =                                     &
                   patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
-              ! patch%controlForcing(:,this%direction+1) =                                     &
-              !      - region%states(j)%actuationAmount *                                      &
-              !      patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
            end if
 
         end select

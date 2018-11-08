@@ -105,12 +105,9 @@ program forward
   ! Main code logic.
   if (command_argument_count() == 2) then
      call get_command_argument(2, filename)
-     dummyValue = solver%runForward(region, restartFilename = filename,                   &
-                                     actuationAmount =                                    &
-                                         getOption("actuation_amount", 0.0_wp))
+     dummyValue = solver%runForward(region, restartFilename = filename)
   else
-     dummyValue = solver%runForward(region, actuationAmount =                             &
-                                         getOption("actuation_amount", 0.0_wp))
+     dummyValue = solver%runForward(region)
   end if
 
   if ( region%simulationFlags%enableFunctional ) then

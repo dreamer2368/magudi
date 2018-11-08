@@ -56,17 +56,18 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   end if
 
   ! SeungWhan: control forcing directory, filename option
-  if (simulationFlags%enableController) then
+  if ( simulationFlags%enableController .and.                                                &
+       getOption("controller_switch",.false.) ) then
     controlForcingDirectory = getOption("control_forcing_directory","")
     outputPrefix = getOption("output_prefix", PROJECT_NAME)
     write(controlForcingFilename, '(4A)') trim(controlForcingDirectory)//trim(outputPrefix),             &
          ".control_forcing_", trim(patchDescriptor%name), ".dat"
     this%controlForcingFilename = getOption("control_forcing_filename",trim(controlForcingFilename))
-  end if
 
-  if (simulationFlags%enableController .and. this%nPatchPoints > 0) then
-     allocate(this%controlForcing(this%nPatchPoints, solverOptions%nUnknowns))
-     this%controlForcing = 0.0_wp
+    if( this%nPatchPoints > 0 ) then
+      allocate(this%controlForcing(this%nPatchPoints, solverOptions%nUnknowns))
+      this%controlForcing = 0.0_wp
+    end if
   end if
 
 end subroutine setupActuatorPatch
@@ -128,7 +129,7 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
 
-  if ( abs(state%actuationAmount) <= 0.0_wp ) return
+  if ( .not. allocated(this%controlForcing) ) return
 
   call startTiming("updateActuatorPatch")
 

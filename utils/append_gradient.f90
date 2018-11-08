@@ -138,7 +138,7 @@ program append_gradient
 
   ! Call controller hooks before time marching starts.
   if (region%simulationFlags%enableController .and.                                          &
-       abs(region%states(1)%actuationAmount) > 0.0_wp) then
+       controller%controllerSwitch) then
 !     controller%onsetTime = startTime
      controller%duration = solver%nTimesteps * region%solverOptions%timeStepSize
      call controller%hookBeforeTimemarch(region, FORWARD)
@@ -232,7 +232,7 @@ program append_gradient
 
   ! Call controller hooks after time marching ends.
   if (region%simulationFlags%enableController .and.                                          &
-       abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
+       controller%controllerSwitch)                                                          &
        call controller%hookAfterTimemarch(region, FORWARD)
 
   call solver%residualManager%cleanup()
@@ -251,24 +251,24 @@ program append_gradient
 contains
 
   subroutine loadInputGradient(this)
-  
+
     ! <<< External modules >>>
     use MPI
-  
+
     ! <<< Derived types >>>
     use ActuatorPatch_mod, only : t_ActuatorPatch
-  
+
     ! <<< Arguments >>>
     class(t_ActuatorPatch) :: this
-  
+
     ! <<< Local variables >>>
     integer :: arrayOfSizes(5), arrayOfSubsizes(5), arrayOfStarts(5),                          &
          mpiScalarSubarrayType, mpiFileHandle, dataSize, ierror
     integer(kind = MPI_OFFSET_KIND) :: nBytesToRead
     character(len = STRING_LENGTH) :: message
-  
+
     if (this%comm == MPI_COMM_NULL) return
-  
+
     arrayOfSizes(1:3) = this%globalSize
     arrayOfSizes(4) = size(this%gradientBuffer, 2)
     arrayOfSizes(5) = this%iGradientBuffer
@@ -280,20 +280,20 @@ contains
     call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,             &
          MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
     call MPI_Type_commit(mpiScalarSubarrayType, ierror)
-  
+
     call MPI_File_open(this%comm, trim(this%gradientFilename) // char(0), MPI_MODE_RDONLY,     &
          MPI_INFO_NULL, mpiFileHandle, ierror)
 
     assert(this%gradientFileOffset >= 0)
-  
+
     call MPI_File_set_view(mpiFileHandle, this%gradientFileOffset, SCALAR_TYPE_MPI,            &
          mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
-  
+
     dataSize = this%nPatchPoints * size(this%gradientBuffer, 2) * this%iGradientBuffer
     call MPI_File_read_all(mpiFileHandle, this%gradientBuffer, dataSize,                       &
          SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
     call MPI_File_close(mpiFileHandle, ierror)
-   
+
     nBytesToRead = SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *            &
          size(this%gradientBuffer, 2) * this%iGradientBuffer
     if (this%gradientFileOffset + nBytesToRead <= int(0, MPI_OFFSET_KIND)) then
@@ -306,24 +306,24 @@ contains
 !   print *, 'reading is being done..',nBytesToRead,this%gradientFileOffset
     write(message,'(A,I16.8,I16.8)') 'reading is being done..',nBytesToRead,this%gradientFileOffset
     call writeAndFlush(this%comm, output_unit, message)
- 
+
     call MPI_Type_free(mpiScalarSubarrayType, ierror)
-  
+
   end subroutine loadInputGradient
 
   subroutine saveOutputGradient(this,outputFilename,outputGradientFileOffset)
-  
+
     ! <<< External modules >>>
     use MPI
-  
+
     ! <<< Derived types >>>
     use ActuatorPatch_mod, only : t_ActuatorPatch
-  
+
     ! <<< Arguments >>>
     class(t_ActuatorPatch) :: this
     character(len = STRING_LENGTH), intent(in) :: outputFilename
     integer(kind = MPI_OFFSET_KIND), intent(inout) :: outputGradientFileOffset
-  
+
     ! <<< Local variables >>>
     integer :: arrayOfSizes(5), arrayOfSubsizes(5), arrayOfStarts(5),                          &
          mpiScalarSubarrayType, mpiFileHandle, dataSize, ierror
@@ -331,7 +331,7 @@ contains
     character(len = STRING_LENGTH) :: message
 
     if (this%comm == MPI_COMM_NULL .or. this%iGradientBuffer == 0) return
-  
+
     arrayOfSizes(1:3) = this%globalSize
     arrayOfSizes(4) = size(this%gradientBuffer, 2)
     arrayOfSizes(5) = this%iGradientBuffer
@@ -343,15 +343,15 @@ contains
     call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,             &
          MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
     call MPI_Type_commit(mpiScalarSubarrayType, ierror)
-  
+
     call MPI_File_open(this%comm, trim(outputFilename) // char(0), MPI_MODE_WRONLY,            &
          MPI_INFO_NULL, mpiFileHandle, ierror)
-  
+
     assert(outputGradientFileOffset >= 0)
-  
+
     call MPI_File_set_view(mpiFileHandle, outputGradientFileOffset, SCALAR_TYPE_MPI,           &
          mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
-  
+
     dataSize = this%nPatchPoints * size(this%gradientBuffer, 2) * this%iGradientBuffer
     call MPI_File_write_all(mpiFileHandle, this%gradientBuffer, dataSize,                      &
          SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
@@ -364,9 +364,9 @@ contains
     call writeAndFlush(this%comm, output_unit, message)
 
     call MPI_File_close(mpiFileHandle, ierror)
-  
+
     call MPI_Type_free(mpiScalarSubarrayType, ierror)
-  
+
   end subroutine saveOutputGradient
 
 end program append_gradient
