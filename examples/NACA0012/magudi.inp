@@ -15,6 +15,7 @@ steady_state_simulation = true
 
 # Controller flags
 enable_controller = true
+controller_switch = false
 
 # Functional flags
 enable_functional = true

@@ -20,7 +20,7 @@ subroutine setupThermalActuator(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: key
-  integer :: i, controllerBufferSize
+  integer :: i
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
@@ -40,7 +40,8 @@ subroutine setupThermalActuator(this, region)
      this%rampOffset = 1.0_wp - 0.5_wp * this%rampOffset
   end if
 
-  controllerBufferSize = getOption("controller_buffer_size", 1)
+  this%controllerBufferSize = getOption("controller_buffer_size", 1)
+  this%controllerSwitch = getOption("controller_switch", .false.)
 
   if (allocated(region%patchFactories)) then
      do i = 1, size(region%patchFactories)
@@ -52,11 +53,11 @@ subroutine setupThermalActuator(this, region)
 
            if (region%simulationFlags%enableAdjoint) then
              SAFE_DEALLOCATE(patch%gradientBuffer)
-             allocate(patch%gradientBuffer(patch%nPatchPoints, 1, controllerBufferSize))
+             allocate(patch%gradientBuffer(patch%nPatchPoints, 1, this%controllerBufferSize))
              patch%gradientBuffer = 0.0_wp
            end if
            SAFE_DEALLOCATE(patch%controlForcingBuffer)
-           allocate(patch%controlForcingBuffer(patch%nPatchPoints, 1, controllerBufferSize))
+           allocate(patch%controlForcingBuffer(patch%nPatchPoints, 1, this%controllerBufferSize))
            patch%controlForcingBuffer = 0.0_wp
 
         end select
@@ -222,6 +223,88 @@ subroutine updateThermalActuatorForcing(this, region)
   end do
 
 end subroutine updateThermalActuatorForcing
+
+subroutine migrateToThermalActuatorForcing(this, region, nTimeSteps, nStages, iTimeStep, jSubStep)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use ThermalActuator_mod, only : t_ThermalActuator
+
+  ! <<< SeungWhan: debug:time_ramp printing >>>
+  use ErrorHandler, only : writeAndFlush
+  use, intrinsic :: iso_fortran_env, only : output_unit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_ThermalActuator) :: this
+  class(t_Region), intent(in) :: region
+  integer, intent(in) :: nTimeSteps, nStages, iTimeStep, jSubStep
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions
+  integer :: bufferIndex, bufferRemainder, usedBufferSize
+  real(SCALAR_KIND) :: timeRampFactor
+  class(t_Patch), pointer :: patch => null()
+  SCALAR_TYPE, allocatable :: temp(:,:)
+
+  ! <<< SeungWhan: variable for time_ramp printing >>>
+  character(len = STRING_LENGTH) :: message
+
+  if (.not. allocated(region%patchFactories)) return
+
+  bufferIndex = (iTimeStep-1)*nStages + (jSubStep-1)
+  bufferRemainder = MODULO(nTimeSteps*nStages,this%controllerBufferSize)
+  if( nTimeSteps*nStages-bufferIndex < bufferRemainder ) then
+    usedBufferSize = bufferRemainder
+  else
+    usedBufferSize = this%controllerBufferSize
+  end if
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  timeRampFactor = 1.0_wp
+  if (this%useTimeRamp)                                                                      &
+       timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
+       this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(j)%index) cycle
+        select type (patch)
+        class is (t_ActuatorPatch)
+
+           !SeungWhan: allocate temp = controlForcing
+           allocate(temp,MOLD=patch%controlForcing)
+
+           patch%iControlForcingBuffer = usedBufferSize                                      &
+                                          - MODULO(bufferIndex,this%controllerBufferSize)
+
+           assert(patch%iControlForcingBuffer >= 1)
+           assert(patch%iControlForcingBuffer <= size(patch%controlForcingBuffer, 3))
+
+           if (patch%iControlForcingBuffer == this%controllerBufferSize)                       &
+                call patch%loadForcing()
+
+           temp(:,1:nDimensions+1) = 0.0_wp
+           temp(:,nDimensions+2) = patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+           ! temp(:,nDimensions+2) = - region%states(j)%actuationAmount *                      &
+           !      patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+           patch%controlForcing = patch%controlForcing + timeRampFactor * temp
+
+           deallocate(temp)
+
+        end select
+     end do
+  end do
+
+end subroutine migrateToThermalActuatorForcing
 
 subroutine updateThermalActuatorGradient(this, region)
 

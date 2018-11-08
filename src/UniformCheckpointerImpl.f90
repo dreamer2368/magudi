@@ -151,6 +151,14 @@ subroutine uniformCheckpointingMigrateTo(this, region, controller, timeIntegrato
 
            do stage_ = 1, timeIntegrator%nStages
 
+              ! Update control forcing.
+              !SeungWhan: flush out previous control forcing
+              if (controller%controllerSwitch) then
+               call controller%cleanupForcing(region)
+               call controller%migrateToForcing(region,this%endTimestep-this%startTimestep,  &
+                                                timeIntegrator%nStages, timestep_, stage_)
+              end if
+
               call timeIntegrator%substepForward(region, time,                               &
                    timeStepSize, timestep_, stage_)
 

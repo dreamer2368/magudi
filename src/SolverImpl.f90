@@ -563,7 +563,6 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   class(t_Functional), pointer :: functional => null()
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
-  logical :: controlForcing = .false.
   SCALAR_TYPE :: instantaneousCostFunctional
 
   call startTiming("runForward")
@@ -613,17 +612,15 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   end if
 
   ! SeungWhan: set up control forcing flag
-  controlForcing = region%simulationFlags%enableController .and.                           &
-                     abs(region%states(1)%actuationAmount) > 0.0_wp
   write(message,'(A,L4,A,F16.8,A,F16.8)') 'Control Forcing Flag: ',                          &
-                                            controlForcing,                                  &
+                                            controller%controllerSwitch,                     &
                                           ', Advancing Actuation Amount: ',                  &
                                             region%states(1)%actuationAmount
   call writeAndFlush(region%comm, output_unit, message)
 
   ! Call controller hooks before time marching starts. SeungWhan: changed
   ! duration, onsetTime.
-  if (controlForcing) then
+  if (controller%controllerSwitch) then
      controller%onsetTime = startTime
      controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
      call controller%hookBeforeTimemarch(region, FORWARD)
@@ -652,7 +649,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
         ! Update control forcing.
         !SeungWhan: flush out previous control forcing
-        if (controlForcing) then
+        if (controller%controllerSwitch) then
           call controller%cleanupForcing(region)
           call controller%updateForcing(region)
         end if
@@ -707,7 +704,7 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   ! Call controller hooks after time marching ends.
-  if (controlForcing) call controller%hookAfterTimemarch(region, FORWARD)
+  if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
 
   call this%residualManager%cleanup()
 
@@ -776,7 +773,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
-  logical :: IS_FINAL_STEP                                             ! SeungWhan
+  logical :: IS_FINAL_STEP
   SCALAR_TYPE :: instantaneousCostSensitivity
 
   assert(region%simulationFlags%enableController)
@@ -851,8 +848,13 @@ function runAdjoint(this, region) result(costSensitivity)
   call region%saveData(QOI_ADJOINT_STATE, filename)
 
   ! Call controller hooks before time marching starts.
-  !!!SeungWhan: need additional execution with FORWARD, in case of non-zero control forcing.
   call controller%hookBeforeTimemarch(region, ADJOINT)
+  !!!SeungWhan: need additional execution with FORWARD, in case of non-zero control forcing.
+  if (controller%controllerSwitch) then
+    controller%onsetTime = startTime
+    controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+    call controller%hookBeforeTimemarch(region, FORWARD)
+  end if
 
   ! Reset probes.
   if (this%probeInterval > 0) call region%resetProbes()
@@ -912,6 +914,9 @@ function runAdjoint(this, region) result(costSensitivity)
      ! Save solution on probe patches.
      if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
           call region%saveProbeData(ADJOINT)
+
+     ! Call controller hooks after time marching ends.
+     if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
 
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit

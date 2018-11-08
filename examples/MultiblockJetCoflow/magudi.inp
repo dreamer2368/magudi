@@ -21,6 +21,7 @@ use_manual_domain_decomposition = true
 
 # Controller flags
 enable_controller = false
+controller_switch = false
 
 # Functional flags
 enable_functional = false
@@ -90,7 +91,7 @@ defaults/jet_excitation/amplitude = 0.005
 # Penalty parameters
 defaults/viscous_penalty_amount = 0.
 
-# Vorticity dilatation options                                                                                                                                                                                       
+# Vorticity dilatation options
 vorticity_dilatation/start_timestep = 0
 vorticity_dilatation/end_timestep = 200000
 vorticity_dilatation/save_interval = 500

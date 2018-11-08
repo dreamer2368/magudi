@@ -24,6 +24,7 @@ use_manual_domain_decomposition = true
 
 # Controller flags
 enable_controller = false
+controller_switch = false
 
 # Functional flags
 enable_functional = false

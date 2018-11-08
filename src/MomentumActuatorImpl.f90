@@ -19,7 +19,7 @@ subroutine setupMomentumActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, nActuatorComponents, controllerBufferSize
+  integer :: i, nDimensions, nActuatorComponents
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
@@ -31,7 +31,8 @@ subroutine setupMomentumActuator(this, region)
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
-  controllerBufferSize = getOption("controller_buffer_size", 1)
+  this%controllerBufferSize = getOption("controller_buffer_size", 1)
+  this%controllerSwitch = getOption("controller_switch", .false.)
 
   this%direction = getOption("actuator_momentum_component", 0)
 
@@ -49,12 +50,12 @@ subroutine setupMomentumActuator(this, region)
            if (region%simulationFlags%enableAdjoint) then
              SAFE_DEALLOCATE(patch%gradientBuffer)
              allocate(patch%gradientBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
-                  controllerBufferSize))
+                  this%controllerBufferSize))
              patch%gradientBuffer = 0.0_wp
            end if
            SAFE_DEALLOCATE(patch%controlForcingBuffer)
            allocate(patch%controlForcingBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
-                controllerBufferSize))
+                this%controllerBufferSize))
            patch%controlForcingBuffer = 0.0_wp
 
         end select
@@ -219,6 +220,77 @@ subroutine updateMomentumActuatorForcing(this, region)
   end do
 
 end subroutine updateMomentumActuatorForcing
+
+subroutine migrateToMomentumActuatorForcing(this, region, nTimeSteps, nStages, iTimeStep, jSubStep)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use MomentumActuator_mod, only : t_MomentumActuator
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_MomentumActuator) :: this
+  class(t_Region), intent(in) :: region
+  integer, intent(in) :: nTimeSteps, nStages, iTimeStep, jSubStep
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions
+  integer :: bufferIndex, bufferRemainder, usedBufferSize
+  class(t_Patch), pointer :: patch => null()
+
+  if (.not. allocated(region%patchFactories)) return
+
+  bufferIndex = (iTimeStep-1)*nStages + (jSubStep-1)
+  bufferRemainder = MODULO(nTimeSteps*nStages,this%controllerBufferSize)
+  if( nTimeSteps*nStages-bufferIndex < bufferRemainder ) then
+    usedBufferSize = bufferRemainder
+  else
+    usedBufferSize = this%controllerBufferSize
+  end if
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(j)%index) cycle
+        select type (patch)
+        class is (t_ActuatorPatch)
+
+          patch%iControlForcingBuffer = usedBufferSize                                      &
+                                         - MODULO(bufferIndex,this%controllerBufferSize)
+
+           assert(patch%iControlForcingBuffer >= 1)
+           assert(patch%iControlForcingBuffer <= size(patch%controlForcingBuffer, 3))
+
+           if (patch%iControlForcingBuffer == this%controllerBufferSize)                    &
+                call patch%loadForcing()
+
+           patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
+           if (this%direction == 0) then
+             patch%controlForcing(:,2:nDimensions+1) =                                      &
+                 patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
+              ! patch%controlForcing(:,2:nDimensions+1) = - region%states(j)%actuationAmount * &
+              !      patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
+           else
+             patch%controlForcing(:,this%direction+1) =                                     &
+                  patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+              ! patch%controlForcing(:,this%direction+1) =                                     &
+              !      - region%states(j)%actuationAmount *                                      &
+              !      patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+           end if
+
+        end select
+     end do
+  end do
+
+end subroutine migrateToMomentumActuatorForcing
 
 subroutine updateMomentumActuatorGradient(this, region)
 

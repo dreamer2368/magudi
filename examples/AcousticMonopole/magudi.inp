@@ -18,6 +18,7 @@ compute_time_average = false
 
 # Controller flags
 enable_controller = true
+controller_switch = false
 
 # Functional flags
 enable_functional = true
