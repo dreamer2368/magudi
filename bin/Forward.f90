@@ -28,7 +28,7 @@ program forward
 
   ! << output variables >>
   integer :: inputNumber, simulationNumber
-  SCALAR_TYPE :: dummyValue
+  SCALAR_TYPE :: dummyValue = 0.0_wp
 
   ! Initialize MPI.
   call MPI_Init(ierror)
