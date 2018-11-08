@@ -87,7 +87,7 @@ module ThermalActuator_mod
 
   interface
 
-    subroutine migrateToThermalActuatorForcing(this, region, nTimeSteps, nStages, iTimeStep, jSubStep)
+    subroutine migrateToThermalActuatorForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
 
       use Region_mod, only : t_Region
 
@@ -95,7 +95,7 @@ module ThermalActuator_mod
 
       class(t_ThermalActuator) :: this
       class(t_Region), intent(in) :: region
-      integer, intent(in) :: nTimeSteps, nStages, iTimeStep, jSubStep
+      integer, intent(in) :: startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep
 
     end subroutine migrateToThermalActuatorForcing
 

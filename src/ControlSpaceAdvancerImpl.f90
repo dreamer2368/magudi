@@ -31,7 +31,6 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   call MPI_Comm_rank(comm, procRank, ierror)
   call MPI_Comm_size(comm, numProcs, ierror)
 
-print *, procRank, trim(ZFilename)
   write(message,'(2A)') "Z filename: ",trim(ZFilename)
   call writeAndFlush(comm, output_unit, message)
 

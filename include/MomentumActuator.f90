@@ -85,7 +85,7 @@ module MomentumActuator_mod
 
   interface
 
-     subroutine migrateToMomentumActuatorForcing(this, region, nTimeSteps, nStages, iTimeStep, jSubStep)
+     subroutine migrateToMomentumActuatorForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
 
        use Region_mod, only : t_Region
 
@@ -93,7 +93,7 @@ module MomentumActuator_mod
 
        class(t_MomentumActuator) :: this
        class(t_Region), intent(in) :: region
-       integer, intent(in) :: nTimeSteps, nStages, iTimeStep, jSubStep
+       integer, intent(in) :: startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep
 
      end subroutine migrateToMomentumActuatorForcing
 

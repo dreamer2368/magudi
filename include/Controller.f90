@@ -93,7 +93,7 @@ module Controller_mod
 
   abstract interface
 
-     subroutine migrateToForcing(this, region, nTimeSteps, nStages, iTimeStep, jSubStep)
+     subroutine migrateToForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
 
        use Region_mod, only : t_Region
 
@@ -101,7 +101,7 @@ module Controller_mod
 
        class(t_Controller) :: this
        class(t_Region), intent(in) :: region
-       integer, intent(in) :: nTimeSteps, nStages, iTimeStep, jSubStep
+       integer, intent(in) :: startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep
 
      end subroutine migrateToForcing
 

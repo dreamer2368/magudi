@@ -221,7 +221,7 @@ subroutine updateMomentumActuatorForcing(this, region)
 
 end subroutine updateMomentumActuatorForcing
 
-subroutine migrateToMomentumActuatorForcing(this, region, nTimeSteps, nStages, iTimeStep, jSubStep)
+subroutine migrateToMomentumActuatorForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -234,7 +234,7 @@ subroutine migrateToMomentumActuatorForcing(this, region, nTimeSteps, nStages, i
   ! <<< Arguments >>>
   class(t_MomentumActuator) :: this
   class(t_Region), intent(in) :: region
-  integer, intent(in) :: nTimeSteps, nStages, iTimeStep, jSubStep
+  integer, intent(in) :: startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -244,9 +244,9 @@ subroutine migrateToMomentumActuatorForcing(this, region, nTimeSteps, nStages, i
 
   if (.not. allocated(region%patchFactories)) return
 
-  bufferIndex = (iTimeStep-1)*nStages + (jSubStep-1)
-  bufferRemainder = MODULO(nTimeSteps*nStages,this%controllerBufferSize)
-  if( nTimeSteps*nStages-bufferIndex < bufferRemainder ) then
+  bufferIndex = (iTimeStep-startTimeStep-1)*nStages + (jSubStep-1)
+  bufferRemainder = MODULO( (endTimeStep-startTimeStep)*nStages,this%controllerBufferSize )
+  if( (endTimeStep-startTimeStep)*nStages-bufferIndex < bufferRemainder ) then
     usedBufferSize = bufferRemainder
   else
     usedBufferSize = this%controllerBufferSize
