@@ -25,10 +25,12 @@ Gradk = np.zeros((Nk,),dtype=np.double)
 ek = np.zeros((Nk,),dtype=np.double)
 
 forwardFile = prefix+'.forward_run1.txt'
-#baseline_control_forcing_file = prefix+'.control_forcing_controlRegion0.dat'
-baseline_control_forcing_file = ''
+baseline_control_forcing_file = prefix+'.control_forcing_controlRegion0.dat'
+#baseline_control_forcing_file = ''
 grad_file = prefix+'.gradient_controlRegion.dat'
 control_forcing_file = prefix+'.control_forcing_controlRegion.dat'
+
+fId = open(prefix+'.gradient_accuracy.txt','w')
 for k in range(Nk):
     actuation_amount = Ak[k]
     command = './zaxpy '+control_forcing_file+' '+str(actuation_amount)+' '+grad_file+' '+baseline_control_forcing_file
@@ -40,9 +42,7 @@ for k in range(Nk):
 
     Gradk[k] = (QoIk[k]-QoI0)/Ak[k]
     ek[k] = abs( (Gradk[k]-Grad0)/Grad0 )
+    fId.write(str(Ak[k])+"\t"+str(QoIk[k])+"\t"+str(Gradk[k])+"\t"+str(ek[k])+"\n")
     print actuation_amount, QoIk[k], Gradk[k], ek[k]
 
-fId = open(prefix+'.gradient_accuracy.txt','w')
-for k in range(Nk):
-    fId.write(str(Ak[k])+"\t"+str(QoIk[k])+"\t"+str(Gradk[k])+"\t"+str(ek[k])+"\n")
 fId.close()
