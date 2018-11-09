@@ -264,6 +264,72 @@ subroutine loadActuatorForcing(this)
 
 end subroutine loadActuatorForcing
 
+subroutine pinpointActuatorForcing(this,bufferOffsetIndex)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+
+  ! <<< Arguments >>>
+  class(t_ActuatorPatch) :: this
+  integer, intent(in) :: bufferOffsetIndex !This offset index start from 0 at the beginning of the file.
+
+  ! <<< Local variables >>>
+  integer :: arrayOfSizes(5), arrayOfSubsizes(5), arrayOfStarts(5),                          &
+       mpiScalarSubarrayType, mpiFileHandle, dataSize, ierror
+  integer(kind = MPI_OFFSET_KIND) :: nBytesToRead, controllerBufferSize, actualBufferSize
+
+  if (this%comm == MPI_COMM_NULL) return
+
+  this%bufferOffsetIndex = bufferOffsetIndex
+  this%controlForcingFileOffset = int(bufferOffsetIndex, MPI_OFFSET_KIND)                           &
+                                  *(SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND))  &
+                                    * size(this%controlForcingBuffer, 2))
+  controllerBufferSize = int(size(this%controlForcingBuffer, 3),MPI_OFFSET_KIND)
+
+  arrayOfSizes(1:3) = this%globalSize
+  arrayOfSizes(4) = size(this%controlForcingBuffer, 2)
+  arrayOfSizes(5) = controllerBufferSize
+  arrayOfSubsizes(1:3) = this%localSize
+  arrayOfSubsizes(4) = size(this%controlForcingBuffer, 2)
+  arrayOfSubsizes(5) = controllerBufferSize
+  arrayOfStarts(1:3) = this%offset - this%extent(1::2) + 1
+  arrayOfStarts(4:5) = 0
+  call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,             &
+       MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
+  call MPI_Type_commit(mpiScalarSubarrayType, ierror)
+
+  call MPI_File_open(this%comm, trim(this%controlForcingFilename) // char(0), MPI_MODE_RDONLY,     &
+       MPI_INFO_NULL, mpiFileHandle, ierror)
+
+  nBytesToRead = SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *            &
+       size(this%controlForcingBuffer, 2) * controllerBufferSize
+  if (this%controlForcingFileOffset + nBytesToRead > this%controlForcingFileSize) then
+    actualBufferSize = int( (this%controlForcingFileSize-this%controlForcingFileOffset)       &
+                            /(SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND))  &
+                            * size(this%controlForcingBuffer, 2)) )
+  else
+    actualBufferSize = controllerBufferSize
+  end if
+
+  assert(this%controlForcingFileOffset >= 0 .and. &
+         this%controlForcingFileOffset <= this%controlForcingFileSize)
+
+  call MPI_File_set_view(mpiFileHandle, this%controlForcingFileOffset, SCALAR_TYPE_MPI,            &
+       mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
+
+  dataSize = this%nPatchPoints * size(this%controlForcingBuffer, 2) * actualBufferSize
+  call MPI_File_read_all(mpiFileHandle, this%controlForcingBuffer, dataSize,                       &
+       SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+
+  call MPI_File_close(mpiFileHandle, ierror)
+
+  call MPI_Type_free(mpiScalarSubarrayType, ierror)
+
+end subroutine pinpointActuatorForcing
+
 subroutine saveActuatorGradient(this)
 
   ! <<< External modules >>>

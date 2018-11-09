@@ -234,18 +234,14 @@ subroutine migrateToMomentumActuatorForcing(this, region, startTimeStep, endTime
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions
-  integer :: bufferIndex, bufferRemainder, usedBufferSize
+  integer :: bufferIndex, bufferOffsetIndex, iControlForcingBuffer
   class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return
 
-  bufferIndex = (iTimeStep-startTimeStep-1)*nStages + (jSubStep-1)
-  bufferRemainder = MODULO( (endTimeStep-startTimeStep)*nStages,this%controllerBufferSize )
-  if( (endTimeStep-startTimeStep)*nStages-bufferIndex < bufferRemainder ) then
-    usedBufferSize = bufferRemainder
-  else
-    usedBufferSize = this%controllerBufferSize
-  end if
+  bufferIndex = (endTimeStep - iTimeStep)*nStages + (nStages-jSubStep)
+  bufferOffsetIndex = bufferIndex/this%controllerBufferSize
+  iControlForcingBuffer = MODULO( bufferIndex,this%controllerBufferSize ) + 1
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
@@ -258,14 +254,13 @@ subroutine migrateToMomentumActuatorForcing(this, region, startTimeStep, endTime
         select type (patch)
         class is (t_ActuatorPatch)
 
-          patch%iControlForcingBuffer = usedBufferSize                                      &
-                                         - MODULO(bufferIndex,this%controllerBufferSize)
+          patch%iControlForcingBuffer = iControlForcingBuffer
 
            assert(patch%iControlForcingBuffer >= 1)
            assert(patch%iControlForcingBuffer <= size(patch%controlForcingBuffer, 3))
 
-           if (patch%iControlForcingBuffer == this%controllerBufferSize)                    &
-                call patch%loadForcing()
+           if (patch%bufferOffsetIndex .ne. bufferOffsetIndex)                               &
+                call patch%pinpointForcing(bufferOffsetIndex)
 
            patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
            if (this%direction == 0) then

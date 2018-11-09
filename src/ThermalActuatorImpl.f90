@@ -244,7 +244,7 @@ subroutine migrateToThermalActuatorForcing(this, region, startTimeStep, endTimeS
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions
-  integer :: bufferIndex, bufferRemainder, usedBufferSize
+  integer :: bufferIndex, bufferOffsetIndex, iControlForcingBuffer
   real(SCALAR_KIND) :: timeRampFactor
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: temp(:,:)
@@ -254,13 +254,9 @@ subroutine migrateToThermalActuatorForcing(this, region, startTimeStep, endTimeS
 
   if (.not. allocated(region%patchFactories)) return
 
-  bufferIndex = (iTimeStep-startTimeStep-1)*nStages + (jSubStep-1)
-  bufferRemainder = MODULO( (endTimeStep-startTimeStep)*nStages,this%controllerBufferSize )
-  if( (endTimeStep-startTimeStep)*nStages-bufferIndex < bufferRemainder ) then
-    usedBufferSize = bufferRemainder
-  else
-    usedBufferSize = this%controllerBufferSize
-  end if
+  bufferIndex = (endTimeStep - iTimeStep)*nStages + (nStages-jSubStep)
+  bufferOffsetIndex = bufferIndex/this%controllerBufferSize
+  iControlForcingBuffer = MODULO( bufferIndex,this%controllerBufferSize ) + 1
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
@@ -281,14 +277,13 @@ subroutine migrateToThermalActuatorForcing(this, region, startTimeStep, endTimeS
            !SeungWhan: allocate temp = controlForcing
            allocate(temp,MOLD=patch%controlForcing)
 
-           patch%iControlForcingBuffer = usedBufferSize                                      &
-                                          - MODULO(bufferIndex,this%controllerBufferSize)
+           patch%iControlForcingBuffer = iControlForcingBuffer
 
            assert(patch%iControlForcingBuffer >= 1)
            assert(patch%iControlForcingBuffer <= size(patch%controlForcingBuffer, 3))
 
-           if (patch%iControlForcingBuffer == this%controllerBufferSize)                       &
-                call patch%loadForcing()
+           if (patch%bufferOffsetIndex .ne. bufferOffsetIndex)                               &
+                call patch%pinpointForcing(bufferOffsetIndex)
 
            temp(:,1:nDimensions+1) = 0.0_wp
            temp(:,nDimensions+2) = patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
@@ -463,6 +458,7 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
               call MPI_File_open(patch%comm, trim(patch%controlForcingFilename) // char(0),           &
                    MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
               call MPI_File_get_size(mpiFileHandle, patch%controlForcingFileOffset, ierror)
+              patch%controlForcingFileSize = patch%controlForcingFileOffset
               call MPI_File_close(mpiFileHandle, ierror)
            end if
 

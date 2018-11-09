@@ -974,8 +974,7 @@ subroutine checkGradientAccuracy(this, region)
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
 
-  write(message, '(A)') "Subroutine checkGradientAccuracy is obsolete.                       &
-                          Use utils/python/checkGradientAccuracy.py."
+  write(message, '(A)') "Subroutine checkGradientAccuracy is obsolete. Use utils/python/checkGradientAccuracy.py."
   call gracefulExit(region%comm, message)
 
   ! call getRequiredOption("number_of_control_iterations", nIterations)

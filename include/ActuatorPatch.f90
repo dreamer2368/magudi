@@ -12,9 +12,11 @@ module ActuatorPatch_mod
 
   type, extends(t_Patch), public :: t_ActuatorPatch
 
-     integer :: iGradientBuffer = 0, iControlForcingBuffer = 0
+     integer :: iGradientBuffer = 0, iControlForcingBuffer = 0,                               &
+                bufferOffsetIndex = 0 !This index start from 0 at the beginning of the file. Used only for checkpointing.
      integer(kind = MPI_OFFSET_KIND) :: gradientFileOffset = int(0, MPI_OFFSET_KIND),         &
-                                        controlForcingFileOffset = int(0, MPI_OFFSET_KIND)
+                                        controlForcingFileOffset = int(0, MPI_OFFSET_KIND),   &
+                                        controlForcingFileSize = int(0, MPI_OFFSET_KIND)
      character(len = STRING_LENGTH) :: gradientFilename, controlForcingFilename
      SCALAR_TYPE, allocatable :: controlForcing(:,:),                                         &
                                  gradientBuffer(:,:,:), controlForcingBuffer(:,:,:)
@@ -26,6 +28,7 @@ module ActuatorPatch_mod
      procedure, pass :: verifyUsage => verifyActuatorPatchUsage
      procedure, pass :: updateRhs => updateActuatorPatch
      procedure, pass :: loadForcing => loadActuatorForcing
+     procedure, pass :: pinpointForcing => pinpointActuatorForcing
      procedure, pass :: saveGradient => saveActuatorGradient
 
   end type t_ActuatorPatch
@@ -119,6 +122,19 @@ module ActuatorPatch_mod
        class(t_ActuatorPatch) :: this
 
      end subroutine loadActuatorForcing
+
+  end interface
+
+  interface
+
+     subroutine pinpointActuatorForcing(this,bufferOffsetIndex)
+
+       import :: t_ActuatorPatch
+
+       class(t_ActuatorPatch) :: this
+       integer, intent(in) :: bufferOffsetIndex
+
+     end subroutine pinpointActuatorForcing
 
   end interface
 
