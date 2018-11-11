@@ -563,6 +563,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
+  logical :: controllerSwitch = .false.
 
   call startTiming("runForward")
 
@@ -605,17 +606,18 @@ function runForward(this, region, restartFilename) result(costFunctional)
      call region%saveData(QOI_FORWARD_STATE, filename)
   end if
 
-  ! SeungWhan: set up control forcing flag
-  write(message,'(A,L4,A,F16.8,A,F16.8)') 'Control Forcing Flag: ',                          &
-                                            controller%controllerSwitch
-  call writeAndFlush(region%comm, output_unit, message)
-
   ! Call controller hooks before time marching starts. SeungWhan: changed
   ! duration, onsetTime.
-  if (controller%controllerSwitch) then
-     controller%onsetTime = startTime
-     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-     call controller%hookBeforeTimemarch(region, FORWARD)
+  if (region%simulationFlags%enableController) then
+    controllerSwitch = controller%controllerSwitch
+    write(message,'(A,L4,A,F16.8,A,F16.8)') 'Control Forcing Flag: ',                          &
+                                            controller%controllerSwitch
+    call writeAndFlush(region%comm, output_unit, message)
+    if (controller%controllerSwitch) then
+       controller%onsetTime = startTime
+       controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+       call controller%hookBeforeTimemarch(region, FORWARD)
+    end if
   end if
 
   ! Reset probes.
@@ -641,7 +643,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
 
         ! Update control forcing.
         !SeungWhan: flush out previous control forcing
-        if (controller%controllerSwitch) then
+        if (controllerSwitch) then
           call controller%cleanupForcing(region)
           call controller%updateForcing(region)
         end if
@@ -696,7 +698,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
   if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   ! Call controller hooks after time marching ends.
-  if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
+  if (controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
 
   call this%residualManager%cleanup()
 
