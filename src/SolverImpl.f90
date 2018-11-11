@@ -840,8 +840,8 @@ function runAdjoint(this, region) result(costSensitivity)
   call controller%hookBeforeTimemarch(region, ADJOINT)
   !!!SeungWhan: need additional execution with FORWARD, in case of non-zero control forcing.
   if (controller%controllerSwitch) then
-    controller%onsetTime = startTime
     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+    controller%onsetTime = startTime - controller%duration
     call controller%hookBeforeTimemarch(region, FORWARD)
   end if
 
@@ -904,9 +904,6 @@ function runAdjoint(this, region) result(costSensitivity)
      if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
           call region%saveProbeData(ADJOINT)
 
-     ! Call controller hooks after time marching ends.
-     if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
-
      ! Stop if this is a steady-state simulation and solution has converged.
      if (this%residualManager%hasSimulationConverged) exit
 
@@ -923,6 +920,7 @@ function runAdjoint(this, region) result(costSensitivity)
   if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
 
   ! Call controller hooks after time marching ends.
+  if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
   call controller%hookAfterTimemarch(region, ADJOINT)
 
   call this%residualManager%cleanup()

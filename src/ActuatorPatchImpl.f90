@@ -314,8 +314,7 @@ subroutine pinpointActuatorForcing(this,bufferOffsetIndex)
     actualBufferSize = controllerBufferSize
   end if
 
-  assert(this%controlForcingFileOffset >= 0 .and. &
-         this%controlForcingFileOffset <= this%controlForcingFileSize)
+  assert(this%controlForcingFileOffset >= 0 .and. this%controlForcingFileOffset <= this%controlForcingFileSize)
 
   call MPI_File_set_view(mpiFileHandle, this%controlForcingFileOffset, SCALAR_TYPE_MPI,            &
        mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
