@@ -129,6 +129,9 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
 
+  !SeungWhan: in adjoint-run for non-zero control forcing, we don't add forcing on the adjoint rhs.
+  if ( mode == ADJOINT ) return
+
   if ( .not. allocated(this%controlForcing) ) return
 
   call startTiming("updateActuatorPatch")
@@ -284,10 +287,12 @@ subroutine pinpointActuatorForcing(this,bufferOffsetIndex)
   if (this%comm == MPI_COMM_NULL) return
 
   this%bufferOffsetIndex = bufferOffsetIndex
+  controllerBufferSize = int(size(this%controlForcingBuffer, 3),MPI_OFFSET_KIND)
   this%controlForcingFileOffset = int(bufferOffsetIndex, MPI_OFFSET_KIND)                           &
+                                  *controllerBufferSize                                             &
                                   *(SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND))  &
                                     * size(this%controlForcingBuffer, 2))
-  controllerBufferSize = int(size(this%controlForcingBuffer, 3),MPI_OFFSET_KIND)
+
 
   arrayOfSizes(1:3) = this%globalSize
   arrayOfSizes(4) = size(this%controlForcingBuffer, 2)

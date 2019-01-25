@@ -13,7 +13,7 @@ module ActuatorPatch_mod
   type, extends(t_Patch), public :: t_ActuatorPatch
 
      integer :: iGradientBuffer = 0, iControlForcingBuffer = 0,                               &
-                bufferOffsetIndex = 0 !This index start from 0 at the beginning of the file. Used only for checkpointing.
+                bufferOffsetIndex = -1 !This index start from 0 at the beginning of the file. Used only for checkpointing.
      integer(kind = MPI_OFFSET_KIND) :: gradientFileOffset = int(0, MPI_OFFSET_KIND),         &
                                         controlForcingFileOffset = int(0, MPI_OFFSET_KIND),   &
                                         controlForcingFileSize = int(0, MPI_OFFSET_KIND)
