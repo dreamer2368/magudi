@@ -125,7 +125,7 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
 
-  ideal_mean_pressure = 1.0_wp/region%solverOptions%ratioOfSpecificHeats
+  ! ideal_mean_pressure = 1.0_wp/region%solverOptions%ratioOfSpecificHeats
 
   instantaneousFunctional = 0.0_wp
 
@@ -146,8 +146,8 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
      assert(size(this%data_(j)%meanPressure, 2) == 1)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
-!     F = region%states(i)%pressure - this%data_(j)%meanPressure
-     F = region%states(i)%pressure - ideal_mean_pressure
+    F = region%states(i)%pressure - this%data_(j)%meanPressure
+     ! F = region%states(i)%pressure - ideal_mean_pressure
      instantaneousFunctional = instantaneousFunctional +                                     &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
 
@@ -201,7 +201,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   i = grid%index
   call patch%collect(this%data_(i)%meanPressure(:,1), meanPressure)
 
-  ideal_mean_pressure = 1.0_wp/solverOptions%ratioOfSpecificHeats
+  ! ideal_mean_pressure = 1.0_wp/solverOptions%ratioOfSpecificHeats
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -216,8 +216,8 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
 
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
                 (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
-!                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
-                (state%pressure(gridIndex, 1) - ideal_mean_pressure)
+                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
+                ! (state%pressure(gridIndex, 1) - ideal_mean_pressure)
 
            patch%adjointForcing(patchIndex,nDimensions+2) = F
            patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &
