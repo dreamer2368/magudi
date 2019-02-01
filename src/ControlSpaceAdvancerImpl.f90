@@ -6,6 +6,7 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
 
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler
+  use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
   implicit none
 
@@ -30,6 +31,8 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   ! Initialize MPI.
   call MPI_Comm_rank(comm, procRank, ierror)
   call MPI_Comm_size(comm, numProcs, ierror)
+
+  call startTiming("File name and size check")
 
   write(message,'(2A)') "Z filename: ",trim(ZFilename)
   call writeAndFlush(comm, output_unit, message)
@@ -82,6 +85,9 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
     call writeAndFlush(comm, output_unit, message)
   end if
 
+  call endTiming("File name and size check")
+  call startTiming("Buffer setup")
+
   bufferSize = globalSize/numProcs
   allocate(recvcnt(0:numProcs-1))
   allocate(displc(0:numProcs-1))
@@ -105,6 +111,9 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   XBuffer = 0.0_wp
   YBuffer = 0.0_wp
   ZBuffer = 0.0_wp
+
+  call endTiming("Buffer setup")
+  call startTiming("Read files")
 
   call MPI_Barrier(comm, ierror)
 
@@ -132,7 +141,13 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
     call MPI_Barrier(comm, ierror)
   end if
 
+  call endTiming("Read files")
+  call startTiming("Compute z=Ax+y")
+
   ZBuffer = A*XBuffer + YBuffer
+
+  call endTiming("Compute z=Ax+y")
+  call startTiming("Write file")
 
   call MPI_Barrier(comm, ierror)
 
@@ -146,5 +161,7 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   call MPI_File_close(mpiFileHandle, ierror)
 
   call MPI_Barrier(comm, ierror)
+
+  call endTiming("Write file")
 
 end subroutine
