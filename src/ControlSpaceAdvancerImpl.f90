@@ -23,7 +23,10 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   logical :: XFileExists, YFileExists, success
   integer(kind = MPI_OFFSET_KIND) :: XFileSize, YFileSize, ZFileSize, offset
 
-  integer :: globalSize, bufferSize, sendcnt
+  integer :: arrayOfSizes(1), arrayOfSubsizes(1), arrayOfStarts(1),                          &
+             mpiScalarSubarrayType
+
+  integer :: globalSize, localSize_, localSize
   integer, dimension(:), allocatable :: recvcnt, displc
   SCALAR_TYPE, dimension(:), allocatable :: XBuffer, YBuffer, ZBuffer
   SCALAR_TYPE :: dummyValue
@@ -88,11 +91,11 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   call endTiming("File name and size check")
   call startTiming("Buffer setup")
 
-  bufferSize = globalSize/numProcs
+  localSize_ = globalSize/numProcs
   allocate(recvcnt(0:numProcs-1))
   allocate(displc(0:numProcs-1))
-  recvcnt(0:MOD(globalSize,numProcs)-1) = bufferSize+1
-  recvcnt(MOD(globalSize,numProcs):numProcs-1) = bufferSize
+  recvcnt(0:MOD(globalSize,numProcs)-1) = localSize_+1
+  recvcnt(MOD(globalSize,numProcs):numProcs-1) = localSize_
 
   displc = 0
   do i=0,numProcs-1
@@ -101,16 +104,23 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   offset = displc(procRank)*8
 
   if( procRank<MOD(globalSize,numProcs) ) then
-    sendcnt = bufferSize+1
+    localSize = localSize_+1
   else
-    sendcnt = bufferSize
+    localSize = localSize_
   end if
-  allocate(XBuffer(sendcnt))
-  allocate(YBuffer(sendcnt))
-  allocate(ZBuffer(sendcnt))
+  allocate(XBuffer(localSize))
+  allocate(YBuffer(localSize))
+  allocate(ZBuffer(localSize))
   XBuffer = 0.0_wp
   YBuffer = 0.0_wp
   ZBuffer = 0.0_wp
+
+  arrayOfSizes = globalSize
+  arrayOfSubsizes = localSize
+  arrayOfStarts = displc(procRank)
+  call MPI_Type_create_subarray(1,arrayOfSizes,arrayOfSubsizes,arrayOfStarts,                     &
+                                MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
+  call MPI_Type_commit(mpiScalarSubarrayType, ierror)
 
   call endTiming("Buffer setup")
   call startTiming("Read files")
@@ -120,9 +130,11 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   call MPI_File_open(comm, trim(XFilename),                       &
                      MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
                      mpiFileHandle, ierror)
-  call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
-                         'native',MPI_INFO_NULL,ierror)
-  call MPI_File_read_all(mpiFileHandle, XBuffer, sendcnt,                   &
+  call MPI_File_set_view(mpiFileHandle,0,MPI_DOUBLE,mpiScalarSubarrayType,        &
+                        "native",MPI_INFO_NULL,ierror)
+  ! call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
+  !                        'native',MPI_INFO_NULL,ierror)
+  call MPI_File_read_all(mpiFileHandle, XBuffer, localSize,                   &
                          SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
   call MPI_File_close(mpiFileHandle, ierror)
 
@@ -132,9 +144,11 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
     call MPI_File_open(comm, trim(YFilename),                       &
                        MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
                        mpiFileHandle, ierror)
-    call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
-                           'native',MPI_INFO_NULL,ierror)
-    call MPI_File_read_all(mpiFileHandle, YBuffer, sendcnt,                   &
+    call MPI_FILE_SET_VIEW(mpiFileHandle,0,SCALAR_TYPE_MPI,mpiScalarSubarrayType,        &
+                         "native",MPI_INFO_NULL,ierror)
+    ! call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
+    !                        'native',MPI_INFO_NULL,ierror)
+    call MPI_File_read_all(mpiFileHandle, YBuffer, localSize,                   &
                            SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
     call MPI_File_close(mpiFileHandle, ierror)
 
@@ -154,9 +168,11 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   call MPI_File_open(comm, trim(ZFilename),                       &
                      MPI_MODE_WRONLY + MPI_MODE_CREATE, MPI_INFO_NULL,      &
                      mpiFileHandle, ierror)
-  call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
-                         'native',MPI_INFO_NULL,ierror)
-  call MPI_File_write_all(mpiFileHandle, ZBuffer, sendcnt,                   &
+  call MPI_FILE_SET_VIEW(mpiFileHandle,0,SCALAR_TYPE_MPI,mpiScalarSubarrayType,        &
+                          "native",MPI_INFO_NULL,ierror)
+  ! call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
+  !                        'native',MPI_INFO_NULL,ierror)
+  call MPI_File_write_all(mpiFileHandle, ZBuffer, localSize,                   &
                           SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
   call MPI_File_close(mpiFileHandle, ierror)
 
