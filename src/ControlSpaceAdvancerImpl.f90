@@ -81,6 +81,8 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
        call gracefulExit(comm, message)
      end if
   else
+    YFileExists = .false.
+    call MPI_Bcast(YFileExists, 1, MPI_LOGICAL, 0, comm, ierror)
     write(message, '(A)') "Y equals to 0."
     call writeAndFlush(comm, output_unit, message)
   end if
@@ -137,9 +139,8 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
     call MPI_File_read_all(mpiFileHandle, YBuffer, sendcnt,                   &
                            SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
     call MPI_File_close(mpiFileHandle, ierror)
-
-    call MPI_Barrier(comm, ierror)
   end if
+  call MPI_Barrier(comm, ierror)
 
   call endTiming("Read files")
   call startTiming("Compute z=Ax+y")
