@@ -20,7 +20,7 @@ def mergeMeanSolutions(prefix,meanSolutionFileList, **kwargs):
         for i, xyz in enumerate(g.xyz):
             s.q[i] += 1./N*meanSoln.q[i]
 
-    return s.fromprimitive(ratioOfSpecificHeats)
+    return s
  
 def getCenterlineSubarray(gridFile, solutionFile = None, functionFile = None, hasIBLANK = False):
 
@@ -453,7 +453,7 @@ if __name__ == '__main__':
     prefix='MultiblockJet'
     meanSolutionFileList=[]
     for i in range(0,6):
-        istr = str(457000 + i*100000)
-        meanSolutionFileList += ['MultiblockJet-'+istr+'.100000.mean.q']
+        istr = str(i+1)
+        meanSolutionFileList += ['MultiblockJet.mean'+istr+'.q']
     mergeMeanSolutions(prefix,meanSolutionFileList).save('MultiblockJet.mean.q')
 
