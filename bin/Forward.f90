@@ -111,10 +111,10 @@ program forward
   end if
 
   if ( region%simulationFlags%enableFunctional ) then
+    call get_command_argument(1, resultFilename, STATUS)
+    if( STATUS .eq. 0 )                                                                      &
+      resultFilename = trim(outputPrefix) // ".forward_run.txt"
     if (procRank == 0) then
-      call get_command_argument(1, resultFilename, STATUS)
-      if( STATUS .ne. 0 )                                                                      &
-        resultFilename = trim(outputPrefix) // ".forward_run.txt"
       open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
            iostat = stat, status = 'replace')
       write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
