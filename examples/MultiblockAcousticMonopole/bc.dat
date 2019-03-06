@@ -1,0 +1,25 @@
+# Notation:
+# IB = Inner Block
+# E, N, W, S = East, North, West, South, respectively (directions are as seen from looking at an axial cross-section)
+# NE, SE, etc. = North-East, South-East etc.
+
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  farField.N1	       SAT_FAR_FIELD		    1      -2    1	 -1   -1   -1    1   -1
+  farField.N2	       SAT_FAR_FIELD		    2      -2    1	 -1   -1   -1    1   -1
+  farField.S1	       SAT_FAR_FIELD		    1       2    1	 -1    1    1    1   -1
+  farField.S2	       SAT_FAR_FIELD		    2       2    1	 -1    1    1    1   -1
+  farField.E	       SAT_FAR_FIELD		    1       1    1	  1    1   -1    1   -1
+  farField.W	       SAT_FAR_FIELD		    2      -1   -1	 -1    1   -1    1   -1
+  sponge.E             SPONGE                   1       1    1   29    1   -1    1   -1  
+  sponge.W             SPONGE                   2      -1  -29   -1    1   -1    1   -1  
+  sponge.S1            SPONGE                   1       2    1   -1    1   29    1   -1  
+  sponge.S2            SPONGE                   2       2    1   -1    1   29    1   -1  
+  sponge.N1            SPONGE                   1      -2    1   -1  -29   -1    1   -1  
+  sponge.N2            SPONGE                   2      -2    1   -1  -29   -1    1   -1  
+  interface.W1	       SAT_BLOCK_INTERFACE	    1      -1   -1	 -1    1   -1	 1   -1
+  interface.E2	       SAT_BLOCK_INTERFACE	    2       1    1	  1    1   -1	 1   -1
+  controlRegionE       ACTUATOR                 1       0   80  101  116  129    1   -1
+  controlRegionW       ACTUATOR                 2       0    1   22  116  129    1   -1
+  targetRegionE        COST_TARGET              1       0   80  101   94  108    1   -1
+  targetRegionW        COST_TARGET              2       0    1   22   94  108    1   -1
