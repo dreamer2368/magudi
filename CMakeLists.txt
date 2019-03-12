@@ -225,6 +225,7 @@ set(magudi_BUILD_FILES
   ${PROJECT_BINARY_DIR}/modules
   ${PROJECT_BINARY_DIR}/bin
   ${PROJECT_BINARY_DIR}/test
+  ${PROJECT_BINARY_DIR}/test/adjoint_relation
   ${PROJECT_BINARY_DIR}/Testing
   ${PROJECT_BINARY_DIR}/utils
 

@@ -1,6 +1,6 @@
 #include "config.h"
 
-program adjoint_relation
+program SBP_operators
 
   use MPI
 
@@ -87,7 +87,7 @@ program adjoint_relation
   if (.not. success) stop -1
   stop 0
 
-end program adjoint_relation
+end program SBP_operators
 
 subroutine testAdjointRelation(identifier, direction, success, isPeriodic, tolerance)
 
