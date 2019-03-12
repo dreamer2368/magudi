@@ -570,9 +570,6 @@ function runForward(this, region, restartFilename) result(costFunctional)
   SCALAR_TYPE :: instantaneousCostFunctional
   logical :: controllerSwitch = .false.
 
-  ! <<< SeungWhan: message >>>
-  character(len = STRING_LENGTH) :: message
-
   call startTiming("runForward")
 
   costFunctional = 0.0_wp
