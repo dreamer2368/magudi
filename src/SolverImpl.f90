@@ -39,7 +39,7 @@ contains
     character(len = STRING_LENGTH) :: str, str_, filename
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
-!integer :: j                                                    !SeungWhan: for debugging
+    !integer :: j                                                    !SeungWhan: for debugging
 
     assert_key(mode, (FORWARD, ADJOINT))
     assert(startTimestep >= 0)
@@ -64,31 +64,31 @@ contains
                ", CFL = ", cfl, ", time = ", abs(time)
        end if
 
-       if (.not. region%simulationFlags%predictionOnly) then
-
-          select case (mode)
-          case (FORWARD)
+       select case (mode)
+       case (FORWARD)
+          if (region%simulationFlags%enableFunctional) then
              write(str_, '(A,E13.6)') ", cost = ", instantaneousFunctional
-          case (ADJOINT)
-             write(str_, '(A,E13.6)') ", gradient = ", instantaneousFunctional
-          end select
-
+             str = trim(str) // trim(str_)
+          end if
+       case (ADJOINT)
+          write(str_, '(A,E13.6)') ", gradient = ", instantaneousFunctional
           str = trim(str) // trim(str_)
-
-       end if
+       end select
 
        call writeAndFlush(region%comm, output_unit, str)
 
-       if (.not. region%simulationFlags%predictionOnly .and. region%outputOn) then
+       if (region%outputOn) then
 
           select case (mode)
 
           case (FORWARD)
-             call this%functionalFactory%connect(functional)
-             assert(associated(functional))
-             call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
-                  ".cost_functional.txt", timestep, time,                                    &
-                  timestep - startTimestep > this%reportInterval)
+             if (region%simulationFlags%enableFunctional) then
+                call this%functionalFactory%connect(functional)
+                assert(associated(functional))
+                call functional%writeToFile(region%comm, trim(this%outputPrefix) //             &
+                     ".cost_functional.txt", timestep, time,                                    &
+                     timestep - startTimestep > this%reportInterval)
+             end if
 
           case (ADJOINT)
              call this%controllerFactory%connect(controller)
@@ -110,17 +110,17 @@ contains
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
           call region%saveData(QOI_FORWARD_STATE, filename)
        case (ADJOINT)
-!SeungWhan
-!        do j = 1, size(region%states) !... update state
-!           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
-!                region%solverOptions)
-!        end do
+          !SeungWhan
+          !        do j = 1, size(region%states) !... update state
+          !           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
+          !                region%solverOptions)
+          !        end do
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adjoint.q"
           call region%saveData(QOI_ADJOINT_STATE, filename)
-!SeungWhan: save adjoint rhs for debugging========
-!write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adj_rhs.q"
-!call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
-!=========================================
+          !SeungWhan: save adjoint rhs for debugging========
+          !write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adj_rhs.q"
+          !call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
+          !=========================================
        end select
 
     end if
@@ -254,6 +254,8 @@ contains
   end subroutine checkSolutionLimits
 
   subroutine loadInitialCondition(this, region, mode, restartFilename)
+    ! <<< External modules >>>
+    use iso_fortran_env, only : output_unit
 
     ! <<< Derived types >>>
     use Patch_mod, only : t_Patch
@@ -268,6 +270,7 @@ contains
 
     ! <<< Internal modules >>>
     use InputHelper, only : getOption, getRequiredOption
+    use ErrorHandler, only : writeAndFlush
 
     implicit none
 
@@ -279,7 +282,7 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    character(len = STRING_LENGTH) :: filename
+    character(len = STRING_LENGTH) :: filename, message
     integer :: i, j
     real(wp) :: timeStepSize
     class(t_Functional), pointer :: functional => null()
@@ -289,7 +292,8 @@ contains
 
     case (FORWARD) !... initialize conserved variables.
 
-       if (present(restartFilename) .and. region%simulationFlags%predictionOnly) then
+       !SeungWhan: unclear use of predictionOnly. revisit later
+       if (present(restartFilename)) then ! .and. region%simulationFlags%predictionOnly) then
           call region%loadData(QOI_FORWARD_STATE, restartFilename)
        else if (region%simulationFlags%useTargetState) then
           filename = getOption("initial_condition_file", "")
@@ -316,6 +320,7 @@ contains
           end do
        else
           call region%loadData(QOI_ADJOINT_STATE, filename)
+          return                                                !SeungWhan:to continue adjointrun
        end if
 
        if (allocated(region%patchFactories) .and.                                            &
@@ -328,7 +333,7 @@ contains
           ! Connect to the previously allocated functional.
           call this%functionalFactory%connect(functional)
           assert(associated(functional))
-          call functional%updateAdjointForcing(region)
+          call functional%updateAdjointForcing(region,.false.) !...SeungWhan:obviously not final step
 
           do i = 1, size(region%states)
              region%states(i)%rightHandSide = 0.0_wp
@@ -430,7 +435,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      end if
   end if
 
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
 
      ! Initialize control mollifier.
      filename = getOption("control_mollifier_file", "")
@@ -441,6 +446,10 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      else
         call region%loadData(QOI_CONTROL_MOLLIFIER, filename)
      end if
+
+  end if
+
+  if (region%simulationFlags%enableFunctional) then
 
      ! Target mollifier.
      filename = getOption("target_mollifier_file", "")
@@ -473,12 +482,16 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
           region%solverOptions, region%grids(i), region%states(i))
   end do
 
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
 
      call this%controllerFactory%connect(controller,                                         &
           trim(region%solverOptions%controllerType))
      assert(associated(controller))
      call controller%setup(region)
+
+  end if
+
+  if (region%simulationFlags%enableFunctional) then
 
      call this%functionalFactory%connect(functional,                                         &
           trim(region%solverOptions%costFunctionalType))
@@ -505,7 +518,10 @@ subroutine cleanupSolver(this)
 
 end subroutine cleanupSolver
 
-function runForward(this, region, actuationAmount, restartFilename) result(costFunctional)
+function runForward(this, region, restartFilename) result(costFunctional)
+
+  ! <<< External modules >>>
+  use iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -525,6 +541,8 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
+  use ErrorHandler, only : writeAndFlush
+  use InputHelper, only : getOption, getRequiredOption
 
   ! <<< SeungWhan: debug >>>
   use InputHelper, only : getOption
@@ -536,7 +554,6 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
   ! <<< Arguments >>>
   class(t_Solver) :: this
   class(t_Region) :: region
-  real(SCALAR_KIND), intent(in), optional :: actuationAmount
   character(len = *), intent(in), optional :: restartFilename
 
   ! <<< Result >>>
@@ -544,13 +561,14 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: filename
+  character(len = STRING_LENGTH) :: filename, message
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
+  logical :: controllerSwitch = .false.
 
   ! <<< SeungWhan: message >>>
   character(len = STRING_LENGTH) :: message
@@ -559,22 +577,18 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
 
   costFunctional = 0.0_wp
 
-  region%states(:)%actuationAmount = 0.0_wp
-  if (present(actuationAmount) .and. .not. region%simulationFlags%predictionOnly)            &
-       region%states(:)%actuationAmount = actuationAmount
-
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)
   assert(associated(timeIntegrator))
 
   ! Connect to the previously allocated controller.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
      call this%controllerFactory%connect(controller)
      assert(associated(controller))
   end if
 
   ! Connect to the previously allocated functional.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableFunctional) then
      call this%functionalFactory%connect(functional)
      assert(associated(functional))
      functional%runningTimeQuadrature = 0.0_wp
@@ -600,35 +614,18 @@ function runForward(this, region, actuationAmount, restartFilename) result(costF
      call region%saveData(QOI_FORWARD_STATE, filename)
   end if
 
-  ! Call controller hooks before time marching starts. 
-  !SeungWhan: set duration, onsetTime by option.
-  if (.not. region%simulationFlags%predictionOnly) then
-!        .and.                                      &
-!       abs(region%states(1)%actuationAmount) > 0.0_wp) then
-     controller%onsetTime = getOption("controller/onset_time",startTime)
-     controller%duration = getOption("controller/duration",                                  &
-                                     this%nTimesteps * region%solverOptions%timeStepSize)
-
-!     controller%onsetTime = startTime
-!     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-     call controller%hookBeforeTimemarch(region, FORWARD)
-
-     !SeungWhan: add duration, onsetTime for cost functional.
-     functional%onsetTime = getOption("functional/onset_time",startTime)
-     functional%duration = getOption("functional/duration",                                  &
-                                     this%nTimesteps * region%solverOptions%timeStepSize)
-!SeungWhan
-write(message,*) 'controller/onset_time: ',controller%onsetTime
-call writeAndFlush(region%comm, output_unit, message)
-write(message,*) 'controller/duration: ',controller%duration
-call writeAndFlush(region%comm, output_unit, message)
-!=========
-!SeungWhan
-write(message,*) 'functional/onset_time: ',functional%onsetTime
-call writeAndFlush(region%comm, output_unit, message)
-write(message,*) 'functional/duration: ',functional%duration
-call writeAndFlush(region%comm, output_unit, message)
-!=========
+  ! Call controller hooks before time marching starts. SeungWhan: changed
+  ! duration, onsetTime.
+  if (region%simulationFlags%enableController) then
+    controllerSwitch = controller%controllerSwitch
+    write(message,'(A,L4,A,F16.8,A,F16.8)') 'Control Forcing Flag: ',                          &
+                                            controller%controllerSwitch
+    call writeAndFlush(region%comm, output_unit, message)
+    if (controller%controllerSwitch) then
+       controller%onsetTime = startTime
+       controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+       call controller%hookBeforeTimemarch(region, FORWARD)
+    end if
   end if
 
   ! Reset probes.
@@ -653,9 +650,11 @@ call writeAndFlush(region%comm, output_unit, message)
              call checkSolutionLimits(region, FORWARD, this%outputPrefix)
 
         ! Update control forcing.
-        if (.not. region%simulationFlags%predictionOnly .and.                                &
-             abs(region%states(1)%actuationAmount) > 0.0_wp)                                 &
-             call controller%updateForcing(region)
+        !SeungWhan: flush out previous control forcing
+        if (controllerSwitch) then
+          call controller%cleanupForcing(region)
+          call controller%updateForcing(region)
+        end if
 
         ! Take a single sub-step using the time integrator.
         call timeIntegrator%substepForward(region, time, timeStepSize, timestep, i)
@@ -666,7 +665,7 @@ call writeAndFlush(region%comm, output_unit, message)
         end do
 
         ! Update the cost functional.
-        if (.not. region%simulationFlags%predictionOnly) then
+        if (region%simulationFlags%enableFunctional) then
            instantaneousCostFunctional = functional%compute(region)
            functional%runningTimeQuadrature = functional%runningTimeQuadrature +             &
                 timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
@@ -707,9 +706,7 @@ call writeAndFlush(region%comm, output_unit, message)
   if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   ! Call controller hooks after time marching ends.
-  if (.not. region%simulationFlags%predictionOnly .and.                                      &
-       abs(region%states(1)%actuationAmount) > 0.0_wp)                                       &
-       call controller%hookAfterTimemarch(region, FORWARD)
+  if (controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
 
   call this%residualManager%cleanup()
 
@@ -720,14 +717,21 @@ call writeAndFlush(region%comm, output_unit, message)
      call region%saveData(QOI_TIME_AVERAGED_STATE, trim(this%outputPrefix) // ".mean.q")
   end if
 
-  if (.not. region%simulationFlags%predictionOnly)                                           &
+  if (region%simulationFlags%enableFunctional) then
        costFunctional = functional%runningTimeQuadrature
+       write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Forward run: cost functional = ', &
+                                                               costFunctional
+       call writeAndFlush(region%comm, output_unit, message)
+  end if
 
   call endTiming("runForward")
 
 end function runForward
 
 function runAdjoint(this, region) result(costSensitivity)
+
+  ! <<< External modules >>>
+  use iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -749,6 +753,8 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
+  use ErrorHandler, only : writeAndFlush
+  use InputHelper, only : getOption, getRequiredOption
 
   ! <<< SeungWhan: debug >>>
   use InputHelper, only : getOption
@@ -766,7 +772,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: filename
+  character(len = STRING_LENGTH) :: filename, message
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
@@ -774,12 +780,12 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
+  logical :: IS_FINAL_STEP
   SCALAR_TYPE :: instantaneousCostSensitivity
 
-  ! <<< SeungWhan: message >>>
-  character(len = STRING_LENGTH) :: message
-
-  assert(.not. region%simulationFlags%predictionOnly)
+  assert(region%simulationFlags%enableController)
+  assert(region%simulationFlags%enableFunctional)
+  assert(region%simulationFlags%enableAdjoint)
 
   call startTiming("runAdjoint")
 
@@ -803,26 +809,10 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! Load the initial condition.
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
-  controller%onsetTime = getOption("controller/onset_time",region%states(1)%time)
-  controller%duration = getOption("controller/duration",                                  &
-                                     this%nTimesteps * region%solverOptions%timeStepSize)
-
-  !SeungWhan: add duration, onsetTime for cost functional.
-  functional%onsetTime = getOption("functional/onset_time",region%states(1)%time)
-  functional%duration = getOption("functional/duration",                                  &
-                                     this%nTimesteps * region%solverOptions%timeStepSize)
-!SeungWhan
-write(message,*) 'controller/onset_time: ',controller%onsetTime
-call writeAndFlush(region%comm, output_unit, message)
-write(message,*) 'controller/duration: ',controller%duration
-call writeAndFlush(region%comm, output_unit, message)
-!=========
-!SeungWhan
-write(message,*) 'functional/onset_time: ',functional%onsetTime
-call writeAndFlush(region%comm, output_unit, message)
-write(message,*) 'functional/duration: ',functional%duration
-call writeAndFlush(region%comm, output_unit, message)
-!=========
+  controller%onsetTime = region%states(1)%time
+  controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+  ! controller%onsetTime = region%states(1)%time + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
+  ! controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
   if (region%simulationFlags%steadyStateSimulation) then
@@ -863,6 +853,12 @@ call writeAndFlush(region%comm, output_unit, message)
 
   ! Call controller hooks before time marching starts.
   call controller%hookBeforeTimemarch(region, ADJOINT)
+  !!!SeungWhan: need additional execution with FORWARD, in case of non-zero control forcing.
+  if (controller%controllerSwitch) then
+    controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+    controller%onsetTime = startTime - controller%duration
+    call controller%hookBeforeTimemarch(region, FORWARD)
+  end if
 
   ! Reset probes.
   if (this%probeInterval > 0) call region%resetProbes()
@@ -880,10 +876,11 @@ call writeAndFlush(region%comm, output_unit, message)
         ! Load adjoint coefficients.
         if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
            if (i == 1) then
-              call reverseMigrator%migrateTo(region, timeIntegrator,                         &
+              call reverseMigrator%migrateTo(region, controller, timeIntegrator,             &
                    timestep, timeIntegrator%nStages)
            else
-              call reverseMigrator%migrateTo(region, timeIntegrator, timestep + 1, i - 1)
+              call reverseMigrator%migrateTo(region, controller, timeIntegrator,             &
+                   timestep + 1, i - 1)
            end if
         end if
 
@@ -896,7 +893,14 @@ call writeAndFlush(region%comm, output_unit, message)
              timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
 
         ! Update adjoint forcing on cost target patches.
-        call functional%updateAdjointForcing(region)
+        ! SeungWhan: Bug fix for final step
+        if( (timestep.eq.startTimestep+sign(this%nTimesteps,timemarchDirection)) .and.       &
+            (i.eq.1) ) then
+            IS_FINAL_STEP = .true.
+        else
+            IS_FINAL_STEP = .false.
+        end if
+        call functional%updateAdjointForcing(region,IS_FINAL_STEP)
 
         ! Take a single adjoint sub-step using the time integrator.
         call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep, i)
@@ -931,6 +935,7 @@ call writeAndFlush(region%comm, output_unit, message)
   if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
 
   ! Call controller hooks after time marching ends.
+  if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
   call controller%hookAfterTimemarch(region, ADJOINT)
 
   call this%residualManager%cleanup()
@@ -938,23 +943,31 @@ call writeAndFlush(region%comm, output_unit, message)
 
   costSensitivity = controller%runningTimeQuadrature
 
+  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Adjoint run: cost sensitivity = ', &
+                                                          costSensitivity
+  call writeAndFlush(region%comm, output_unit, message)
+
   call endTiming("runAdjoint")
 
 end function runAdjoint
 
+! checkGradientAccuracy is obsolete!!
 subroutine checkGradientAccuracy(this, region)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
+  use ActuatorPatch_mod, only : t_ActuatorPatch
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE
 
   ! <<< Internal modules >>>
+  use ControlSpaceAdvancer, only : ZAXPY
   use InputHelper, only : getFreeUnit, getOption, getRequiredOption
   use ErrorHandler, only : gracefulExit
 
@@ -967,111 +980,139 @@ subroutine checkGradientAccuracy(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
+  integer :: numberOfActuatorPatches
+  class(t_Patch), pointer :: patch => null()
   character(len = STRING_LENGTH) :: filename, message
+  character(len = STRING_LENGTH) :: gradientFilename, controlForcingFilename
   real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
        initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
 
-  call getRequiredOption("number_of_control_iterations", nIterations)
-  if (nIterations < 0) then
-     write(message, '(A)') "Number of control iterations must be a non-negative number!"
-     call gracefulExit(region%comm, message)
-  end if
+  write(message, '(A)') "Subroutine checkGradientAccuracy is obsolete. Use utils/python/checkGradientAccuracy.py."
+  call gracefulExit(region%comm, message)
 
-  restartIteration = getOption("restart_control_iteration", 0)
-  restartIteration = max(restartIteration, 0)
-
-  if (restartIteration > 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
-     write(message, '(A)') "Can't restart with controlled prediction without baseline!"
-     call gracefulExit(region%comm, message)
-  end if
-
-  call MPI_Comm_rank(region%comm, procRank, ierror)
-
-  write(filename, '(2A)') trim(this%outputPrefix), ".gradient_error.txt"
-  if (procRank == 0) then
-     if (restartIteration == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
-        open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'write',          &
-             status = 'unknown', iostat = iostat)
-     else
-        open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'readwrite',      &
-             status = 'old', position = 'rewind', iostat = iostat)
-     end if
-  end if
-
-  call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-  if (iostat /= 0) then
-     write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
-     call gracefulExit(region%comm, message)
-  end if
-
-  if (nIterations > 0) then
-     call getRequiredOption("initial_actuation_amount", initialActuationAmount)
-     if (nIterations > 1) then
-        call getRequiredOption("actuation_amount_geometric_growth", geometricGrowthFactor)
-     else
-        geometricGrowthFactor = getOption("actuation_amount_geometric_growth", 1.0_wp)
-     end if
-  end if
-
-  ! Find (or load from file) the cost functional for the baseline prediction.
-  if (region%simulationFlags%isBaselineAvailable) then
-     if (procRank == 0)                                                                      &
-          read(fileUnit, *, iostat = iostat) i, actuationAmount,                             &
-          baselineCostFunctional, costSensitivity, gradientError
-     call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-     if (iostat /= 0) then
-        write(message, "(2A)") trim(filename),                                               &
-             ": Failed to read baseline cost functional from file!"
-        call gracefulExit(region%comm, message)
-     end if
-     call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
-  else
-     baselineCostFunctional = this%runForward(region)
-  end if
-
-  ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
-  if (restartIteration == 0) then
-     costSensitivity = this%runAdjoint(region)
-  else
-     call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
-  end if
-
-  if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable)                  &
-       write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                   &
-       baselineCostFunctional, costSensitivity, 0.0_wp
-
-  if (nIterations == 0) return
-
-  ! Turn off output for controlled predictions.
-  region%outputOn = .false.
-
-  if (restartIteration == 0) restartIteration = restartIteration + 1
-
-  do i = 1, restartIteration - 1
-     if (procRank == 0)                                                                      &
-          read(fileUnit, *, iostat = iostat) j, actuationAmount, costFunctional,             &
-          dummyValue, gradientError
-     call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
-     if (iostat /= 0) then
-        write(message, "(2A)") trim(filename),                                               &
-             ": Cost functional history is too short for the specified restart iteration!"
-        call gracefulExit(region%comm, message)
-     end if
-  end do
-
-  do i = restartIteration, restartIteration + nIterations - 1
-     actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
-     costFunctional = this%runForward(region, actuationAmount = actuationAmount)
-     gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
-          costSensitivity
-     if (procRank == 0) then
-        write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,         &
-             costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,   &
-             gradientError
-        flush(fileUnit)
-     end if
-  end do
-
-  if (procRank == 0) close(fileUnit)
+  ! call getRequiredOption("number_of_control_iterations", nIterations)
+  ! if (nIterations < 0) then
+  !    write(message, '(A)') "Number of control iterations must be a non-negative number!"
+  !    call gracefulExit(region%comm, message)
+  ! end if
+  !
+  ! restartIteration = getOption("restart_control_iteration", 0)
+  ! restartIteration = max(restartIteration, 0)
+  !
+  ! if (restartIteration > 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+  !    write(message, '(A)') "Can't restart with controlled prediction without baseline!"
+  !    call gracefulExit(region%comm, message)
+  ! end if
+  !
+  ! call MPI_Comm_rank(region%comm, procRank, ierror)
+  !
+  ! !SeungWhan: add option for gradient_error_filename
+  ! filename = getOption("gradient_error_file", "")
+  ! if (len_trim(filename) == 0) then
+  !    write(filename, '(2A)') trim(this%outputPrefix), ".gradient_error.txt"
+  ! end if
+  !
+  ! if (procRank == 0) then
+  !    if (restartIteration == 0 .and. .not. region%simulationFlags%isBaselineAvailable) then
+  !       open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'write',          &
+  !            status = 'unknown', iostat = iostat)
+  !    else
+  !       open(unit = getFreeUnit(fileUnit), file = trim(filename), action = 'readwrite',      &
+  !            status = 'old', position = 'append', iostat = iostat)
+  !    end if
+  ! end if
+  !
+  ! call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+  ! if (iostat /= 0) then
+  !    write(message, "(2A)") trim(filename), ": Failed to open file for writing!"
+  !    call gracefulExit(region%comm, message)
+  ! end if
+  !
+  ! if (nIterations > 0) then
+  !    call getRequiredOption("initial_actuation_amount", initialActuationAmount)
+  !    if (nIterations > 1) then
+  !       call getRequiredOption("actuation_amount_geometric_growth", geometricGrowthFactor)
+  !    else
+  !       geometricGrowthFactor = getOption("actuation_amount_geometric_growth", 1.0_wp)
+  !    end if
+  ! end if
+  !
+  ! ! Find (or load from file) the cost functional for the baseline prediction.
+  ! if (region%simulationFlags%isBaselineAvailable) then
+  !    if (procRank == 0)                                                                      &
+  !         read(fileUnit, *, iostat = iostat) i, actuationAmount,                             &
+  !         baselineCostFunctional, costSensitivity, gradientError
+  !    call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+  !    if (iostat /= 0) then
+  !       write(message, "(2A)") trim(filename),                                               &
+  !            ": Failed to read baseline cost functional from file!"
+  !       call gracefulExit(region%comm, message)
+  !    end if
+  !    call MPI_Bcast(baselineCostFunctional, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+  ! else
+  !    baselineCostFunctional = this%runForward(region)
+  ! end if
+  !
+  ! ! Find the sensitivity gradient (this is the only time the adjoint simulation will be run).
+  ! if (restartIteration == 0) then
+  !    costSensitivity = this%runAdjoint(region)
+  ! else
+  !    call MPI_Bcast(costSensitivity, 1, REAL_TYPE_MPI, 0, region%comm, ierror)
+  ! end if
+  !
+  ! if (procRank == 0 .and. .not. region%simulationFlags%isBaselineAvailable)                  &
+  !      write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') 0, 0.0_wp,                   &
+  !      baselineCostFunctional, costSensitivity, 0.0_wp
+  !
+  ! if (nIterations == 0) return
+  !
+  ! ! Find filenames for gradient and control forcing
+  ! numberOfActuatorPatches = 0
+  ! do i = 1, size(region%patchFactories)
+  !   call region%patchFactories(i)%connect(patch)
+  !   print *, procRank, i, trim(region%patchData(i)%patchType)
+  !   if (.not. associated(patch)) cycle
+  !   select type (patch)
+  !   class is (t_ActuatorPatch)
+  !     if (patch%comm == MPI_COMM_NULL) cycle
+  !
+  !     numberOfActuatorPatches = numberOfActuatorPatches + 1
+  !     gradientFilename = trim(patch%gradientFilename)
+  !     controlForcingFilename = trim(patch%controlForcingFilename)
+  !   end select
+  ! end do
+  !
+  ! ! Turn off output for controlled predictions.
+  ! region%outputOn = .false.
+  !
+  ! if (restartIteration == 0) restartIteration = restartIteration + 1
+  !
+  ! do i = 1, restartIteration - 1
+  !    if (procRank == 0)                                                                      &
+  !         read(fileUnit, *, iostat = iostat) j, actuationAmount, costFunctional,             &
+  !         dummyValue, gradientError
+  !    call MPI_Bcast(iostat, 1, MPI_INTEGER, 0, region%comm, ierror)
+  !    if (iostat /= 0) then
+  !       write(message, "(2A)") trim(filename),                                               &
+  !            ": Cost functional history is too short for the specified restart iteration!"
+  !       call gracefulExit(region%comm, message)
+  !    end if
+  ! end do
+  !
+  ! do i = restartIteration, restartIteration + nIterations - 1
+  !    actuationAmount = initialActuationAmount * geometricGrowthFactor ** real(i - 1, wp)
+  !    call ZAXPY(region%comm,trim(controlForcingFilename),-actuationAmount,trim(gradientFilename))
+  !    costFunctional = this%runForward(region, actuationAmount = actuationAmount)
+  !    gradientError = (costFunctional - baselineCostFunctional) / actuationAmount +           &
+  !         costSensitivity
+  !    if (procRank == 0) then
+  !       write(fileUnit, '(I4,4(1X,SP,' // SCALAR_FORMAT // '))') i, actuationAmount,         &
+  !            costFunctional, -(costFunctional - baselineCostFunctional) / actuationAmount,   &
+  !            gradientError
+  !       flush(fileUnit)
+  !    end if
+  ! end do
+  !
+  ! if (procRank == 0) close(fileUnit)
 
 end subroutine checkGradientAccuracy

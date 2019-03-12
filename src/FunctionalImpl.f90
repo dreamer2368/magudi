@@ -34,7 +34,7 @@ subroutine cleanupFunctional(this)
 
 end subroutine cleanupFunctional
 
-subroutine updateAdjointForcing(this, region)
+subroutine updateAdjointForcing(this, region, is_final_step)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -47,8 +47,10 @@ subroutine updateAdjointForcing(this, region)
   ! <<< Arguments >>>
   class(t_Functional) :: this
   class(t_Region) :: region
+  logical :: is_final_step
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions
   class(t_Patch), pointer :: patch => null()
   class(t_CostTargetPatch), pointer :: costTargetPatch => null()
@@ -75,8 +77,12 @@ subroutine updateAdjointForcing(this, region)
         if (costTargetPatch%gridIndex /= region%grids(i)%index .or.                          &
              costTargetPatch%nPatchPoints <= 0) cycle
 
-        call this%computeAdjointForcing(region%simulationFlags, region%solverOptions,        &
-             region%grids(i), region%states(i), costTargetPatch)
+        if ( .not. is_final_step ) then
+            call this%computeAdjointForcing(region%simulationFlags, region%solverOptions,    &
+                 region%grids(i), region%states(i), costTargetPatch)
+        else
+            costTargetPatch%adjointForcing = 0.0_wp
+        end if
 
      end do !... j = 1, size(region%patchFactories)
 

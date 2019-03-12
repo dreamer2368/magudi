@@ -19,19 +19,20 @@ subroutine setupMomentumActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, nActuatorComponents, gradientBufferSize
+  integer :: i, nDimensions, nActuatorComponents
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()
 
-  if (region%simulationFlags%predictionOnly) return
+  if (.not. region%simulationFlags%enableController) return
 
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
-  gradientBufferSize = getOption("gradient_buffer_size", 1)
+  this%controllerBufferSize = getOption("controller_buffer_size", 1)
+  this%controllerSwitch = getOption("controller_switch", .false.)
 
   this%direction = getOption("actuator_momentum_component", 0)
 
@@ -46,10 +47,16 @@ subroutine setupMomentumActuator(this, region)
            class is (t_ActuatorPatch)
            if (patch%nPatchPoints <= 0) cycle
 
-           SAFE_DEALLOCATE(patch%gradientBuffer)
-           allocate(patch%gradientBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
-                gradientBufferSize))
-           patch%gradientBuffer = 0.0_wp
+           if (region%simulationFlags%enableAdjoint) then
+             SAFE_DEALLOCATE(patch%gradientBuffer)
+             allocate(patch%gradientBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
+                  this%controllerBufferSize))
+             patch%gradientBuffer = 0.0_wp
+           end if
+           SAFE_DEALLOCATE(patch%controlForcingBuffer)
+           allocate(patch%controlForcingBuffer(patch%nPatchPoints, this%nActuatorComponents,       &
+                this%controllerBufferSize))
+           patch%controlForcingBuffer = 0.0_wp
 
         end select
      end do
@@ -183,32 +190,92 @@ subroutine updateMomentumActuatorForcing(this, region)
         select type (patch)
         class is (t_ActuatorPatch)
 
-           patch%iGradientBuffer = patch%iGradientBuffer - 1
+           patch%iControlForcingBuffer = patch%iControlForcingBuffer - 1
 
-           assert(patch%iGradientBuffer >= 1)
-           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+           assert(patch%iControlForcingBuffer >= 1)
+           assert(patch%iControlForcingBuffer <= size(patch%controlForcingBuffer, 3))
 
-           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
-                call patch%loadGradient()
+           if (patch%iControlForcingBuffer == size(patch%controlForcingBuffer, 3))                       &
+                call patch%loadForcing()
 
            patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
            if (this%direction == 0) then
-              patch%controlForcing(:,2:nDimensions+1) = - region%states(j)%actuationAmount * &
-                   patch%gradientBuffer(:,:,patch%iGradientBuffer)
+             patch%controlForcing(:,2:nDimensions+1) =                                      &
+                 patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
            else
-              patch%controlForcing(:,this%direction+1) =                                     &
-                   - region%states(j)%actuationAmount *                                      &
-                   patch%gradientBuffer(:,1,patch%iGradientBuffer)
+             patch%controlForcing(:,this%direction+1) =                                     &
+                  patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
            end if
 
-           if (patch%iGradientBuffer == 1)                                                   &
-                patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+           if (patch%iControlForcingBuffer == 1)                                                   &
+                patch%iControlForcingBuffer = size(patch%controlForcingBuffer, 3) + 1
 
         end select
      end do
   end do
 
 end subroutine updateMomentumActuatorForcing
+
+subroutine migrateToMomentumActuatorForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use MomentumActuator_mod, only : t_MomentumActuator
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_MomentumActuator) :: this
+  class(t_Region), intent(in) :: region
+  integer, intent(in) :: startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions
+  integer :: bufferIndex, bufferOffsetIndex, iControlForcingBuffer
+  class(t_Patch), pointer :: patch => null()
+
+  if (.not. allocated(region%patchFactories)) return
+
+  bufferIndex = (endTimeStep - iTimeStep)*nStages + (nStages-jSubStep)
+  bufferOffsetIndex = bufferIndex/this%controllerBufferSize
+  iControlForcingBuffer = MODULO( bufferIndex,this%controllerBufferSize ) + 1
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(j)%index) cycle
+        select type (patch)
+        class is (t_ActuatorPatch)
+
+          patch%iControlForcingBuffer = iControlForcingBuffer
+
+           assert(patch%iControlForcingBuffer >= 1)
+           assert(patch%iControlForcingBuffer <= size(patch%controlForcingBuffer, 3))
+
+           if (patch%bufferOffsetIndex .ne. bufferOffsetIndex)                               &
+                call patch%pinpointForcing(bufferOffsetIndex)
+
+           patch%controlForcing(:,1:nDimensions+2) = 0.0_wp
+           if (this%direction == 0) then
+             patch%controlForcing(:,2:nDimensions+1) =                                      &
+                 patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
+           else
+             patch%controlForcing(:,this%direction+1) =                                     &
+                  patch%controlForcingBuffer(:,1,patch%iControlForcingBuffer)
+           end if
+
+        end select
+     end do
+  end do
+
+end subroutine migrateToMomentumActuatorForcing
 
 subroutine updateMomentumActuatorGradient(this, region)
 
@@ -359,17 +426,17 @@ subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode)
         select case (mode)
 
         case (FORWARD)
-           if (procRank == 0) inquire(file = trim(patch%gradientFilename), exist = fileExists)
+           if (procRank == 0) inquire(file = trim(patch%controlForcingFilename), exist = fileExists)
            call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
            if (.not. fileExists) then
-              write(message, '(3A,I0.0,A)') "No gradient information available for patch '", &
+              write(message, '(3A,I0.0,A)') "No control forcing information available for patch '", &
                    trim(patch%name), "' on grid ", patch%gridIndex, "!"
               call gracefulExit(patch%comm, message)
            end if
-           patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
-           call MPI_File_open(patch%comm, trim(patch%gradientFilename) // char(0),           &
+           patch%iControlForcingBuffer = size(patch%controlForcingBuffer, 3) + 1
+           call MPI_File_open(patch%comm, trim(patch%controlForcingFilename) // char(0),           &
                 MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
-           call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
+           call MPI_File_get_size(mpiFileHandle, patch%controlForcingFileOffset, ierror)
            call MPI_File_close(mpiFileHandle, ierror)
 
         case (ADJOINT)

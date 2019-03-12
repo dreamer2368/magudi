@@ -147,7 +147,7 @@ module Functional_mod
 
   interface
 
-     subroutine updateAdjointForcing(this, region)
+     subroutine updateAdjointForcing(this, region, is_final_step)
 
        use Region_mod, only : t_Region
 
@@ -155,6 +155,7 @@ module Functional_mod
 
        class(t_Functional) :: this
        class(t_Region) :: region
+       logical :: is_final_step
 
      end subroutine updateAdjointForcing
 

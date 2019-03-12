@@ -49,12 +49,11 @@ subroutine setupAcousticNoise(this, region)
 
   if (.not. region%simulationFlags%useTargetState) then
      call getRequiredOption("mean_pressure_file", filename, region%comm)
-!SeungWhan: skip reading mean_pressure_file
-!     call region%loadData(QOI_DUMMY_FUNCTION, filename)
+     call region%loadData(QOI_DUMMY_FUNCTION, filename)
   else
      filename = getOption("mean_pressure_file", "")
      if (len_trim(filename) > 0) then
-!        call region%loadData(QOI_DUMMY_FUNCTION, filename)
+        call region%loadData(QOI_DUMMY_FUNCTION, filename)
      else
         do i = 1, size(region%states)
            assert(allocated(region%states(i)%targetState))
@@ -117,7 +116,7 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
-  real(wp), parameter :: ratio_of_specific_heat = 1.4_wp
+  SCALAR_TYPE :: ideal_mean_pressure                            !SeungWhan: constant mean pressure
 
   ! <<< SeungWhan: message, timeRampFactor >>
   character(len=STRING_LENGTH) :: message
@@ -126,6 +125,8 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
+
+  ! ideal_mean_pressure = 1.0_wp/region%solverOptions%ratioOfSpecificHeats
 
   instantaneousFunctional = 0.0_wp
 
@@ -146,13 +147,13 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
      j = region%grids(i)%index
 
-!     assert(associated(this%data_(j)%meanPressure))
-!     assert(size(this%data_(j)%meanPressure, 1) == region%grids(i)%nGridPoints)
-!     assert(size(this%data_(j)%meanPressure, 2) == 1)
+     assert(associated(this%data_(j)%meanPressure))
+     assert(size(this%data_(j)%meanPressure, 1) == region%grids(i)%nGridPoints)
+     assert(size(this%data_(j)%meanPressure, 2) == 1)
 
      allocate(F(region%grids(i)%nGridPoints, 1))
-!     F = region%states(i)%pressure - this%data_(j)%meanPressure
-     F = region%states(i)%pressure - 1.0_wp/ratio_of_specific_heat
+    F = region%states(i)%pressure - this%data_(j)%meanPressure
+     ! F = region%states(i)%pressure - ideal_mean_pressure
      instantaneousFunctional = instantaneousFunctional +                                     &
 !          timeRampFactor *                                                                   &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
@@ -197,8 +198,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: meanPressure(:)
-  SCALAR_TYPE :: F
-  real(wp), parameter :: ratio_of_specific_heat = 1.4_wp
+  SCALAR_TYPE :: F, ideal_mean_pressure                         !SeungWhan: constant mean pressure
 
   ! <<< SeungWhan: message, timeRampFactor >>
   real(wp) :: timeRampFactor
@@ -210,10 +210,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   i = grid%index
   call patch%collect(this%data_(i)%meanPressure(:,1), meanPressure)
 
-  ! SeungWhan: compute timeRampFactor
-  timeRampFactor = 0.0_wp
-  if (state%time>=this%onsetTime .and.                                            &
-      state%time<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
+  ! ideal_mean_pressure = 1.0_wp/solverOptions%ratioOfSpecificHeats
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -228,10 +225,8 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
 
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
                 (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
-!                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
-                (state%pressure(gridIndex, 1) - 1.0_wp/ratio_of_specific_heat) *             &
-                 1.0_wp
-!                timeRampFactor
+                (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
+                ! (state%pressure(gridIndex, 1) - ideal_mean_pressure)
 
            patch%adjointForcing(patchIndex,nDimensions+2) = F
            patch%adjointForcing(patchIndex,2:nDimensions+1) =                                &

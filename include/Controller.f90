@@ -10,6 +10,8 @@ module Controller_mod
           runningTimeQuadrature = real(0.0, SCALAR_KIND)
      real(SCALAR_KIND) :: onsetTime = real(0.0, SCALAR_KIND),                                &
           duration = real(0.0, SCALAR_KIND)
+     integer :: controllerBufferSize = 0
+     logical :: controllerSwitch = .false.
 
    contains
 
@@ -20,7 +22,9 @@ module Controller_mod
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
      procedure(computeSensitivity), pass, deferred :: computeSensitivity
+     procedure, non_overridable, pass :: cleanupForcing => cleanUpControlForcing
      procedure(updateForcing), pass, deferred :: updateForcing
+     procedure(migrateToForcing), pass, deferred :: migrateToForcing
      procedure(updateGradient), pass, deferred :: updateGradient
      procedure(isPatchValid), pass, deferred :: isPatchValid
      procedure(hookBeforeTimemarch), pass, deferred :: hookBeforeTimemarch
@@ -84,6 +88,22 @@ module Controller_mod
        class(t_Region), intent(in) :: region
 
      end subroutine updateForcing
+
+  end interface
+
+  abstract interface
+
+     subroutine migrateToForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
+
+       use Region_mod, only : t_Region
+
+       import :: t_Controller
+
+       class(t_Controller) :: this
+       class(t_Region), intent(in) :: region
+       integer, intent(in) :: startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep
+
+     end subroutine migrateToForcing
 
   end interface
 
@@ -199,6 +219,26 @@ module Controller_mod
        logical, intent(in), optional :: append
 
      end subroutine writeSensitivityToFile
+
+  end interface
+
+  interface
+     !SeungWhan: clean up control forcing (not controller!)
+     subroutine cleanUpControlForcing(this,region)
+
+       ! <<< Derived types >>>
+       use Patch_mod, only : t_Patch
+       use Region_mod, only : t_Region
+       use ActuatorPatch_mod, only : t_ActuatorPatch
+
+       import :: t_Controller
+
+       implicit none
+
+       class(t_Controller) :: this
+       class(t_Region) :: region
+
+     end subroutine
 
   end interface
 

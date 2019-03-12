@@ -19,12 +19,19 @@ use_target_state = true
 compute_time_average = false
 use_manual_domain_decomposition = true
 
-# Adjoint optimization flags                                                                                                                                                                   
-disable_adjoint_solver = true
-baseline_prediction_available = false
+# Controller flags
+enable_controller = false
+controller_switch = false
+
+# Functional flags
+enable_functional = false
 cost_functional_type = "SOUND"
+
+# Adjoint optimization flags
+enable_adjoint_solver = false
+baseline_prediction_available = false
 use_continuous_adjoint = false
-gradient_buffer_size = 100
+controller_buffer_size = 100
 
 # Gradient accuracy options
 check_gradient_accuracy = true
@@ -84,7 +91,7 @@ defaults/jet_excitation/amplitude = 0.005
 # Penalty parameters
 defaults/viscous_penalty_amount = 0.
 
-# Vorticity dilatation options                                                                                                                                                                                       
+# Vorticity dilatation options
 vorticity_dilatation/start_timestep = 0
 vorticity_dilatation/end_timestep = 200000
 vorticity_dilatation/save_interval = 500

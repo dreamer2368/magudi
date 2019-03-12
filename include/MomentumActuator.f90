@@ -16,6 +16,7 @@ module MomentumActuator_mod
      procedure, pass :: cleanup => cleanupMomentumActuator
      procedure, pass :: computeSensitivity => computeMomentumActuatorSensitivity
      procedure, pass :: updateForcing => updateMomentumActuatorForcing
+     procedure, pass :: migrateToForcing => migrateToMomentumActuatorForcing
      procedure, pass :: updateGradient => updateMomentumActuatorGradient
      procedure, pass :: isPatchValid => isMomentumActuatorPatchValid
      procedure, pass :: hookBeforeTimemarch => hookMomentumActuatorBeforeTimemarch
@@ -79,6 +80,22 @@ module MomentumActuator_mod
        class(t_Region), intent(in) :: region
 
      end subroutine updateMomentumActuatorForcing
+
+  end interface
+
+  interface
+
+     subroutine migrateToMomentumActuatorForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
+
+       use Region_mod, only : t_Region
+
+       import :: t_MomentumActuator
+
+       class(t_MomentumActuator) :: this
+       class(t_Region), intent(in) :: region
+       integer, intent(in) :: startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep
+
+     end subroutine migrateToMomentumActuatorForcing
 
   end interface
 

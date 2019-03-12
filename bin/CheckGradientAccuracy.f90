@@ -1,6 +1,6 @@
 #include "config.h"
 
-program main
+program gradient_accuracy
 
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
@@ -12,6 +12,7 @@ program main
   use State_enum
 
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  use InputHelperImpl, only: dict, find
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
@@ -19,7 +20,7 @@ program main
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, procRank, numProcs, ierror
+  integer :: i, dictIndex, procRank, numProcs, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
@@ -52,6 +53,10 @@ program main
   ! Parse options from the input file.
   filename = PROJECT_NAME // ".inp"
   call parseInputFile(filename)
+
+  ! adjoint run options
+  call find("enable_adjoint_solver",dictIndex)
+  dict(dictIndex)%val = "true"
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
@@ -88,34 +93,19 @@ program main
   call solver%setup(region, outputPrefix = outputPrefix)
 
   ! Save the control and target mollifier if using code-generated values.
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableController) then
      filename = getOption("control_mollifier_file", "")
      if (len_trim(filename) == 0) call region%saveData(QOI_CONTROL_MOLLIFIER,                &
           trim(outputPrefix) // ".control_mollifier.f")
+  end if
+  if (region%simulationFlags%enableFunctional) then
      filename = getOption("target_mollifier_file", "")
      if (len_trim(filename) == 0) call region%saveData(QOI_TARGET_MOLLIFIER,                 &
           trim(outputPrefix) // ".target_mollifier.f")
   end if
 
   ! Main code logic.
-  if (region%simulationFlags%predictionOnly) then !... just a predictive simulation.
-     if (command_argument_count() == 1) then
-        call get_command_argument(1, filename)
-        dummyValue = solver%runForward(region, restartFilename = filename)
-     else
-        dummyValue = solver%runForward(region)
-     end if
-  else if (getOption("check_gradient_accuracy", .true.)) then !... verify gradient is exact.
-     call solver%checkGradientAccuracy(region)
-  else if (getOption("single_controlled_prediction", .false.)) then
-     dummyValue = solver%runForward(region, actuationAmount =                                &
-          getOption("actuation_amount", 1.0_wp))
-  else
-     if (.not. region%simulationFlags%isBaselineAvailable)                                   &
-          dummyValue = solver%runForward(region)
-     if (.not. getOption("gradient_available", .false.))                                     &
-          dummyValue = solver%runAdjoint(region)
-  end if
+  call solver%checkGradientAccuracy(region)
 
   call solver%cleanup()
   call region%cleanup()
@@ -128,4 +118,4 @@ program main
   call cleanupErrorHandler()
   call MPI_Finalize(ierror)
 
-end program main
+end program gradient_accuracy

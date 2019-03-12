@@ -44,10 +44,10 @@ contains
     allocate(this%norm(this%nGridPoints, 1))
     this%norm = 1.0_wp
 
-    if (.not. simulationFlags%predictionOnly) then
+    if (simulationFlags%enableFunctional)                                                    &
        allocate(this%targetMollifier(this%nGridPoints, 1))
+    if (simulationFlags%enableController)                                                    &
        allocate(this%controlMollifier(this%nGridPoints, 1))
-    end if
 
     if (.not. simulationFlags%compositeDissipation)                                          &
          allocate(this%arcLengths(this%nGridPoints, this%nDimensions))

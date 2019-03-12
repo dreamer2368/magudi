@@ -173,8 +173,8 @@ function verifyCostTargetPatchUsage(this, patchDescriptor, gridSize, normalDirec
 
   success = .true.
 
-  isPatchUsed = .true.
-  if (simulationFlags%predictionOnly) isPatchUsed = .false.
+  isPatchUsed = .false.
+  if (simulationFlags%enableFunctional) isPatchUsed = .true.
 
 end function verifyCostTargetPatchUsage
 

@@ -57,15 +57,17 @@ module UniformCheckpointer_mod
 
   interface
 
-     subroutine uniformCheckpointingMigrateTo(this, region, timeIntegrator, timestep, stage)
+     subroutine uniformCheckpointingMigrateTo(this, region, controller, timeIntegrator, timestep, stage)
 
        use Region_mod, only : t_Region
+       use Controller_mod, only : t_Controller
        use TimeIntegrator_mod, only : t_TimeIntegrator
 
        import :: t_UniformCheckpointer
 
        class(t_UniformCheckpointer) :: this
        class(t_Region) :: region
+       class(t_Controller) :: controller
        class(t_TimeIntegrator) :: timeIntegrator
        integer, intent(in) :: timestep, stage
 

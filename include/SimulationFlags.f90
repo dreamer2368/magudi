@@ -7,7 +7,10 @@ module SimulationFlags_mod
   type, public :: t_SimulationFlags
 
      logical :: viscosityOn           = .false., &
-                predictionOnly        = .true.,  &
+                enableController      = .true.,  &
+                enableFunctional      = .true.,  &
+                enableAdjoint         = .true.,  &
+!                predictionOnly        = .true.,  &
                 repeatFirstDerivative = .true.,  &
                 useTargetState        = .true.,  &
                 dissipationOn         = .false., &

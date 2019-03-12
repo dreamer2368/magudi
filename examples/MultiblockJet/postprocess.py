@@ -152,3 +152,29 @@ def centerline_rms_fluctuations(prefix, gamma=1.4):
     a[:,1:] = np.sqrt(a[:,1:])
     np.savetxt('%s.centerline_rms_fluctuations.txt' % prefix, a,
                fmt=a.shape[1] * '%+.15E ')
+
+def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4):
+    # p: pressure history of many mikes = [time steps, number of mikes]
+    import numpy.fft
+    n = p.shape[0]
+    m = 2 * (n / (num_windows + 1))
+    windows = [((int(0.5 * i * m), int(0.5 * i * m) + m))
+               for i in range(num_windows)]
+    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
+    u_j = mach_number * np.sqrt(temperature_ratio)
+    St = numpy.fft.fftfreq(m, d=dt)[1:m/2] / u_j
+    y = np.empty([m / 2, num_windows, p.shape[1]])
+    window_func = np.blackman(m)
+    for j in range(p.shape[1]):
+        for i, w in enumerate(windows):
+            y[:,i,j] = np.absolute(numpy.fft.fft(
+                p[w[0]:w[1],j] * window_func))[:m/2] / (m * window_func.mean())
+            y[1:,i,j] *= np.sqrt(2.)
+    p_ref = 20.e-6 / 101325. / gamma
+    OASPL = 10. * np.log10(np.mean(np.sum(np.mean(
+        y[1:] ** 2, axis=1), axis=0)) / p_ref ** 2)
+    SPL = 10. * np.log10(np.mean(np.mean(y[1:] ** 2, axis=1), axis=1) /
+                         p_ref ** 2)
+    SPL += 10. * np.log10(1. / dt / n)
+    return St, SPL, OASPL
+

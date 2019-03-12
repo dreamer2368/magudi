@@ -5,6 +5,7 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
 
   ! <<< External modules >>>
   use MPI
+  use iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
@@ -14,7 +15,8 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getOption
+  use InputHelper, only : getOption, getRequiredOption
+  use ErrorHandler, only : writeAndFlush
 
   implicit none
 
@@ -28,10 +30,12 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: outputPrefix
+  character(len = STRING_LENGTH) :: outputPrefix, message,                            &
+                                    gradientFilename, gradientDirectory,              &
+                                    controlForcingFilename, controlForcingDirectory
 
 #ifdef DEBUG
-  if (.not. simulationFlags%predictionOnly) then
+  if (simulationFlags%enableController) then
      assert(grid%nGridPoints > 0)
      assert(allocated(grid%controlMollifier))
      assert(size(grid%controlMollifier, 1) == grid%nGridPoints)
@@ -42,13 +46,28 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
   call this%cleanup()
   call this%setupBase(index, comm, patchDescriptor, grid, simulationFlags, solverOptions)
 
-  outputPrefix = getOption("output_prefix", PROJECT_NAME)
-  write(this%gradientFilename, '(4A)') trim(outputPrefix), ".gradient_",                     &
-       trim(patchDescriptor%name), ".dat"
+  ! SeungWhan: gradient directory, filename option
+  if (simulationFlags%enableAdjoint) then
+    gradientDirectory = getOption("gradient_directory","")
+    outputPrefix = getOption("output_prefix", PROJECT_NAME)
+    write(gradientFilename, '(4A)') trim(gradientDirectory)//trim(outputPrefix),             &
+         ".gradient_", trim(patchDescriptor%name), ".dat"
+    this%gradientFilename = getOption("gradient_filename",trim(gradientFilename))
+  end if
 
-  if (.not. simulationFlags%predictionOnly .and. this%nPatchPoints > 0) then
-     allocate(this%controlForcing(this%nPatchPoints, solverOptions%nUnknowns))
-     this%controlForcing = 0.0_wp
+  ! SeungWhan: control forcing directory, filename option
+  if ( simulationFlags%enableController .and.                                                &
+       getOption("controller_switch",.false.) ) then
+    controlForcingDirectory = getOption("control_forcing_directory","")
+    outputPrefix = getOption("output_prefix", PROJECT_NAME)
+    write(controlForcingFilename, '(4A)') trim(controlForcingDirectory)//trim(outputPrefix),             &
+         ".control_forcing_", trim(patchDescriptor%name), ".dat"
+    this%controlForcingFilename = getOption("control_forcing_filename",trim(controlForcingFilename))
+
+    if( this%nPatchPoints > 0 ) then
+      allocate(this%controlForcing(this%nPatchPoints, solverOptions%nUnknowns))
+      this%controlForcing = 0.0_wp
+    end if
   end if
 
 end subroutine setupActuatorPatch
@@ -70,9 +89,12 @@ subroutine cleanupActuatorPatch(this)
 
   SAFE_DEALLOCATE(this%controlForcing)
   SAFE_DEALLOCATE(this%gradientBuffer)
+  SAFE_DEALLOCATE(this%controlForcingBuffer)
 
   this%iGradientBuffer = 0
+  this%iControlForcingBuffer = 0
   this%gradientFileOffset = int(0, MPI_OFFSET_KIND)
+  this%controlForcingFileOffset = int(0, MPI_OFFSET_KIND)
 
 end subroutine cleanupActuatorPatch
 
@@ -107,8 +129,10 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
 
-  if (mode == ADJOINT .or. (mode == FORWARD .and.                                            &
-       abs(state%actuationAmount) <= 0.0_wp)) return
+  !SeungWhan: in adjoint-run for non-zero control forcing, we don't add forcing on the adjoint rhs.
+  if ( mode == ADJOINT ) return
+
+  if ( .not. allocated(this%controlForcing) ) return
 
   call startTiming("updateActuatorPatch")
 
@@ -180,12 +204,12 @@ function verifyActuatorPatchUsage(this, patchDescriptor, gridSize, normalDirecti
 
   success = .true.
 
-  isPatchUsed = .true.
-  if (simulationFlags%predictionOnly) isPatchUsed = .false.
+  isPatchUsed = .false.
+  if (simulationFlags%enableController) isPatchUsed = .true.
 
 end function verifyActuatorPatchUsage
 
-subroutine loadActuatorGradient(this)
+subroutine loadActuatorForcing(this)
 
   ! <<< External modules >>>
   use MPI
@@ -204,44 +228,111 @@ subroutine loadActuatorGradient(this)
   if (this%comm == MPI_COMM_NULL) return
 
   arrayOfSizes(1:3) = this%globalSize
-  arrayOfSizes(4) = size(this%gradientBuffer, 2)
-  arrayOfSizes(5) = this%iGradientBuffer
+  arrayOfSizes(4) = size(this%controlForcingBuffer, 2)
+  arrayOfSizes(5) = this%iControlForcingBuffer
   arrayOfSubsizes(1:3) = this%localSize
-  arrayOfSubsizes(4) = size(this%gradientBuffer, 2)
-  arrayOfSubsizes(5) = this%iGradientBuffer
+  arrayOfSubsizes(4) = size(this%controlForcingBuffer, 2)
+  arrayOfSubsizes(5) = this%iControlForcingBuffer
   arrayOfStarts(1:3) = this%offset - this%extent(1::2) + 1
   arrayOfStarts(4:5) = 0
   call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,             &
        MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
   call MPI_Type_commit(mpiScalarSubarrayType, ierror)
 
-  call MPI_File_open(this%comm, trim(this%gradientFilename) // char(0), MPI_MODE_RDONLY,     &
+  call MPI_File_open(this%comm, trim(this%controlForcingFilename) // char(0), MPI_MODE_RDONLY,     &
        MPI_INFO_NULL, mpiFileHandle, ierror)
 
   nBytesToRead = SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *            &
-       size(this%gradientBuffer, 2) * this%iGradientBuffer
-  if (this%gradientFileOffset - nBytesToRead <= int(0, MPI_OFFSET_KIND)) then
-     this%iGradientBuffer = int(this%gradientFileOffset / (SIZEOF_SCALAR * &
-          product(int(this%globalSize, MPI_OFFSET_KIND)) * size(this%gradientBuffer, 2)))
-     this%gradientFileOffset = 0
+       size(this%controlForcingBuffer, 2) * this%iControlForcingBuffer
+  if (this%controlForcingFileOffset - nBytesToRead <= int(0, MPI_OFFSET_KIND)) then
+     this%iControlForcingBuffer = int(this%controlForcingFileOffset / (SIZEOF_SCALAR * &
+          product(int(this%globalSize, MPI_OFFSET_KIND)) * size(this%controlForcingBuffer, 2)))
+     this%controlForcingFileOffset = 0
   else
-     this%gradientFileOffset = this%gradientFileOffset - nBytesToRead
+     this%controlForcingFileOffset = this%controlForcingFileOffset - nBytesToRead
   end if
 
-  assert(this%gradientFileOffset >= 0)
+  assert(this%controlForcingFileOffset >= 0)
 
-  call MPI_File_set_view(mpiFileHandle, this%gradientFileOffset, SCALAR_TYPE_MPI,            &
+  call MPI_File_set_view(mpiFileHandle, this%controlForcingFileOffset, SCALAR_TYPE_MPI,            &
        mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
 
-  dataSize = this%nPatchPoints * size(this%gradientBuffer, 2) * this%iGradientBuffer
-  call MPI_File_read_all(mpiFileHandle, this%gradientBuffer, dataSize,                       &
+  dataSize = this%nPatchPoints * size(this%controlForcingBuffer, 2) * this%iControlForcingBuffer
+  call MPI_File_read_all(mpiFileHandle, this%controlForcingBuffer, dataSize,                       &
        SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
 
   call MPI_File_close(mpiFileHandle, ierror)
 
   call MPI_Type_free(mpiScalarSubarrayType, ierror)
 
-end subroutine loadActuatorGradient
+end subroutine loadActuatorForcing
+
+subroutine pinpointActuatorForcing(this,bufferOffsetIndex)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+
+  ! <<< Arguments >>>
+  class(t_ActuatorPatch) :: this
+  integer, intent(in) :: bufferOffsetIndex !This offset index start from 0 at the beginning of the file.
+
+  ! <<< Local variables >>>
+  integer :: arrayOfSizes(5), arrayOfSubsizes(5), arrayOfStarts(5),                          &
+       mpiScalarSubarrayType, mpiFileHandle, dataSize, ierror
+  integer(kind = MPI_OFFSET_KIND) :: nBytesToRead, controllerBufferSize, actualBufferSize
+
+  if (this%comm == MPI_COMM_NULL) return
+
+  this%bufferOffsetIndex = bufferOffsetIndex
+  controllerBufferSize = int(size(this%controlForcingBuffer, 3),MPI_OFFSET_KIND)
+  this%controlForcingFileOffset = int(bufferOffsetIndex, MPI_OFFSET_KIND)                           &
+                                  *controllerBufferSize                                             &
+                                  *(SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND))  &
+                                    * size(this%controlForcingBuffer, 2))
+
+
+  arrayOfSizes(1:3) = this%globalSize
+  arrayOfSizes(4) = size(this%controlForcingBuffer, 2)
+  arrayOfSizes(5) = controllerBufferSize
+  arrayOfSubsizes(1:3) = this%localSize
+  arrayOfSubsizes(4) = size(this%controlForcingBuffer, 2)
+  arrayOfSubsizes(5) = controllerBufferSize
+  arrayOfStarts(1:3) = this%offset - this%extent(1::2) + 1
+  arrayOfStarts(4:5) = 0
+  call MPI_Type_create_subarray(5, arrayOfSizes, arrayOfSubsizes, arrayOfStarts,             &
+       MPI_ORDER_FORTRAN, SCALAR_TYPE_MPI, mpiScalarSubarrayType, ierror)
+  call MPI_Type_commit(mpiScalarSubarrayType, ierror)
+
+  call MPI_File_open(this%comm, trim(this%controlForcingFilename) // char(0), MPI_MODE_RDONLY,     &
+       MPI_INFO_NULL, mpiFileHandle, ierror)
+
+  nBytesToRead = SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND)) *            &
+       size(this%controlForcingBuffer, 2) * controllerBufferSize
+  if (this%controlForcingFileOffset + nBytesToRead > this%controlForcingFileSize) then
+    actualBufferSize = int( (this%controlForcingFileSize-this%controlForcingFileOffset)       &
+                            /(SIZEOF_SCALAR * product(int(this%globalSize, MPI_OFFSET_KIND))  &
+                            * size(this%controlForcingBuffer, 2)) )
+  else
+    actualBufferSize = controllerBufferSize
+  end if
+
+  assert(this%controlForcingFileOffset >= 0 .and. this%controlForcingFileOffset <= this%controlForcingFileSize)
+
+  call MPI_File_set_view(mpiFileHandle, this%controlForcingFileOffset, SCALAR_TYPE_MPI,            &
+       mpiScalarSubarrayType, "native", MPI_INFO_NULL, ierror)
+
+  dataSize = this%nPatchPoints * size(this%controlForcingBuffer, 2) * actualBufferSize
+  call MPI_File_read_all(mpiFileHandle, this%controlForcingBuffer, dataSize,                       &
+       SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+
+  call MPI_File_close(mpiFileHandle, ierror)
+
+  call MPI_Type_free(mpiScalarSubarrayType, ierror)
+
+end subroutine pinpointActuatorForcing
 
 subroutine saveActuatorGradient(this)
 

@@ -123,7 +123,7 @@ program cost_functional
   end do
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
-  if (.not. region%simulationFlags%predictionOnly) then
+  if (region%simulationFlags%enableFunctional) then
      call functionalFactory%connect(functional,                                             &
           trim(region%solverOptions%costFunctionalType))
      assert(associated(functional))
@@ -143,7 +143,7 @@ program cost_functional
      end do
 
      instantaneousFunctional = 0.0_wp
-     if (.not. region%simulationFlags%predictionOnly) then
+     if (region%simulationFlags%enableFunctional) then
         instantaneousFunctional = functional%compute(region)
 !SeungWhan
 write(message,*) instantaneousFunctional
@@ -174,7 +174,7 @@ call writeAndFlush(region%comm, output_unit, message, advance = 'no')
         end do
 
         instantaneousFunctional = 0.0_wp
-        if (.not. region%simulationFlags%predictionOnly) then
+        if (region%simulationFlags%enableFunctional) then
            instantaneousFunctional = functional%compute(region)
 !SeungWhan
 write(message,*) i,'-th step: ',instantaneousFunctional

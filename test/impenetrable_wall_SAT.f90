@@ -97,7 +97,9 @@ program impenetrable_wall_SAT
   call initializeRandomNumberGenerator()
 
   call simulationFlags%initialize()
-  simulationFlags%predictionOnly = .false.
+  simulationFlags%enableController = .true.
+  simulationFlags%enableFunctional = .true.
+  simulationFlags%enableAdjoint = .true.
 
   do nDimensions = 1, 3
 
