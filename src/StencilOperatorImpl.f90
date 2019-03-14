@@ -1571,9 +1571,10 @@ subroutine setupOperator(this, stencilScheme)
 
      this%rhsBoundary2(6,1:4) = this%rhsInterior(2:-1:-1)
      this%rhsBoundary2(5,1:4) = this%rhsInterior(2:-1:-1)
-     this%rhsBoundary2(4,1:3) = this%rhsInterior(1:-1:-1)
-     this%rhsBoundary2(3,1:2) = this%rhsInterior(0:-1:-1)
-     this%rhsBoundary2(2,1:1) = this%rhsInterior(-1:-1:-1)
+     this%rhsBoundary2(4,2:4) = this%rhsInterior(-1:1)
+     this%rhsBoundary2(3,3:4) = this%rhsInterior(-1:0)
+     this%rhsBoundary2(2,4:4) = this%rhsInterior(-1:-1)
+     this%rhsBoundary2(1,1:4) = 0.0_WP ! ... the first column is zero
 
   else if (trim(stencilScheme) == "SBP 4-8 first derivative") then
 
