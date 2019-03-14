@@ -12,8 +12,9 @@ function(add_serial_test name)
 endfunction(add_serial_test)
 
 # Serial tests
-add_serial_test(inviscid_flux)
+#add_serial_test(inviscid_flux)
 
 # MPI tests
 set(numProcs 1 2 4 8)
+add_mpi_test(inviscid_flux "${numProcs}")
 add_mpi_test(SBP_operators "${numProcs}")
