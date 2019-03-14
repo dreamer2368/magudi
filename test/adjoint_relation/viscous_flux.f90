@@ -287,30 +287,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   assert(all(state0%conservedVariables(:,1) > 0.0_wp))
 
   ! Compute dependent variables.
-  call computeDependentVariables(nDimensions, state0%conservedVariables,                &
-    solverOptions%ratioOfSpecificHeats, state0%specificVolume(:,1), state0%velocity,     &
-    state0%pressure(:,1), state0%temperature(:,1))
-  assert(all(state0%specificVolume(:,1) > 0.0_wp))
-  assert(all(state0%temperature(:,1) > 0.0_wp))
-  if (simulationFlags%viscosityOn) then
-     call computeTransportVariables(state0%temperature(:,1), solverOptions%powerLawExponent,   &
-          solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
-          solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
-          state0%dynamicViscosity(:,1), state0%secondCoefficientOfViscosity(:,1),                &
-          state0%thermalDiffusivity(:,1))
-     if (simulationFlags%repeatFirstDerivative) then
-        call grid%computeGradient(state0%velocity, state0%stressTensor)
-        call computeStressTensor(nDimensions, state0%stressTensor, state0%dynamicViscosity(:,1), &
-             state0%secondCoefficientOfViscosity(:,1))
-
-        call grid%computeGradient(state0%temperature(:,1), state0%heatFlux)
-        do i = 1, nDimensions
-           state0%heatFlux(:,i) = - state0%thermalDiffusivity(:,1) * state0%heatFlux(:,i)
-        end do
-     else
-        call grid%computeGradient(state0%velocity, state0%velocityGradient)
-     end if
-  end if
+  call state0%update(grid,simulationFlags,solverOptions)
 
   ! Randomize adjoint variables.
   allocate(F(grid%nGridPoints, solverOptions%nUnknowns))
@@ -528,30 +505,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
     state1%conservedVariables = state0%conservedVariables + stepSizes(k) * deltaConservedVariables
     assert(all(state1%conservedVariables(:,1) > 0.0_wp))
     ! Compute dependent variables.
-    call computeDependentVariables(nDimensions, state1%conservedVariables,                &
-      solverOptions%ratioOfSpecificHeats, state1%specificVolume(:,1), state1%velocity,     &
-      state1%pressure(:,1), state1%temperature(:,1))
-    assert(all(state1%specificVolume(:,1) > 0.0_wp))
-    assert(all(state1%temperature(:,1) > 0.0_wp))
-    if (simulationFlags%viscosityOn) then
-       call computeTransportVariables(state1%temperature(:,1), solverOptions%powerLawExponent,   &
-            solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
-            solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
-            state1%dynamicViscosity(:,1), state1%secondCoefficientOfViscosity(:,1),                &
-            state1%thermalDiffusivity(:,1))
-       if (simulationFlags%repeatFirstDerivative) then
-          call grid%computeGradient(state1%velocity, state1%stressTensor)
-          call computeStressTensor(nDimensions, state1%stressTensor, state1%dynamicViscosity(:,1), &
-               state1%secondCoefficientOfViscosity(:,1))
-
-          call grid%computeGradient(state1%temperature(:,1), state1%heatFlux)
-          do i = 1, nDimensions
-             state1%heatFlux(:,i) = - state1%thermalDiffusivity(:,1) * state1%heatFlux(:,i)
-          end do
-       else
-          call grid%computeGradient(state1%velocity, state1%velocityGradient)
-       end if
-    end if
+    call state1%update(grid,simulationFlags,solverOptions)
 
     ! (2)Compute baseline viscous flux
     ! (2-1) Cartesian form
