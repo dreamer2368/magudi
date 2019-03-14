@@ -383,6 +383,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
      success = success .and. nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
   else
      success = .false.
+     print *, 'minimum error: ', minval(errorHistory)
   end if
 
   SAFE_DEALLOCATE(adjointRightHandSide)
