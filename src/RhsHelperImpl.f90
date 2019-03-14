@@ -299,7 +299,7 @@ subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchF
   state%rightHandSide = 0.0_wp
 
   ! Compute Cartesian form of inviscid fluxes.
-  call computeCartesianInvsicidFluxes(nDimensions, state%conservedVariables,                 &
+  call computeCartesianInviscidFluxes(nDimensions, state%conservedVariables,                 &
        state%velocity, state%pressure(:,1), fluxes1)
 
   ! Compute Cartesian form of viscous fluxes if viscous terms are included and computed using
