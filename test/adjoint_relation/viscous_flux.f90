@@ -1,6 +1,6 @@
 #include "config.h"
 
-program inviscid_flux
+program viscous_flux
 
   use MPI
 
@@ -91,7 +91,7 @@ program inviscid_flux
   if (.not. success) stop -1
   stop 0
 
-end program inviscid_flux
+end program viscous_flux
 
 subroutine sort(a)
 
@@ -228,8 +228,12 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
                                     temp1(:,:,:), localFluxJacobian1(:,:),            &
                                     localConservedVariables(:), localVelocity(:),     &
                                     localMetricsAlongDirection1(:),                   &
+                                    localMetricsAlongDirection2(:),                   &
                                     adjointRightHandSide(:,:),                        &
-                                    deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:)
+                                    deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
+                                    localFluxJacobian2(:,:), localStressTensor(:),    &
+                                    localHeatFlux(:), localAdjointDiffusion(:,:),     &
+                                    temp2(:,:)
   character(len = STRING_LENGTH) :: errorMessage
 
   success = .true.
@@ -242,6 +246,8 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   ! randomize curvilinear domain
   ! simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
   simulationFlags%isDomainCurvilinear = .false.
+  simulationFlags%viscosityOn = .true.
+  simulationFlags%repeatFirstDerivative = .true. ! this is default value.
 
   ! randomize grid size
   ! Note that too small grid size will yield null matrix for stencil operators.
@@ -253,6 +259,10 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   ! initialize solver option, grid, and states
   call solverOptions%initialize(nDimensions, simulationFlags)
   solverOptions%discretizationType = trim(identifier)
+  solverOptions%reynoldsNumberInverse = 1.0_wp / 5.0_wp
+  solverOptions%prandtlNumberInverse = 1.0_wp / 0.72_wp
+  solverOptions%powerLawExponent = 0.666_wp
+  solverOptions%bulkViscosityRatio = 0.6_wp
   call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
        simulationFlags = simulationFlags)
   call grid%setupSpatialDiscretization(simulationFlags, solverOptions)
@@ -282,6 +292,25 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
     state0%pressure(:,1), state0%temperature(:,1))
   assert(all(state0%specificVolume(:,1) > 0.0_wp))
   assert(all(state0%temperature(:,1) > 0.0_wp))
+  if (simulationFlags%viscosityOn) then
+     call computeTransportVariables(state0%temperature(:,1), solverOptions%powerLawExponent,   &
+          solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
+          solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
+          state0%dynamicViscosity(:,1), state0%secondCoefficientOfViscosity(:,1),                &
+          state0%thermalDiffusivity(:,1))
+     if (simulationFlags%repeatFirstDerivative) then
+        call grid%computeGradient(state0%velocity, state0%stressTensor)
+        call computeStressTensor(nDimensions, state0%stressTensor, state0%dynamicViscosity(:,1), &
+             state0%secondCoefficientOfViscosity(:,1))
+
+        call grid%computeGradient(state0%temperature(:,1), state0%heatFlux)
+        do i = 1, nDimensions
+           state0%heatFlux(:,i) = - state0%thermalDiffusivity(:,1) * state0%heatFlux(:,i)
+        end do
+     else
+        call grid%computeGradient(state0%velocity, state0%velocityGradient)
+     end if
+  end if
 
   ! Randomize adjoint variables.
   allocate(F(grid%nGridPoints, solverOptions%nUnknowns))
@@ -310,12 +339,16 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
        state0%conservedVariables(:,1) / solverOptions%ratioOfSpecificHeats *                               &
        deltaPrimitiveVariables(:,nDimensions+2)
 
-  ! Compute baseline inviscid flux
+  ! Compute baseline viscous flux
   ! (1) Cartesian form
   allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
   allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
-  call computeCartesianInviscidFluxes(nDimensions, state0%conservedVariables,                 &
-       state0%velocity, state0%pressure(:,1), fluxes1)
+  fluxes1 = 0.0_wp
+  if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
+     call computeCartesianViscousFluxes(nDimensions, state0%velocity,                         &
+          state0%stressTensor, state0%heatFlux, fluxes2)
+     fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
+  end if
   ! (2) Transform fluxes
   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
   ! (3) Take derivatives of fluxes
@@ -330,7 +363,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
      state0%rightHandSide(:,j) = state0%rightHandSide(:,j) * grid%jacobian(:,1)
   end do
 
-  ! Compute adjoint rhs for inviscid flux
+  ! Compute adjoint rhs for viscous flux
   nUnknowns = solverOptions%nUnknowns
   allocate(adjointRightHandSide(grid%nGridPoints, solverOptions%nUnknowns))
   allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
@@ -340,48 +373,147 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
      temp1(:,:,i) = state0%adjointVariables
      call grid%adjointFirstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
   end do
-  ! (2) Compute jacobian of inviscid flux dotted with adjoint derivatives
+  ! (2) Compute jacobian of viscous flux dotted with adjoint derivatives
   allocate(localFluxJacobian1(nUnknowns, nUnknowns))
   allocate(localConservedVariables(nUnknowns))
   allocate(localVelocity(nDimensions))
   allocate(localMetricsAlongDirection1(nDimensions))
+  if (simulationFlags%viscosityOn) then
+     allocate(localFluxJacobian2(nUnknowns, nUnknowns))
+     allocate(localStressTensor(nDimensions ** 2))
+     allocate(localHeatFlux(nDimensions))
+  end if
   do j = 1, grid%nGridPoints
      localConservedVariables = state0%conservedVariables(j,:)
      localVelocity = state0%velocity(j,:)
+     if (simulationFlags%viscosityOn) then
+        localStressTensor = state0%stressTensor(j,:)
+        localHeatFlux = state0%heatFlux(j,:)
+     end if
      do i = 1, nDimensions
         localMetricsAlongDirection1 = grid%metrics(j,1+nDimensions*(i-1):nDimensions*i)
-        select case (nDimensions)
-        case (1)
-           call computeJacobianOfInviscidFlux1D(localConservedVariables,                     &
-                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
-                localFluxJacobian1, specificVolume = state0%specificVolume(j,1),              &
-                velocity = localVelocity, temperature = state0%temperature(j,1))
-        case (2)
-           call computeJacobianOfInviscidFlux2D(localConservedVariables,                     &
-                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
-                localFluxJacobian1, specificVolume = state0%specificVolume(j,1),              &
-                velocity = localVelocity, temperature = state0%temperature(j,1))
-        case (3)
-           call computeJacobianOfInviscidFlux3D(localConservedVariables,                     &
-                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
-                localFluxJacobian1, specificVolume = state0%specificVolume(j,1),              &
-                velocity = localVelocity, temperature = state0%temperature(j,1))
-        end select !... nDimensions
+        if (simulationFlags%viscosityOn) then
+           select case (nDimensions)
+           case (1)
+              call computeFirstPartialViscousJacobian1D(localConservedVariables,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localFluxJacobian2, specificVolume = state0%specificVolume(j,1),           &
+                   velocity = localVelocity, temperature = state0%temperature(j,1))
+           case (2)
+              call computeFirstPartialViscousJacobian2D(localConservedVariables,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localFluxJacobian2, specificVolume = state0%specificVolume(j,1),           &
+                   velocity = localVelocity, temperature = state0%temperature(j,1))
+           case (3)
+              call computeFirstPartialViscousJacobian3D(localConservedVariables,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localFluxJacobian2, specificVolume = state0%specificVolume(j,1),           &
+                   velocity = localVelocity, temperature = state0%temperature(j,1))
+           end select
+           localFluxJacobian1 = - localFluxJacobian2
+        end if
 
         adjointRightHandSide(j,:) = adjointRightHandSide(j,:) +                                &
              matmul(transpose(localFluxJacobian1), temp1(j,:,i))
      end do !... i = 1, nDimensions
   end do !... j = 1, grid%nGridPoints
+
+  SAFE_DEALLOCATE(localFluxJacobian1)
+  SAFE_DEALLOCATE(localConservedVariables)
+  SAFE_DEALLOCATE(localHeatFlux)
+  SAFE_DEALLOCATE(localStressTensor)
+  SAFE_DEALLOCATE(localFluxJacobian2)
+
+  if (simulationFlags%viscosityOn) then
+
+     allocate(temp2(grid%nGridPoints, nUnknowns - 1))
+
+     allocate(localMetricsAlongDirection2(nDimensions))
+     allocate(localFluxJacobian2(nUnknowns - 1, nUnknowns - 1))
+     allocate(localAdjointDiffusion(nUnknowns - 1, nDimensions))
+
+     do k = 1, grid%nGridPoints
+
+        localVelocity = state0%velocity(k,:)
+        localAdjointDiffusion = 0.0_wp
+
+        do j = 1, nDimensions
+
+           localMetricsAlongDirection2 = grid%metrics(k,1+nDimensions*(j-1):nDimensions*j)
+
+           do i = 1, nDimensions
+
+              localMetricsAlongDirection1 = grid%metrics(k,1+nDimensions*(i-1):nDimensions*i)
+
+              select case (nDimensions)
+              case (1)
+                 call computeSecondPartialViscousJacobian1D(localVelocity,                   &
+                      state0%dynamicViscosity(k,1), state0%secondCoefficientOfViscosity(k,1),  &
+                      state0%thermalDiffusivity(k,1), grid%jacobian(k,1),                     &
+                      localMetricsAlongDirection1(1), localFluxJacobian2)
+              case (2)
+                 call computeSecondPartialViscousJacobian2D(localVelocity,                   &
+                      state0%dynamicViscosity(k,1), state0%secondCoefficientOfViscosity(k,1),  &
+                      state0%thermalDiffusivity(k,1), grid%jacobian(k,1),                     &
+                      localMetricsAlongDirection1, localMetricsAlongDirection2,              &
+                      localFluxJacobian2)
+              case (3)
+                 call computeSecondPartialViscousJacobian3D(localVelocity,                   &
+                      state0%dynamicViscosity(k,1), state0%secondCoefficientOfViscosity(k,1),  &
+                      state0%thermalDiffusivity(k,1), grid%jacobian(k,1),                     &
+                      localMetricsAlongDirection1, localMetricsAlongDirection2,              &
+                      localFluxJacobian2)
+              end select !... nDimensions
+
+              localAdjointDiffusion(:,j) = localAdjointDiffusion(:,j) +                      &
+                   matmul(transpose(localFluxJacobian2), temp1(k,2:nUnknowns,i))
+
+           end do !... i = 1, nDimensions
+
+        end do !... j = 1, nDimensions
+
+        do j = 1, nDimensions
+           temp1(k,2:nUnknowns,j) = localAdjointDiffusion(:,j)
+        end do
+
+     end do !... k = 1, grid%nGridPoints
+
+     do j = 1, nDimensions
+        call grid%adjointFirstDerivative(j)%apply(temp1(:,2:nUnknowns,j), grid%localSize)
+     end do
+     temp2 = sum(temp1(:,2:nUnknowns,:), dim = 3)
+
+     temp2(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                           &
+          state0%specificVolume(:,1) * temp2(:,nDimensions+1)
+     do i = 1, nDimensions
+        temp2(:,i) = state0%specificVolume(:,1) * temp2(:,i) -                                &
+             state0%velocity(:,i) * temp2(:,nDimensions+1)
+     end do
+
+     adjointRightHandSide(:,2:nUnknowns) = adjointRightHandSide(:,2:nUnknowns) - temp2
+     adjointRightHandSide(:,1) = adjointRightHandSide(:,1) +                                   &
+          state0%specificVolume(:,1) * state0%conservedVariables(:,nDimensions+2) *            &
+          temp2(:,nDimensions+1) + sum(state0%velocity * temp2(:,1:nDimensions), dim = 2)
+
+     SAFE_DEALLOCATE(temp2)
+
+     SAFE_DEALLOCATE(localAdjointDiffusion)
+     SAFE_DEALLOCATE(localFluxJacobian2)
+     SAFE_DEALLOCATE(localMetricsAlongDirection2)
+
+  end if !... simulationFlags%viscosityOn
+
+  SAFE_DEALLOCATE(localVelocity)
+  SAFE_DEALLOCATE(localMetricsAlongDirection1)
+  SAFE_DEALLOCATE(temp1)
+
   ! (3) Multiply by Jacobian
   do j = 1, solverOptions%nUnknowns
      adjointRightHandSide(:,j) = adjointRightHandSide(:,j) * grid%jacobian(:,1)
   end do
-
-  SAFE_DEALLOCATE(localFluxJacobian1)
-  SAFE_DEALLOCATE(localConservedVariables)
-  SAFE_DEALLOCATE(localVelocity)
-  SAFE_DEALLOCATE(localMetricsAlongDirection1)
-  SAFE_DEALLOCATE(temp1)
 
   ! <R^{\dagger}u, \delta v>
   scalar1 = grid%computeInnerProduct(adjointRightHandSide,deltaConservedVariables)
@@ -401,14 +533,36 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
       state1%pressure(:,1), state1%temperature(:,1))
     assert(all(state1%specificVolume(:,1) > 0.0_wp))
     assert(all(state1%temperature(:,1) > 0.0_wp))
+    if (simulationFlags%viscosityOn) then
+       call computeTransportVariables(state1%temperature(:,1), solverOptions%powerLawExponent,   &
+            solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
+            solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
+            state1%dynamicViscosity(:,1), state1%secondCoefficientOfViscosity(:,1),                &
+            state1%thermalDiffusivity(:,1))
+       if (simulationFlags%repeatFirstDerivative) then
+          call grid%computeGradient(state1%velocity, state1%stressTensor)
+          call computeStressTensor(nDimensions, state1%stressTensor, state1%dynamicViscosity(:,1), &
+               state1%secondCoefficientOfViscosity(:,1))
 
-    ! (2)Compute baseline inviscid flux
+          call grid%computeGradient(state1%temperature(:,1), state1%heatFlux)
+          do i = 1, nDimensions
+             state1%heatFlux(:,i) = - state1%thermalDiffusivity(:,1) * state1%heatFlux(:,i)
+          end do
+       else
+          call grid%computeGradient(state1%velocity, state1%velocityGradient)
+       end if
+    end if
+
+    ! (2)Compute baseline viscous flux
     ! (2-1) Cartesian form
     allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
     allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
-    ! print *, size(fluxes1,1),size(fluxes1,2),size(fluxes1,3)
-    call computeCartesianInviscidFluxes(nDimensions, state1%conservedVariables,                 &
-         state1%velocity, state1%pressure(:,1), fluxes1)
+    fluxes1 = 0.0_wp
+    if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
+       call computeCartesianViscousFluxes(nDimensions, state1%velocity,                         &
+            state1%stressTensor, state1%heatFlux, fluxes2)
+       fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
+    end if
     ! (2-2) Transform fluxes
     call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
     ! (2-3) Take derivatives of fluxes
