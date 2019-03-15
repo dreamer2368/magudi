@@ -238,19 +238,12 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  logical :: isPeriodic_(3), hasNegativeJacobian
   real(wp) :: scalar1, scalar2, tolerance_,                                           &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, gridSize(3, 1), nUnknowns, direction_, errorCode, extent(6)
-  real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),           &
-                                    temp1(:,:,:), localFluxJacobian1(:,:),            &
-                                    localConservedVariables(:), localVelocity(:),     &
-                                    localMetricsAlongDirection1(:),                   &
-                                    localMetricsAlongDirection2(:),                   &
+  real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),            &
                                     adjointRightHandSide(:,:),                        &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
-                                    localFluxJacobian2(:,:), localStressTensor(:),    &
-                                    localHeatFlux(:), localAdjointDiffusion(:,:),     &
                                     temp2(:,:), targetViscousFluxes(:,:,:)
   character(len = STRING_LENGTH) :: errorMessage
 
@@ -267,7 +260,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   ! randomize curvilinear domain
   ! simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
   simulationFlags%isDomainCurvilinear = .false.
-  simulationFlags%viscosityOn = .false.
+  simulationFlags%viscosityOn = .true.
   simulationFlags%repeatFirstDerivative = .true. ! this is default value.
   simulationFlags%useTargetState = .true.
 
@@ -450,7 +443,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
   ! <u, \delta R(v)>
   ! Prepare step sizes
-  stepSizes(1) = 1.0_wp
+  stepSizes(1) = 0.01_wp
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
