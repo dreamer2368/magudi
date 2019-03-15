@@ -100,7 +100,7 @@ module CNSHelper
 
   interface
 
-     pure subroutine computeCartesianInvsicidFluxes(nDimensions, conservedVariables,         &
+     pure subroutine computeCartesianInviscidFluxes(nDimensions, conservedVariables,         &
           velocity, pressure, inviscidFluxes)
 
        !> Computes the Cartesian form of the inviscid fluxes. `velocity` and `pressure` must
@@ -110,7 +110,7 @@ module CNSHelper
        SCALAR_TYPE, intent(in) :: conservedVariables(:,:), velocity(:,:), pressure(:)
        SCALAR_TYPE, intent(out) :: inviscidFluxes(:,:,:)
 
-     end subroutine computeCartesianInvsicidFluxes
+     end subroutine computeCartesianInviscidFluxes
 
   end interface
 

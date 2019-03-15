@@ -249,7 +249,7 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
               end if
 
               if (simulationFlags%viscosityOn) then
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
                       this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
                       matmul(transpose(localViscousFluxJacobian),                            &
                       state%adjointVariables(gridIndex,:))

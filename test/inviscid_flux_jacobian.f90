@@ -93,7 +93,7 @@ program inviscid_flux_jacobian
           pressure = pressure, temperature = temperature)
      assert(all(specificVolume > 0.0_wp))
      assert(all(temperature > 0.0_wp))
-     call computeCartesianInvsicidFluxes(nDimensions, conservedVariables1,                   &
+     call computeCartesianInviscidFluxes(nDimensions, conservedVariables1,                   &
           velocity, pressure, fluxes1)
      call transformFluxes(nDimensions, fluxes1, metrics, fluxes2, isDomainCurvilinear)
 
@@ -130,7 +130,7 @@ program inviscid_flux_jacobian
 
         assert(all(specificVolume > 0.0_wp))
         assert(all(temperature > 0.0_wp))
-        call computeCartesianInvsicidFluxes(nDimensions, conservedVariables2,                &
+        call computeCartesianInviscidFluxes(nDimensions, conservedVariables2,                &
              velocity, pressure, fluxes1)
         call transformFluxes(nDimensions, fluxes1, metrics, fluxes3, isDomainCurvilinear)
 

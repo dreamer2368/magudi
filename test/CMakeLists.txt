@@ -28,10 +28,13 @@ endif()
 # MPI tests
 set(numProcs 1 2 4 8)
 add_mpi_test(operator_convergence "${numProcs}")
-add_mpi_test(adjoint_relation "${numProcs}")
+##add_mpi_test(adjoint_relation "${numProcs}")
 add_mpi_test(composite_dissipation_sanity "${numProcs}")
 add_mpi_test(dissipation_self_adjoint "${numProcs}")
 add_mpi_test(SBP_property "${numProcs}")
 add_mpi_test(patch_collectives "${numProcs}")
 add_mpi_test(boundary_operator "${numProcs}")
 add_mpi_test(testZAXPY "${numProcs}")
+
+# Subdirectories
+add_subdirectory(adjoint_relation)

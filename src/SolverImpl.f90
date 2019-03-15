@@ -544,6 +544,11 @@ function runForward(this, region, restartFilename) result(costFunctional)
   use ErrorHandler, only : writeAndFlush
   use InputHelper, only : getOption, getRequiredOption
 
+  ! <<< SeungWhan: debug >>>
+  use InputHelper, only : getOption
+  use, intrinsic :: iso_fortran_env, only : output_unit
+  use ErrorHandler, only : writeAndFlush
+
   implicit none
 
   ! <<< Arguments >>>
@@ -747,6 +752,11 @@ function runAdjoint(this, region) result(costSensitivity)
   use MPITimingsHelper, only : startTiming, endTiming
   use ErrorHandler, only : writeAndFlush
   use InputHelper, only : getOption, getRequiredOption
+
+  ! <<< SeungWhan: debug >>>
+  use InputHelper, only : getOption
+  use, intrinsic :: iso_fortran_env, only : output_unit
+  use ErrorHandler, only : writeAndFlush
 
   implicit none
 

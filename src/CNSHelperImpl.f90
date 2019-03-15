@@ -467,7 +467,7 @@ PURE_SUBROUTINE computeVorticityMagnitudeAndDilatation(nDimensions, velocityGrad
 
 end subroutine computeVorticityMagnitudeAndDilatation
 
-PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, conservedVariables,              &
+PURE_SUBROUTINE computeCartesianInviscidFluxes(nDimensions, conservedVariables,              &
      velocity, pressure, inviscidFluxes)
 
   implicit none
@@ -523,7 +523,7 @@ PURE_SUBROUTINE computeCartesianInvsicidFluxes(nDimensions, conservedVariables, 
 
   end select
 
-end subroutine computeCartesianInvsicidFluxes
+end subroutine computeCartesianInviscidFluxes
 
 PURE_SUBROUTINE computeCartesianViscousFluxes(nDimensions, velocity,                         &
      stressTensor, heatFlux, viscousFluxes)

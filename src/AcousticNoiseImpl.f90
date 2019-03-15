@@ -118,8 +118,9 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   SCALAR_TYPE, allocatable :: F(:,:)
   SCALAR_TYPE :: ideal_mean_pressure                            !SeungWhan: constant mean pressure
 
-  ! <<< SeungWhan: debugging variables >>
+  ! <<< SeungWhan: message, timeRampFactor >>
   character(len=STRING_LENGTH) :: message
+  real(wp) :: timeRampFactor
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -128,6 +129,11 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   ! ideal_mean_pressure = 1.0_wp/region%solverOptions%ratioOfSpecificHeats
 
   instantaneousFunctional = 0.0_wp
+
+  ! SeungWhan: compute timeRampFactor
+  timeRampFactor = 0.0_wp
+  if (region%states(1)%time>=this%onsetTime .and.                                            &
+      region%states(1)%time<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
 
   do i = 1, size(region%grids)
 
@@ -149,8 +155,8 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
     F = region%states(i)%pressure - this%data_(j)%meanPressure
      ! F = region%states(i)%pressure - ideal_mean_pressure
      instantaneousFunctional = instantaneousFunctional +                                     &
+!          timeRampFactor *                                                                   &
           region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
-
      SAFE_DEALLOCATE(F)
   end do
 
@@ -193,6 +199,9 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: meanPressure(:)
   SCALAR_TYPE :: F, ideal_mean_pressure                         !SeungWhan: constant mean pressure
+
+  ! <<< SeungWhan: message, timeRampFactor >>
+  real(wp) :: timeRampFactor
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
