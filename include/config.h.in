@@ -58,6 +58,15 @@
 #define REAL_TYPE_MPI   SCALAR_TYPE_MPI
 #endif
 
+#ifdef SCALAR_TYPE_IS_real128_iso
+#define SCALAR_KIND     selected_real_kind(33)
+#define SCALAR_TYPE     real(SCALAR_KIND)
+#define SIZEOF_SCALAR   16
+#define SCALAR_FORMAT   "(SP,ES23.15E3)"
+#define SCALAR_TYPE_MPI MPI_REAL16
+#define REAL_TYPE_MPI   SCALAR_TYPE_MPI
+#endif
+
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
 #define SCALAR_KIND     selected_real_kind(33)
 #define SCALAR_TYPE     real(SCALAR_KIND)
