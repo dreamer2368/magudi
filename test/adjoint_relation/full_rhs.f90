@@ -277,9 +277,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   success = .true.
 
   nDimensions = size(region%globalGridSizes,1)
-  do i = 1, size(state0)
-    print *, i, region%grids(i)%index
-  end do
+
   ! initialize states
   do i = 1, size(state0)
      call state0(i)%setup(region%grids(i), region%simulationFlags, region%solverOptions)
@@ -390,7 +388,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
     ! (3) <u, \delta R(v)>
     scalar2 = 0.0_wp
     do i = 1, size(state0)
-      scalar2 = region%grids(i)%computeInnerProduct(state0(i)%adjointVariables,                             &
+      scalar2 = scalar2 + region%grids(i)%computeInnerProduct(state0(i)%adjointVariables,                             &
                                                     region%states(i)%rightHandSide - state0(i)%rightHandSide)
     end do
 
