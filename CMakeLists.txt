@@ -138,6 +138,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/PatchDescriptorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/Region.f90
   ${PROJECT_SOURCE_DIR}/src/RegionImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/testRegion.f90
+  ${PROJECT_SOURCE_DIR}/src/testRegionImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticSource.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticSourceImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SolenoidalExcitationPatch.f90
