@@ -225,14 +225,15 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   logical :: isPeriodic_(3), hasNegativeJacobian
   real(wp) :: scalar1, scalar2, tolerance_,                                           &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
-  integer :: i, j, k, gridSize(3, 1), nUnknowns
+  integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns
   real(SCALAR_KIND), allocatable :: F(:,:),                                           &
                                     adjointRightHandSide(:,:),                        &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     temp2(:,:)
+  SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
   character(len = STRING_LENGTH) :: errorMessage
 
-  tolerance_ = 1.0E-10
+  tolerance_ = 1.0E-12
   if( present(tolerance) ) tolerance_ = tolerance
 
   success = .true.
@@ -242,9 +243,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   simulationFlags%enableController = .true.
   simulationFlags%enableFunctional = .true.
   simulationFlags%enableAdjoint = .true.
-  ! randomize curvilinear domain
-  ! simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
-  simulationFlags%isDomainCurvilinear = .false.
+  simulationFlags%isDomainCurvilinear = .true.
   simulationFlags%dissipationOn = .true.
   simulationFlags%compositeDissipation = .false. !(random(0,1)==0)
   if( trim(identifier)=="SBP 1-2" ) simulationFlags%compositeDissipation = .true.
@@ -265,8 +264,19 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
        simulationFlags = simulationFlags)
   call grid%setupSpatialDiscretization(simulationFlags, solverOptions)
+
+  ! randomize grid coordinates (didn't reflect periodicity)
+  h = 1.0_wp / real(grid%globalSize(1:nDimensions)-1,wp)
+  do i = 1, grid%nGridPoints
+    call random_number(gridPerturbation)
+    gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.13_wp * h
+    grid%coordinates(i,:) = grid%coordinates(i,:) + gridPerturbation
+  end do
+
   ! grid is not randomized: do not put any argument in updateGrid!!
   call grid%update()
+  ! print *, 'Jacobian range: (', minval(grid%jacobian), ', ', maxval(grid%jacobian), ')'
+  ! print *, 'Metrics range: (', minval(grid%metrics), ', ', maxval(grid%metrics), ')'
 
   call state0%setup(grid, simulationFlags, solverOptions)
   call state1%setup(grid, simulationFlags, solverOptions)
@@ -367,13 +377,16 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
     scalar2 = grid%computeInnerProduct(state0%adjointVariables,                             &
                                         state1%rightHandSide - state0%rightHandSide)
 
-    errorHistory(k) = abs( (scalar2/stepSizes(k) + scalar1)/scalar1 )
+    errorHistory(k) = abs( (scalar2/stepSizes(k) + scalar1)/scalar1 )   &
+                                                  *stepSizes(k) !check absolute error for linear operators
     ! print *, stepSizes(k), -scalar1, scalar2/stepSizes(k), errorHistory(k)
 
     if (k > 1) then
        convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
             log(stepSizes(k) / stepSizes(k-1))
-       if (convergenceHistory(k-1) < 0.0_wp) exit
+      if (k > 5) then
+        if (sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
+      end if
     end if
   end do
 
@@ -382,9 +395,10 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   elseif (k > 3) then
      call sort(convergenceHistory(:k-2))
      success = success .and. nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
+     if (.not. success) print *, 'error history: ', errorHistory(1:k)
   else
      success = .false.
-     print *, 'minimum error: ', minval(errorHistory)
+     print *, 'error history: ', errorHistory(1:k)
   end if
 
   SAFE_DEALLOCATE(adjointRightHandSide)

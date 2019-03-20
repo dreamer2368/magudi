@@ -241,11 +241,12 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: scalar1, scalar2, tolerance_,                                           &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
-  integer :: i, j, k, gridSize(3, 1), nUnknowns, direction_, errorCode, extent(6)
+  integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns, direction_, errorCode, extent(6)
   real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),            &
                                     adjointRightHandSide(:,:),                        &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     temp2(:,:), targetViscousFluxes(:,:,:)
+  SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
   character(len = STRING_LENGTH) :: errorMessage
 
   tolerance_ = 1.0E-11
@@ -260,7 +261,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   simulationFlags%enableAdjoint = .true.
   ! randomize curvilinear domain
   ! simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
-  simulationFlags%isDomainCurvilinear = .false.
+  simulationFlags%isDomainCurvilinear = .true.
   simulationFlags%viscosityOn = .true.
   simulationFlags%repeatFirstDerivative = .true. ! this is default value.
   simulationFlags%useTargetState = .true.
@@ -275,15 +276,26 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   ! initialize solver option, grid, and states
   call solverOptions%initialize(nDimensions, simulationFlags)
   solverOptions%discretizationType = trim(identifier)
-  solverOptions%reynoldsNumberInverse = 1.0_wp / 5.0_wp
-  solverOptions%prandtlNumberInverse = 1.0_wp / 0.72_wp
-  solverOptions%powerLawExponent = 0.666_wp
-  solverOptions%bulkViscosityRatio = 0.6_wp
+  solverOptions%reynoldsNumberInverse = 1.0_wp / random(5.0_wp,100.0_wp)
+  solverOptions%prandtlNumberInverse = 1.0_wp / random(0.1_wp,5.0_wp)
+  solverOptions%powerLawExponent = random(0.1_wp, 5.0_wp)
+  solverOptions%bulkViscosityRatio = random(0.1_wp, 5.0_wp)
   call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
        simulationFlags = simulationFlags)
   call grid%setupSpatialDiscretization(simulationFlags, solverOptions)
+
+  ! randomize grid coordinates (didn't reflect periodicity)
+  h = 1.0_wp / real(grid%globalSize(1:nDimensions)-1,wp)
+  do i = 1, grid%nGridPoints
+    call random_number(gridPerturbation)
+    gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.13_wp * h
+    grid%coordinates(i,:) = grid%coordinates(i,:) + gridPerturbation
+  end do
+
   ! grid is not randomized: do not put any argument in updateGrid!!
   call grid%update()
+  ! print *, 'Jacobian range: (', minval(grid%jacobian), ', ', maxval(grid%jacobian), ')'
+  ! print *, 'Metrics range: (', minval(grid%metrics), ', ', maxval(grid%metrics), ')'
 
   call state0%setup(grid, simulationFlags, solverOptions)
   call state1%setup(grid, simulationFlags, solverOptions)
@@ -292,7 +304,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   allocate(patchFactories(1))
   direction_ = direction
   extent(1::2) = 1
-  extent(2::2) = gridSize(:,1)
+  extent(2::2) = -1
   if (random(0, 1) == 0) then
      extent(1+2*(direction_-1)) = 1
      extent(2+2*(direction_-1)) = 1
@@ -315,8 +327,8 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
        grid, simulationFlags, solverOptions)
   select type(patch)
     class is (t_FarFieldPatch)
-      patch%inviscidPenaltyAmount = random(0.01_wp,1.0_wp)
-      patch%viscousPenaltyAmount = random(0.01_wp,1.0_wp)
+      patch%inviscidPenaltyAmount = random(0.01_wp,10.0_wp)
+      patch%viscousPenaltyAmount = random(0.01_wp,10.0_wp)
   end select
 
   ! Randomize target state.
@@ -489,7 +501,9 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
     if (k > 1) then
        convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
             log(stepSizes(k) / stepSizes(k-1))
-       if (k > 5 .and. convergenceHistory(k-1) < 0.0_wp) exit
+       if (k > 5) then
+         if(sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
+       end if
     end if
   end do
 

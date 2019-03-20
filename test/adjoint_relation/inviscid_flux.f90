@@ -224,13 +224,14 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   logical :: isPeriodic_(3), hasNegativeJacobian
   real(wp) :: scalar1, scalar2, tolerance_,&
               stepSizes(32), errorHistory(32), convergenceHistory(31)
-  integer :: i, j, k, gridSize(3, 1), nUnknowns
+  integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns
   real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),           &
                                     temp1(:,:,:), localFluxJacobian1(:,:),            &
                                     localConservedVariables(:), localVelocity(:),     &
                                     localMetricsAlongDirection1(:),                   &
                                     adjointRightHandSide(:,:),                        &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:)
+  SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
   character(len = STRING_LENGTH) :: errorMessage
 
   success = .true.
@@ -240,9 +241,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   simulationFlags%enableController = .true.
   simulationFlags%enableFunctional = .true.
   simulationFlags%enableAdjoint = .true.
-  ! randomize curvilinear domain
-  ! simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
-  simulationFlags%isDomainCurvilinear = .false.
+  simulationFlags%isDomainCurvilinear = .true.
 
   ! randomize grid size
   ! Note that too small grid size will yield null matrix for stencil operators.
@@ -254,11 +253,22 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   ! initialize solver option, grid, and states
   call solverOptions%initialize(nDimensions, simulationFlags)
   solverOptions%discretizationType = trim(identifier)
-  call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
+  call grid%setup(1, gridSize(:,1), MPI_COMM_WORLD,                        &
        simulationFlags = simulationFlags)
   call grid%setupSpatialDiscretization(simulationFlags, solverOptions)
+
+  ! randomize grid coordinates (didn't reflect periodicity)
+  h = 1.0_wp / real(grid%globalSize(1:nDimensions)-1,wp)
+  do i = 1, grid%nGridPoints
+    call random_number(gridPerturbation)
+    gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.13_wp * h
+    grid%coordinates(i,:) = grid%coordinates(i,:) + gridPerturbation
+  end do
+
   ! grid is not randomized: do not put any argument in updateGrid!!
   call grid%update()
+  ! print *, 'Jacobian range: (', minval(grid%jacobian), ', ', maxval(grid%jacobian), ')'
+  ! print *, 'Metrics range: (', minval(grid%metrics), ', ', maxval(grid%metrics), ')'
 
   call state0%setup(grid, simulationFlags, solverOptions)
   call state1%setup(grid, simulationFlags, solverOptions)
@@ -434,7 +444,9 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
     if (k > 1) then
        convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
             log(stepSizes(k) / stepSizes(k-1))
-       if (convergenceHistory(k-1) < 0.0_wp) exit
+       if (k > 5) then
+         if (sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
+       end if
     end if
   end do
 
