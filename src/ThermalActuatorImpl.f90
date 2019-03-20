@@ -110,7 +110,6 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
 
   ! <<< SeungWhan: variable for time_ramp printing >>>
   character(len = STRING_LENGTH) :: message
-real(SCALAR_KIND) :: FWtime
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -118,20 +117,10 @@ real(SCALAR_KIND) :: FWtime
 
   instantaneousSensitivity = 0.0_wp
 
-  timeRampFactor = 0.0_wp
-FWtime = region%states(1)%time - 0.5_wp * region%solverOptions%timeStepSize
-  if (FWtime>=this%onsetTime .and.                                            &
-      FWtime<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
+  timeRampFactor = 1.0_wp
   if (this%useTimeRamp)                                                                      &
        timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
        this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
-timeRampFactor = 1.0_wp
-!SeungWhan
-write(message,'(A)') 'Thermal Actuator-Adjoint'
-call writeAndFlush(region%comm, output_unit, message)
-write(message,'(ES9.2E2,ES9.2E2)') FWtime, timeRampFactor
-call writeAndFlush(region%comm, output_unit, message)
-!=========
 
   do i = 1, size(region%grids)
 
@@ -338,21 +327,15 @@ subroutine updateThermalActuatorGradient(this, region)
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: F(:,:)
 
-real(SCALAR_KIND) :: FWtime
-
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
-  timeRampFactor = 0.0_wp
-FWtime = region%states(1)%time - 0.5_wp * region%solverOptions%timeStepSize
-  if (FWtime>=this%onsetTime .and.                                            &
-      FWtime<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
+  timeRampFactor = 1.0_wp
   if (this%useTimeRamp)                                                                      &
        timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
        this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
-timeRampFactor = 1.0_wp
 
   do i = 1, size(region%patchFactories)
      call region%patchFactories(i)%connect(patch)
