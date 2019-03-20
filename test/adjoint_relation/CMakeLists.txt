@@ -16,6 +16,7 @@ endfunction(add_serial_test)
 
 # MPI tests
 set(numProcs 1 2 4 8)
+add_mpi_test(time_integrator "${numProcs}")
 add_mpi_test(full_rhs "${numProcs}")
 add_mpi_test(sponge "${numProcs}")
 add_mpi_test(SAT_farfield "${numProcs}")
