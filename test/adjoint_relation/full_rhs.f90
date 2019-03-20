@@ -268,7 +268,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   integer(kind = MPI_OFFSET_KIND) :: offset
   real(wp) :: scalar1, scalar2, tolerance_,&
               stepSizes(32), errorHistory(32), convergenceHistory(31)
-  integer :: i, j, k, ierror
+  integer :: i, j, k, ierror, procRank
   integer :: nDimensions
   logical :: success_
   character(len=STRING_LENGTH) :: filename
@@ -277,6 +277,8 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   ! character(len = STRING_LENGTH) :: errorMessage
 
   success = .true.
+
+  call MPI_Comm_rank(region%comm, procRank, ierror)
 
   nDimensions = size(region%globalGridSizes,1)
 
@@ -369,6 +371,14 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
     scalar1 = scalar1 + region%grids(i)%computeInnerProduct(region%states(i)%rightHandSide,         &
                                                             deltaState(i)%conservedVariables)
   end do
+  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+       call MPI_Allreduce(MPI_IN_PLACE, scalar1, 1,                          &
+       SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+
+  do i = 1, size(region%grids)
+     call MPI_Bcast(scalar1, 1, SCALAR_TYPE_MPI,                             &
+          0, region%grids(i)%comm, ierror)
+  end do
 
   ! <u, \delta R(v)>
   ! Prepare step sizes
@@ -397,9 +407,18 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
       scalar2 = scalar2 + region%grids(i)%computeInnerProduct(state0(i)%adjointVariables,                             &
                                                     region%states(i)%rightHandSide - state0(i)%rightHandSide)
     end do
+    if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+         call MPI_Allreduce(MPI_IN_PLACE, scalar2, 1,                          &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(scalar2, 1, SCALAR_TYPE_MPI,                             &
+            0, region%grids(i)%comm, ierror)
+    end do
 
     errorHistory(k) = abs( (scalar2/stepSizes(k) + scalar1)/scalar1 )
-    print *, stepSizes(k), -scalar1, scalar2/stepSizes(k), errorHistory(k)
+    if (procRank==0)                                          &
+      print *, stepSizes(k), -scalar1, scalar2/stepSizes(k), errorHistory(k)
 
     if (k > 1) then
        convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
@@ -413,7 +432,8 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
      success = success .and. nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
   else
      success = .false.
-     print *, convergenceHistory
+     if (procRank==0)                                          &
+       print *, convergenceHistory
   end if
 
 
