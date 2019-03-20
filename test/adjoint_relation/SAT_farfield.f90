@@ -52,21 +52,22 @@ program SAT_farfield
     do j = 1, 4!... for each discretizationTypes
       success = .true.
       do i = 1, 10 !... test multiple times
-        isPeriodic = .true.
-        do direction = 1, nDimensions
-          call testAdjointRelation(discretizationTypes(j), nDimensions,           &
-                                   success_, isPeriodic, direction)
-          success = success .and. success_
-        end do
-        if( .not. success_) then
-          if( procRank == 0 ) then
-            print *, 'Failed, ', trim(discretizationTypes(j))
-            print *, 'dimension: ', nDimensions
-            print *, 'periodicity: ', isPeriodic
-            print *, 'direction: ', direction
-          end if
-          exit
-        end if
+        ! Didn't test periodic grid yet!!
+        ! isPeriodic = .true.
+        ! do direction = 1, nDimensions
+        !   call testAdjointRelation(discretizationTypes(j), nDimensions,           &
+        !                            success_, isPeriodic, direction)
+        !   success = success .and. success_
+        ! end do
+        ! if( .not. success_) then
+        !   if( procRank == 0 ) then
+        !     print *, 'Failed, ', trim(discretizationTypes(j))
+        !     print *, 'dimension: ', nDimensions
+        !     print *, 'periodicity: ', isPeriodic
+        !     print *, 'direction: ', direction
+        !   end if
+        !   exit
+        ! end if
 
         isPeriodic = .false.
         do direction = 1, nDimensions

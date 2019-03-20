@@ -32,7 +32,7 @@ program inviscid_flux
        integer, intent(in) :: nDimensions
        logical, intent(out) :: success
 
-       logical, intent(in), optional :: isPeriodic
+       logical, intent(in) :: isPeriodic
        real(SCALAR_KIND), intent(in), optional :: tolerance
 
      end subroutine testAdjointRelation
@@ -51,18 +51,19 @@ program inviscid_flux
     do j = 1, 4 !... for each discretizationTypes
       success = .true.
       do i = 1, 10 !... test multiple times
-        isPeriodic = .true.
-        call testAdjointRelation(discretizationTypes(j), nDimensions,           &
-                                 success_, isPeriodic)
-        success = success .and. success_
-        if( .not. success) then
-          if( procRank == 0 ) then
-            print *, 'Failed, ', trim(discretizationTypes(j))
-            print *, 'dimension: ', nDimensions
-            print *, 'periodicity: ', isPeriodic
-          end if
-          exit
-        end if
+        ! Didn't test periodic grid yet!!
+        ! isPeriodic = .true.
+        ! call testAdjointRelation(discretizationTypes(j), nDimensions,           &
+        !                          success_, isPeriodic)
+        ! success = success .and. success_
+        ! if( .not. success) then
+        !   if( procRank == 0 ) then
+        !     print *, 'Failed, ', trim(discretizationTypes(j))
+        !     print *, 'dimension: ', nDimensions
+        !     print *, 'periodicity: ', isPeriodic
+        !   end if
+        !   exit
+        ! end if
 
         isPeriodic = .false.
         call testAdjointRelation(discretizationTypes(j), nDimensions,           &
@@ -198,7 +199,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   character(len = *), intent(in) :: identifier
   integer, intent(in) :: nDimensions
   logical, intent(out) :: success
-  logical, intent(in), optional :: isPeriodic
+  logical, intent(in) :: isPeriodic
   real(SCALAR_KIND), intent(in), optional :: tolerance
 
   ! <<< interface >>>

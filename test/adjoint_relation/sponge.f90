@@ -53,21 +53,22 @@ program sponge
       success = .true.
       do i = 1, 1 !... test multiple times
         success1 = .true.
-        isPeriodic = .true.
-        do direction = 1, nDimensions
-          call testAdjointRelation(discretizationTypes(j), nDimensions,           &
-                                   success_, isPeriodic, direction)
-          success1 = success1 .and. success_
-          if( .not. success_) then
-           if( procRank == 0 ) then
-             print *, 'Failed, ', trim(discretizationTypes(j))
-             print *, 'dimension: ', nDimensions
-             print *, 'periodicity: ', isPeriodic
-             print *, 'direction: ', direction
-           end if
-           exit
-          end if
-        end do
+        ! Didn't test periodic grid yet!!
+        ! isPeriodic = .true.
+        ! do direction = 1, nDimensions
+        !   call testAdjointRelation(discretizationTypes(j), nDimensions,           &
+        !                            success_, isPeriodic, direction)
+        !   success1 = success1 .and. success_
+        !   if( .not. success_) then
+        !    if( procRank == 0 ) then
+        !      print *, 'Failed, ', trim(discretizationTypes(j))
+        !      print *, 'dimension: ', nDimensions
+        !      print *, 'periodicity: ', isPeriodic
+        !      print *, 'direction: ', direction
+        !    end if
+        !    exit
+        !   end if
+        ! end do
 
         success2 = .true.
         isPeriodic = .false.

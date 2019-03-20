@@ -51,18 +51,19 @@ program artificial_dissipation
     do j = 1, 4 !... for each discretizationTypes
       success = .true.
       do i = 1, 10 !... test multiple times
-        isPeriodic = .true.
-        call testAdjointRelation(discretizationTypes(j), nDimensions,           &
-                                 success_, isPeriodic)
-        success = success .and. success_
-        if( .not. success) then
-          if( procRank == 0 ) then
-            print *, 'Failed, ', trim(discretizationTypes(j))
-            print *, 'dimension: ', nDimensions
-            print *, 'periodicity: ', isPeriodic
-          end if
-          exit
-        end if
+        ! Didn't test periodic grid yet!!
+        ! isPeriodic = .true.
+        ! call testAdjointRelation(discretizationTypes(j), nDimensions,           &
+        !                          success_, isPeriodic)
+        ! success = success .and. success_
+        ! if( .not. success) then
+        !   if( procRank == 0 ) then
+        !     print *, 'Failed, ', trim(discretizationTypes(j))
+        !     print *, 'dimension: ', nDimensions
+        !     print *, 'periodicity: ', isPeriodic
+        !   end if
+        !   exit
+        ! end if
 
         isPeriodic = .false.
         call testAdjointRelation(discretizationTypes(j), nDimensions,           &
