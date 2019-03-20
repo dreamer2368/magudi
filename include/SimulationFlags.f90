@@ -23,11 +23,14 @@ module SimulationFlags_mod
                 isBaselineAvailable   = .false., &
                 useContinuousAdjoint  = .false., &
                 compositeDissipation  = .true.,  &
-                computeTimeAverage    = .false.
+                computeTimeAverage    = .false., &
+                IsInitialized         = .false.
 
    contains
 
      procedure, pass :: initialize => initializeSimulationFlags
+     procedure, pass :: assignSimulationFlags
+     generic :: assignment(=) => assignSimulationFlags
 
   end type t_SimulationFlags
 
@@ -40,6 +43,19 @@ module SimulationFlags_mod
        class(t_SimulationFlags) :: this
 
      end subroutine initializeSimulationFlags
+
+  end interface
+
+  interface
+
+     subroutine assignSimulationFlags(this, simulationFlags)
+
+       import :: t_SimulationFlags
+
+       class(t_SimulationFlags), intent(out) :: this
+       type(t_SimulationFlags), intent(in) :: simulationFlags
+
+     end subroutine assignSimulationFlags
 
   end interface
 

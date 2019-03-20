@@ -105,6 +105,8 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
              trim(this%controllerType), "'!"
         call gracefulExit(comm_, message)
      end if
+  else
+     this%controllerType = ""
   end if
 
   if (simulationFlags%enableFunctional) then
@@ -115,10 +117,117 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
              trim(this%costFunctionalType), "'!"
         call gracefulExit(comm_, message)
      end if
+  else
+    this%costFunctionalType = ""
   end if
 
   if (simulationFlags%enableAdjoint) then
      this%checkpointingScheme = getOption("checkpointing_scheme", "uniform checkpointing")
   end if
 
+  this%IsInitialized = .true.
+
 end subroutine initializeSolverOptions
+
+subroutine assignSolverOptions(this, solverOptions)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Controller_mod, only : t_Controller
+  use Functional_mod, only : t_Functional
+  use SolverOptions_mod, only : t_SolverOptions
+  use Controller_factory, only : t_ControllerFactory
+  use Functional_factory, only : t_FunctionalFactory
+  use TimeIntegrator_mod, only : t_TimeIntegrator
+  use SimulationFlags_mod, only : t_SimulationFlags
+  use TimeIntegrator_factory, only : t_TimeIntegratorFactory
+
+  ! <<< Internal modules >>>
+  use InputHelper, only : getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_SolverOptions), intent(out) :: this
+  type(t_SolverOptions), intent(in) :: solverOptions
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: comm_
+  character(len = STRING_LENGTH) :: message
+  type(t_TimeIntegratorFactory) :: timeIntegratorFactory
+  class(t_TimeIntegrator), pointer :: dummyTimeIntegrator => null()
+  type(t_ControllerFactory) :: controllerFactory
+  class(t_Controller), pointer :: dummyController => null()
+  type(t_FunctionalFactory) :: functionalFactory
+  class(t_Functional), pointer :: dummyFunctional => null()
+
+  comm_ = MPI_COMM_WORLD
+
+  if (.not. solverOptions%IsInitialized) then
+     write(message, '(A)') "The assigned solverOptions is not initialized!"
+     call gracefulExit(comm_, message)
+  end if
+
+  this%ratioOfSpecificHeats = solverOptions%ratioOfSpecificHeats
+
+  this%nSpecies = solverOptions%nSpecies
+  if (this%nSpecies < 0) then
+     write(message, '(A)') "Number of species must be non-negative!"
+     call gracefulExit(comm_, message)
+  end if
+
+  this%nUnknowns = solverOptions%nUnknowns
+
+  this%reynoldsNumberInverse = solverOptions%reynoldsNumberInverse
+  this%prandtlNumberInverse = solverOptions%prandtlNumberInverse
+  this%powerLawExponent = solverOptions%powerLawExponent
+  this%bulkViscosityRatio = solverOptions%bulkViscosityRatio
+
+  this%densityRange = solverOptions%densityRange
+  this%temperatureRange = solverOptions%temperatureRange
+
+  this%dissipationAmount = solverOptions%dissipationAmount
+
+  this%cfl = solverOptions%cfl
+  this%timeStepSize = solverOptions%timeStepSize
+
+  this%discretizationType = solverOptions%discretizationType
+
+  this%timeIntegratorType = solverOptions%timeIntegratorType
+  if (len(trim(this%timeIntegratorType))>0) then
+    call timeIntegratorFactory%connect(dummyTimeIntegrator, trim(this%timeIntegratorType))
+    if (.not. associated(dummyTimeIntegrator)) then
+       write(message, '(A)') "Invalid time integration scheme '",                              &
+            trim(this%timeIntegratorType), "'!"
+       call gracefulExit(comm_, message)
+    end if
+  end if
+
+  this%controllerType = solverOptions%controllerType
+  if ( len(trim(this%controllerType))>0 ) then
+    call controllerFactory%connect(dummyController, trim(this%controllerType))
+    if (.not. associated(dummyController)) then
+      write(message, '(3A)') "Invalid controller type '",                             &
+           trim(this%controllerType), "'!"
+      call gracefulExit(comm_, message)
+    end if
+  end if
+
+  this%costFunctionalType = solverOptions%costFunctionalType
+  if ( len(trim(this%costFunctionalType))>0 ) then
+     call functionalFactory%connect(dummyFunctional, trim(this%costFunctionalType))
+     if (.not. associated(dummyFunctional)) then
+        write(message, '(3A)') "Invalid cost functional type '",                             &
+             trim(this%costFunctionalType), "'!"
+        call gracefulExit(comm_, message)
+     end if
+  end if
+
+  this%checkpointingScheme = solverOptions%checkpointingScheme
+  this%IsInitialized = solverOptions%IsInitialized
+
+end subroutine assignSolverOptions

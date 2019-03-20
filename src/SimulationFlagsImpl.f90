@@ -40,4 +40,56 @@ subroutine initializeSimulationFlags(this)
      this%enableFunctional = .true.
   end if
 
+  this%IsInitialized = .true.
+
 end subroutine initializeSimulationFlags
+
+subroutine assignSimulationFlags(this, simulationFlags)
+
+  use MPI
+
+  ! <<< Derived types >>>
+  use SimulationFlags_mod, only : t_SimulationFlags
+
+  ! <<< Internal modules >>>
+  use ErrorHandler, only : gracefulExit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_SimulationFlags), intent(out) :: this
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+
+  ! <<< Local variables >>>
+  integer :: comm_
+  character(len = STRING_LENGTH) :: message
+
+  comm_ = MPI_COMM_WORLD
+
+  if (.not. simulationFlags%IsInitialized) then
+     write(message, '(A)') "The assigned simulationFlags is not initialized!"
+     call gracefulExit(comm_, message)
+  end if
+
+  this%viscosityOn           = simulationFlags%viscosityOn
+  this%enableController      = simulationFlags%enableController
+  this%enableFunctional      = simulationFlags%enableFunctional
+  this%enableAdjoint         = simulationFlags%enableAdjoint
+  this%repeatFirstDerivative = simulationFlags%repeatFirstDerivative
+  this%useTargetState        = simulationFlags%useTargetState
+  this%dissipationOn         = simulationFlags%dissipationOn
+  this%isDomainCurvilinear   = simulationFlags%isDomainCurvilinear
+  this%manualDomainDecomp    = simulationFlags%manualDomainDecomp
+  this%enableSolutionLimits  = simulationFlags%enableSolutionLimits
+  this%useConstantCfl        = simulationFlags%useConstantCfl
+  this%filterOn              = simulationFlags%filterOn
+  this%steadyStateSimulation = simulationFlags%steadyStateSimulation
+  this%isBaselineAvailable   = simulationFlags%isBaselineAvailable
+  this%useContinuousAdjoint  = simulationFlags%useContinuousAdjoint
+  this%compositeDissipation  = simulationFlags%compositeDissipation
+
+  this%computeTimeAverage    = simulationFlags%computeTimeAverage
+
+  this%IsInitialized         = simulationFlags%IsInitialized
+
+end subroutine assignSimulationFlags

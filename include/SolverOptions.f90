@@ -12,10 +12,13 @@ module SolverOptions_mod
      integer :: nSpecies, nUnknowns
      character(len = STRING_LENGTH) :: discretizationType, timeintegratorType,               &
           costFunctionalType, controllerType, checkpointingScheme
+     logical :: IsInitialized = .false.
 
    contains
 
      procedure, pass :: initialize => initializeSolverOptions
+     procedure, pass :: assignSolverOptions
+     generic :: assignment(=) => assignSolverOptions
 
   end type t_SolverOptions
 
@@ -33,6 +36,21 @@ module SolverOptions_mod
        integer, intent(in), optional :: comm
 
      end subroutine initializeSolverOptions
+
+  end interface
+
+  interface
+
+     subroutine assignSolverOptions(this, solverOptions)
+
+       use SimulationFlags_mod, only : t_SimulationFlags
+
+       import :: t_SolverOptions
+
+       class(t_SolverOptions), intent(out) :: this
+       type(t_SolverOptions), intent(in) :: solverOptions
+
+     end subroutine assignSolverOptions
 
   end interface
 
