@@ -230,15 +230,14 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
   use State_mod, only : t_State
-  ! use StencilOperator_mod, only : t_StencilOperator
-  ! use Grid_mod, only : t_Grid
-  ! use SolverOptions_mod, only : t_SolverOptions
-  ! use SimulationFlags_mod, only : t_SimulationFlags
 
   use Region_enum, only : FORWARD, ADJOINT
+  use State_enum
 
   ! <<< Internal modules >>>
   use RandomNumber, only : random
+  use PLOT3DHelper
+  use InputHelper, only : getOption
 
   ! <<< Arguments >>>
   class(t_Solver) :: solver
@@ -266,10 +265,13 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
+  integer(kind = MPI_OFFSET_KIND) :: offset
   real(wp) :: scalar1, scalar2, tolerance_,&
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, ierror
   integer :: nDimensions
+  logical :: success_
+  character(len=STRING_LENGTH) :: filename
   real(SCALAR_KIND), allocatable :: F(:,:), deltaPrimitiveVariables(:,:)
 
   ! character(len = STRING_LENGTH) :: errorMessage
@@ -303,6 +305,10 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   do i = 1, size(state0)
     assert(all(state0(i)%conservedVariables(:,1) > 0.0_wp))
   end do
+
+  ! Save conserved variable as next target state.
+  write(filename,'(2A)') trim(solver%outputPrefix),'.target.q'
+  call region%saveData(QOI_FORWARD_STATE, filename)
 
   ! Compute dependent variables.
   do i = 1, size(state0)
@@ -407,6 +413,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
      success = success .and. nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
   else
      success = .false.
+     print *, convergenceHistory
   end if
 
 
