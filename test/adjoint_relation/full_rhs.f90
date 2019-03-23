@@ -382,7 +382,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
 
   ! <u, \delta R(v)>
   ! Prepare step sizes
-  stepSizes(1) = 0.01_wp
+  stepSizes(1) = 0.001_wp
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
@@ -423,7 +423,9 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
     if (k > 1) then
        convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
             log(stepSizes(k) / stepSizes(k-1))
-       if (convergenceHistory(k-1) < 0.0_wp) exit
+       if (k > 5) then
+           if (sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
+       end if
     end if
   end do
 
