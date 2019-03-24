@@ -58,7 +58,7 @@ module RhsHelper
 
        type(t_SimulationFlags), intent(in) :: simulationFlags
        type(t_SolverOptions), intent(in) :: solverOptions
-       class(t_Grid) :: grid
+       class(t_Grid), intent(in) :: grid
        class(t_State) :: state
        type(t_PatchFactory), allocatable :: patchFactories(:)
 

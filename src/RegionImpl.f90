@@ -1279,7 +1279,7 @@ subroutine computeRhs(this, mode)
      end do
   end if
 
-  call exchangeInterfaceData(this, mode)
+  call exchangeInterfaceData(this)
 
   ! Disperse received data at block interfaces.
   if (allocated(this%patchFactories)) then

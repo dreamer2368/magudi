@@ -1,0 +1,9 @@
+# Notation:
+# IB = Inner Block
+# E, N, W, S = East, North, West, South, respectively (directions are as seen from looking at an axial cross-section)
+# NE, SE, etc. = North-East, South-East etc.
+
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  interface1   	       SAT_BLOCK_INTERFACE	    1      -1   -1	 -1    1   -1	 1   -1
+  interface2  	       SAT_BLOCK_INTERFACE	    2       1    1	  1    1   -1	 1   -1

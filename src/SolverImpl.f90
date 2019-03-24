@@ -370,6 +370,8 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
+  use Patch_mod, only : t_Patch
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use Controller_mod, only : t_Controller
   use Functional_mod, only : t_Functional
   use TimeIntegrator_mod, only : t_TimeIntegrator
@@ -377,6 +379,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   ! <<< Enumerations >>>
   use Grid_enum, only : QOI_CONTROL_MOLLIFIER, QOI_TARGET_MOLLIFIER
   use State_enum, only : QOI_FORWARD_STATE, QOI_TARGET_STATE, QOI_ADJOINT_STATE
+  use BlockInterfacePatch_enum, only : METRICS
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
@@ -393,7 +396,8 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename
-  integer :: i
+  integer :: i, j
+  class(t_Patch), pointer :: patch => null()
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
@@ -481,6 +485,40 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
           region%solverOptions, region%grids(i), region%states(i))
   end do
+
+  ! Exchange metrics data at block interfaces.
+  if (allocated(region%patchFactories)) then
+     do i = 1, size(region%patchFactories)
+        call region%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(region%states)
+           if (patch%gridIndex /= region%grids(j)%index) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              call patch%collectInterfaceData(METRICS, region%simulationFlags,                    &
+                   region%solverOptions, region%grids(j), region%states(j))
+           end select
+        end do
+     end do
+  end if
+
+  call exchangeInterfaceData(region)
+
+  ! Disperse received metrics data at block interfaces.
+  if (allocated(region%patchFactories)) then
+     do i = 1, size(region%patchFactories)
+        call region%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(region%states)
+           if (patch%gridIndex /= region%grids(j)%index) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              call patch%disperseInterfaceData(METRICS, region%simulationFlags,                   &
+                   region%solverOptions)
+           end select
+        end do
+     end do
+  end if
 
   if (region%simulationFlags%enableController) then
 

@@ -44,6 +44,9 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
 
      assert(this%nPatchPoints > 0)
 
+     allocate(this%metricsAlongNormalDirectionL(this%nPatchPoints,nDimensions))
+     allocate(this%metricsAlongNormalDirectionR(this%nPatchPoints,nDimensions))
+
      allocate(this%conservedVariablesL(this%nPatchPoints, nUnknowns))
      allocate(this%conservedVariablesR(this%nPatchPoints, nUnknowns))
 
@@ -119,6 +122,8 @@ subroutine cleanupBlockInterfacePatch(this)
   SAFE_DEALLOCATE(this%sendBuffer)
   SAFE_DEALLOCATE(this%receiveBuffer)
 
+  SAFE_DEALLOCATE(this%metricsAlongNormalDirectionL)
+  SAFE_DEALLOCATE(this%metricsAlongNormalDirectionR)
 end subroutine cleanupBlockInterfacePatch
 
 subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, grid, state)
@@ -301,7 +306,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       this%adjointVariablesR(patchIndex,:))
 
               else
-
+                localMetricsAlongNormalDirection =                                           &
+                      this%metricsAlongNormalDirectionL(patchIndex,:)
                  select case (nDimensions)
                  case (1)
                     call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
@@ -336,6 +342,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                          this%adjointVariablesL(patchIndex,:))
                  end do
 
+                 localMetricsAlongNormalDirection =                                           &
+                       this%metricsAlongNormalDirectionR(patchIndex,:)
                  select case (nDimensions)
                  case (1)
                     call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
@@ -357,13 +365,13 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                          deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  end select !... nDimensions
 
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
                       this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       this%adjointVariablesR(patchIndex,:))
 
                  do l = 1, nUnknowns
-                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
+                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) -    &
                          this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *          &
                          sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
                          localConservedVariablesL - localConservedVariablesR) *              &
@@ -374,7 +382,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                     state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -    &
                          this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *           &
                          matmul(transpose(localViscousFluxJacobian),                         &
-                         this%adjointVariablesL(patchIndex,:) +                              &
+                         this%adjointVariablesL(patchIndex,:) -                              &
                          this%adjointVariablesR(patchIndex,:))
                  end if
 
@@ -468,6 +476,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT
+  use BlockInterfacePatch_enum, only : METRICS
 
   implicit none
 
@@ -497,40 +506,48 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
 
   assert(this%nPatchPoints > 0)
 
-  call this%collect(state%conservedVariables, this%conservedVariablesL)
-  if (mode == ADJOINT)                                                                       &
-       call this%collect(state%adjointVariables, this%adjointVariablesL)
+  select case(mode)
+  case(FORWARD)
+    call this%collect(state%conservedVariables, this%conservedVariablesL)
 
-  !SeungWhan: unclear use of predictionOnly. revisit later.
-  if (.not. simulationFlags%viscosityOn .and. .not. simulationFlags%enableAdjoint) then
-     call this%gatherData(this%conservedVariablesL, this%sendBuffer)
-     return
-  end if
+    !SeungWhan: unclear use of predictionOnly. revisit later.
+    if (.not. simulationFlags%viscosityOn .and. .not. simulationFlags%enableAdjoint) then
+       call this%gatherData(this%conservedVariablesL, this%sendBuffer)
+       return
+    end if
 
-  if (mode == FORWARD .and. simulationFlags%viscosityOn) then
+    if (simulationFlags%viscosityOn) then
+       allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
+       call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
+            metricsAlongNormalDirection)
 
-     allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
-     call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
-          metricsAlongNormalDirection)
-
-     this%viscousFluxesL = 0.0_wp
-     do j = 1, nDimensions
-        do i = 2, nUnknowns
-           this%viscousFluxesL(:,i) = this%viscousFluxesL(:,i) +                             &
-                this%cartesianViscousFluxesL(:,i,j) * metricsAlongNormalDirection(:,j)
-        end do
-     end do
-
-  end if
+       this%viscousFluxesL = 0.0_wp
+       do j = 1, nDimensions
+          do i = 2, nUnknowns
+             this%viscousFluxesL(:,i) = this%viscousFluxesL(:,i) +                             &
+                  this%cartesianViscousFluxesL(:,i,j) * metricsAlongNormalDirection(:,j)
+          end do
+       end do
+    end if
+  case(ADJOINT)
+    call this%collect(state%conservedVariables, this%conservedVariablesL)
+    call this%collect(state%adjointVariables, this%adjointVariablesL)
+  case(METRICS)
+    call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
+                      this%metricsAlongNormalDirectionL)
+  end select
 
   allocate(dataToBeSent(this%nPatchPoints, 2 * nUnknowns))
-
-  dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
-  if (mode == ADJOINT) then
-     dataToBeSent(:,nUnknowns+1:) = this%adjointVariablesL
-  else if (simulationFlags%viscosityOn) then
-     dataToBeSent(:,nUnknowns+1:) = this%viscousFluxesL
-  end if
+  select case(mode)
+  case(FORWARD)
+    dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
+    if (simulationFlags%viscosityOn) dataToBeSent(:,nUnknowns+1:) = this%viscousFluxesL
+  case(ADJOINT)
+    dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
+    dataToBeSent(:,nUnknowns+1:) = this%adjointVariablesL
+  case(METRICS)
+    dataToBeSent(:,1:nDimensions) = this%metricsAlongNormalDirectionL
+  end select
 
   call this%gatherData(dataToBeSent, this%sendBuffer)
 
@@ -550,7 +567,8 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
-  use Region_enum, only : ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT
+  use BlockInterfacePatch_enum, only : METRICS
 
   implicit none
 
@@ -570,21 +588,29 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
 
   assert(this%nPatchPoints > 0)
 
-  nExchangedVariables = nUnknowns
-  !SeungWhan: unclear use of predictionOnly. revisit later.
-  if (simulationFlags%viscosityOn .or. simulationFlags%enableAdjoint)                 &
-       nExchangedVariables = nExchangedVariables + nUnknowns
+  select case(mode)
+  case(FORWARD)
+    nExchangedVariables = nUnknowns
+    if (simulationFlags%viscosityOn .or. simulationFlags%enableAdjoint)                 &
+         nExchangedVariables = nExchangedVariables + nUnknowns
+  case default
+    nExchangedVariables = 2*nUnknowns
+  end select
 
   allocate(receivedData(this%nPatchPoints, nExchangedVariables))
 
   call this%scatterData(this%receiveBuffer, receivedData)
 
-  this%conservedVariablesR = receivedData(:,1:nUnknowns)
-  if (mode == ADJOINT) then
-     this%adjointVariablesR = receivedData(:,nUnknowns+1:)
-  else if (simulationFlags%viscosityOn) then
-     this%viscousFluxesR = receivedData(:,nUnknowns+1:)
-  end if
+  select case(mode)
+  case(FORWARD)
+    this%conservedVariablesR = receivedData(:,1:nUnknowns)
+    this%viscousFluxesR = receivedData(:,nUnknowns+1:)
+  case(ADJOINT)
+    this%conservedVariablesR = receivedData(:,1:nUnknowns)
+    this%adjointVariablesR = receivedData(:,nUnknowns+1:)
+  case(METRICS)
+    this%metricsAlongNormalDirectionR = receivedData(:,1:nUnknowns-2)
+  end select
 
   SAFE_DEALLOCATE(receivedData)
 
