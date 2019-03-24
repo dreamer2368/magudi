@@ -104,7 +104,7 @@ subroutine readPatchInterfaceInformation(region)
 
 end subroutine readPatchInterfaceInformation
 
-subroutine exchangeInterfaceData(region, mode)
+subroutine exchangeInterfaceData(region)
 
   ! <<< External modules >>>
   use MPI
@@ -118,7 +118,6 @@ subroutine exchangeInterfaceData(region, mode)
 
   ! <<< Arguments >>>
   class(t_Region) :: region
-  integer, intent(in) :: mode
 
   ! <<< Local variables >>>
   integer :: i, j, iRequest, mpiTag, procRank, ierror
@@ -342,7 +341,7 @@ subroutine checkFunctionContinuityAtInterfaces(region, tolerance)
         end do
      end if
 
-     call exchangeInterfaceData(region, FORWARD)
+     call exchangeInterfaceData(region)
      call MPI_Barrier(region%comm, ierror)
 
      if (allocated(region%patchFactories)) then
