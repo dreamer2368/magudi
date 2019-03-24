@@ -1,0 +1,11 @@
+# magudi.inp
+# Written by Ramanathan Vishnampet
+
+# Filenames, etc.
+boundary_condition_file = "bc.dat"
+
+# Interface specifications
+patches/interface1/conforms_with = 'interface2'
+patches/interface2/conforms_with = 'interface1'
+
+# Interface index reorderings

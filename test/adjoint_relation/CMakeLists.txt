@@ -12,7 +12,7 @@ function(add_serial_test name)
 endfunction(add_serial_test)
 
 # Serial tests
-#add_serial_test(inviscid_flux)
+add_serial_test(SAT_block_interface)
 
 # MPI tests
 set(numProcs 1 2 4 8)
