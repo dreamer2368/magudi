@@ -1,5 +1,14 @@
 #include "config.h"
 
+module BlockInterfacePatch_enum
+
+  implicit none
+  public
+
+  integer, parameter ::  METRICS = 3081
+
+end module BlockInterfacePatch_enum
+
 module BlockInterfacePatch_mod
 
   use Patch_mod, only : t_Patch
@@ -13,6 +22,8 @@ module BlockInterfacePatch_mod
           adjointVariablesL(:,:), adjointVariablesR(:,:),                                    &
           cartesianViscousFluxesL(:,:,:), viscousFluxesL(:,:), viscousFluxesR(:,:)
      SCALAR_TYPE, allocatable :: sendBuffer(:,:), receiveBuffer(:,:)
+     SCALAR_TYPE, allocatable :: metricsAlongNormalDirectionL(:,:),                          &
+                                 metricsAlongNormalDirectionR(:,:)
 
    contains
 

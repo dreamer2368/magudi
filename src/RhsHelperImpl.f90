@@ -706,7 +706,7 @@ subroutine addInterfaceAdjointPenalty(simulationFlags, solverOptions,           
                        temp1(gridIndex,:,l) = temp1(gridIndex,:,l) -                       &
                             patch%viscousPenaltyAmount *                                   &
                             matmul(transpose(localViscousFluxJacobian),                    &
-                            patch%adjointVariablesL(patchIndex,2:nUnknowns) +              &
+                            patch%adjointVariablesL(patchIndex,2:nUnknowns) -              &
                             patch%adjointVariablesR(patchIndex,2:nUnknowns))
 
                     end do !... l = 1, nDimensions
