@@ -327,8 +327,12 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
        grid, simulationFlags, solverOptions)
   select type(patch)
     class is (t_FarFieldPatch)
-      patch%inviscidPenaltyAmount = random(0.01_wp,10.0_wp)
-      patch%viscousPenaltyAmount = random(0.01_wp,10.0_wp)
+      patch%inviscidPenaltyAmount = sign(random(0.01_wp,10.0_wp),                       &
+                                      real(patch%normalDirection,wp))                   &
+                                      /grid%firstDerivative(abs(direction_))%normBoundary(1)
+      patch%viscousPenaltyAmount = sign(random(0.01_wp,10.0_wp),                        &
+                                      real(patch%normalDirection,wp))                   &
+                                      /grid%firstDerivative(abs(direction_))%normBoundary(1)
   end select
 
   ! Randomize target state.
