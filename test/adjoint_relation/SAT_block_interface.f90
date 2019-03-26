@@ -446,12 +446,6 @@ subroutine testAdjointRelation(identifier, nDimensions, success, direction, tole
   ! Check continuity at block interfaces.
   ! call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
 
-  ! Update patches.
-  do i = 1, size(region%grids)
-     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
-          region%solverOptions, region%grids(i), region%states(i))
-  end do
-
   inviscidPenaltyAmount = random(0.01_wp,10.0_wp)
   viscousPenaltyAmount = random(0.01_wp,10.0_wp)
   do i = 1, size(region%patchFactories)
@@ -461,11 +455,22 @@ subroutine testAdjointRelation(identifier, nDimensions, success, direction, tole
        if (patch%gridIndex /= region%grids(j)%index) cycle
        select type (patch)
        class is (t_BlockInterfacePatch)
-         patch%inviscidPenaltyAmount = inviscidPenaltyAmount
-         patch%viscousPenaltyAmount = viscousPenaltyAmount
+         patch%inviscidPenaltyAmount = sign(inviscidPenaltyAmount,                              &
+                                        real(patch%normalDirection, wp))                        &
+                                        /region%grids(j)%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
+         patch%viscousPenaltyAmount = sign(viscousPenaltyAmount,                             &
+                                        real(patch%normalDirection, wp))                      &
+                                        /region%grids(j)%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
        end select
      end do
   end do
+
+  ! Update patches.
+  do i = 1, size(region%grids)
+     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
+          region%solverOptions, region%grids(i), region%states(i))
+  end do
+
   ! Exchange jacobian at block interfaces.
    do i = 1, size(region%patchFactories)
       call region%patchFactories(i)%connect(patch)

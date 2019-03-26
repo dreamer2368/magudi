@@ -76,7 +76,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 
-  ! Inviscid penalty amount.
+  ! Inviscid penalty amount. Note sign is included! the opposite side has different sign, same amplitude.
   this%inviscidPenaltyAmount = getOption("defaults/inviscid_penalty_amount", 1.0_wp)
   this%inviscidPenaltyAmount = getOption(trim(key) //                                        &
        "inviscid_penalty_amount", this%inviscidPenaltyAmount)
@@ -85,7 +85,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
   this%inviscidPenaltyAmount = this%inviscidPenaltyAmount /                                  &
        grid%firstDerivative(abs(this%normalDirection))%normBoundary(1)
 
-  ! Viscous penalty amount.
+  ! Viscous penalty amount. Note sign is included! the opposite side has different sign, same amplitude.
   if (simulationFlags%viscosityOn) then
      this%viscousPenaltyAmount = getOption("defaults/viscous_penalty_amount", 0.5_wp)
      this%viscousPenaltyAmount = getOption(trim(key) //                                      &
@@ -365,24 +365,27 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                          deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  end select !... nDimensions
 
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
+                 ! Note sign change is included in inviscidPenaltyAmount
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
                       this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       this%adjointVariablesR(patchIndex,:))
 
+                 ! Note sign change is included in inviscidPenaltyAmount
                  do l = 1, nUnknowns
-                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) -    &
+                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
                          this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *          &
                          sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
                          localConservedVariablesL - localConservedVariablesR) *              &
                          this%adjointVariablesR(patchIndex,:))
                  end do
 
+                 ! Note sign change is included in viscousPenaltyAmount
                  if (simulationFlags%viscosityOn) then
                     state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -    &
                          this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *           &
                          matmul(transpose(localViscousFluxJacobian),                         &
-                         this%adjointVariablesL(patchIndex,:) -                              &
+                         this%adjointVariablesL(patchIndex,:) +                              &
                          this%adjointVariablesR(patchIndex,:))
                  end if
 
@@ -604,7 +607,7 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
   select case(mode)
   case(FORWARD)
     this%conservedVariablesR = receivedData(:,1:nUnknowns)
-    this%viscousFluxesR = receivedData(:,nUnknowns+1:)
+    if (simulationFlags%viscosityOn) this%viscousFluxesR = receivedData(:,nUnknowns+1:)
   case(ADJOINT)
     this%conservedVariablesR = receivedData(:,1:nUnknowns)
     this%adjointVariablesR = receivedData(:,nUnknowns+1:)

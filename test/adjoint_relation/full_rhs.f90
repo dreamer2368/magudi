@@ -269,7 +269,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   real(wp) :: scalar1, scalar2, tolerance_,&
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, ierror, procRank
-  integer :: nDimensions
+  integer :: nDimensions, nUnknowns
   logical :: success_
   character(len=STRING_LENGTH) :: filename
   real(SCALAR_KIND), allocatable :: F(:,:), deltaPrimitiveVariables(:,:)
@@ -386,6 +386,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
+  errorHistory = 0.0_wp
   do k = 1, size(stepSizes)
     !(1) finite difference on conserved variables
     do i = 1, size(state0)
