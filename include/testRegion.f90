@@ -18,11 +18,12 @@ module testRegion_mod
   end type t_testRegion
 
   interface
-    subroutine testComputeRhs(this,mode)
+    subroutine testComputeRhs(this,mode, timeStep, stage)
       import :: t_testRegion
 
       class(t_testRegion) :: this
       integer, intent(in) :: mode
+      integer, intent(in), optional :: timeStep, stage
     end subroutine testComputeRhs
   end interface
 

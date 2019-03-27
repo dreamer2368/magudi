@@ -175,12 +175,13 @@ module Region_mod
 
   interface
 
-     subroutine computeRhs(this, mode)
+     subroutine computeRhs(this, mode, timeStep, stage)
 
        import :: t_Region
 
        class(t_Region) :: this
        integer, intent(in) :: mode
+       integer, intent(in), optional :: timeStep, stage
 
      end subroutine computeRhs
 

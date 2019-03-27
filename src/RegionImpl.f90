@@ -1220,7 +1220,7 @@ function getTimeStepSize(this) result(timeStepSize)
 
 end function getTimeStepSize
 
-subroutine computeRhs(this, mode)
+subroutine computeRhs(this, mode, timeStep, stage)
 
   ! <<< External modules >>>
   use MPI
@@ -1243,6 +1243,7 @@ subroutine computeRhs(this, mode)
   ! <<< Arguments >>>
   class(t_Region) :: this
   integer, intent(in) :: mode
+  integer, intent(in), optional :: timeStep, stage
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
