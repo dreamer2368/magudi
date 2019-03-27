@@ -110,17 +110,8 @@ contains
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".q"
           call region%saveData(QOI_FORWARD_STATE, filename)
        case (ADJOINT)
-          !SeungWhan
-          !        do j = 1, size(region%states) !... update state
-          !           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
-          !                region%solverOptions)
-          !        end do
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adjoint.q"
           call region%saveData(QOI_ADJOINT_STATE, filename)
-          !SeungWhan: save adjoint rhs for debugging========
-          !write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adj_rhs.q"
-          !call region%saveData(QOI_RIGHT_HAND_SIDE, filename)
-          !=========================================
        end select
 
     end if
