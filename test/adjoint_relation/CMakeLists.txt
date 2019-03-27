@@ -13,6 +13,7 @@ endfunction(add_serial_test)
 
 # Serial tests
 add_serial_test(SAT_block_interface)
+add_serial_test(control_functional)
 
 # MPI tests
 set(numProcs 1 2 4 8)
