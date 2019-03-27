@@ -17,7 +17,9 @@ module BlockInterfacePatch_mod
 
   type, extends(t_Patch), public :: t_BlockInterfacePatch
 
-     real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount
+     real(SCALAR_KIND) :: inviscidPenaltyAmount, viscousPenaltyAmount,                       &
+                          inviscidPenaltyAmountL, inviscidPenaltyAmountR,                    &
+                          viscousPenaltyAmountL, viscousPenaltyAmountR
      SCALAR_TYPE, allocatable :: conservedVariablesL(:,:), conservedVariablesR(:,:),         &
           adjointVariablesL(:,:), adjointVariablesR(:,:),                                    &
           cartesianViscousFluxesL(:,:,:), viscousFluxesL(:,:), viscousFluxesR(:,:)

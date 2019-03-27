@@ -330,13 +330,13 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                  end select !... nDimensions
 
                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
-                      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
+                      this%inviscidPenaltyAmountL * grid%jacobian(gridIndex, 1) *            &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       this%adjointVariablesL(patchIndex,:))
 
                  do l = 1, nUnknowns
                     state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
-                         this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *          &
+                         this%inviscidPenaltyAmountL * grid%jacobian(gridIndex, 1) *         &
                          sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
                          localConservedVariablesL - localConservedVariablesR) *              &
                          this%adjointVariablesL(patchIndex,:))
@@ -366,15 +366,15 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                  end select !... nDimensions
 
                  ! Note sign change is included in inviscidPenaltyAmount
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
-                      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
+                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
+                      this%inviscidPenaltyAmountR * grid%jacobian(gridIndex, 1) *            &
                       matmul(transpose(incomingJacobianOfInviscidFlux),                      &
                       this%adjointVariablesR(patchIndex,:))
 
                  ! Note sign change is included in inviscidPenaltyAmount
                  do l = 1, nUnknowns
-                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
-                         this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *          &
+                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) -    &
+                         this%inviscidPenaltyAmountR * grid%jacobian(gridIndex, 1) *         &
                          sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
                          localConservedVariablesL - localConservedVariablesR) *              &
                          this%adjointVariablesR(patchIndex,:))
@@ -383,10 +383,10 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                  ! Note sign change is included in viscousPenaltyAmount
                  if (simulationFlags%viscosityOn) then
                     state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -    &
-                         this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *           &
+                         grid%jacobian(gridIndex, 1) *                                       &
                          matmul(transpose(localViscousFluxJacobian),                         &
-                         this%adjointVariablesL(patchIndex,:) +                              &
-                         this%adjointVariablesR(patchIndex,:))
+                         this%viscousPenaltyAmountL * this%adjointVariablesL(patchIndex,:) - &
+                         this%viscousPenaltyAmountR * this%adjointVariablesR(patchIndex,:))
                  end if
 
               end if
@@ -538,6 +538,8 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   case(METRICS)
     call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
                       this%metricsAlongNormalDirectionL)
+    this%inviscidPenaltyAmountL = this%inviscidPenaltyAmount
+    if (simulationFlags%viscosityOn) this%viscousPenaltyAmountL = this%viscousPenaltyAmount
   end select
 
   allocate(dataToBeSent(this%nPatchPoints, 2 * nUnknowns))
@@ -550,6 +552,8 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
     dataToBeSent(:,nUnknowns+1:) = this%adjointVariablesL
   case(METRICS)
     dataToBeSent(:,1:nDimensions) = this%metricsAlongNormalDirectionL
+    dataToBeSent(:,nDimensions+1) = this%inviscidPenaltyAmountL
+    if (simulationFlags%viscosityOn) dataToBeSent(:,nDimensions+2) = this%viscousPenaltyAmountL
   end select
 
   call this%gatherData(dataToBeSent, this%sendBuffer)
@@ -613,6 +617,8 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
     this%adjointVariablesR = receivedData(:,nUnknowns+1:)
   case(METRICS)
     this%metricsAlongNormalDirectionR = receivedData(:,1:nUnknowns-2)
+    this%inviscidPenaltyAmountR = receivedData(1,nUnknowns-1)
+    if (simulationFlags%viscosityOn) this%viscousPenaltyAmountR = receivedData(1,nUnknowns)
   end select
 
   SAFE_DEALLOCATE(receivedData)
