@@ -97,7 +97,7 @@ program grid_generator
               do j = 1, gridSize(2)
                  do i = 1, gridSize(1)
                     region%grids(l)%coordinates(i + gridSize(1) * (j - 1 +                   &
-                         gridSize(2) * (k - 1)), l) = coordinate(i + offset(l))
+                         gridSize(2) * (k - 1)), direction) = coordinate(i + offset(direction))
                  end do
               end do
            end do
@@ -107,7 +107,7 @@ program grid_generator
               do j = 1, gridSize(2)
                  do i = 1, gridSize(1)
                     region%grids(l)%coordinates(i + gridSize(1) * (j - 1 +                   &
-                         gridSize(2) * (k - 1)), l) = coordinate(j + offset(l))
+                         gridSize(2) * (k - 1)), direction) = coordinate(j + offset(direction))
                  end do
               end do
            end do
@@ -117,7 +117,7 @@ program grid_generator
               do j = 1, gridSize(2)
                  do i = 1, gridSize(1)
                     region%grids(l)%coordinates(i + gridSize(1) * (j - 1 +                   &
-                         gridSize(2) * (k - 1)), l) = coordinate(k + offset(l))
+                         gridSize(2) * (k - 1)), direction) = coordinate(k + offset(direction))
                  end do
               end do
            end do
