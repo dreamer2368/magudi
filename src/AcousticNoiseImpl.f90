@@ -24,8 +24,9 @@ subroutine setupAcousticNoise(this, region)
   class(t_Region) :: region
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
-  character(len = STRING_LENGTH) :: filename
+  character(len = STRING_LENGTH) :: filename, outputPrefix, message
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
@@ -48,8 +49,15 @@ subroutine setupAcousticNoise(this, region)
   end do
 
   if (.not. region%simulationFlags%useTargetState) then
-     call getRequiredOption("mean_pressure_file", filename, region%comm)
-     call region%loadData(QOI_DUMMY_FUNCTION, filename)
+     filename = getOption("mean_pressure_file","")
+     if (len_trim(filename) > 0) then
+        call region%loadData(QOI_DUMMY_FUNCTION, filename)
+     else
+        do i = 1, size(region%states)
+           j = region%grids(i)%index
+           this%data_(j)%meanPressure = 1.0_wp/region%solverOptions%ratioOfSpecificHeats
+        end do
+     end if
   else
      filename = getOption("mean_pressure_file", "")
      if (len_trim(filename) > 0) then
