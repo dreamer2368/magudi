@@ -158,7 +158,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, nDimensions, nUnknowns, direction,                                  &
-       incomingDirection, gridIndex, patchIndex
+             incomingDirection, gridIndex, patchIndex,                                       &
+             incomingDirectionL, incomingDirectionR
   SCALAR_TYPE, allocatable :: localConservedVariablesL(:), localConservedVariablesR(:),      &
        localRoeAverage(:), localStressTensor(:), localHeatFlux(:), localVelocity(:),         &
        localMetricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),             &
@@ -185,6 +186,8 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
      incomingDirection = -this%normalDirection
   else
      incomingDirection = +this%normalDirection
+     incomingDirectionL = +this%normalDirectionL
+     incomingDirectionR = +this%normalDirectionR
   end if
 
   allocate(localConservedVariablesL(nUnknowns))
@@ -312,19 +315,19 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                  case (1)
                     call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirection,              &
+                         solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
                          incomingJacobianOfInviscidFlux,                                     &
                          deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  case (2)
                     call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirection,              &
+                         solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
                          incomingJacobianOfInviscidFlux,                                     &
                          deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  case (3)
                     call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirection,              &
+                         solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
                          incomingJacobianOfInviscidFlux,                                     &
                          deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  end select !... nDimensions
@@ -348,19 +351,19 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                  case (1)
                     call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, -incomingDirection,             &
+                         solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
                          incomingJacobianOfInviscidFlux,                                     &
                          deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  case (2)
                     call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, -incomingDirection,             &
+                         solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
                          incomingJacobianOfInviscidFlux,                                     &
                          deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  case (3)
                     call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,            &
                          localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, -incomingDirection,             &
+                         solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
                          incomingJacobianOfInviscidFlux,                                     &
                          deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
                  end select !... nDimensions
@@ -540,6 +543,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
                       this%metricsAlongNormalDirectionL)
     this%inviscidPenaltyAmountL = this%inviscidPenaltyAmount
     if (simulationFlags%viscosityOn) this%viscousPenaltyAmountL = this%viscousPenaltyAmount
+    this%normalDirectionL = this%normalDirection
   end select
 
   allocate(dataToBeSent(this%nPatchPoints, 2 * nUnknowns))
@@ -554,6 +558,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
     dataToBeSent(:,1:nDimensions) = this%metricsAlongNormalDirectionL
     dataToBeSent(:,nDimensions+1) = this%inviscidPenaltyAmountL
     if (simulationFlags%viscosityOn) dataToBeSent(:,nDimensions+2) = this%viscousPenaltyAmountL
+    dataToBeSent(:,nDimensions+3) = real(this%normalDirectionL,wp)
   end select
 
   call this%gatherData(dataToBeSent, this%sendBuffer)
@@ -619,6 +624,7 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
     this%metricsAlongNormalDirectionR = receivedData(:,1:nUnknowns-2)
     this%inviscidPenaltyAmountR = receivedData(1,nUnknowns-1)
     if (simulationFlags%viscosityOn) this%viscousPenaltyAmountR = receivedData(1,nUnknowns)
+    this%normalDirectionR = int(receivedData(1,nUnknowns+1))
   end select
 
   SAFE_DEALLOCATE(receivedData)
@@ -743,3 +749,122 @@ subroutine reshapeReceivedData(this, indexReordering)
   call endTiming("reshapeReceivedData")
 
 end subroutine reshapeReceivedData
+
+subroutine reshapeSendingData(this, indexReordering)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_BlockInterfacePatch) :: this
+  integer, intent(in) :: indexReordering(3)
+
+  ! <<< Local variables >>>
+  integer :: i, j, k, l, order(3), globalSize(3), nComponents
+
+  if (this%comm == MPI_COMM_NULL .or. .not. allocated(this%sendBuffer)) return
+
+  assert(allocated(this%receiveBuffer))
+  assert(all(this%globalSize > 0))
+  assert(size(this%receiveBuffer, 1) == product(this%globalSize))
+  assert(size(this%receiveBuffer, 2) > 0)
+  assert(all(shape(this%sendBuffer) == shape(this%receiveBuffer)))
+
+  assert(indexReordering(3) == 3)
+
+  if (indexReordering(1) == 1 .and. indexReordering(2) == 2) return
+
+  call startTiming("reshapeSendingData")
+
+  nComponents = size(this%sendBuffer, 2)
+  globalSize = this%globalSize
+
+  order = indexReordering
+
+  if (abs(order(1)) == 2 .and. abs(order(2)) == 1) then
+
+     do l = 1, nComponents
+        do k = 1, globalSize(3)
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%receiveBuffer(i + globalSize(1) * (j - 1 +                                &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%sendBuffer(j + globalSize(2) * (i - 1 +                        &
+                      globalSize(1) * (k - 1)), l)
+              end do
+           end do
+        end do
+     end do
+
+     this%sendBuffer = this%receiveBuffer
+
+     i = order(2)
+     order(2) = order(1)
+     order(1) = i
+
+  end if
+
+  if (order(1) == -1 .and. order(2) == 2) then
+
+     do l = 1, nComponents
+        do k = 1, globalSize(3)
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%receiveBuffer(i + globalSize(1) * (j - 1 +                                &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%sendBuffer(globalSize(1) + 1 - i + globalSize(1) * (j - 1 +    &
+                      globalSize(2) * (k - 1)), l)
+              end do
+           end do
+        end do
+     end do
+
+     this%sendBuffer = this%receiveBuffer
+
+  else if (order(1) == 1 .and. order(2) == -2) then
+
+     do l = 1, nComponents
+        do k = 1, globalSize(3)
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%receiveBuffer(i + globalSize(1) * (j - 1 +                                &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%sendBuffer(i + globalSize(1) * (globalSize(2) - j +            &
+                      globalSize(2) * (k - 1)), l)
+              end do
+           end do
+        end do
+     end do
+
+     this%sendBuffer = this%receiveBuffer
+
+  else if (order(1) == -1 .and. order(2) == -2) then
+
+     do l = 1, nComponents
+        do k = 1, globalSize(3)
+           do j = 1, globalSize(2)
+              do i = 1, globalSize(1)
+                 this%receiveBuffer(i + globalSize(1) * (j - 1 +                             &
+                      globalSize(2) * (k - 1)), l) =                                         &
+                      this%sendBuffer(globalSize(1) + 1 - i +                                &
+                      globalSize(1) * (globalSize(2) - j + globalSize(2) * (k - 1)), l)
+              end do
+           end do
+        end do
+     end do
+
+     this%sendBuffer = this%receiveBuffer
+
+  end if
+
+  call endTiming("reshapeSendingData")
+
+end subroutine reshapeSendingData
