@@ -764,9 +764,10 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   nDimensions = this%nDimensions
 
   allocate(jacobianMatrixInverse(this%nGridPoints, nDimensions ** 2))
-  do i = 1, nDimensions
-     call this%computeCoordinateDerivatives(i,                                               &
-          jacobianMatrixInverse(:,(i-1)*nDimensions+1:i*nDimensions))
+  ! Inverse_ij = \partial X_i/ \partial \xi_j, COLUMN-MAJOR order!!
+  do j = 1, nDimensions
+     call this%computeCoordinateDerivatives(j,                                               &
+          jacobianMatrixInverse(:,(j-1)*nDimensions+1:j*nDimensions))
   end do
 
   ! Zero out `jacobianMatrixInverse` at hole points.
@@ -786,6 +787,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   assert(allocated(this%firstDerivative))
   assert(size(this%firstDerivative) == nDimensions)
 
+  ! metrics_ij = \partial \Xi_i/\partial x_j, ROW-MAJOR order!!
   select case (nDimensions)
 
   case (1)
