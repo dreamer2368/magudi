@@ -61,10 +61,12 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
         allocate(this%viscousFluxesR(this%nPatchPoints, nUnknowns))
      end if
 
-     nExchangedVariables = nUnknowns
      !SeungWhan: unclear use of predictionOnly. revisit later.
-     if (simulationFlags%viscosityOn .or. simulationFlags%enableAdjoint)              &
-          nExchangedVariables = nExchangedVariables + nUnknowns
+     if (simulationFlags%viscosityOn .or. simulationFlags%enableAdjoint) then
+       nExchangedVariables = 2*nUnknowns
+     else
+       nExchangedVariables = nUnknowns+1
+     end if
 
      call MPI_Comm_rank(this%comm, procRank, ierror)
      if (procRank == 0) then
@@ -497,7 +499,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, nDimensions, nUnknowns, direction
-  SCALAR_TYPE, dimension(:,:), allocatable :: metricsAlongNormalDirection, dataToBeSent
+  SCALAR_TYPE, dimension(:,:), allocatable :: dataToBeSent
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -523,15 +525,20 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
     end if
 
     if (simulationFlags%viscosityOn) then
-       allocate(metricsAlongNormalDirection(this%nPatchPoints, nDimensions))
-       call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
-            metricsAlongNormalDirection)
-
        this%viscousFluxesL = 0.0_wp
        do j = 1, nDimensions
           do i = 2, nUnknowns
              this%viscousFluxesL(:,i) = this%viscousFluxesL(:,i) +                             &
-                  this%cartesianViscousFluxesL(:,i,j) * metricsAlongNormalDirection(:,j)
+                  this%cartesianViscousFluxesL(:,i,j) * this%metricsAlongNormalDirectionL(:,j)
+          end do
+       end do
+
+       ! For viscous fluxes, metrics on the other side must be reflected on exchanging fluxes.
+       this%viscousFluxesR = 0.0_wp
+       do j = 1, nDimensions
+          do i = 2, nUnknowns
+             this%viscousFluxesR(:,i) = this%viscousFluxesR(:,i) +                             &
+                  this%cartesianViscousFluxesL(:,i,j) * this%metricsAlongNormalDirectionR(:,j)
           end do
        end do
     end if
@@ -550,7 +557,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   select case(mode)
   case(FORWARD)
     dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
-    if (simulationFlags%viscosityOn) dataToBeSent(:,nUnknowns+1:) = this%viscousFluxesL
+    if (simulationFlags%viscosityOn) dataToBeSent(:,nUnknowns+1:) = this%viscousFluxesR
   case(ADJOINT)
     dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
     dataToBeSent(:,nUnknowns+1:) = this%adjointVariablesL
@@ -563,7 +570,6 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
 
   call this%gatherData(dataToBeSent, this%sendBuffer)
 
-  SAFE_DEALLOCATE(metricsAlongNormalDirection)
   SAFE_DEALLOCATE(dataToBeSent)
 
 end subroutine collectInterfaceData
