@@ -671,13 +671,16 @@ subroutine addInterfaceAdjointPenalty(simulationFlags, solverOptions,           
 
                     localConservedVariablesL = patch%conservedVariablesL(patchIndex,:)
                     localVelocity = state%velocity(gridIndex,:)
-                    localMetricsAlongDirection1 = grid%metrics(gridIndex,                    &
-                         1 + nDimensions * (direction - 1) : nDimensions * direction)
+                    ! localMetricsAlongDirection1 = grid%metrics(gridIndex,                    &
+                    !      1 + nDimensions * (direction - 1) : nDimensions * direction)
 
+                    ! This is only discrete adjoint!!
                     do l = 1, nDimensions
 
                        localMetricsAlongDirection2 =                                         &
                             grid%metrics(gridIndex,1+nDimensions*(l-1):nDimensions*l)
+
+                       localMetricsAlongDirection1 = patch%metricsAlongNormalDirectionL(patchIndex,:)
 
                        select case (nDimensions)
                        case (1)
@@ -705,9 +708,39 @@ subroutine addInterfaceAdjointPenalty(simulationFlags, solverOptions,           
 
                        ! Note sign change is included in viscousPenaltyAmount
                        temp1(gridIndex,:,l) = temp1(gridIndex,:,l) -                                        &
-                            matmul(transpose(localViscousFluxJacobian),                                     &
-                            patch%viscousPenaltyAmountL * patch%adjointVariablesL(patchIndex,2:nUnknowns) - &
-                            patch%viscousPenaltyAmountR * patch%adjointVariablesR(patchIndex,2:nUnknowns))
+                            patch%viscousPenaltyAmountL * matmul(transpose(localViscousFluxJacobian),       &
+                            patch%adjointVariablesL(patchIndex,2:nUnknowns) )
+
+                       localMetricsAlongDirection1 = patch%metricsAlongNormalDirectionR(patchIndex,:)
+
+                       select case (nDimensions)
+                       case (1)
+                           call computeSecondPartialViscousJacobian1D(localVelocity,          &
+                                state%dynamicViscosity(gridIndex,1),                          &
+                                state%secondCoefficientOfViscosity(gridIndex,1),              &
+                                state%thermalDiffusivity(gridIndex,1),                        &
+                                grid%jacobian(gridIndex,1), localMetricsAlongDirection1(1),   &
+                                localViscousFluxJacobian)
+                       case (2)
+                           call computeSecondPartialViscousJacobian2D(localVelocity,          &
+                                state%dynamicViscosity(gridIndex,1),                          &
+                                state%secondCoefficientOfViscosity(gridIndex,1),              &
+                                state%thermalDiffusivity(gridIndex,1),                        &
+                                grid%jacobian(gridIndex,1), localMetricsAlongDirection1,      &
+                                localMetricsAlongDirection2, localViscousFluxJacobian)
+                       case (3)
+                           call computeSecondPartialViscousJacobian3D(localVelocity,          &
+                                state%dynamicViscosity(gridIndex,1),                          &
+                                state%secondCoefficientOfViscosity(gridIndex,1),              &
+                                state%thermalDiffusivity(gridIndex,1),                        &
+                                grid%jacobian(gridIndex,1), localMetricsAlongDirection1,      &
+                                localMetricsAlongDirection2, localViscousFluxJacobian)
+                       end select !... nDimensions
+
+                       ! Note sign change is included in viscousPenaltyAmount
+                       temp1(gridIndex,:,l) = temp1(gridIndex,:,l) +                                        &
+                            patch%viscousPenaltyAmountR * matmul(transpose(localViscousFluxJacobian),       &
+                            patch%adjointVariablesR(patchIndex,2:nUnknowns) )
 
                     end do !... l = 1, nDimensions
 

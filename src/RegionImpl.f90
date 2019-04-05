@@ -1298,7 +1298,7 @@ subroutine computeRhs(this, mode, timeStep, stage)
      end do
   end if
 
-  ! Viscous adjoint penalties at block interfaces.
+  ! Viscous adjoint penalties at block interfaces. NOTE!!: currently this is only discrete adjoint.
   if (mode == ADJOINT .and. this%simulationFlags%viscosityOn) then
      do i = 1, size(this%states)
         call addInterfaceAdjointPenalty(this%simulationFlags, this%solverOptions,            &

@@ -277,32 +277,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
 
            case (ADJOINT)
 
-              if (simulationFlags%viscosityOn) then
-
-                 select case (nDimensions)
-                 case (1)
-                    call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
-                         localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                         solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                         localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                         localVelocity, state%temperature(gridIndex,1))
-                 case (2)
-                    call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
-                         localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                         solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                         localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                         localVelocity, state%temperature(gridIndex,1))
-                 case (3)
-                    call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
-                         localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                         solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                         localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                         localVelocity, state%temperature(gridIndex,1))
-                 end select !... nDimensions
-
-              end if
-
-              if (simulationFlags%useContinuousAdjoint) then
+              if (simulationFlags%useContinuousAdjoint) then ! This part is not tested!!
 
                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
                       this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
@@ -310,7 +285,38 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                       this%adjointVariablesL(patchIndex,:) -                                 &
                       this%adjointVariablesR(patchIndex,:))
 
-              else
+                 if (simulationFlags%viscosityOn) then
+
+                     select case (nDimensions)
+                     case (1)
+                        call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
+                             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                             localVelocity, state%temperature(gridIndex,1))
+                     case (2)
+                        call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
+                             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                             localVelocity, state%temperature(gridIndex,1))
+                     case (3)
+                        call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
+                             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                             localVelocity, state%temperature(gridIndex,1))
+                     end select !... nDimensions
+
+                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
+                         this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *           &
+                         matmul(transpose(localViscousFluxJacobian),                         &
+                         this%adjointVariablesL(patchIndex,:) -                              &
+                         this%adjointVariablesR(patchIndex,:))
+                 end if
+
+              else ! Discrete adjoint
+
                 localMetricsAlongNormalDirection =                                           &
                       this%metricsAlongNormalDirectionL(patchIndex,:)
                  select case (nDimensions)
@@ -346,6 +352,36 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                          localConservedVariablesL - localConservedVariablesR) *              &
                          this%adjointVariablesL(patchIndex,:))
                  end do
+
+                 if (simulationFlags%viscosityOn) then
+
+                    select case (nDimensions)
+                    case (1)
+                       call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
+                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                            localVelocity, state%temperature(gridIndex,1))
+                    case (2)
+                       call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
+                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                            localVelocity, state%temperature(gridIndex,1))
+                    case (3)
+                       call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
+                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                            localVelocity, state%temperature(gridIndex,1))
+                    end select !... nDimensions
+
+                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -    &
+                         this%viscousPenaltyAmountL * grid%jacobian(gridIndex, 1) *          &
+                         matmul(transpose(localViscousFluxJacobian),                         &
+                         this%adjointVariablesL(patchIndex,:) )
+
+                 end if
 
                  localMetricsAlongNormalDirection =                                           &
                        this%metricsAlongNormalDirectionR(patchIndex,:)
@@ -385,13 +421,34 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
                          this%adjointVariablesR(patchIndex,:))
                  end do
 
-                 ! Note sign change is included in viscousPenaltyAmount
                  if (simulationFlags%viscosityOn) then
-                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -    &
-                         grid%jacobian(gridIndex, 1) *                                       &
+
+                    select case (nDimensions)
+                    case (1)
+                       call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
+                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                            localVelocity, state%temperature(gridIndex,1))
+                    case (2)
+                       call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
+                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                            localVelocity, state%temperature(gridIndex,1))
+                    case (3)
+                       call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
+                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                            localVelocity, state%temperature(gridIndex,1))
+                    end select !... nDimensions
+
+                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
+                         this%viscousPenaltyAmountR * grid%jacobian(gridIndex, 1) *          &
                          matmul(transpose(localViscousFluxJacobian),                         &
-                         this%viscousPenaltyAmountL * this%adjointVariablesL(patchIndex,:) - &
-                         this%viscousPenaltyAmountR * this%adjointVariablesR(patchIndex,:))
+                         this%adjointVariablesR(patchIndex,:) )
+
                  end if
 
               end if
