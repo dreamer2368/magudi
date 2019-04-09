@@ -38,7 +38,15 @@ subroutine readPatchInterfaceInformation(region)
      if (len_trim(str) > 0) then
 
         do j = 1, size(region%patchData)
-           if (trim(str) == trim(region%patchData(j)%name)) region%patchInterfaces(i) = j
+           if (trim(str) == trim(region%patchData(j)%name)) then
+             if (region%patchInterfaces(j)==i) then
+               write(message,'(5A)') "Interface specification for ",                            &
+                    trim(region%patchData(i)%name), " and ", trim(region%patchData(j)%name),    &
+                    " is provided multiple times. Keep only one specification!"
+               call gracefulExit(region%comm, message)
+             end if
+             region%patchInterfaces(i) = j
+           end if
         end do
         if (region%patchInterfaces(i) == 0) then
            write(message, '(5A)') "Invalid interface specification for patch '",             &
@@ -132,32 +140,6 @@ subroutine exchangeInterfaceData(region)
   if (any(region%patchMasterRanks == procRank))                                              &
        allocate(mpiSendRequests(count(region%patchInterfaces > 0 .and.                       &
        region%patchMasterRanks == procRank)), source = MPI_REQUEST_NULL)
-
-  do i = 1, size(region%patchInterfaces)
-    if (procRank == region%patchMasterRanks(i) .and. region%patchInterfaces(i) > 0) then
-
-       assert(allocated(region%patchFactories))
-
-       nullify(blockInterfacePatch)
-
-       do j = 1, size(region%patchFactories)
-          call region%patchFactories(j)%connect(patch)
-          if (.not. associated(patch)) cycle
-          if (patch%index /= i) cycle
-          select type (patch)
-          class is (t_BlockInterfacePatch)
-             blockInterfacePatch => patch
-             exit
-          end select
-       end do
-
-       assert(associated(blockInterfacePatch))
-
-       call blockInterfacePatch%reshapeSendingData(region%interfaceIndexReorderings(:,i))
-
-    end if
-    call MPI_Barrier(region%comm, ierror)
-  end do
 
   iRequest = 0
 

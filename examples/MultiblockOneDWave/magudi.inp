@@ -55,7 +55,6 @@ grid002/dir2/periodic_length = 28.0
 
 # Interface specifications
 patches/interface.W1/conforms_with = 'interface.E2'
-patches/interface.E2/conforms_with = 'interface.W1'
 
 # Interface index reorderings
 patches/interface.W1/interface_index2 = -2

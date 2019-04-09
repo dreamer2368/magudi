@@ -69,7 +69,6 @@ maximum_temperature = 4.
 
 # Interface specifications
 patches/interface.W1/conforms_with = 'interface.E2'
-patches/interface.E2/conforms_with = 'interface.W1'
 
 # Interface index reorderings
 

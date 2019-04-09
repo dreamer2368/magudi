@@ -37,7 +37,6 @@ module BlockInterfacePatch_mod
      procedure, pass :: collectInterfaceData
      procedure, pass :: disperseInterfaceData
      procedure, pass :: reshapeReceivedData
-     procedure, pass :: reshapeSendingData
 
   end type t_BlockInterfacePatch
 
@@ -173,19 +172,6 @@ module BlockInterfacePatch_mod
        integer, intent(in) :: indexReordering(3)
 
      end subroutine reshapeReceivedData
-
-  end interface
-
-  interface
-
-     subroutine reshapeSendingData(this, indexReordering)
-
-       import :: t_BlockInterfacePatch
-
-       class(t_BlockInterfacePatch) :: this
-       integer, intent(in) :: indexReordering(3)
-
-     end subroutine reshapeSendingData
 
   end interface
 
