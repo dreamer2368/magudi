@@ -1,0 +1,53 @@
+# Notation:
+# IB = Inner Block
+# E, N, W, S = East, North, West, South, respectively (directions are as seen from looking at an axial cross-section)
+# NE, SE, etc. = North-East, South-East etc.
+
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  interface.W1         SAT_BLOCK_INTERFACE      1       1    1    1    1   -1    1   -1
+  interface.E1         SAT_BLOCK_INTERFACE      1      -1   -1   -1    1   -1    1   -1
+  interface.S1         SAT_BLOCK_INTERFACE      1       2    1   -1    1    1    1   -1
+  interface.N1         SAT_BLOCK_INTERFACE      1      -2    1   -1   -1   -1    1   -1
+  interface.W3         SAT_BLOCK_INTERFACE      3       1    1    1    1   -1    1   -1
+  interface.E5         SAT_BLOCK_INTERFACE      5       1    1    1    1   -1    1   -1
+  interface.S4         SAT_BLOCK_INTERFACE      4       1    1    1    1   -1    1   -1
+  interface.N2         SAT_BLOCK_INTERFACE      2       1    1    1    1   -1    1   -1
+
+#  farField.N1	       SAT_FAR_FIELD		    1      -2    1	 -1   -1   -1    1   -1
+#  farField.S2	       SAT_FAR_FIELD		    2       1    1	  1    1   -1    1   -1
+#  sponge.N1            SPONGE                   1      -2    1   -1  -29   -1    1   -1  
+#  sponge.S2            SPONGE                   2       1    1   29    1   -1    1   -1  
+
+  farField.E2	       SAT_FAR_FIELD		    2       2    1	 -1    1    1    1   -1
+  farField.N2	       SAT_FAR_FIELD		    2      -1   -1	 -1    1   -1    1   -1
+  farField.W2	       SAT_FAR_FIELD		    2      -2    1	 -1   -1   -1    1   -1
+
+  farField.N3	       SAT_FAR_FIELD		    3       2    1	 -1    1    1    1   -1
+  farField.W3	       SAT_FAR_FIELD		    3      -1   -1	 -1    1   -1    1   -1
+  farField.S3	       SAT_FAR_FIELD		    3      -2    1	 -1   -1   -1    1   -1
+
+  farField.W4	       SAT_FAR_FIELD		    4       2    1	 -1    1    1    1   -1
+  farField.S4	       SAT_FAR_FIELD		    4      -1   -1	 -1    1   -1    1   -1
+  farField.E4	       SAT_FAR_FIELD		    4      -2    1	 -1   -1   -1    1   -1
+
+  farField.S5	       SAT_FAR_FIELD		    5       2    1	 -1    1    1    1   -1
+  farField.E5	       SAT_FAR_FIELD		    5      -1   -1	 -1    1   -1    1   -1
+  farField.N5	       SAT_FAR_FIELD		    5      -2    1	 -1   -1   -1    1   -1
+
+  sponge.E2            SPONGE                   2       2    1   -1    1   29    1   -1  
+  sponge.N2            SPONGE                   2      -1  -29   -1    1   -1    1   -1  
+  sponge.W2            SPONGE                   2      -2    1   -1  -29   -1    1   -1  
+
+  sponge.N3            SPONGE                   3       2    1   -1    1   29    1   -1  
+  sponge.W3            SPONGE                   3      -1  -29   -1    1   -1    1   -1  
+  sponge.S3            SPONGE                   3      -2    1   -1  -29   -1    1   -1  
+
+  sponge.W4            SPONGE                   4       2    1   -1    1   29    1   -1  
+  sponge.S4            SPONGE                   4      -1  -29   -1    1   -1    1   -1  
+  sponge.E4            SPONGE                   4      -2    1   -1  -29   -1    1   -1  
+
+  sponge.S5            SPONGE                   5       2    1   -1    1   29    1   -1  
+  sponge.E5            SPONGE                   5      -1  -29   -1    1   -1    1   -1  
+  sponge.N5            SPONGE                   5      -2    1   -1  -29   -1    1   -1  
+
