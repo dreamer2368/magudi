@@ -16,7 +16,7 @@ program probe_from_qfile
   use ErrorHandler, only : writeAndFlush, gracefulExit
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
-  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces 
+  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces
 
   use, intrinsic :: iso_fortran_env, only : output_unit
   use CNSHelper, only : computeDependentVariables
@@ -93,6 +93,9 @@ program probe_from_qfile
   end do
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
+  ! Reset probes.
+  call region%resetProbes()
+
   if (command_argument_count() >= 1) then !... only one solution file to process.
 
      ! Load the solution file.
@@ -130,6 +133,9 @@ program probe_from_qfile
 
   ! Finish writing remaining data gathered on probes.
   call region%saveProbeData(FORWARD, finish = .true.)
+
+  write(message,'(A)') 'Data collection is finished.'
+  call writeAndFlush(region%comm, output_unit, message)
 
   ! Cleanup.
   call region%cleanup()
