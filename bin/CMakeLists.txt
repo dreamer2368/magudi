@@ -3,3 +3,4 @@ add_executable(forward $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/For
 add_executable(adjoint $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/Adjoint.f90)
 add_executable(gradient_accuracy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/CheckGradientAccuracy.f90)
 add_executable(zaxpy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/ZAXPY.f90)
+add_executable(zwxpwy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/zwxpwy.f90)

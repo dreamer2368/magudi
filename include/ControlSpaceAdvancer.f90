@@ -23,4 +23,24 @@ module ControlSpaceAdvancer
     end subroutine ZAXPY
   end interface
 
+  interface
+    function zWXPWY(comm,WFilename,XFilename,YFilename, normFilename) result(z)
+      use MPI
+      use, intrinsic :: iso_fortran_env, only : output_unit
+
+      use InputHelper, only : parseInputFile, getOption, getRequiredOption
+      use ErrorHandler
+      use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
+
+      ! <<< Arguments >>>
+      integer, intent(in) :: comm
+      character(len = *), intent(in) :: WFilename, XFilename, YFilename
+      character(len = *), intent(in), optional :: normFilename
+
+      ! <<< Result >>>
+      SCALAR_TYPE :: z
+
+    end function zWXPWY
+  end interface
+
 end module ControlSpaceAdvancer
