@@ -510,3 +510,65 @@ subroutine hookMomentumActuatorAfterTimemarch(this, region, mode)
   end do
 
 end subroutine hookMomentumActuatorAfterTimemarch
+
+subroutine collectMomentumActuatorNorm(this, region, timeIntegrationNorm)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use MomentumActuator_mod, only : t_MomentumActuator
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_MomentumActuator) :: this
+  class(t_Region), intent(in) :: region
+  real(SCALAR_KIND), intent(in) :: timeIntegrationNorm
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, nDimensions
+  class(t_Patch), pointer :: patch => null()
+  SCALAR_TYPE, allocatable :: F(:)
+
+  if (.not. allocated(region%patchFactories)) return
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
+        select type (patch)
+        class is (t_ActuatorPatch)
+
+           patch%iGradientBuffer = patch%iGradientBuffer + 1
+           assert(patch%iGradientBuffer >= 1)
+           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+
+           allocate(F(patch%nPatchPoints))
+           call patch%collect(region%grids(j)%norm(:,1), F)
+
+           if (this%direction==0) then
+             do k = 1, nDimensions
+               patch%gradientBuffer(:,k,patch%iGradientBuffer) = F * timeIntegrationNorm
+             end do
+           else
+             patch%gradientBuffer(:,this%direction,patch%iGradientBuffer) = F * timeIntegrationNorm
+           end if
+
+           SAFE_DEALLOCATE(F)
+
+           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3)) then
+              call patch%saveGradient()
+              patch%iGradientBuffer = 0
+           end if
+
+        end select
+     end do
+  end do
+
+end subroutine collectMomentumActuatorNorm

@@ -22,6 +22,8 @@ module MomentumActuator_mod
      procedure, pass :: hookBeforeTimemarch => hookMomentumActuatorBeforeTimemarch
      procedure, pass :: hookAfterTimemarch => hookMomentumActuatorAfterTimemarch
 
+     procedure, pass :: collectNorm => collectMomentumActuatorNorm
+
   end type t_MomentumActuator
 
   interface
@@ -165,6 +167,22 @@ module MomentumActuator_mod
        integer, intent(in) :: mode
 
      end subroutine hookMomentumActuatorAfterTimemarch
+
+  end interface
+
+  interface
+
+     subroutine collectMomentumActuatorNorm(this, region, timeIntegrationNorm)
+
+       use Region_mod, only : t_Region
+
+       import :: t_MomentumActuator
+
+       class(t_MomentumActuator) :: this
+       class(t_Region), intent(in) :: region
+       real(SCALAR_KIND), intent(in) :: timeIntegrationNorm
+
+     end subroutine collectMomentumActuatorNorm
 
   end interface
 

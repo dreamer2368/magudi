@@ -24,6 +24,8 @@ module ThermalActuator_mod
      procedure, pass :: hookAfterTimemarch => hookThermalActuatorAfterTimemarch
      procedure, nopass :: rampFunction => thermalActuatorRampFunction
 
+     procedure, pass :: collectNorm => collectThermalActuatorNorm
+
   end type t_ThermalActuator
 
   interface
@@ -179,6 +181,22 @@ module ThermalActuator_mod
        real(SCALAR_KIND) :: timeRampFactor
 
      end function thermalActuatorRampFunction
+
+  end interface
+
+  interface
+
+     subroutine collectThermalActuatorNorm(this, region, timeIntegrationNorm)
+
+       use Region_mod, only : t_Region
+
+       import :: t_ThermalActuator
+
+       class(t_ThermalActuator) :: this
+       class(t_Region), intent(in) :: region
+       real(SCALAR_KIND), intent(in) :: timeIntegrationNorm
+
+     end subroutine collectThermalActuatorNorm
 
   end interface
 

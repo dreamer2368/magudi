@@ -30,6 +30,8 @@ module Controller_mod
      procedure(hookBeforeTimemarch), pass, deferred :: hookBeforeTimemarch
      procedure(hookAfterTimemarch), pass, deferred :: hookAfterTimemarch
 
+     procedure(collectNorm), pass, deferred :: collectNorm
+
   end type t_Controller
 
   abstract interface
@@ -239,6 +241,22 @@ module Controller_mod
        class(t_Region) :: region
 
      end subroutine
+
+  end interface
+
+  abstract interface
+
+     subroutine collectNorm(this, region, timeIntegrationNorm)
+
+       use Region_mod, only : t_Region
+
+       import :: t_Controller
+
+       class(t_Controller) :: this
+       class(t_Region), intent(in) :: region
+       real(SCALAR_KIND), intent(in) :: timeIntegrationNorm
+
+     end subroutine collectNorm
 
   end interface
 

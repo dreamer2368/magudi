@@ -352,10 +352,8 @@ subroutine updateThermalActuatorGradient(this, region)
            allocate(F(patch%nPatchPoints, 2))
            call patch%collect(region%states(j)%adjointVariables(:,nDimensions+2), F(:,1))
            call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,2))
-           !SeungWhan
-!           if (this%useTimeRamp) F(:,2) = F(:,2) * timeRampFactor
            F(:,2) = F(:,2) * timeRampFactor
-           !============
+
            patch%gradientBuffer(:,1,patch%iGradientBuffer) = product(F, dim = 2)
            SAFE_DEALLOCATE(F)
 
@@ -564,3 +562,58 @@ PURE_FUNCTION thermalActuatorRampFunction(t, sigma, xi) result(timeRampFactor)
   end if
 
 end function thermalActuatorRampFunction
+
+subroutine collectThermalActuatorNorm(this, region, timeIntegrationNorm)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ThermalActuator_mod, only : t_ThermalActuator
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_ThermalActuator) :: this
+  class(t_Region), intent(in) :: region
+  real(SCALAR_KIND), intent(in) :: timeIntegrationNorm
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions
+  class(t_Patch), pointer :: patch => null()
+  SCALAR_TYPE, allocatable :: F(:)
+
+  if (.not. allocated(region%patchFactories)) return
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
+        select type (patch)
+        class is (t_ActuatorPatch)
+
+           patch%iGradientBuffer = patch%iGradientBuffer + 1
+           assert(patch%iGradientBuffer >= 1)
+           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+
+           allocate(F(patch%nPatchPoints))
+           call patch%collect(region%grids(j)%norm(:,1), F)
+
+           patch%gradientBuffer(:,1,patch%iGradientBuffer) = F * timeIntegrationNorm
+           SAFE_DEALLOCATE(F)
+
+           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3)) then
+              call patch%saveGradient()
+              patch%iGradientBuffer = 0
+           end if
+
+        end select
+     end do
+  end do
+
+end subroutine collectThermalActuatorNorm
