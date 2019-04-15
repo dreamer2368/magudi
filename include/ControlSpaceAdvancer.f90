@@ -24,7 +24,7 @@ module ControlSpaceAdvancer
   end interface
 
   interface
-    function zWXPWY(comm,WFilename,XFilename,YFilename, normFilename) result(z)
+    function zWXMWY(comm,WFilename,XFilename,YFilename, normFilename) result(z)
       use MPI
       use, intrinsic :: iso_fortran_env, only : output_unit
 
@@ -40,7 +40,7 @@ module ControlSpaceAdvancer
       ! <<< Result >>>
       SCALAR_TYPE :: z
 
-    end function zWXPWY
+    end function zWXMWY
   end interface
 
 end module ControlSpaceAdvancer

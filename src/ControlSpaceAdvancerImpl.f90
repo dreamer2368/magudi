@@ -166,7 +166,7 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
 
 end subroutine
 
-function zWXPWY(comm,WFilename,XFilename,YFilename, normFilename) result(z)
+function zWXMWY(comm,WFilename,XFilename,YFilename, normFilename) result(z)
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
 
