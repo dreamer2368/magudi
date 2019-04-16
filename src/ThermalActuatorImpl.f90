@@ -263,10 +263,6 @@ subroutine migrateToThermalActuatorForcing(this, region, startTimeStep, endTimeS
 
   if (.not. allocated(region%patchFactories)) return
 
-  bufferIndex = (endTimeStep - iTimeStep)*nStages + (nStages-jSubStep)
-  bufferOffsetIndex = bufferIndex/this%controllerBufferSize
-  iControlForcingBuffer = MODULO( bufferIndex,this%controllerBufferSize ) + 1
-
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
 
@@ -282,6 +278,13 @@ subroutine migrateToThermalActuatorForcing(this, region, startTimeStep, endTimeS
         if (patch%gridIndex /= region%grids(j)%index) cycle
         select type (patch)
         class is (t_ActuatorPatch)
+
+          ! Buffer index starts from end time, and starts from the beginning of the control forcing file.
+          bufferIndex = (endTimeStep - iTimeStep)*nStages + (nStages-jSubStep)
+          if (patch%adjointReferenceTimestep>0) bufferIndex = bufferIndex                     &
+                                        + patch%adjointReferenceTimestep*nStages
+          bufferOffsetIndex = bufferIndex/this%controllerBufferSize
+          iControlForcingBuffer = MODULO( bufferIndex,this%controllerBufferSize ) + 1
 
            !SeungWhan: allocate temp = controlForcing
            allocate(temp,MOLD=patch%controlForcing)
@@ -409,7 +412,7 @@ function isThermalActuatorPatchValid(this, patchDescriptor, gridSize,           
 
 end function isThermalActuatorPatchValid
 
-subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
+subroutine hookThermalActuatorBeforeTimemarch(this, region, mode, referenceTimestep)
 
   ! <<< External modules >>>
   use MPI
@@ -433,12 +436,18 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
   class(t_Controller) :: this
   class(t_Region) :: region
   integer, intent(in) :: mode
+  integer, intent(in), optional :: referenceTimestep
 
   ! <<< Local variables >>>
   integer :: i, stat, fileUnit, mpiFileHandle, procRank, ierror
+  integer :: referenceTimestep_
+  integer(kind = MPI_OFFSET_KIND) :: referenceOffset
   class(t_Patch), pointer :: patch => null()
   logical :: gradientFileExists, controlForcingFileExists
   character(len = STRING_LENGTH) :: message
+
+  referenceTimestep_ = -1
+  if (PRESENT(referenceTimestep)) referenceTimestep_ = referenceTimestep
 
   if (.not. allocated(region%patchFactories)) return
 
@@ -468,21 +477,48 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode)
               call MPI_File_open(patch%comm, trim(patch%controlForcingFilename) // char(0),           &
                    MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
               call MPI_File_get_size(mpiFileHandle, patch%controlForcingFileOffset, ierror)
-              patch%controlForcingFileSize = patch%controlForcingFileOffset
               call MPI_File_close(mpiFileHandle, ierror)
+
+              patch%controlForcingFileSize = patch%controlForcingFileOffset
+              if (PRESENT(referenceTimestep)) then
+                patch%forwardReferenceTimestep = referenceTimestep
+                assert(patch%forwardReferenceTimestep.ge.0)
+                referenceOffset = SIZEOF_SCALAR * product(int(patch%globalSize, MPI_OFFSET_KIND)) *            &
+                                     size(patch%controlForcingBuffer, 2) * (4*referenceTimestep)
+                patch%controlForcingFileOffset = patch%controlForcingFileOffset - referenceOffset
+              end if
            end if
 
         case (ADJOINT)
-           if (procRank == 0) then
+          if (referenceTimestep_>0) then
+            if (procRank == 0) then
+               inquire(file = trim(patch%gradientFilename), exist = gradientFileExists)
+            end if
+            call MPI_Bcast(gradientFileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
+            if (.not.gradientFileExists) then
+               write(message, '(3A,I0.0,A)') "No gradient information available for patch '", &
+                    trim(patch%name), "' on grid ", patch%gridIndex, " for continued adjoint run!"
+               call gracefulExit(patch%comm, message)
+            end if
+          else
+            if (procRank == 0) then
               open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
                    iostat = stat, status = 'old')
               if (stat == 0) close(fileUnit, status = 'delete')
               open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
                    action = 'write', status = 'unknown')
               close(fileUnit)
-           end if
+            end if
+          end if
            patch%iGradientBuffer = 0
            patch%gradientFileOffset = int(0, MPI_OFFSET_KIND)
+           if (PRESENT(referenceTimestep)) then
+             patch%adjointReferenceTimestep = referenceTimestep
+             assert(patch%adjointReferenceTimestep.ge.0)
+             referenceOffset = SIZEOF_SCALAR * product(int(patch%globalSize, MPI_OFFSET_KIND)) *            &
+                                  size(patch%gradientBuffer, 2) * (4*referenceTimestep)
+             patch%gradientFileOffset = patch%gradientFileOffset + referenceOffset
+           end if
         end select
 
      end select

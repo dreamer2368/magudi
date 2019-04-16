@@ -148,7 +148,7 @@ module Controller_mod
 
   abstract interface
 
-     subroutine hookBeforeTimemarch(this, region, mode)
+     subroutine hookBeforeTimemarch(this, region, mode, referenceTimestep)
 
        use Region_mod, only : t_Region
 
@@ -157,6 +157,7 @@ module Controller_mod
        class(t_Controller) :: this
        class(t_Region) :: region
        integer, intent(in) :: mode
+       integer, intent(in), optional :: referenceTimestep
 
      end subroutine hookBeforeTimemarch
 

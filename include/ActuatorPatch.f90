@@ -12,8 +12,10 @@ module ActuatorPatch_mod
 
   type, extends(t_Patch), public :: t_ActuatorPatch
 
+    !bufferOffsetIndex starts from 0 at the beginning of the file. Used only for checkpointing.
+    !referenceTimestep is the number of timesteps between intermediate start timestep and initial condition.
      integer :: iGradientBuffer = 0, iControlForcingBuffer = 0,                               &
-                bufferOffsetIndex = -1 !This index start from 0 at the beginning of the file. Used only for checkpointing.
+                bufferOffsetIndex = -1, forwardReferenceTimestep = -1, adjointReferenceTimestep = -1
      integer(kind = MPI_OFFSET_KIND) :: gradientFileOffset = int(0, MPI_OFFSET_KIND),         &
                                         controlForcingFileOffset = int(0, MPI_OFFSET_KIND),   &
                                         controlForcingFileSize = int(0, MPI_OFFSET_KIND)

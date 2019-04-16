@@ -140,7 +140,7 @@ module MomentumActuator_mod
 
   interface
 
-     subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode)
+     subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, referenceTimestep)
 
        use Region_mod, only : t_Region
 
@@ -149,6 +149,7 @@ module MomentumActuator_mod
        class(t_MomentumActuator) :: this
        class(t_Region) :: region
        integer, intent(in) :: mode
+       integer, intent(in), optional :: referenceTimestep
 
      end subroutine hookMomentumActuatorBeforeTimemarch
 

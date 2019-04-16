@@ -22,7 +22,8 @@ program adjoint
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, stat, fileUnit, dictIndex, procRank, numProcs, ierror, STATUS
   character(len = STRING_LENGTH) :: filename, resultFilename, outputPrefix, message
-  logical :: success
+  logical :: adjointRestart, success
+  integer :: accumulatedNTimesteps
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_Solver) :: solver
@@ -118,10 +119,30 @@ program adjoint
       close(fileUnit)
     end if
   end if
-  dummyValue = solver%runAdjoint(region)
+
   call get_command_argument(1, resultFilename, STATUS)
   if( STATUS .eq. 0 )                                                                      &
     resultFilename = trim(outputPrefix) // ".adjoint_run.txt"
+
+  dummyValue = 0.0_wp
+
+  adjointRestart = getOption("adjoint_restart", .false.)
+  accumulatedNTimesteps = -1
+  if (adjointRestart) then ! This is relative timesteps: timestep at initial condition must be added.
+    call getRequiredOption("adjoint_restart/accumulated_number_of_timesteps",accumulatedNTimesteps)
+    assert(accumulatedNTimesteps.ge.0)
+  end if
+  if (adjointRestart .and. (accumulatedNTimesteps>0)) then
+    if (procRank==0) then
+      open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='read',         &
+        iostat = stat, status = 'old')
+      read(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
+      close(fileUnit)
+    end if
+    call MPI_Bcast(dummyValue, 1, SCALAR_TYPE_MPI, 0, MPI_COMM_WORLD, ierror)
+  end if
+  dummyValue = dummyValue + solver%runAdjoint(region)
+
   if (procRank == 0) then
     open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
       iostat = stat, status = 'replace')
