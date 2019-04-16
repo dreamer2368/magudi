@@ -304,15 +304,14 @@ contains
 
     case (ADJOINT) !... initialize adjoint variables.
 
-       filename = getOption("adjoint_initial_condition_file", "")
-       if (len_trim(filename) == 0) then
-          do i = 1, size(region%states)
-             region%states(i)%adjointVariables = 0.0_wp
-          end do
-       else
-          call region%loadData(QOI_ADJOINT_STATE, filename)
-          return                                                !SeungWhan:to continue adjointrun
-       end if
+      if (present(restartFilename)) then
+        call region%loadData(QOI_ADJOINT_STATE, restartFilename)
+        return                                                !SeungWhan:to continue adjointrun
+      else
+        do i = 1, size(region%states)
+           region%states(i)%adjointVariables = 0.0_wp
+        end do
+      end if
 
        if (allocated(region%patchFactories) .and.                                            &
             .not. region%simulationFlags%steadyStateSimulation .and.                         &
@@ -783,9 +782,7 @@ function runAdjoint(this, region) result(costSensitivity)
   use InputHelper, only : getOption, getRequiredOption
 
   ! <<< SeungWhan: debug >>>
-  use InputHelper, only : getOption
   use, intrinsic :: iso_fortran_env, only : output_unit
-  use ErrorHandler, only : writeAndFlush
 
   implicit none
 
@@ -806,7 +803,8 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
-  logical :: IS_FINAL_STEP
+  logical :: adjointRestart, isFinalAdjointRestart, IS_FINAL_STEP
+  integer :: accumulatedNTimesteps, intermediateEndTimestep
   SCALAR_TYPE :: instantaneousCostSensitivity
 
   assert(region%simulationFlags%enableController)
@@ -833,16 +831,28 @@ function runAdjoint(this, region) result(costSensitivity)
   if (region%simulationFlags%steadyStateSimulation)                                          &
        call this%residualManager%setup("adjoint_residuals", region)
 
-  ! Load the initial condition.
+  adjointRestart = getOption("adjoint_restart", .false.)
+  isFinalAdjointRestart = .true.
+  accumulatedNTimesteps = -1
+  intermediateEndTimestep = -1
+  if (adjointRestart) then ! This is relative timesteps: timestep at initial condition must be added.
+    call getRequiredOption("adjoint_restart/accumulated_number_of_timesteps",accumulatedNTimesteps)
+    call getRequiredOption("adjoint_restart/intermediate_end_timestep",intermediateEndTimestep)
+    assert( (accumulatedNTimesteps.ge.0).and.(intermediateEndTimestep.ge.0) )
+  end if
+
+  ! Load the initial condition: this does not require restart filename even for adjoint restart.
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
   controller%onsetTime = region%states(1)%time
   controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-  ! controller%onsetTime = region%states(1)%time + 0.3_wp*this%nTimesteps*region%solverOptions%timeStepSize
-  ! controller%duration = 0.05_wp * this%nTimesteps * region%solverOptions%timeStepSize
+  if (intermediateEndTimestep>0) isFinalAdjointRestart = .false.
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
   if (region%simulationFlags%steadyStateSimulation) then
      write(filename, '(2A)') trim(this%outputPrefix), ".steady_state.q"
+  elseif (adjointRestart) then
+    write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-",                            &
+         region%timestep + intermediateEndTimestep + this%nTimesteps, ".q"
   else
      write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-",                            &
           region%timestep + this%nTimesteps, ".q"
@@ -872,13 +882,21 @@ function runAdjoint(this, region) result(costSensitivity)
   if (region%simulationFlags%steadyStateSimulation) timemarchDirection = 1
 
   ! Adjoint initial condition (if specified).
-  call loadInitialCondition(this, region, ADJOINT)
-
-  write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
-  call region%saveData(QOI_ADJOINT_STATE, filename)
+  if (adjointRestart .and. (accumulatedNTimesteps>0) ) then
+    write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
+    call loadInitialCondition(this, region, ADJOINT, filename)
+  else
+    call loadInitialCondition(this, region, ADJOINT)
+    write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
+    call region%saveData(QOI_ADJOINT_STATE, filename)
+  end if
 
   ! Call controller hooks before time marching starts.
-  call controller%hookBeforeTimemarch(region, ADJOINT)
+  if (adjointRestart) then
+    call controller%hookBeforeTimemarch(region, ADJOINT, accumulatedNTimesteps)
+  else
+    call controller%hookBeforeTimemarch(region, ADJOINT)
+  end if
   !!!SeungWhan: need additional execution with FORWARD, in case of non-zero control forcing.
   if (controller%controllerSwitch) then
     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
@@ -921,7 +939,7 @@ function runAdjoint(this, region) result(costSensitivity)
         ! Update adjoint forcing on cost target patches.
         ! SeungWhan: Bug fix for final step
         if( (timestep.eq.startTimestep+sign(this%nTimesteps,timemarchDirection)) .and.       &
-            (i.eq.1) ) then
+            (i.eq.1) .and. (isFinalAdjointRestart) ) then
             IS_FINAL_STEP = .true.
         else
             IS_FINAL_STEP = .false.
