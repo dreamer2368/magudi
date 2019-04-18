@@ -31,13 +31,13 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
     JBracket = np.array(df['QoI'][df['directory index']>NumSearch])
     if (stepBracket.size!=3):
         print ('LINMIN: the minimum bracket is lost or not found yet!')
-        return
+        return -1
     bracketSize = (stepBracket[2]-stepBracket[0])/2.0/(stepBracket[1]+eps)
     if (bracketSize<=tol):
         print (stepBracket)
         print (JBracket)
         print ('LINMIN: line minimization is finished.')
-        return
+        return 0
 
     steps, Js = np.zeros(NumSearch), np.zeros(NumSearch)
     h = (stepBracket[2]-stepBracket[0])/(NumSearch+1)
@@ -72,4 +72,4 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 
     print (df[df['directory index']>0])
     print ('LINMIN: next linmin evaluation is prepared-')
-    return
+    return 1

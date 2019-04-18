@@ -7,7 +7,7 @@ def setupInitialSteps(forwardFilename, CGFilenames, controlForcingFilenames, zer
     NumCGFile = len(CGFilenames)
     if (len(controlForcingFilenames)!=NumCGFile):
         print ('MNBRAK - setup initial steps: numbers of control space files do not match!')
-        return
+        return -1
 
     J0 = readScalar(forwardFilename)
     subprocess.check_call('cp '+forwardFilename+' '+str(NumSearch+1)+'/',shell=True)
@@ -30,7 +30,7 @@ def setupInitialSteps(forwardFilename, CGFilenames, controlForcingFilenames, zer
     data = {'step':steps,'QoI':Js,'directory index':[NumSearch+1]+list(range(1,NumSearch+1))}
     df = pd.DataFrame(data)
     df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-    return
+    return 0
 
 def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseline=True):
     from base import readScalar
@@ -40,7 +40,7 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
     NumCGFile = len(CGFilenames)
     if (len(controlForcingFilenames)!=NumCGFile):
         print ('MNBRAK - next mnbrak: numbers of control space files do not match!')
-        return
+        return -1
 
     df = collectQoIs(lineMinLog, forwardFilename, NumSearch)
     steps = np.array(df['step'][df['directory index']>0])
@@ -59,7 +59,7 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
             df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
             print (np.array(df[df['directory index']>NumSearch]))
             print ('MNBRAK: initial mininum bracket is prepared.')
-            break
+            return 0
         dirIdx = switchDirectory(1,NumSearch+3,df)
         df.loc[df['directory index']<=NumSearch,'directory index'] = 0
 
@@ -78,8 +78,9 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
                     command += ' '+controlForcingFilenames[i]
                 subprocess.check_call(command, shell=True)
         df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-        print (np.array(df[df['directory index']>NumSearch]))
+        print (df[df['directory index']>NumSearch])
         print ('MNBRAK: narrowing the bracket - Run intermediate forward simulations.')
+        return 1
 
     elif (minIdx==N-1):
         for k in range(2):
@@ -102,8 +103,9 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
                     command += ' '+controlForcingFilenames[i]
                 subprocess.check_call(command, shell=True)
         df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-        print (np.array(df[df['directory index']>NumSearch]))
+        print (df[df['directory index']>NumSearch])
         print ('MNBRAK: expanding the bracket - Run intermediate forward simulations.')
+        return 2
 
     else:
         for k in range(3):
@@ -112,5 +114,6 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 #             display(df)
         df.loc[df['directory index']<=NumSearch,'directory index'] = 0
         df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-        print (np.array(df[df['directory index']>NumSearch]))
+        print (df[df['directory index']>NumSearch])
         print ('MNBRAK: initial mininum bracket is prepared.')
+        return 0

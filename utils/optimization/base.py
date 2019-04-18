@@ -1,12 +1,20 @@
-NumProcs = 1
+NumProcs = 36
 NumSearch = 10
-initial_step = 0.1
-golden_ratio = 1.618034
-tol, eps = 1.0e-7,  1.0e-7
-prefix = ''
+prefix = 'AcousticMonopole'
 lineMinLog = prefix+'.line_minimization.txt'
 CGLog = prefix+'.conjugate_gradient.txt'
 dggFilename = prefix+'.dgg.txt'
+
+forwardFilename = prefix+'.forward_run.txt'
+adjointFilename = prefix+'.adjoint_run.txt'
+controlForcingFilenames = [prefix+'.control_forcing_controlRegion.dat']
+gradientFilenames = [prefix+'.gradient_controlRegion.dat']
+CGFilenames = [prefix+'.conjugate_gradient_controlRegion.dat']
+normFilenames = [prefix+'.norm_controlRegion.dat']
+
+initial_step = 0.1
+golden_ratio = 1.618034
+tol, eps = 1.0e-7,  1.0e-7
 
 import numpy as np
 import subprocess

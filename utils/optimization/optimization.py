@@ -1,54 +1,85 @@
 from base import *
-
-NumProcs = 1
-NumSearch = 10
-prefix = ''
-lineMinLog = prefix+'.line_minimization.txt'
-CGLog = prefix+'.conjugate_gradient.txt'
-dggFilename = prefix+'.dgg.txt'
-
-forwardFilename = prefix+'.forward_run.txt'
-adjointFilename = prefix+'.adjoint_run.txt'
-controlForcingFilenames = [prefix+'.control_forcing.controlRegion.dat']
-gradientFilenames = [prefix+'.gradient.controlRegion.dat']
-CGFilenames = [prefix+'.conjugate_gradient.controlRegion.dat']
-normFilenames = [prefix+'.norm.controlRegion.dat']
-
 from mnbrak import *
 from linmin import *
 from frprmn import *
+import subprocess
+
+zeroBaseline = False
+initial = True
 
 ### conjugate-gradient procedure ###
+CG_continue = True
+while (CG_continue):
 ###<------------------------------------------------------------- CURRENT STAGE: MOVE THIS WHENEVER GOING TO NEXT STAGE
 ### FORWARD RUN ###<==========================================================DON'T FORGET!!
+    subprocess.check_call('srun -n '+str(NumProcs)+' ./forward',shell=True)
 ### ADJOINT RUN ###<==========================================================DON'T FORGET!!
+    subprocess.check_call('srun -n '+str(NumProcs)+' ./adjoint',shell=True)
 
-beforeLinmin(forwardFilename, adjointFilename,
-             gradientFilenames, CGFilenames,
-             normFilenames, initial=True)
+    success = beforeLinmin(forwardFilename, adjointFilename,
+                            gradientFilenames, CGFilenames,
+                            normFilenames, initial)
+    if (success!=0):
+        print ('pre-processing for line minimization is failed.')
+        break
+    initial = False
 
 ### WHILE (REDUCTION>TOL):              ###
 
 
 ###     MNBRAK PROCEDURE                ###
-setupInitialSteps(forwardFilename, CGFilenames,
-                  controlForcingFilenames, zeroBaseline=True)
+    success = setupInitialSteps(forwardFilename, CGFilenames,
+                                controlForcingFilenames, zeroBaseline)
+    if (success!=0):
+        print ('initialization for mnbrak is failed.')
+        break
 ###     WHILE (NOT BRACKETED):          ###
+    bracketed = False
+    while (not bracketed):
 ###         NUMSEARCH FORWARD RUNS      ### <=================================DON'T FORGET!!
-NextMnbrak(forwardFilename, CGFilenames,
-           controlForcingFilenames, zeroBaseline=True)
+        for k in range(1,NumSearch+1):
+            subprocess.check_call('cd '+str(k),shell=True)
+            subprocess.check_call('srun -n '+str(NumProcs)+' ./forward',shell=True)
+            subprocess.check_call('cd ..',shell=True)
+            
+#subprocess.check_call('sh intermediate_forward_runs.sh',shell=True)
+
+        case = NextMnbrak(forwardFilename, CGFilenames,
+                          controlForcingFilenames, zeroBaseline)
+        if (case==0):
+            bracketed = True
+        elif (case>0):
+            bracketed = False
+        else:
+            print ('mnbrak is failed.')
+            break
+            break           
 ###     MNBRAK PROCEDURE END            ###
 
 
 ###     LINMIN PROCEDURE                ###
+    linminContinue = True
+    linminInitial = False
+    while (linminContinue):
 ###     WHILE (BRACKETSIZE > TOL):      ###
-nextLinmin(forwardFilename, CGFilenames,
-controlForcingFilenames, zeroBaseline=True, initial=True)
+        case = nextLinmin(forwardFilename, CGFilenames,
+                          controlForcingFilenames, zeroBaseline, initial=linminInitial)
+        linminInitial = False
+        if (case==0):
+            linminContinue = False
+            break
 ###         NUMSEARCH FORWARD RUNS      ### <=================================DON'T FORGET!!
+        for k in range(1,NumSearch+1):
+            subprocess.check_call('cd '+str(k),shell=True)
+            subprocess.check_call('srun -n '+str(NumProcs)+' ./forward',shell=True)
+            subprocess.check_call('cd ..',shell=True)
+#subprocess.check_call('sh intermediate_forward_runs.sh',shell=True)
 ###     LINMIN PROCEDURE END            ###
 
-afterLinmin(forwardFilename, adjointFilename,
-             gradientFilenames, CGFilenames,
-             normFilenames, controlForcingFilenames)
+    case = afterLinmin(forwardFilename, adjointFilename,
+                       gradientFilenames, CGFilenames,
+                       normFilenames, controlForcingFilenames)
+    if (case==0):
+        CG_continue = False
 
 ###     GO BACK TO THE BEGINNING, OR CONJUGATE_GRADIENT PROCEDURE END       ###
