@@ -53,6 +53,7 @@ program run_zwxmwy
     z = zWXMWY(MPI_COMM_WORLD,trim(WFilename),trim(XFilename),trim(YFilename))
   end if
 
+  call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
   if (procRank == 0) then
     open(unit = getFreeUnit(fileUnit), file = trim(zFilename), action='write',          &
          iostat = stat, status = 'replace')
