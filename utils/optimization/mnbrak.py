@@ -20,16 +20,19 @@ def setupInitialSteps(forwardFilename, CGFilenames, controlForcingFilenames, zer
     Js[0] = J0
     for k in range(NumSearch):
         for i in range(NumCGFile):
-            command = 'srun -n '+str(NumProcs)+' ./zaxpy '                                              \
-                        +str(k+1)+'/'+controlForcingFilenames[i]+' '                                    \
-                        +"{:.16E}".format(-steps[k+1])+' '+CGFilenames[i]
+            # minus sign is included in shell file.
+            command = 'msub ./ZAXPY.sh '                                                                  \
+                        +str(k+1)+'/'+controlForcingFilenames[i]+" "                                    \
+                        +"{:.16E}".format(steps[k+1])+" "+CGFilenames[i]
             if (not zeroBaseline):
-                command += ' '+controlForcingFilenames[i]
+                command += " "+controlForcingFilenames[i]
+            print (command)
             subprocess.check_call(command, shell=True)
 
     data = {'step':steps,'QoI':Js,'directory index':[NumSearch+1]+list(range(1,NumSearch+1))}
     df = pd.DataFrame(data)
     df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+    print ('submitted all zaxpy works. Wait until they finish.')
     return 0
 
 def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseline=True):
@@ -71,13 +74,15 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 
         for k in range(NumSearch):
             for i in range(NumCGFile):
-                command = 'srun -n '+str(NumProcs)+' ./zaxpy '                                              \
+                command = 'msub ./ZAXPY.sh '                                                                \
                             +str(k+1)+'/'+controlForcingFilenames[i]+' '                                    \
-                            +"{:.16E}".format(-steps[k])+' '+CGFilenames[i]
+                            +"{:.16E}".format(steps[k])+' '+CGFilenames[i]
                 if (not zeroBaseline):
                     command += ' '+controlForcingFilenames[i]
+                print (command)
                 subprocess.check_call(command, shell=True)
         df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+        print ('submitted all zaxpy works. Wait until they finish.')
         print (df[df['directory index']>NumSearch])
         print ('MNBRAK: narrowing the bracket - Run intermediate forward simulations.')
         return 1
@@ -96,13 +101,15 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 
         for k in range(NumSearch):
             for i in range(NumCGFile):
-                command = 'srun -n '+str(NumProcs)+' ./zaxpy '                                              \
+                command = 'msub ./ZAXPY.sh '                                                                \
                             +str(k+1)+'/'+controlForcingFilenames[i]+' '                                    \
-                            +"{:.16E}".format(-steps[k])+' '+CGFilenames[i]
+                            +"{:.16E}".format(steps[k])+' '+CGFilenames[i]
                 if (not zeroBaseline):
                     command += ' '+controlForcingFilenames[i]
+                print (command)
                 subprocess.check_call(command, shell=True)
         df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+        print ('submitted all zaxpy works. Wait until they finish.')
         print (df[df['directory index']>NumSearch])
         print ('MNBRAK: expanding the bracket - Run intermediate forward simulations.')
         return 2

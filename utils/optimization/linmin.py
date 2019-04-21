@@ -62,14 +62,16 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 
     for k in range(NumSearch):
         for i in range(NumCGFile):
-            command = 'srun -n '+str(NumProcs)+' ./zaxpy '                                              \
+            command = 'msub ./ZAXPY.sh '                                                                \
                         +str(k+1)+'/'+controlForcingFilenames[i]+' '                                    \
-                        +"{:.16E}".format(-steps[k])+' '+CGFilenames[i]
+                        +"{:.16E}".format(steps[k])+' '+CGFilenames[i]
             if (not zeroBaseline):
                 command += ' '+controlForcingFilenames[i]
+            print (command)
             subprocess.check_call(command, shell=True)
     df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
+    print ('submitted all zaxpy works. Wait until they finish.')
     print (df[df['directory index']>0])
     print ('LINMIN: next linmin evaluation is prepared-')
     return 1
