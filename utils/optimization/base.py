@@ -1,16 +1,28 @@
-NumProcs = 36
+NumProcs = 360
 NumSearch = 10
-prefix = 'AcousticMonopole'
+prefix = 'MultiblockJet'
 lineMinLog = prefix+'.line_minimization.txt'
 CGLog = prefix+'.conjugate_gradient.txt'
 dggFilename = prefix+'.dgg.txt'
 
 forwardFilename = prefix+'.forward_run.txt'
 adjointFilename = prefix+'.adjoint_run.txt'
-controlForcingFilenames = [prefix+'.control_forcing_controlRegion.dat']
-gradientFilenames = [prefix+'.gradient_controlRegion.dat']
-CGFilenames = [prefix+'.conjugate_gradient_controlRegion.dat']
-normFilenames = [prefix+'.norm_controlRegion.dat']
+controlForcingFilenames = [prefix+'.control_forcing_controlRegion.E.dat',                       \
+                            prefix+'.control_forcing_controlRegion.W.dat',                      \
+                            prefix+'.control_forcing_controlRegion.N.dat',                      \
+                            prefix+'.control_forcing_controlRegion.S.dat']
+gradientFilenames = [prefix+'.gradient_controlRegion.E.dat',                                    \
+                     prefix+'.gradient_controlRegion.W.dat',                                    \
+                     prefix+'.gradient_controlRegion.N.dat',                                    \
+                     prefix+'.gradient_controlRegion.S.dat']
+CGFilenames = [prefix+'.conjugate_gradient_controlRegion.E.dat',                                \
+                prefix+'.conjugate_gradient_controlRegion.W.dat',                               \
+                prefix+'.conjugate_gradient_controlRegion.N.dat',                               \
+                prefix+'.conjugate_gradient_controlRegion.S.dat']
+normFilenames = [prefix+'.norm_controlRegion.E.dat',                                            \
+                 prefix+'.norm_controlRegion.W.dat',                                            \
+                 prefix+'.norm_controlRegion.N.dat',                                            \
+                 prefix+'.norm_controlRegion.S.dat']
 
 initial_step = 0.1
 golden_ratio = 1.618034
@@ -21,10 +33,15 @@ import subprocess
 import pandas as pd
 
 def readScalar(scalarFilename):
-    fID = open(scalarFilename,'r')
-    scalar = float(fID.read())
-    fID.close()
-    return scalar
+    try:
+        fID = open(scalarFilename,'r')
+    except FileNotFoundError:
+        print (scalarFilename+' is not found.')
+        return np.nan
+    else:
+        scalar = float(fID.read())
+        fID.close()
+        return scalar
 
 def switchDirectory(firstDirectory, secondDirectory, df=None):
     if (firstDirectory==secondDirectory):

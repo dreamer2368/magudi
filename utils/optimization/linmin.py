@@ -1,6 +1,6 @@
 from base import *
 
-def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseline=True, initial=True):
+def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseline=True, initial=True, stop=False):
     import pandas as pd
     import subprocess
     from base import readScalar
@@ -26,6 +26,11 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
             dirIdx = np.array(df['directory index'][df['directory index']>0])
 #         display(df)
         df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+
+    if (stop):
+        print (df[df['directory index']>0])
+        print ('LINMIN: line minimization is stopped.')
+        return 0
 
     stepBracket = np.array(df['step'][df['directory index']>NumSearch])
     JBracket = np.array(df['QoI'][df['directory index']>NumSearch])
@@ -61,6 +66,9 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
     df = df.append(new_df, ignore_index=True)
 
     for k in range(NumSearch):
+        command = 'rm '+str(k+1)+'/MultiblockJet.*.dat'
+        print (command)
+        subprocess.check_call(command, shell=True)
         for i in range(NumCGFile):
             command = 'msub ./ZAXPY.sh '                                                                \
                         +str(k+1)+'/'+controlForcingFilenames[i]+' '                                    \
