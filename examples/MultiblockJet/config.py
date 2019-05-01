@@ -586,15 +586,31 @@ def control_mollifier(g):
             i + 1, 0, imin, imax, 1, -1, kmin, kmax)
     return f
 
+def mean_pressure(s):
+    s_prim = s.toprimitive()
+    f = p3d.Function().copy_from(s_prim)
+    print (np.shape(f.f))
+    for i, fi in enumerate(f.f):
+        print (i)
+        print (fi.shape)
+        print (np.min(s.q[i][:,:,:,4]), np.max(s.q[i][:,:,:,4]))
+        #print (s.toprimitive().q[i].shape)
+        fi[:,:,:,0] = s_prim.q[i][:,:,:,4]
+        print (np.min(fi), np.max(fi))
+    return f
+
+
 if __name__ == '__main__':
     g = grid(60, 196, 132, a_inner=0.24, p_inner=1.08634735266)
     g.save('MultiblockJet.xyz')
-    target_state(g).save('MultiblockJet.target.q')
-    initial_condition(g).save('MultiblockJet.ic.q')
-    gi = extract_inflow(g)
-    gi.save('MultiblockJet.inflow.xyz')
-    modes = eigenmodes()
-    for i, mode in enumerate(modes):
-        sr, si = inflow_perturbations(gi, mode)
-        sr.save('MultiblockJet-%02d.eigenmode_real.q' % (i + 1))
-        si.save('MultiblockJet-%02d.eigenmode_imag.q' % (i + 1))
+    control_mollifier(g).save('MultiblockJet.control_mollifier.f')
+    target_mollifier(g).save('MultiblockJet.target_mollifier.f')
+#    target_state(g).save('MultiblockJet.target.q')
+#    initial_condition(g).save('MultiblockJet.ic.q')
+#    gi = extract_inflow(g)
+#    gi.save('MultiblockJet.inflow.xyz')
+#    modes = eigenmodes()
+#    for i, mode in enumerate(modes):
+#        sr, si = inflow_perturbations(gi, mode)
+#        sr.save('MultiblockJet-%02d.eigenmode_real.q' % (i + 1))
+#        si.save('MultiblockJet-%02d.eigenmode_imag.q' % (i + 1))
