@@ -103,7 +103,7 @@ program probe_from_qfile
      call region%loadData(QOI_FORWARD_STATE, filename)
 
      ! Save solution on probe patches.
-     call region%saveProbeData(FORWARD)
+     if( allocated(region%patchFactories) ) call region%saveProbeData(FORWARD)
 
      write(message,'(A)') 'probe data collected.'
      call writeAndFlush(region%comm, output_unit, message)
@@ -122,7 +122,7 @@ program probe_from_qfile
         call region%loadData(QOI_FORWARD_STATE, filename)
 
         ! Save solution on probe patches.
-        call region%saveProbeData(FORWARD)
+        if( allocated(region%patchFactories) ) call region%saveProbeData(FORWARD)
 
         write(message,'(I8.8,A)') i,'-th step probe data collected.'
         call writeAndFlush(region%comm, output_unit, message)
