@@ -30,6 +30,13 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
     if (stop):
         print (df[df['directory index']>0])
         print ('LINMIN: line minimization is stopped.')
+
+        commandFile = open(commandFilename,'w')
+        commandFile.close()
+        commandFile = open(decisionMakerCommandFilename,'w')
+        command = 'python '+decisionMaker+' 5'
+        commandFile.write(command+'\n')
+        commandFile.close()
         return 0
 
     stepBracket = np.array(df['step'][df['directory index']>NumSearch])
@@ -38,12 +45,19 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         print ('LINMIN: the minimum bracket is lost or not found yet!')
         return -1
     bracketSize = (stepBracket[2]-stepBracket[0])/2.0/(stepBracket[1]+eps)
-    if (bracketSize<=tol):
+    if (bracketSize<=1.0e-2):
         print (stepBracket)
         print (JBracket)
         print ('LINMIN: line minimization is finished.')
-        return 0
 
+        commandFile = open(commandFilename,'w')
+        commandFile.close()
+        commandFile = open(decisionMakerCommandFilename,'w')
+        command = 'python '+decisionMaker+' 5'
+        commandFile.write(command+'\n')
+        commandFile.close()
+        return 0
+               
     steps, Js = np.zeros(NumSearch), np.zeros(NumSearch)
     h = (stepBracket[2]-stepBracket[0])/(NumSearch+1)
     idx = int((stepBracket[1]-stepBracket[0])//h)
@@ -65,20 +79,27 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
     new_df = pd.DataFrame(data)
     df = df.append(new_df, ignore_index=True)
 
+    commandFile = open(commandFilename,'w')
     for k in range(NumSearch):
         command = 'rm '+str(k+1)+'/MultiblockJet.*.dat'
-        print (command)
-        subprocess.check_call(command, shell=True)
+        commandFile.write(command+'\n')
         for i in range(NumCGFile):
-            command = 'msub ./ZAXPY.sh '                                                                \
+            command = 'srun -n '+str(NumProcs)+' ./zaxpy '                                                 \
                         +str(k+1)+'/'+controlForcingFilenames[i]+' '                                    \
-                        +"{:.16E}".format(steps[k])+' '+CGFilenames[i]
+                        +"{:.16E}".format(-steps[k])+' '+CGFilenames[i]
             if (not zeroBaseline):
                 command += ' '+controlForcingFilenames[i]
-            print (command)
-            subprocess.check_call(command, shell=True)
-    df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+            commandFile.write(command+'\n')
+    commandFile.write('sh intermediate_forward_runs.sh\n')
+    commandFile.close()
+    commandFile = open(decisionMakerCommandFilename,'w')
+    command = 'python '+decisionMaker+' 4'
+    if(zeroBaseline):
+        command += ' -zero_baseline'
+    commandFile.write(command+'\n')
+    commandFile.close()
 
+    df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
     print ('submitted all zaxpy works. Wait until they finish.')
     print (df[df['directory index']>0])
     print ('LINMIN: next linmin evaluation is prepared-')
