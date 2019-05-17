@@ -31,7 +31,7 @@ def setupInitialSteps(forwardFilename, CGFilenames, controlForcingFilenames, zer
     commandFile.write('bash intermediate_forward_runs.sh\n')
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
-    command = 'python '+decisionMaker+' 3'
+    command = 'python3 '+decisionMaker+' 3'
     if(zeroBaseline):
         command += ' -zero_baseline'
     commandFile.write(command+'\n')
@@ -68,7 +68,7 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile.write('bash intermediate_forward_runs.sh\n')
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
-        command = 'python '+decisionMaker+' 3'
+        command = 'python3 '+decisionMaker+' 3'
         if(zeroBaseline):
             command += ' -zero_baseline'
         commandFile.write(command+'\n')
@@ -101,7 +101,7 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
             commandFile = open(commandFilename,'w')
             commandFile.close()
             commandFile = open(decisionMakerCommandFilename,'w')
-            command = 'python '+decisionMaker+' 4 -linmin_initial'
+            command = 'python3 '+decisionMaker+' 4 -linmin_initial'
             if(zeroBaseline):
                 command += ' -zero_baseline'
             commandFile.write(command+'\n')
@@ -128,7 +128,7 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile.write('bash intermediate_forward_runs.sh\n')
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
-        command = 'python '+decisionMaker+' 3'
+        command = 'python3 '+decisionMaker+' 3'
         if(zeroBaseline):
             command += ' -zero_baseline'
         commandFile.write(command+'\n')
@@ -164,7 +164,7 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile.write('bash intermediate_forward_runs.sh\n')
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
-        command = 'python '+decisionMaker+' 3'
+        command = 'python3 '+decisionMaker+' 3'
         if(zeroBaseline):
             command += ' -zero_baseline'
         commandFile.write(command+'\n')
@@ -189,7 +189,7 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile = open(commandFilename,'w')
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
-        command = 'python '+decisionMaker+' 4 -linmin_initial'
+        command = 'python3 '+decisionMaker+' 4 -linmin_initial'
         if(zeroBaseline):
             command += ' -zero_baseline'
         commandFile.write(command+'\n')

@@ -34,7 +34,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile = open(commandFilename,'w')
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
-        command = 'python '+decisionMaker+' 5'
+        command = 'python3 '+decisionMaker+' 5'
         commandFile.write(command+'\n')
         commandFile.write('exit 0\n')
         commandFile.close()
@@ -54,7 +54,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile = open(commandFilename,'w')
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
-        command = 'python '+decisionMaker+' 5'
+        command = 'python3 '+decisionMaker+' 5'
         commandFile.write(command+'\n')
         commandFile.write('exit 0\n')
         commandFile.close()
@@ -95,7 +95,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
     commandFile.write('bash intermediate_forward_runs.sh\n')
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
-    command = 'python '+decisionMaker+' 4'
+    command = 'python3 '+decisionMaker+' 4'
     if(zeroBaseline):
         command += ' -zero_baseline'
     commandFile.write(command+'\n')

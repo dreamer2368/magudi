@@ -14,8 +14,8 @@ def beforeLinmin(forwardFilename, adjointFilename,
 
     J0, gg = readScalar(forwardFilename), readScalar(adjointFilename)
     if (initial):
-        data = [[J0, np.nan, np.nan, gg]]
-        df = pd.DataFrame(data,columns=['before linmin','after linmin','reduction','gg'])
+        data = [[J0, np.nan, np.nan, np.nan, gg]]
+        df = pd.DataFrame(data,columns=['before linmin','after linmin','reduction','dgg','gg'])
         df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
         commandFile = open(commandFilename,'w')
@@ -23,7 +23,7 @@ def beforeLinmin(forwardFilename, adjointFilename,
             commandFile.write('cp '+gradientFilenames[k]+' '+CGFilenames[k]+'\n')
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
-        command = 'python '+decisionMaker+' 2'
+        command = 'python3 '+decisionMaker+' 2'
         if(zeroBaseline):
             command += ' -zero_baseline'
         commandFile.write(command+'\n')
@@ -33,9 +33,8 @@ def beforeLinmin(forwardFilename, adjointFilename,
         return 0
 
     df = pd.read_csv(CGLog, sep='\t', header=0)
-    data = {'before linmin':J0, 'after linmin':np.nan, 'reduction':np.nan, 'gg':gg}
+    data = {'before linmin':J0, 'after linmin':np.nan, 'reduction':np.nan, 'dgg':np.nan, 'gg':gg}
     df = df.append(data,ignore_index=True)
-    df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
     # Polak-Ribiere
     dgg = 0.0
@@ -50,8 +49,11 @@ def beforeLinmin(forwardFilename, adjointFilename,
         print (dgg)
     # # Fletcher-Reeves
     # dgg = df.at[df.index[-1],'gg']
-    gg = df.at[df.index[-2],'gg']
-    gamma = dgg/gg
+    gg1 = df.at[df.index[-2],'gg']
+    gamma = dgg/gg1
+
+    df.at[df.index[-2],'dgg'] = dgg
+    df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
     commandFile = open(commandFilename,'w')
     for k in range(NumCGFile):
@@ -61,7 +63,7 @@ def beforeLinmin(forwardFilename, adjointFilename,
         commandFile.write(command+'\n')
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
-    command = 'python '+decisionMaker+' 2'
+    command = 'python3 '+decisionMaker+' 2'
     if(zeroBaseline):
         command += ' -zero_baseline'
     commandFile.write(command+'\n')
@@ -72,7 +74,7 @@ def beforeLinmin(forwardFilename, adjointFilename,
 
 def afterLinmin(forwardFilename, adjointFilename,
                  gradientFilenames, CGFilenames,
-                 normFilenames, controlForcingFilenames, zeroBaseline=False):
+                 normFilenames, controlForcingFilenames):
     from base import readScalar
     import pandas as pd
     import subprocess
@@ -114,14 +116,11 @@ def afterLinmin(forwardFilename, adjointFilename,
         commandFile.write('cp '+str(NumSearch+2)+'/'+controlForcingFilenames[k]+' ./ \n')
         commandFile.write('mv '+gradientFilenames[k]+' '+'previous.'+gradientFilenames[k]+'\n')
         commandFile.write('mv '+CGFilenames[k]+' '+'previous.'+CGFilenames[k]+'\n')
-    if(zeroBaseline):
-        commandFile.write(magudiSetOptionCommand)
-        commandFile.write('setOption "controller_switch" true\n')
-    commandFile.write('srun -n '+str(NumProcs)+' ./forward\n')
-    commandFile.write('srun -n '+str(NumProcs)+' ./adjoint\n')
+    commandFile.write('srun -N 30 -n 1056 ./forward\n')
+    commandFile.write('srun -N 30 -n 1056 ./adjoint\n')
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
-    commandFile.write('python '+decisionMaker+' 1 \n')
+    commandFile.write('python3 '+decisionMaker+' 1 \n')
     commandFile.close()
 
     print ('FRPRMN - after linmin: postprocessing is finished. Run new forward/adjoint simulations.')
