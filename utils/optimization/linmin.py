@@ -36,6 +36,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile = open(decisionMakerCommandFilename,'w')
         command = 'python '+decisionMaker+' 5'
         commandFile.write(command+'\n')
+        commandFile.write('exit 0\n')
         commandFile.close()
         return 0
 
@@ -45,7 +46,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         print ('LINMIN: the minimum bracket is lost or not found yet!')
         return -1
     bracketSize = (stepBracket[2]-stepBracket[0])/2.0/(stepBracket[1]+eps)
-    if (bracketSize<=1.0e-2):
+    if (bracketSize<=1.0e-1):
         print (stepBracket)
         print (JBracket)
         print ('LINMIN: line minimization is finished.')
@@ -55,6 +56,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile = open(decisionMakerCommandFilename,'w')
         command = 'python '+decisionMaker+' 5'
         commandFile.write(command+'\n')
+        commandFile.write('exit 0\n')
         commandFile.close()
         return 0
                
@@ -90,7 +92,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
             if (not zeroBaseline):
                 command += ' '+controlForcingFilenames[i]
             commandFile.write(command+'\n')
-    commandFile.write('sh intermediate_forward_runs.sh\n')
+    commandFile.write('bash intermediate_forward_runs.sh\n')
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
     command = 'python '+decisionMaker+' 4'
