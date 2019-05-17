@@ -32,6 +32,15 @@ initial_step = 0.1
 golden_ratio = 1.618034
 tol, eps = 1.0e-7,  1.0e-7
 
+magudiSetOptionCommand = 'function setOption() {\n'                                         \
+                         '    if grep -q "$1" magudi.inp\n'                                 \
+                         '    then\n'                                                       \
+                         '	sed -i "s/^.*$1.*$/$1 = $2/g" magudi.inp\n'                     \
+                         '    else\n'                                                       \
+                         '	echo "$1 = $2" >> magudi.inp\n'                                 \
+                         '    fi\n'                                                         \
+                         '}\n'
+
 import numpy as np
 import subprocess
 import pandas as pd
