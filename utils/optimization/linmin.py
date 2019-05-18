@@ -35,6 +35,8 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
         command = 'python3 '+decisionMaker+' 5'
+        if(zeroBaseline):
+            command += ' -zero_baseline'
         commandFile.write(command+'\n')
         commandFile.write('exit 0\n')
         commandFile.close()
@@ -55,6 +57,8 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
         command = 'python3 '+decisionMaker+' 5'
+        if(zeroBaseline):
+            command += ' -zero_baseline'
         commandFile.write(command+'\n')
         commandFile.write('exit 0\n')
         commandFile.close()
@@ -83,7 +87,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 
     commandFile = open(commandFilename,'w')
     for k in range(NumSearch):
-        command = 'rm '+str(k+1)+'/MultiblockJet.*.dat'
+        command = 'rm '+str(k+1)+'/'+prefix+'.*.dat'
         commandFile.write(command+'\n')
         for i in range(NumCGFile):
             command = 'srun -n '+str(NumProcs)+' ./zaxpy '                                                 \

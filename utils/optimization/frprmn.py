@@ -2,7 +2,7 @@ from base import *
 
 def beforeLinmin(forwardFilename, adjointFilename,
                  gradientFilenames, CGFilenames,
-                 normFilenames, initial=True, zeroBaseline=False):
+                 normFilenames, initial, zeroBaseline):
     from base import readScalar
     import pandas as pd
     import subprocess
@@ -74,7 +74,7 @@ def beforeLinmin(forwardFilename, adjointFilename,
 
 def afterLinmin(forwardFilename, adjointFilename,
                  gradientFilenames, CGFilenames,
-                 normFilenames, controlForcingFilenames):
+                 normFilenames, controlForcingFilenames, zeroBaseline):
     from base import readScalar
     import pandas as pd
     import subprocess
@@ -116,6 +116,9 @@ def afterLinmin(forwardFilename, adjointFilename,
         commandFile.write('cp '+str(NumSearch+2)+'/'+controlForcingFilenames[k]+' ./ \n')
         commandFile.write('mv '+gradientFilenames[k]+' '+'previous.'+gradientFilenames[k]+'\n')
         commandFile.write('mv '+CGFilenames[k]+' '+'previous.'+CGFilenames[k]+'\n')
+    if( zeroBaseline ):
+        commandFile.write(magudiSetOptionCommand+'\n')
+        commandFile.write('setOption "controller_switch" true \n')
     commandFile.write('srun -N 30 -n 1056 ./forward\n')
     commandFile.write('srun -N 30 -n 1056 ./adjoint\n')
     commandFile.close()

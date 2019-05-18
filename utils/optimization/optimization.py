@@ -6,7 +6,7 @@ import subprocess
 import argparse
 
 descriptionString = 'Optimization decision maker.\n\n'                                                          \
-                    'Each time this produces a command shell file that will go through each steps in the following loop:\n'       \
+                    'Each time this produces a command shell file that will go through following loop:\n'       \
                     ' while(cg optimization continues):\n'                                                      \
                     '     forward run\n'                                                                        \
                     '     adjoint run\n'                                                                        \
@@ -83,7 +83,7 @@ elif( action==4 ):
 elif( action==5 ):
     case = afterLinmin(forwardFilename, adjointFilename,
                        gradientFilenames, CGFilenames,
-                       normFilenames, controlForcingFilenames)
+                       normFilenames, controlForcingFilenames, zeroBaseline)
     if (case==0):
         CG_continue = False
 
