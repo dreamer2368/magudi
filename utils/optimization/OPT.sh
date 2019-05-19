@@ -14,6 +14,7 @@ numProcs=$(($SLURM_NNODES*$ppn))
 
 export commandFile='AcousticMonopole.command.sh'
 export decisionMakerCommandFile='AcousticMonopole.command.python.sh'
+export nextDecisionMakerCommandFile='AcousticMonopole.command.python.ready.sh'
 
 flag=true
 while [ $flag=true ]
@@ -23,6 +24,7 @@ do
         echo "$commandFile is not run successfully."
         exit -1
     fi
+    mv $nextDecisionMakerCommandFile $decisionMakerCommandFile
     sh $decisionMakerCommandFile
     if [ $? -ne 0 ]; then
         echo "$decisionMakerCommandFile is not run successfully."

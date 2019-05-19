@@ -26,7 +26,7 @@ normFilenames = [prefix+'.norm_controlRegion.E.dat',                            
 
 decisionMaker = 'optimization.py'
 commandFilename = prefix+'.command.sh'
-decisionMakerCommandFilename = prefix+'.command.python.sh'
+decisionMakerCommandFilename = prefix+'.command.python.ready.sh'
 
 initial_step = 0.1
 golden_ratio = 1.618034
