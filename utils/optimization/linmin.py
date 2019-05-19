@@ -60,7 +60,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         if(zeroBaseline):
             command += ' -zero_baseline'
         commandFile.write(command+'\n')
-        commandFile.write('exit 0\n')
+        commandFile.write('exit 1\n')
         commandFile.close()
         return 0
                
@@ -96,7 +96,9 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
             if (not zeroBaseline):
                 command += ' '+controlForcingFilenames[i]
             commandFile.write(command+'\n')
+            commandFile.write(bashCheckResultCommand('zaxpy-'+str(k)+'-'+str(i)))
     commandFile.write('bash intermediate_forward_runs.sh\n')
+    commandFile.write(bashCheckResultCommand('intermediate forward runs'))
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
     command = 'python3 '+decisionMaker+' 4'

@@ -45,6 +45,16 @@ import numpy as np
 import subprocess
 import pandas as pd
 
+def bashCheckResultCommand(procedureName):
+    commandString = 'if [ $? -ne 0 ]; then\n'                                               \
+                    '   echo "'+procedureName+' failed."\n'                                 \
+                    '   exit -1\n'                                                          \
+                    'else\n'                                                                \
+                    '   echo "'+procedureName+' succeeded."\n'                              \
+                    '   exit 0\n'                                                           \
+                    'fi\n'
+    return commandString
+
 def readScalar(scalarFilename):
     try:
         fID = open(scalarFilename,'r')

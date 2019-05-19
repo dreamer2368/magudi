@@ -27,12 +27,15 @@ done
 
 for pid in ${pids[*]}
 do
-echo $pid
 wait $pid || let "FAIL+=1"
+echo $pid
 done
 
-echo $FAIL
-if [ $FAIL -gt 0 ]
-then
+echo "Number of failures: $FAIL"
+if [ $FAIL -eq 0 ]; then
+echo "intermediate forward runs succeeded."
+exit 0
+else
+echo "intermediate forward runs failed."
 exit -1
 fi

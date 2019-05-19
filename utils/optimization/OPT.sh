@@ -19,7 +19,15 @@ flag=true
 while [ $flag=true ]
 do
     sh $commandFile
+    if [ $? -ne 0 ]; then
+        echo "$commandFile is not run successfully."
+        exit -1
+    fi
     sh $decisionMakerCommandFile
+    if [ $? -ne 0 ]; then
+        echo "$decisionMakerCommandFile is not run successfully."
+        exit -1
+    fi
     scontrol show job $SLURM_JOBID
 done
 

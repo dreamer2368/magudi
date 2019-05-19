@@ -28,7 +28,9 @@ def setupInitialSteps(forwardFilename, CGFilenames, controlForcingFilenames, zer
             if (not zeroBaseline):
                 command += " "+controlForcingFilenames[i]
             commandFile.write(command+'\n')
+            commandFile.write(bashCheckResultCommand('zaxpy-'+str(k)+'-'+str(i)))
     commandFile.write('bash intermediate_forward_runs.sh\n')
+    commandFile.write(bashCheckResultCommand('intermediate forward runs'))
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
     command = 'python3 '+decisionMaker+' 3'
@@ -65,7 +67,9 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
                 if (not zeroBaseline):
                     command += ' '+controlForcingFilenames[i]
                 commandFile.write(command+'\n')
+                commandFile.write(bashCheckResultCommand('zaxpy-'+str(k)+'-'+str(i)))
         commandFile.write('bash intermediate_forward_runs.sh\n')
+        commandFile.write(bashCheckResultCommand('intermediate forward runs'))
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
         command = 'python3 '+decisionMaker+' 3'
@@ -125,7 +129,9 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
                 if (not zeroBaseline):
                     command += ' '+controlForcingFilenames[i]
                 commandFile.write(command+'\n')
+                commandFile.write(bashCheckResultCommand('zaxpy-'+str(k)+'-'+str(i)))
         commandFile.write('bash intermediate_forward_runs.sh\n')
+        commandFile.write(bashCheckResultCommand('intermediate forward runs'))
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
         command = 'python3 '+decisionMaker+' 3'
@@ -161,7 +167,9 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
                 if (not zeroBaseline):
                     command += ' '+controlForcingFilenames[i]
                 commandFile.write(command+'\n')
+                commandFile.write(bashCheckResultCommand('zaxpy-'+str(k)+'-'+str(i)))
         commandFile.write('bash intermediate_forward_runs.sh\n')
+        commandFile.write(bashCheckResultCommand('intermediate forward runs'))
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
         command = 'python3 '+decisionMaker+' 3'

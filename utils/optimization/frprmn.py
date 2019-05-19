@@ -61,6 +61,7 @@ def beforeLinmin(forwardFilename, adjointFilename,
                     +CGFilenames[k]+' '                                                             \
                     +"{:.16E}".format(gamma)+' '+'previous.'+CGFilenames[k]+' '+gradientFilenames[k]
         commandFile.write(command+'\n')
+        commandFile.write(bashCheckResultCommand('zaxpy-'+str(k)))
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
     command = 'python3 '+decisionMaker+' 2'
@@ -98,10 +99,10 @@ def afterLinmin(forwardFilename, adjointFilename,
     if (reduction<=tol):
         print ('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
         commandFile = open(commandFilename,'w')
-        commandFile.write('break\n')
+        commandFile.write('exit 1\n')
         commandFile.close()
         commandFile = open(decisionMakerCommandFilename,'w')
-        commandFile.write('break\n')
+        commandFile.write('exit 1\n')
         commandFile.close()
         return 0
 
@@ -120,7 +121,9 @@ def afterLinmin(forwardFilename, adjointFilename,
         commandFile.write(magudiSetOptionCommand+'\n')
         commandFile.write('setOption "controller_switch" true \n')
     commandFile.write('srun -N 30 -n 1056 ./forward\n')
+    commandFile.write(bashCheckResultCommand('forward run'))
     commandFile.write('srun -N 30 -n 1056 ./adjoint\n')
+    commandFile.write(bashCheckResultCommand('adjoint run'))
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
     commandFile.write('python3 '+decisionMaker+' 1 \n')
