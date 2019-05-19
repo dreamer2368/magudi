@@ -51,7 +51,6 @@ def bashCheckResultCommand(procedureName):
                     '   exit -1\n'                                                          \
                     'else\n'                                                                \
                     '   echo "'+procedureName+' succeeded."\n'                              \
-                    '   exit 0\n'                                                           \
                     'fi\n'
     return commandString
 
