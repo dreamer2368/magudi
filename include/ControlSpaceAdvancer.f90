@@ -43,4 +43,24 @@ module ControlSpaceAdvancer
     end function zWXMWY
   end interface
 
+  interface
+    function zXdotY(comm,XFilename,YFilename, normFilename) result(z)
+      use MPI
+      use, intrinsic :: iso_fortran_env, only : output_unit
+
+      use InputHelper, only : parseInputFile, getOption, getRequiredOption
+      use ErrorHandler
+      use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
+
+      ! <<< Arguments >>>
+      integer, intent(in) :: comm
+      character(len = *), intent(in) :: XFilename, YFilename
+      character(len = *), intent(in), optional :: normFilename
+
+      ! <<< Result >>>
+      SCALAR_TYPE :: z
+
+    end function zXdotY
+  end interface
+
 end module ControlSpaceAdvancer

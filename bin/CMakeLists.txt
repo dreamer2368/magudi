@@ -4,3 +4,4 @@ add_executable(adjoint $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/Adj
 add_executable(gradient_accuracy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/CheckGradientAccuracy.f90)
 add_executable(zaxpy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/ZAXPY.f90)
 add_executable(zwxmwy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/zwxmwy.f90)
+add_executable(zxdoty $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/zXdotY.f90)
