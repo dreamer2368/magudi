@@ -14,8 +14,8 @@ def beforeLinmin(forwardFilename, adjointFilename,
 
     J0, gg = readScalar(forwardFilename), readScalar(adjointFilename)
     if (initial):
-        data = [[J0, np.nan, np.nan, np.nan, gg]]
-        df = pd.DataFrame(data,columns=['before linmin','after linmin','reduction','dgg','gg'])
+        data = [[J0, np.nan, np.nan, np.nan, gg, gg]]
+        df = pd.DataFrame(data,columns=['before linmin','after linmin','reduction','dgg','gg','hh'])
         df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
         commandFile = open(commandFilename,'w')
@@ -33,7 +33,7 @@ def beforeLinmin(forwardFilename, adjointFilename,
         return 0
 
     df = pd.read_csv(CGLog, sep='\t', header=0)
-    data = {'before linmin':J0, 'after linmin':np.nan, 'reduction':np.nan, 'dgg':np.nan, 'gg':gg}
+    data = {'before linmin':J0, 'after linmin':np.nan, 'reduction':np.nan, 'dgg':np.nan, 'gg':gg, 'hh':np.nan}
     df = df.append(data,ignore_index=True)
 
     # Polak-Ribiere
@@ -52,16 +52,28 @@ def beforeLinmin(forwardFilename, adjointFilename,
     gg1 = df.at[df.index[-2],'gg']
     gamma = dgg/gg1
 
-    df.at[df.index[-2],'dgg'] = dgg
-    df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-
-    commandFile = open(commandFilename,'w')
     for k in range(NumCGFile):
         command = 'srun -n '+str(NumProcs)+' ./zaxpy '                                              \
                     +CGFilenames[k]+' '                                                             \
                     +"{:.16E}".format(gamma)+' '+'previous.'+CGFilenames[k]+' '+gradientFilenames[k]
-        commandFile.write(command+'\n')
-        commandFile.write(bashCheckResultCommand('zaxpy-'+str(k)))
+        print (command)
+        subprocess.check_call(command,shell=True)
+
+    hhFilename = prefix+'.hh.txt'
+    hh = 0.0
+    for k in range(NumCGFile):
+        command = 'srun -n '+str(NumProcs)+' ./zxdoty '                                              \
+                    +CGFilenames[k]+' '+CGFilenames[k]+' '+normFilenames[k]
+        print (command)
+        subprocess.check_call(command,shell=True)
+        hh += readScalar(hhFilename)
+        print (hh)
+
+    df.at[df.index[-2],'dgg'] = dgg
+    df.at[df.index[-1],'hh'] = hh
+    df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+
+    commandFile = open(commandFilename,'w')
     commandFile.close()
     commandFile = open(decisionMakerCommandFilename,'w')
     command = 'python3 '+decisionMaker+' 2'
