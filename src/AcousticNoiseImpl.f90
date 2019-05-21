@@ -109,6 +109,9 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   use Region_mod, only : t_Region
   use AcousticNoise_mod, only : t_AcousticNoise
 
+  ! <<< Internal modules >>>
+  use Patch_factory, only : computeQuadratureOnPatches
+
   ! <<< SeungWhan: debugging >>>
   use, intrinsic :: iso_fortran_env, only : output_unit
   use ErrorHandler, only : writeAndFlush
@@ -164,7 +167,8 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
      ! F = region%states(i)%pressure - ideal_mean_pressure
      instantaneousFunctional = instantaneousFunctional +                                     &
 !          timeRampFactor *                                                                   &
-          region%grids(i)%computeInnerProduct(F, F, region%grids(i)%targetMollifier(:,1))
+          computeQuadratureOnPatches(region%patchFactories, 'COST_TARGET',                   &
+                  region%grids(i), F(:,1)**2 * region%grids(i)%targetMollifier(:,1))
      SAFE_DEALLOCATE(F)
   end do
 

@@ -127,6 +127,9 @@ function computeReynoldsStress(this, region) result(instantaneousFunctional)
   use Region_mod, only : t_Region
   use ReynoldsStress_mod, only : t_ReynoldsStress
 
+  ! <<< Internal modules >>>
+  use Patch_factory, only : computeQuadratureOnPatches
+
   ! <<< Arguments >>>
   class(t_ReynoldsStress) :: this
   class(t_Region), intent(in) :: region
@@ -172,7 +175,8 @@ function computeReynoldsStress(this, region) result(instantaneousFunctional)
              this%data_(j)%meanVelocity(k,:), this%secondDirection(1:nDimensions))
      end do
      instantaneousFunctional = instantaneousFunctional +                                     &
-          region%grids(i)%computeInnerProduct(F(:,1), region%grids(i)%targetMollifier(:,1))
+          computeQuadratureOnPatches(region%patchFactories, 'COST_TARGET',                   &
+                        region%grids(i), F(:,1) * region%grids(i)%targetMollifier(:,1))
      SAFE_DEALLOCATE(F)
 
   end do

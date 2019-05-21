@@ -89,6 +89,9 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
   use Region_mod, only : t_Region
   use ThermalActuator_mod, only : t_ThermalActuator
 
+  ! <<< Internal modules >>>
+  use Patch_factory, only : computeQuadratureOnPatches
+
   ! <<< SeungWhan: debug:time_ramp printing >>>
   use ErrorHandler, only : writeAndFlush
   use, intrinsic :: iso_fortran_env, only : output_unit
@@ -139,7 +142,8 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
      F(:,1) = region%states(i)%adjointVariables(:,nDimensions+2) *                           &
           region%grids(i)%controlMollifier(:,1) * timeRampFactor
      instantaneousSensitivity = instantaneousSensitivity +                                   &
-          region%grids(i)%computeInnerProduct(F, F)
+                        computeQuadratureOnPatches(region%patchFactories, 'ACTUATOR',        &
+                                                    region%grids(i), F(:,1)**2)
      SAFE_DEALLOCATE(F)
 
   end do

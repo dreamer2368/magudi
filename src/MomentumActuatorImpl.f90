@@ -87,6 +87,9 @@ function computeMomentumActuatorSensitivity(this, region) result(instantaneousSe
   use Region_mod, only : t_Region
   use MomentumActuator_mod, only : t_MomentumActuator
 
+  ! <<< Internal modules >>>
+  use Patch_factory, only : computeQuadratureOnPatches
+
   implicit none
 
   ! <<< Arguments >>>
@@ -139,7 +142,8 @@ function computeMomentumActuatorSensitivity(this, region) result(instantaneousSe
      end if
 
      instantaneousSensitivity = instantaneousSensitivity +                                   &
-          region%grids(i)%computeInnerProduct(F, F)
+                          computeQuadratureOnPatches(region%patchFactories,'ACTUATOR',       &
+                                                      region%grids(i), sum(F**2,2))
 
      SAFE_DEALLOCATE(F)
 
