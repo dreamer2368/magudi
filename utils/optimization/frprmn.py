@@ -62,7 +62,7 @@ def beforeLinmin(forwardFilename, adjointFilename,
     hhFilename = prefix+'.hh.txt'
     hh = 0.0
     for k in range(NumCGFile):
-        command = 'srun -n '+str(NumProcs)+' ./zxdoty '                                              \
+        command = 'srun -n '+str(NumProcs)+' ./zxdoty '+hhFilename+' '                                    \
                     +CGFilenames[k]+' '+CGFilenames[k]+' '+normFilenames[k]
         print (command)
         subprocess.check_call(command,shell=True)
