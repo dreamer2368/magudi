@@ -360,15 +360,15 @@ function zWXMWY(comm,WFilename,XFilename,YFilename, normFilename) result(z)
   call MPI_Barrier(comm, ierror)
 
   call endTiming("Read files")
-  call startTiming("Compute z=W^T*norm*(X+Y)")
+  call startTiming("Compute z=W^T*norm*(X-Y)")
 
   z = 0.0_wp
-  z = SUM( WBuffer*normBuffer*(XBuffer + YBuffer) )
+  z = SUM( WBuffer*normBuffer*(XBuffer - YBuffer) )
 
   call MPI_Allreduce(MPI_IN_PLACE, z, 1, SCALAR_TYPE_MPI, MPI_SUM, comm, ierror)
   call MPI_Bcast(z, 1, SCALAR_TYPE_MPI, 0, comm, ierror)
 
-  call endTiming("Compute z=W^T*norm*(X+Y)")
+  call endTiming("Compute z=W^T*norm*(X-Y)")
 
 end function
 
