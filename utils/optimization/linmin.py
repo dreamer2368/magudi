@@ -60,7 +60,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         if(zeroBaseline):
             command += ' -zero_baseline'
         commandFile.write(command+'\n')
-        commandFile.write('exit 1\n')
+#        commandFile.write('exit 1\n')
         commandFile.close()
         return 0
                
