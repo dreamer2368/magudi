@@ -91,8 +91,8 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
     N = steps.size
     minIdx = np.argmin(Js)
 
-    if ( (minIdx==0) | (Js[1]>Js[0]) ):
-        bracketSize = (steps[1]-steps[0])/(steps[1]+eps)
+    if ( (minIdx==0) ):
+        bracketSize = (steps[1]-steps[0])/(steps[1]+tol)
         if (bracketSize<tol):
             for k in range(3):
                 switchDirectory(dirIdx[k],NumSearch+1+k,df)
@@ -190,16 +190,51 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
             dirIdx = np.array(df['directory index'][df['directory index']>0])
 #             display(df)
         df.loc[df['directory index']<=NumSearch,'directory index'] = 0
-        df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-        print (df[df['directory index']>NumSearch])
-        print ('MNBRAK: initial mininum bracket is prepared.')
 
-        commandFile = open(commandFilename,'w')
-        commandFile.close()
-        commandFile = open(decisionMakerCommandFilename,'w')
-        command = 'python3 '+decisionMaker+' 4 -linmin_initial'
-        if(zeroBaseline):
-            command += ' -zero_baseline'
-        commandFile.write(command+'\n')
-        commandFile.close()
-        return 0
+        bracketSize = (steps[1]-steps[0])/(steps[1]+tol)
+        if ( (Js[1]>Js[0]) and (bracketSize>=tol) ):
+            h = (steps[1]-steps[0])/(NumSearch+1)
+            steps = np.linspace(steps[0]+h,steps[1]-h,NumSearch)
+            data = {'step':steps, 'QoI':np.ones(NumSearch)*np.nan, 'directory index':list(range(1,NumSearch+1))}
+            new_df = pd.DataFrame(data)
+            df = df.append(new_df, ignore_index=True)
+
+            commandFile = open(commandFilename,'w')
+            for k in range(NumSearch):
+                for i in range(NumCGFile):
+                    command = 'srun -n '+str(NumProcs)+' ./zaxpy '                                                 \
+                                +str(k+1)+'/'+controlForcingFilenames[i]+' '                                    \
+                                +"{:.16E}".format(-steps[k])+' '+CGFilenames[i]
+                    if (not zeroBaseline):
+                        command += ' '+controlForcingFilenames[i]
+                    commandFile.write(command+'\n')
+                    commandFile.write(bashCheckResultCommand('zaxpy-'+str(k)+'-'+str(i)))
+            commandFile.write('bash intermediate_forward_runs.sh\n')
+            commandFile.write(bashCheckResultCommand('intermediate forward runs'))
+            commandFile.close()
+            commandFile = open(decisionMakerCommandFilename,'w')
+            command = 'python3 '+decisionMaker+' 3'
+            if(zeroBaseline):
+                command += ' -zero_baseline'
+            commandFile.write(command+'\n')
+            commandFile.close()
+
+            df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+            print ('submitted all zaxpy works. Wait until they finish.')
+            print (df[df['directory index']>NumSearch])
+            print ('MNBRAK: initial mininum bracket is prepared, yet still searching for immediate minimum bracket.')
+            return 1
+        else:
+            df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+            print (df[df['directory index']>NumSearch])
+            print ('MNBRAK: initial mininum bracket is prepared.')
+
+            commandFile = open(commandFilename,'w')
+            commandFile.close()
+            commandFile = open(decisionMakerCommandFilename,'w')
+            command = 'python3 '+decisionMaker+' 4 -linmin_initial'
+            if(zeroBaseline):
+                command += ' -zero_baseline'
+            commandFile.write(command+'\n')
+            commandFile.close()
+            return 0
