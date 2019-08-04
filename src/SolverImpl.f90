@@ -881,6 +881,9 @@ function runAdjoint(this, region) result(costSensitivity)
   timemarchDirection = -1
   if (region%simulationFlags%steadyStateSimulation) timemarchDirection = 1
 
+  region%states(:)%time = startTime
+  region%states(:)%timeProgressive = startTime
+
   ! Adjoint initial condition (if specified).
   if (adjointRestart .and. (accumulatedNTimesteps>0) ) then
     write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
@@ -907,7 +910,10 @@ function runAdjoint(this, region) result(costSensitivity)
   ! Reset probes.
   if (this%probeInterval > 0) call region%resetProbes()
 
-  time = startTime
+  ! SeungWhan: time must be synchronized between functional in forward and adjoint forcing.
+  timeStepSize = region%getTimeStepSize()
+  time = startTime - 0.5_wp * timeStepSize
+  region%states(:)%time = time
 
   do timestep = startTimestep + sign(1, timemarchDirection),                                 &
        startTimestep + sign(this%nTimesteps, timemarchDirection), timemarchDirection
