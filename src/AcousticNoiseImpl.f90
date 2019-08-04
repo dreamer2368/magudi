@@ -73,6 +73,12 @@ subroutine setupAcousticNoise(this, region)
      end if
   end if
 
+  this%useTimeWindow = getOption("functional/use_time_window",.false.)
+  if (this%useTimeWindow) then
+    call getRequiredOption("functional/time_window_center",this%timeWindowCenter)
+    call getRequiredOption("functional/time_window_width",this%timeWindowWidth)
+  end if
+
 end subroutine setupAcousticNoise
 
 subroutine cleanupAcousticNoise(this)
@@ -142,9 +148,10 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   instantaneousFunctional = 0.0_wp
 
   ! SeungWhan: compute timeRampFactor
-  timeRampFactor = 0.0_wp
-  if (region%states(1)%time>=this%onsetTime .and.                                            &
-      region%states(1)%time<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
+  timeRampFactor = 1.0_wp
+  if (this%useTimeWindow)                                                                    &
+      timeRampFactor = timeRampFactor                                                        &
+          * exp( -(region%states(1)%time-this%timeWindowCenter)**2/2.0_wp/this%timeWindowWidth/this%timeWindowWidth )
 
   do i = 1, size(region%grids)
 
@@ -166,7 +173,7 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
     F = region%states(i)%pressure - this%data_(j)%meanPressure
      ! F = region%states(i)%pressure - ideal_mean_pressure
      instantaneousFunctional = instantaneousFunctional +                                     &
-!          timeRampFactor *                                                                   &
+          timeRampFactor *                                                                   &
           computeQuadratureOnPatches(region%patchFactories, 'COST_TARGET',                   &
                   region%grids(i), F(:,1)**2 * region%grids(i)%targetMollifier(:,1))
      SAFE_DEALLOCATE(F)
@@ -222,6 +229,10 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   i = grid%index
   call patch%collect(this%data_(i)%meanPressure(:,1), meanPressure)
 
+  timeRampFactor = 1.0_wp
+  if (this%useTimeWindow)                                                                    &
+      timeRampFactor = timeRampFactor                                                        &
+          * exp( -(state%time-this%timeWindowCenter)**2/2.0_wp/this%timeWindowWidth/this%timeWindowWidth )
   ! ideal_mean_pressure = 1.0_wp/solverOptions%ratioOfSpecificHeats
 
   do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
@@ -236,6 +247,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
                 (k - 1 - patch%offset(3)))
 
            F = - 2.0_wp * grid%targetMollifier(gridIndex, 1) *                               &
+                timeRampFactor *                                                             &
                 (solverOptions%ratioOfSpecificHeats - 1.0_wp) *                              &
                 (state%pressure(gridIndex, 1) - meanPressure(patchIndex))
                 ! (state%pressure(gridIndex, 1) - ideal_mean_pressure)

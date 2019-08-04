@@ -13,6 +13,8 @@ module AcousticNoise_mod
   type, extends(t_Functional), public :: t_AcousticNoise
 
      type(t_AcousticNoiseInternal), allocatable :: data_(:)
+     SCALAR_TYPE :: timeWindowCenter, timeWindowWidth
+     logical :: useTimeWindow = .false.
 
    contains
 
