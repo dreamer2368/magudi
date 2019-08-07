@@ -121,7 +121,7 @@ program adjoint
   end if
 
   call get_command_argument(1, resultFilename, stat)
-  if( stat .ne. 0 )                                                                          &
+  if( (stat.ne.0) .or. (len_trim(resultFilename).le.0) )                                     &
     resultFilename = trim(outputPrefix) // ".adjoint_run.txt"
 
   dummyValue = 0.0_wp
