@@ -20,7 +20,7 @@ program adjoint
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, stat, fileUnit, dictIndex, procRank, numProcs, ierror, STATUS
+  integer :: i, stat, fileUnit, dictIndex, procRank, numProcs, ierror
   character(len = STRING_LENGTH) :: filename, resultFilename, outputPrefix, message
   logical :: adjointRestart, success
   integer :: accumulatedNTimesteps
@@ -120,8 +120,8 @@ program adjoint
     end if
   end if
 
-  call get_command_argument(1, resultFilename, STATUS)
-  if( STATUS .eq. 0 )                                                                      &
+  call get_command_argument(1, resultFilename, stat)
+  if( stat.eq.0 )                                                                            &
     resultFilename = trim(outputPrefix) // ".adjoint_run.txt"
 
   dummyValue = 0.0_wp
@@ -129,7 +129,7 @@ program adjoint
   adjointRestart = getOption("adjoint_restart", .false.)
   accumulatedNTimesteps = -1
   if (adjointRestart) then ! This is relative timesteps: timestep at initial condition must be added.
-    call getRequiredOption("adjoint_restart/accumulated_number_of_timesteps",accumulatedNTimesteps)
+    call getRequiredOption("adjoint_restart/accumulated_timesteps",accumulatedNTimesteps)
     assert(accumulatedNTimesteps.ge.0)
   end if
   if (adjointRestart .and. (accumulatedNTimesteps>0)) then
@@ -142,12 +142,13 @@ program adjoint
     call MPI_Bcast(dummyValue, 1, SCALAR_TYPE_MPI, 0, MPI_COMM_WORLD, ierror)
   end if
   dummyValue = dummyValue + solver%runAdjoint(region)
-
+print *, procRank, ': adjoint run is finished.'
   if (procRank == 0) then
     open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
       iostat = stat, status = 'replace')
     write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
     close(fileUnit)
+print *, procRank, ': adjoint sensitivity is saved.'
   end if
 
   call solver%cleanup()

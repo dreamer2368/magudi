@@ -19,7 +19,7 @@ program forward
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, stat, fileUnit, procRank, numProcs, ierror, STATUS
+  integer :: i, stat, fileUnit, procRank, numProcs, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix, message, resultFilename
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
@@ -111,8 +111,8 @@ program forward
   end if
 
   if ( region%simulationFlags%enableFunctional ) then
-    call get_command_argument(1, resultFilename, STATUS)
-    if( STATUS .eq. 0 )                                                                      &
+    call get_command_argument(1, resultFilename, stat)
+    if( stat.eq.0 )                                                                            &
       resultFilename = trim(outputPrefix) // ".forward_run.txt"
     if (procRank == 0) then
       open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
