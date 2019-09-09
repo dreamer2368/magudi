@@ -8,10 +8,21 @@ def grid(size, L):
     y_min = -L
     y_max =  L
     g = p3d.Grid().set_size(size, True)
-    x = np.linspace(x_min, x_max, g.size[0,0])
-    y = np.linspace(y_min, y_max, g.size[0,1])
+
+    xi = np.linspace(0.,1., g.size[0,0])
+    zeta = np.linspace(0.,1., g.size[0,1])
+
+    offset1, offset2 = 0.15, 0.85
+    width = 0.02
+
+    x = 2.*L* mapping(xi, offset1, offset2, width) - L
+    y = 2.*L* mapping(zeta, offset1, offset2, width) - L
     g.xyz[0][:,:,0,:2] = np.transpose(np.meshgrid(x, y))
     return g
+
+def mapping(xi, offset1, offset2, width):
+    c0 = width * np.log(np.cosh(offset2/width)/np.cosh(offset1/width))
+    return xi + width * np.log( np.cosh((xi-offset2)/width)/np.cosh((xi-offset1)/width) ) - c0 + 2. * c0 * xi
 
 def initial_condition(g, R=1.0/0.15, Ma=0.56,
                       Pr=0.7, gamma=1.4):
@@ -42,28 +53,23 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
         vx += -vt * (yg-location[1]) / radius
         vy += vt * (xg-location[0]) / radius
 
-    # right_hand_side = -(gamma-1.)/gamma * Ma**2 * np.reshape(src.T,n*n,1)
-    # p_over_rho = 1./gamma + spsolve(K,right_hand_side,use_umfpack=True)
-    # p_over_rho = np.reshape(p_over_rho,[n,n])
-
-    # p0 = ( gamma**(1./gamma) * p_over_rho )**(gamma/(gamma-1.))
-    # rho0 = ( gamma * p0 )**(1./gamma)
-
-    np.savetxt('loci.txt', loci)
-
-    import subprocess
-    command = 'matlab -nodesktop -nosplash -r "poisson(' + str(n) + ',' + str(R) + ',' + str(Ma) + ',' + str(gamma) + '); exit"'
-    subprocess.check_call(command,shell=True)
-    p0 = np.fromfile('p0.bin',dtype=np.double)
-    rho0 = np.fromfile('rho0.bin',dtype=np.double)
-    p0, rho0 = np.reshape(p0,[n,n]).T, np.reshape(rho0,[n,n]).T
+    # np.savetxt('loci.txt', loci)
+    #
+    # import subprocess
+    # command = 'matlab -nodesktop -nosplash -r "poisson(' + str(n) + ',' + str(R) + ',' + str(Ma) + ',' + str(gamma) + '); exit"'
+    # subprocess.check_call(command,shell=True)
+    # p0 = np.fromfile('p0.bin',dtype=np.double)
+    # rho0 = np.fromfile('rho0.bin',dtype=np.double)
+    # p0, rho0 = np.reshape(p0,[n,n]).T, np.reshape(rho0,[n,n]).T
 
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     for i, xyz in enumerate(g.xyz):
-        s.q[i][:,:,0,0] = rho0
+        # s.q[i][:,:,0,0] = rho0
+        s.q[i][:,:,0,0] = 1.0
         s.q[i][:,:,0,1] = vx
         s.q[i][:,:,0,2] = vy
-        s.q[i][:,:,0,4] = p0
+        # s.q[i][:,:,0,4] = p0
+        s.q[i][:,:,0,4] = 1.0/gamma
     return s.fromprimitive(gamma)
 
 def target_mollifier(g):
@@ -113,7 +119,7 @@ def mean_pressure(s):
 
 if __name__ == '__main__':
     R = 1.0/0.15
-    g = grid([201, 201], 3.*R)
+    g = grid([301, 301], 10.*R)
     g.save('VortexDynamics.xyz')
     initial_condition(g).save('VortexDynamics.ic.q')
     # target_mollifier(g).save('AcousticMonopole.target_mollifier.f')
