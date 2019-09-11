@@ -2,27 +2,74 @@
 import numpy as np
 import plot3dnasa as p3d
 
-def grid(size, L):
-    x_min = -L
-    x_max =  L
-    y_min = -L
-    y_max =  L
-    g = p3d.Grid().set_size(size, True)
+def grid(Nx, L, grid_ratio, length_ratio, offset_ratio):
+    # Nx: number of grid points in one direction
+    # L: half length of domain in one direction
+    # grid_ratio: ratio of grid sizes in far-field(dx1) to near-field(dx2)
+    # length_ratio: ratio of domain length of near-field(L2) to 2*L
+    # offset_ratio: ratio of offset length to 2*L
 
-    xi = np.linspace(0.,1., g.size[0,0])
-    zeta = np.linspace(0.,1., g.size[0,1])
+    a, b, c = grid_ratio, offset_ratio, length_ratio
 
-    offset1, offset2 = 0.15, 0.85
-    width = 0.02
+    dx2 = ( 1. + 2.*b*(a - 1.)/(a + 1.) + c*(a - 1.) ) / a
+    dx1 = a * dx2
+    dxi = 2. * b / (dx1 + dx2)
+    xin = c / dx2
 
-    x = 2.*L* mapping(xi, offset1, offset2, width) - L
-    y = 2.*L* mapping(zeta, offset1, offset2, width) - L
+    inc = 1./(Nx-1)
+    xi = ( np.arange(Nx-1) + 0.5 ) * inc
+    xi1 = 0.5 - 0.5 * xin - dxi
+    xi2 = 0.5 - 0.5 * xin
+    xi3 = 0.5 + 0.5 * xin
+    xi4 = 0.5 + 0.5 * xin + dxi
+    cond1 = np.where(xi<=xi1)
+    cond2 = np.where((xi>=xi1) & (xi<=xi2) == True)
+    cond3 = np.where((xi>=xi2) & (xi<=xi3) == True)
+    cond4 = np.where((xi>=xi3) & (xi<=xi4) == True)
+    cond5 = np.where(xi>=xi4)
+
+    dx = np.zeros_like(xi)
+    dx[cond1] = dx1
+    dx[cond2] = dx1 - (dx1-dx2) / dxi * ( xi[cond2] - 0.5 + 0.5 * xin + dxi )
+    dx[cond3] = dx2
+    dx[cond4] = dx1 + (dx1-dx2) / dxi * ( xi[cond4] - 0.5 - 0.5 * xin - dxi )
+    dx[cond5] = dx1
+    dx *= inc
+
+    x = np.zeros((Nx,),dtype=np.double)
+    for k, dxk in enumerate(dx):
+        x[k+1] = x[k] + dxk
+
+    x /= x[-1]
+    x = L * ( 2. * x - 1. )
+    y = x
+    g = p3d.Grid().set_size([Nx,Nx], True)
+
+    # N2 = int(np.ceil( grid_ratio/( grid_ratio - 1. + 1./length_ratio )*Nx ))
+    # N1 = Nx - N2
+    # dx1, dx2 = (1.-length_ratio)*L/N1, length_ratio*L/N2
+    # x = np.zeros([2*(N1+N2)+1,],dtype=np.double)
+    # x[:N1] = - L + dx1 * np.arange(N1)
+    # x[-N1:] = L - dx1 * np.arange(N1)
+    # x[-(N1+N2):-N1] = dx2 + dx2 * np.arange(N2)
+    # x[N1:(N1+N2)] = - dx2 * N2 + dx2 * np.arange(N2)
+    # y = x
+    # g = p3d.Grid().set_size([2*(N1+N2)+1,2*(N1+N2)+1], True)
+
+    # xi = np.linspace(0.,1., g.size[0,0])
+    # zeta = np.linspace(0.,1., g.size[0,1])
+    #
+    # offset1, offset2 = 0.15, 0.85
+    # width = 0.02
+    #
+    # x = 2.*L* mapping(xi, offset1, offset2, width) - L
+    # y = 2.*L* mapping(zeta, offset1, offset2, width) - L
     g.xyz[0][:,:,0,:2] = np.transpose(np.meshgrid(x, y))
     return g
 
 def mapping(xi, offset1, offset2, width):
     c0 = width * np.log(np.cosh(offset2/width)/np.cosh(offset1/width))
-    return xi + width * np.log( np.cosh((xi-offset2)/width)/np.cosh((xi-offset1)/width) ) - c0 + 2. * c0 * xi
+    return xi + 2.39 * ( width * np.log( np.cosh((xi-offset2)/width)/np.cosh((xi-offset1)/width) ) - c0 + 2. * c0 * xi )
 
 def initial_condition(g, R=1.0/0.15, Ma=0.56,
                       Pr=0.7, gamma=1.4):
@@ -42,16 +89,17 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
     vx = np.zeros([n,n],dtype=np.double)
     vy = np.zeros([n,n],dtype=np.double)
 
-    loci = [[0.,R],[0.,-R],[R,0.],[-R,0.]]
+    eps = 1.0e-16
+    loci = [[0.,0.]]
     for location in loci:
         radius = np.sqrt( (xg-location[0])**2 + (yg-location[1])**2 )
-        vt = 1.428/radius*( 1. - np.exp(-1.25*radius**2) )
+        vt = 1.428/(radius+eps)*( 1. - np.exp(-1.25*radius**2) )
         vt_over_r = vt/radius
         dvtdr = 3.57*np.exp(-1.25*radius**2) - 1.428/(radius**2)*( 1. - np.exp(-1.25*radius**2) )
 
         src += -2.0 * dvtdr * vt_over_r
-        vx += -vt * (yg-location[1]) / radius
-        vy += vt * (xg-location[0]) / radius
+        vx += -vt * (yg-location[1]) / (radius+eps)
+        vy += vt * (xg-location[0]) / (radius+eps)
 
     # np.savetxt('loci.txt', loci)
     #
@@ -119,7 +167,8 @@ def mean_pressure(s):
 
 if __name__ == '__main__':
     R = 1.0/0.15
-    g = grid([301, 301], 10.*R)
+    g = grid(429, 115.*R, 100., 0.03, 0.2)
+    # g = grid([429, 429], 115.*R)
     g.save('VortexDynamics.xyz')
     initial_condition(g).save('VortexDynamics.ic.q')
     # target_mollifier(g).save('AcousticMonopole.target_mollifier.f')
