@@ -89,15 +89,16 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
     vx = np.zeros([n,n],dtype=np.double)
     vy = np.zeros([n,n],dtype=np.double)
 
-    eps = 1.0e-16
+    eps = 0.0e-16
     loci = [[0.,0.]]
     for location in loci:
         radius = np.sqrt( (xg-location[0])**2 + (yg-location[1])**2 )
-        vt = 1.428/(radius+eps)*( 1. - np.exp(-1.25*radius**2) )
-        vt_over_r = vt/radius
-        dvtdr = 3.57*np.exp(-1.25*radius**2) - 1.428/(radius**2)*( 1. - np.exp(-1.25*radius**2) )
+        vt = 1.428 * Ma / (radius+eps) * ( 1. - np.exp(-1.25*radius**2) )
 
-        src += -2.0 * dvtdr * vt_over_r
+#        vt_over_r = vt/radius
+#        dvtdr = 3.57*np.exp(-1.25*radius**2) - 1.428/(radius**2)*( 1. - np.exp(-1.25*radius**2) )
+#        src += -2.0 * dvtdr * vt_over_r
+
         vx += -vt * (yg-location[1]) / (radius+eps)
         vy += vt * (xg-location[0]) / (radius+eps)
 
