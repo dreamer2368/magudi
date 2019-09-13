@@ -121,6 +121,19 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
         s.q[i][:,:,0,4] = 1.0/gamma
     return s.fromprimitive(gamma)
 
+def constant_radius_mollifier(g,radius,width):
+    r = np.sqrt( g.xyz[0][:,:,0,0]**2 + g.xyz[0][:,:,0,1]**2 )
+
+    f = p3d.Function().copy_from(g)
+    f.f[0].fill(1.)
+    f.f[0][:,:,0,0] *= 1./np.sqrt(2.*np.pi)/width * np.exp( -(r-radius)**2/2./width/width )
+
+    imin, imax = p3d.find_extents(g.xyz[0][:,0,0,0], -radius-6.*width, radius+6.*width)
+    jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], radius-6.*width, radius+6.*width)
+    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        'targetRegion', 'COST_TARGET', 1, 0, imin, imax, jmin, jmax, 1, -1)
+    return f
+
 def target_mollifier(g):
     x_min =  -1.
     x_max =   1.
@@ -172,5 +185,5 @@ if __name__ == '__main__':
     # g = grid([429, 429], 115.*R)
     g.save('VortexDynamics.xyz')
     initial_condition(g).save('VortexDynamics.ic.q')
-    # target_mollifier(g).save('AcousticMonopole.target_mollifier.f')
+    constant_radius_mollifier(g).save('AcousticMonopole.target_mollifier.f',0.5*52.5*R,0.1*R)
     # control_mollifier(g).save('AcousticMonopole.control_mollifier.f')
