@@ -9,6 +9,7 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
   use AcousticNoise_mod, only : t_AcousticNoise
   use Functional_factory, only : t_FunctionalFactory
   use ReynoldsStress_mod, only : t_ReynoldsStress
+  use LighthillSource_mod, only : t_LighthillSource
 
   implicit none
 
@@ -45,6 +46,9 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
 
      case ('REYNOLDS_STRESS')
         allocate(t_ReynoldsStress :: this%functional)
+
+     case ('LIGHTHILL_SOURCE')
+        allocate(t_LighthillSource :: this%functional)
 
      case default
         this%functionalType = ""
