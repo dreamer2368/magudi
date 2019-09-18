@@ -696,7 +696,7 @@ PURE_SUBROUTINE transformFluxes(nDimensions, fluxes, metrics,                   
 
   assert(size(fluxes, 1) > 0)
   assert_key(nDimensions, (1, 2, 3))
-  assert(size(fluxes, 2) >= nDimensions + 2)
+  ! assert(size(fluxes, 2) >= nDimensions + 2)
   assert(size(fluxes, 3) == nDimensions)
   assert(size(metrics, 1) == size(fluxes, 1))
   assert(size(metrics, 2) == nDimensions ** 2)
