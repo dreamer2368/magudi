@@ -173,6 +173,20 @@ function computeDragForce(this, region) result(instantaneousFunctional)
 
 end function computeDragForce
 
+subroutine computeDragForceSpatialDistribution(this, grid, state, F)
+
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
+
+  use DragForce_mod, only : t_DragForce
+
+  class(t_DragForce) :: this
+  class(t_Grid), intent(in) :: grid
+  class(t_State), intent(in) :: state
+  SCALAR_TYPE, intent(out) :: F(:,:)
+
+end subroutine computeDragForceSpatialDistribution
+
 subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions,              &
      grid, state, patch)
 

@@ -15,6 +15,7 @@ module PressureDrag_mod
      procedure, pass :: setup => setupPressureDrag
      procedure, pass :: cleanup => cleanupPressureDrag
      procedure, pass :: compute => computePressureDrag
+     procedure, pass :: computeSpatialDistribution => computePressureDragSpatialDistribution
      procedure, pass :: computeAdjointForcing => computePressureDragAdjointForcing
      procedure, pass :: isPatchValid => isPressureDragPatchValid
 
@@ -61,6 +62,24 @@ module PressureDrag_mod
        SCALAR_TYPE :: instantaneousFunctional
 
      end function computePressureDrag
+
+  end interface
+
+  interface
+
+     subroutine computePressureDragSpatialDistribution(this, grid, state, F)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+
+       import :: t_PressureDrag
+
+       class(t_PressureDrag) :: this
+       class(t_Grid), intent(in) :: grid
+       class(t_State), intent(in) :: state
+       SCALAR_TYPE, intent(out) :: F(:,:)
+
+     end subroutine computePressureDragSpatialDistribution
 
   end interface
 

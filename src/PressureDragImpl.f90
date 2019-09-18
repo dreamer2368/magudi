@@ -131,6 +131,20 @@ function computePressureDrag(this, region) result(instantaneousFunctional)
 
 end function computePressureDrag
 
+subroutine computePressureDragSpatialDistribution(this, grid, state, F)
+
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
+
+  use PressureDrag_mod, only : t_PressureDrag
+
+  class(t_PressureDrag) :: this
+  class(t_Grid), intent(in) :: grid
+  class(t_State), intent(in) :: state
+  SCALAR_TYPE, intent(out) :: F(:,:)
+
+end subroutine computePressureDragSpatialDistribution
+
 subroutine computePressureDragAdjointForcing(this, simulationFlags, solverOptions,           &
      grid, state, patch)
 

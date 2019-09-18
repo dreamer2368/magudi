@@ -106,6 +106,20 @@ subroutine cleanupAcousticNoise(this)
 
 end subroutine cleanupAcousticNoise
 
+subroutine computeAcousticNoiseSpatialDistribution(this, grid, state, F)
+
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
+
+  use AcousticNoise_mod, only : t_AcousticNoise
+
+  class(t_AcousticNoise) :: this
+  class(t_Grid), intent(in) :: grid
+  class(t_State), intent(in) :: state
+  SCALAR_TYPE, intent(out) :: F(:,:)
+
+end subroutine computeAcousticNoiseSpatialDistribution
+
 function computeAcousticNoise(this, region) result(instantaneousFunctional)
 
   ! <<< External modules >>>

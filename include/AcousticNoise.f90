@@ -21,6 +21,7 @@ module AcousticNoise_mod
      procedure, pass :: setup => setupAcousticNoise
      procedure, pass :: cleanup => cleanupAcousticNoise
      procedure, pass :: compute => computeAcousticNoise
+     procedure, pass :: computeSpatialDistribution => computeAcousticNoiseSpatialDistribution
      procedure, pass :: computeAdjointForcing => computeAcousticNoiseAdjointForcing
      procedure, pass :: isPatchValid => isAcousticNoisePatchValid
 
@@ -67,6 +68,24 @@ module AcousticNoise_mod
        SCALAR_TYPE :: instantaneousFunctional
 
      end function computeAcousticNoise
+
+  end interface
+
+  interface
+
+     subroutine computeAcousticNoiseSpatialDistribution(this, grid, state, F)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+
+       import :: t_AcousticNoise
+
+       class(t_AcousticNoise) :: this
+       class(t_Grid), intent(in) :: grid
+       class(t_State), intent(in) :: state
+       SCALAR_TYPE, intent(out) :: F(:,:)
+
+     end subroutine computeAcousticNoiseSpatialDistribution
 
   end interface
 

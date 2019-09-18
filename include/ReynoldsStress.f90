@@ -20,6 +20,7 @@ module ReynoldsStress_mod
      procedure, pass :: setup => setupReynoldsStress
      procedure, pass :: cleanup => cleanupReynoldsStress
      procedure, pass :: compute => computeReynoldsStress
+     procedure, pass :: computeSpatialDistribution => computeReynoldsStressSpatialDistribution
      procedure, pass :: computeAdjointForcing => computeReynoldsStressAdjointForcing
      procedure, pass :: isPatchValid => isReynoldsStressPatchValid
 
@@ -66,6 +67,24 @@ module ReynoldsStress_mod
        SCALAR_TYPE :: instantaneousFunctional
 
      end function computeReynoldsStress
+
+  end interface
+
+  interface
+
+     subroutine computeReynoldsStressSpatialDistribution(this, grid, state, F)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+
+       import :: t_ReynoldsStress
+
+       class(t_ReynoldsStress) :: this
+       class(t_Grid), intent(in) :: grid
+       class(t_State), intent(in) :: state
+       SCALAR_TYPE, intent(out) :: F(:,:)
+
+     end subroutine computeReynoldsStressSpatialDistribution
 
   end interface
 

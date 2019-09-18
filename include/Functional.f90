@@ -21,6 +21,7 @@ module Functional_mod
      procedure(setup), pass, deferred :: setup
      procedure(cleanup), pass, deferred :: cleanup
      procedure(compute), pass, deferred :: compute
+     procedure(computeSpatialDistribution), pass, deferred :: computeSpatialDistribution
      procedure(computeAdjointForcing), pass, deferred :: computeAdjointForcing
      procedure(isPatchValid), pass, deferred :: isPatchValid
 
@@ -67,6 +68,24 @@ module Functional_mod
        SCALAR_TYPE :: instantaneousFunctional
 
      end function compute
+
+  end interface
+
+  abstract interface
+
+     subroutine computeSpatialDistribution(this, grid, state, F)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+
+       import :: t_Functional
+
+       class(t_Functional) :: this
+       class(t_Grid), intent(in) :: grid
+       class(t_State), intent(in) :: state
+       SCALAR_TYPE, intent(out) :: F(:,:)
+
+     end subroutine computeSpatialDistribution
 
   end interface
 

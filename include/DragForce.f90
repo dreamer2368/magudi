@@ -15,6 +15,7 @@ module DragForce_mod
      procedure, pass :: setup => setupDragForce
      procedure, pass :: cleanup => cleanupDragForce
      procedure, pass :: compute => computeDragForce
+     procedure, pass :: computeSpatialDistribution => computeDragForceSpatialDistribution
      procedure, pass :: computeAdjointForcing => computeDragForceAdjointForcing
      procedure, pass :: isPatchValid => isDragForcePatchValid
 
@@ -61,6 +62,24 @@ module DragForce_mod
        SCALAR_TYPE :: instantaneousFunctional
 
      end function computeDragForce
+
+  end interface
+
+  interface
+
+     subroutine computeDragForceSpatialDistribution(this, grid, state, F)
+
+       use Grid_mod, only : t_Grid
+       use State_mod, only : t_State
+
+       import :: t_DragForce
+
+       class(t_DragForce) :: this
+       class(t_Grid), intent(in) :: grid
+       class(t_State), intent(in) :: state
+       SCALAR_TYPE, intent(out) :: F(:,:)
+
+     end subroutine computeDragForceSpatialDistribution
 
   end interface
 

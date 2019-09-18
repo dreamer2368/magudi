@@ -194,6 +194,20 @@ function computeReynoldsStress(this, region) result(instantaneousFunctional)
 
 end function computeReynoldsStress
 
+subroutine computeReynoldsStressSpatialDistribution(this, grid, state, F)
+
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
+
+  use ReynoldsStress_mod, only : t_ReynoldsStress
+
+  class(t_ReynoldsStress) :: this
+  class(t_Grid), intent(in) :: grid
+  class(t_State), intent(in) :: state
+  SCALAR_TYPE, intent(out) :: F(:,:)
+
+end subroutine computeReynoldsStressSpatialDistribution
+
 subroutine computeReynoldsStressAdjointForcing(this, simulationFlags, solverOptions,          &
      grid, state, patch)
 
