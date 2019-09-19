@@ -133,7 +133,7 @@ subroutine computeLighthillSourceSpatialDistribution(this, grid, state, F)
      fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
   do k = 1, nDimensions
-    fluxes1(:,k,k) = fluxes1(:,k,k) - state%conservedVariables(:,1)
+    fluxes1(:,k+1,k) = fluxes1(:,k+1,k) - state%conservedVariables(:,1)
   end do
 
   ! Transform fluxes from Cartesian to contravariant form: `fluxes1` has the Cartesian form of
@@ -146,6 +146,9 @@ subroutine computeLighthillSourceSpatialDistribution(this, grid, state, F)
                                                     grid%localSize)
   end do
   F1(:,1,:) = sum(fluxes2(:,2:nDimensions+1,:), dim = 3)
+  do k = 1, nDimensions
+     F1(:,1,k) = F1(:,1,k) * grid%jacobian(:,1)
+  end do
 
   ! Transform fluxes from Cartesian to contravariant form: `F1` has the Cartesian form of
   ! total fluxes... upon return, `F2` has the contravariant form.
@@ -156,7 +159,7 @@ subroutine computeLighthillSourceSpatialDistribution(this, grid, state, F)
       call grid%firstDerivative(j)%apply(F2(:,:,j), grid%localSize)
   end do
 
-  F(:,1) = sum(F2(:,1,:), dim = 2)
+  F(:,1) = sum(F2(:,1,:), dim = 2) * grid%jacobian(:,1)
   SAFE_DEALLOCATE(F1)
   SAFE_DEALLOCATE(F2)
   SAFE_DEALLOCATE(fluxes1)
