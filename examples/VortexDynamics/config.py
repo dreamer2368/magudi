@@ -93,7 +93,7 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
     loci = [[0.,0.]]
     for location in loci:
         radius = np.sqrt( (xg-location[0])**2 + (yg-location[1])**2 )
-        vt = 1.428 * Ma / (radius+eps) * ( 1. - np.exp(-1.25*radius**2) )
+        vt = 1.428 * Ma / (radius+eps) * ( 1. - np.exp(-1.25*(radius**2)) )
 
 #        vt_over_r = vt/radius
 #        dvtdr = 3.57*np.exp(-1.25*radius**2) - 1.428/(radius**2)*( 1. - np.exp(-1.25*radius**2) )
