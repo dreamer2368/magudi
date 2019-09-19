@@ -2661,3 +2661,202 @@ PURE_SUBROUTINE computeSecondPartialViscousJacobian3D(velocity, dynamicViscosity
   secondPartialViscousJacobian = jacobian * secondPartialViscousJacobian
 
 end subroutine computeSecondPartialViscousJacobian3D
+
+PURE_SUBROUTINE computeThirdPartialViscousJacobian1D(conservedVariables,                     &
+      ratioOfSpecificHeats, thirdPartialViscousJacobian,                                     &
+      specificVolume, velocity, temperature)
+
+  implicit none
+
+  ! <<< Arguments >>>
+  SCALAR_TYPE, intent(in) :: conservedVariables(3)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(out) :: thirdPartialViscousJacobian(3,3)
+  SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(1), temperature
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  SCALAR_TYPE :: specificVolume_, velocity_(1), temperature_, phiSquared
+
+  ! Compute specific volume if it was not specified.
+  if (present(specificVolume)) then
+     specificVolume_ = specificVolume
+  else
+     specificVolume_ = 1.0_wp / conservedVariables(1)
+  end if
+
+  ! Compute velocity if it was not specified.
+  if (present(velocity)) then
+     velocity_ = velocity
+  else
+     velocity_(1) = specificVolume_ * conservedVariables(2)
+  end if
+
+  ! Compute temperature if it was not specified.
+  if (present(temperature)) then
+     temperature_ = temperature
+  else
+     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(3) -        &
+          0.5_wp * velocity_(1) ** 2)
+  end if
+
+  ! Other dependent variables.
+  phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * velocity_(1) ** 2
+
+  thirdPartialViscousJacobian(1,1) = 1.0_wp
+  thirdPartialViscousJacobian(2,1) = - specificVolume_ * velocity_(1)
+  thirdPartialViscousJacobian(3,1) = ( ratioOfSpecificHeats / (ratioOfSpecificHeats-1.0_wp)  &
+                          * phiSquared - temperature_ ) * specificVolume_
+
+  thirdPartialViscousJacobian(1,2) = 0.0_wp
+  thirdPartialViscousJacobian(2,2) = 1.0_wp
+  thirdPartialViscousJacobian(3,2) = ratioOfSpecificHeats * thirdPartialViscousJacobian(2,1)
+
+  thirdPartialViscousJacobian(1,3) = 0.0_wp
+  thirdPartialViscousJacobian(2,3) = 0.0_wp
+  thirdPartialViscousJacobian(3,3) = ratioOfSpecificHeats * specificVolume_
+
+end subroutine computeThirdPartialViscousJacobian1D
+
+PURE_SUBROUTINE computeThirdPartialViscousJacobian2D(conservedVariables,                     &
+      ratioOfSpecificHeats, thirdPartialViscousJacobian,                                     &
+      specificVolume, velocity, temperature)
+
+  implicit none
+
+  ! <<< Arguments >>>
+  SCALAR_TYPE, intent(in) :: conservedVariables(4)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(out) :: thirdPartialViscousJacobian(4,4)
+  SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(2), temperature
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  SCALAR_TYPE :: specificVolume_, velocity_(2), temperature_, phiSquared
+
+  ! Compute specific volume if it was not specified.
+  if (present(specificVolume)) then
+     specificVolume_ = specificVolume
+  else
+     specificVolume_ = 1.0_wp / conservedVariables(1)
+  end if
+
+  ! Compute velocity if it was not specified.
+  if (present(velocity)) then
+     velocity_ = velocity
+  else
+     velocity_(1) = specificVolume_ * conservedVariables(2)
+     velocity_(2) = specificVolume_ * conservedVariables(3)
+  end if
+
+  ! Compute temperature if it was not specified.
+  if (present(temperature)) then
+     temperature_ = temperature
+  else
+     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(4) -        &
+          0.5_wp * (velocity_(1) ** 2 + velocity_(2) ** 2))
+  end if
+
+  ! Other dependent variables.
+  phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                                    &
+       (velocity_(1) ** 2 + velocity_(2) ** 2)
+
+  thirdPartialViscousJacobian(1,1) = 1.0_wp
+  thirdPartialViscousJacobian(2,1) = - specificVolume_ * velocity_(1)
+  thirdPartialViscousJacobian(3,1) = - specificVolume_ * velocity_(2)
+  thirdPartialViscousJacobian(4,1) = ( ratioOfSpecificHeats / (ratioOfSpecificHeats-1.0_wp)  &
+                          * phiSquared - temperature_ ) * specificVolume_
+
+  thirdPartialViscousJacobian(1,2) = 0.0_wp
+  thirdPartialViscousJacobian(2,2) = 1.0_wp
+  thirdPartialViscousJacobian(3,2) = 0.0_wp
+  thirdPartialViscousJacobian(4,2) = ratioOfSpecificHeats * thirdPartialViscousJacobian(2,1)
+
+  thirdPartialViscousJacobian(1,3) = 0.0_wp
+  thirdPartialViscousJacobian(2,3) = 0.0_wp
+  thirdPartialViscousJacobian(3,3) = 1.0_wp
+  thirdPartialViscousJacobian(4,3) = ratioOfSpecificHeats * thirdPartialViscousJacobian(3,1)
+
+  thirdPartialViscousJacobian(1,4) = 0.0_wp
+  thirdPartialViscousJacobian(2,4) = 0.0_wp
+  thirdPartialViscousJacobian(3,4) = 0.0_wp
+  thirdPartialViscousJacobian(4,4) = ratioOfSpecificHeats * specificVolume_
+
+end subroutine computeThirdPartialViscousJacobian2D
+
+PURE_SUBROUTINE computeThirdPartialViscousJacobian3D(conservedVariables,                     &
+      ratioOfSpecificHeats, thirdPartialViscousJacobian,                                     &
+      specificVolume, velocity, temperature)
+
+  implicit none
+
+  ! <<< Arguments >>>
+  SCALAR_TYPE, intent(in) :: conservedVariables(5)
+  real(SCALAR_KIND), intent(in) :: ratioOfSpecificHeats
+  SCALAR_TYPE, intent(out) :: thirdPartialViscousJacobian(5,5)
+  SCALAR_TYPE, intent(in), optional :: specificVolume, velocity(3), temperature
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  SCALAR_TYPE :: specificVolume_, velocity_(3), temperature_, phiSquared
+
+  ! Compute specific volume if it was not specified.
+  if (present(specificVolume)) then
+     specificVolume_ = specificVolume
+  else
+     specificVolume_ = 1.0_wp / conservedVariables(1)
+  end if
+
+  ! Compute velocity if it was not specified.
+  if (present(velocity)) then
+     velocity_ = velocity
+  else
+     velocity_(1) = specificVolume_ * conservedVariables(2)
+     velocity_(2) = specificVolume_ * conservedVariables(3)
+     velocity_(3) = specificVolume_ * conservedVariables(4)
+  end if
+
+  ! Compute temperature if it was not specified.
+  if (present(temperature)) then
+     temperature_ = temperature
+  else
+     temperature_ = ratioOfSpecificHeats * (specificVolume_ * conservedVariables(5) -        &
+          0.5_wp * (velocity_(1) ** 2 + velocity_(2) ** 2 + velocity_(3) ** 2))
+  end if
+
+  ! Other dependent variables.
+  phiSquared = 0.5_wp * (ratioOfSpecificHeats - 1.0_wp) *                                    &
+       (velocity_(1) ** 2 + velocity_(2) ** 2 + velocity_(3) ** 2)
+
+  thirdPartialViscousJacobian(1,1) = 1.0_wp
+  thirdPartialViscousJacobian(2,1) = - specificVolume_ * velocity_(1)
+  thirdPartialViscousJacobian(3,1) = - specificVolume_ * velocity_(2)
+  thirdPartialViscousJacobian(4,1) = - specificVolume_ * velocity_(3)
+  thirdPartialViscousJacobian(5,1) = ( ratioOfSpecificHeats / (ratioOfSpecificHeats-1.0_wp)  &
+                          * phiSquared - temperature_ ) * specificVolume_
+
+  thirdPartialViscousJacobian(1,2) = 0.0_wp
+  thirdPartialViscousJacobian(2,2) = 1.0_wp
+  thirdPartialViscousJacobian(3,2) = 0.0_wp
+  thirdPartialViscousJacobian(4,2) = 0.0_wp
+  thirdPartialViscousJacobian(5,2) = ratioOfSpecificHeats * thirdPartialViscousJacobian(2,1)
+
+  thirdPartialViscousJacobian(1,3) = 0.0_wp
+  thirdPartialViscousJacobian(2,3) = 0.0_wp
+  thirdPartialViscousJacobian(3,3) = 1.0_wp
+  thirdPartialViscousJacobian(4,3) = 0.0_wp
+  thirdPartialViscousJacobian(5,3) = ratioOfSpecificHeats * thirdPartialViscousJacobian(3,1)
+
+  thirdPartialViscousJacobian(1,4) = 0.0_wp
+  thirdPartialViscousJacobian(2,4) = 0.0_wp
+  thirdPartialViscousJacobian(3,4) = 0.0_wp
+  thirdPartialViscousJacobian(4,4) = 1.0_wp
+  thirdPartialViscousJacobian(5,4) = ratioOfSpecificHeats * thirdPartialViscousJacobian(4,1)
+
+  thirdPartialViscousJacobian(1,5) = 0.0_wp
+  thirdPartialViscousJacobian(2,5) = 0.0_wp
+  thirdPartialViscousJacobian(3,5) = 0.0_wp
+  thirdPartialViscousJacobian(4,5) = 0.0_wp
+  thirdPartialViscousJacobian(5,5) = ratioOfSpecificHeats * specificVolume_
+
+end subroutine computeThirdPartialViscousJacobian3D
