@@ -11,8 +11,9 @@ program control_functional
   implicit none
 
   logical :: success, success_, isPeriodic
-  integer :: i, j, k, nDimensions, ierror
+  integer :: i, j, k, nDimensions, ierror, stat
   integer :: procRank
+  character(len = STRING_LENGTH) :: costType
 
   interface
 
@@ -24,8 +25,9 @@ program control_functional
        real(SCALAR_KIND), intent(inout) :: a(:)
      end subroutine sort
 
-     subroutine testAdjointRelation(nDimensions, success, isPeriodic, tolerance)
+     subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, tolerance)
 
+       character(len=*), intent(in) :: costType
        integer, intent(in) :: nDimensions
        logical, intent(out) :: success
 
@@ -44,26 +46,16 @@ program control_functional
   call initializeErrorHandler()
   call initializeRandomNumberGenerator()
 
-  do nDimensions = 1, 1
+  call get_command_argument(1, costType, stat)
+  if( stat.eq.0 ) costType = "SOUND"
+
+  do nDimensions = 2, 2
     do j = 1, 1 !... for each discretizationTypes
       success = .true.
       do i = 1, 1 !... test multiple times
-        ! Didn't test periodic grid yet!!
-        ! isPeriodic = .true.
-        ! call testAdjointRelation(discretizationTypes(j), nDimensions,           &
-        !                          success_, isPeriodic)
-        ! success = success .and. success_
-        ! if( .not. success) then
-        !   if( procRank == 0 ) then
-        !     print *, 'Failed, ', trim(discretizationTypes(j))
-        !     print *, 'dimension: ', nDimensions
-        !     print *, 'periodicity: ', isPeriodic
-        !   end if
-        !   exit
-        ! end if
 
         isPeriodic = .false.
-        call testAdjointRelation(nDimensions, success_, isPeriodic)
+        call testAdjointRelation(costType, nDimensions, success_, isPeriodic)
         success = success .and. success_
         if( .not. success_) then
           if( procRank == 0 ) then
@@ -90,7 +82,7 @@ program control_functional
 
 end program control_functional
 
-subroutine testAdjointRelation(nDimensions, success, isPeriodic, tolerance)
+subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, tolerance)
 
   ! <<< External modules >>>
   use MPI
@@ -129,6 +121,7 @@ subroutine testAdjointRelation(nDimensions, success, isPeriodic, tolerance)
   use SolverImpl, only : loadInitialCondition
 
   ! <<< Arguments >>>
+  character(len=*), intent(in) :: costType
   integer, intent(in) :: nDimensions
   logical, intent(out) :: success
   logical, intent(in) :: isPeriodic
@@ -205,7 +198,8 @@ subroutine testAdjointRelation(nDimensions, success, isPeriodic, tolerance)
   solverOptions%discretizationType = trim(discretizationTypes(random(1,4)))
   solverOptions%timeStepSize = random(0.01_wp, 1.0_wp)
   solverOptions%controllerType = 'MOMENTUM_ACTUATOR' !"THERMAL_ACTUATOR"
-  solverOptions%costFunctionalType = "SOUND"
+  ! solverOptions%controllerType = "THERMAL_ACTUATOR"
+  solverOptions%costFunctionalType = trim(costType)
   call region%setup(MPI_COMM_WORLD,gridSize,simulationFlags,solverOptions)
   do i = 1, size(region%grids)
      call region%grids(i)%update()
@@ -485,7 +479,7 @@ subroutine testAdjointRelation(nDimensions, success, isPeriodic, tolerance)
   call controller%hookAfterTimemarch(region, ADJOINT)
 
   ! Do finite difference approximation
-  stepSizes(1) = 1.0E-7
+  stepSizes(1) = 1.0E-2
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do

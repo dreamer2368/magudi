@@ -199,6 +199,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ReynoldsStressImpl.f90
   ${PROJECT_SOURCE_DIR}/include/LighthillSource.f90
   ${PROJECT_SOURCE_DIR}/src/LighthillSourceImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/LighthillTensorComponent.f90
+  ${PROJECT_SOURCE_DIR}/src/LighthillTensorComponentImpl.f90
   ${PROJECT_SOURCE_DIR}/include/UniformMap.f90
   ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ProbePatch.f90
