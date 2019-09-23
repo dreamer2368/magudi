@@ -107,6 +107,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   use Patch_mod, only : t_Patch
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use CostTargetPatch_mod, only : t_CostTargetPatch
+  use LighthillTensorComponent_mod, only : t_LighthillTensorComponent
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT
@@ -261,6 +262,17 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
        trim(region%solverOptions%costFunctionalType))
   assert(associated(functional))
   call functional%setup(region)
+  select type (functional)
+  class is (t_LighthillTensorComponent)
+    call random_number(functional%firstDirection)
+    call random_number(functional%secondDirection)
+    functional%firstDirection = 2.0_wp * functional%firstDirection - 1.0_wp
+    functional%secondDirection = 2.0_wp * functional%secondDirection - 1.0_wp
+    functional%firstDirection(1:nDimensions) = functional%firstDirection(1:nDimensions)     &
+                               / sqrt( sum(functional%firstDirection(1:nDimensions)**2) )
+    functional%secondDirection(1:nDimensions) = functional%firstDirection(1:nDimensions)    &
+                               / sqrt( sum(functional%secondDirection(1:nDimensions)**2) )
+  end select
   functional%runningTimeQuadrature = 0.0_wp
 
   ! initialize time integrator

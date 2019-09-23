@@ -10,6 +10,7 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
   use Functional_factory, only : t_FunctionalFactory
   use ReynoldsStress_mod, only : t_ReynoldsStress
   use LighthillSource_mod, only : t_LighthillSource
+  use LighthillTensorComponent_mod, only : t_LighthillTensorComponent
 
   implicit none
 
@@ -49,6 +50,9 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
 
      case ('LIGHTHILL_SOURCE')
         allocate(t_LighthillSource :: this%functional)
+
+     case ('LIGHTHILL_TENSOR_COMPONENT')
+        allocate(t_LighthillTensorComponent :: this%functional)
 
      case default
         this%functionalType = ""

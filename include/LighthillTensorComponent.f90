@@ -10,7 +10,7 @@ module LighthillTensorComponent_mod
 
      SCALAR_TYPE :: timeWindowCenter, timeWindowWidth
      logical :: useTimeWindow = .false., viscosityOn = .false.
-     integer :: firstComponent = 1, secondComponent = 2
+     real(SCALAR_KIND) :: firstDirection(3), secondDirection(3)
 
    contains
 

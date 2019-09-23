@@ -47,10 +47,30 @@ subroutine setupLighthillTensorComponent(this, region)
   ! this%viscosityOn = region%simulationFlags%viscosityOn
   this%viscosityOn = .false.
 
-  this%firstComponent = getOption("lighthill_tensor_component/first", 1)
-  this%secondComponent = getOption("lighthill_tensor_component/second", 1)
-  assert_key(this%firstComponent,(1,2,3))
-  assert_key(this%secondComponent,(1,2,3))
+  this%firstDirection  = 0.0_wp
+  this%secondDirection = 0.0_wp
+
+  this%firstDirection(1) = getOption("lighthill_tensor_direction1_x", 1.0_wp)
+  if (nDimensions >= 2)                                                                      &
+       this%firstDirection(2) = getOption("lighthill_tensor_direction1_y", 0.0_wp)
+  if (nDimensions == 3)                                                                      &
+       this%firstDirection(3) = getOption("lighthill_tensor_direction1_z", 0.0_wp)
+
+  this%secondDirection(1) = getOption("lighthill_tensor_direction2_x", 1.0_wp)
+  if (nDimensions >= 2)                                                                      &
+       this%secondDirection(2) = getOption("lighthill_tensor_direction2_y", 0.0_wp)
+  if (nDimensions == 3)                                                                      &
+       this%secondDirection(3) = getOption("lighthill_tensor_direction2_z", 0.0_wp)
+
+  if (sum(this%firstDirection ** 2) <= epsilon(0.0_wp) .or.                                  &
+       sum(this%secondDirection ** 2) <= epsilon(0.0_wp)) then
+     write(message, '(A)')                                                                   &
+          "Unable to determine unit vectors for computing Lighthill tensor!"
+     call gracefulExit(region%comm, message)
+  end if
+
+  this%firstDirection = this%firstDirection / sqrt(sum(this%firstDirection ** 2))
+  this%secondDirection = this%secondDirection / sqrt(sum(this%secondDirection ** 2))
 
 end subroutine setupLighthillTensorComponent
 
@@ -140,7 +160,11 @@ subroutine computeLighthillTensorComponentSpatialDistribution(this, grid, state,
     fluxes1(:,k+1,k) = fluxes1(:,k+1,k) - state%conservedVariables(:,1)
   end do
 
-  F(:,1) = fluxes1(:,this%firstComponent+1,this%secondComponent)
+  do i = 1, grid%nGridPoints
+    F(i,1) = dot_product( this%firstDirection(1:nDimensions),                                &
+                           matmul(fluxes1(i,2:nDimensions+1,:),                              &
+                                   this%secondDirection(1:nDimensions)) )
+  end do
   SAFE_DEALLOCATE(fluxes1)
   SAFE_DEALLOCATE(fluxes2)
 
@@ -247,7 +271,7 @@ subroutine computeLighthillTensorComponentAdjointForcing(this, simulationFlags, 
        localVelocity(:), unitVector1(:), unitVector2(:),                                     &
        localStressTensor(:), localHeatFlux(:), localAdjointDiffusion(:,:)
   SCALAR_TYPE, allocatable :: F(:)
-  real(wp) :: timeRampFactor
+  real(wp) :: timeRampFactor, const1
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
@@ -258,8 +282,8 @@ subroutine computeLighthillTensorComponentAdjointForcing(this, simulationFlags, 
   allocate(localVelocity(nDimensions))
   allocate(unitVector2(nDimensions))
   allocate(F(nUnknowns))
-  unitVector2 = 0.0_wp
-  unitVector2(this%secondComponent) = 1.0_wp
+  unitVector2 = this%secondDirection
+  const1 = dot_product(this%firstDirection,this%secondDirection)
 
   timeRampFactor = 1.0_wp
   if (this%useTimeWindow)                                                                    &
@@ -299,13 +323,17 @@ subroutine computeLighthillTensorComponentAdjointForcing(this, simulationFlags, 
                    velocity = localVelocity, temperature = state%temperature(gridIndex,1))
            end select !... nDimensions
 
-           ! For density identity tensor jacobian.
-           localFluxJacobian1(this%secondComponent,1) = localFluxJacobian1(this%secondComponent,1)      &
-                                                            - 1.0_wp
+           ! ! For density identity tensor jacobian.
+           ! localFluxJacobian1(this%secondComponent,1) = localFluxJacobian1(this%secondComponent,1)      &
+           !                                                  - 1.0_wp
+           !
+           ! F = - localFluxJacobian1(this%firstComponent+1,:) * timeRampFactor
 
-           F = - localFluxJacobian1(this%firstComponent+1,:) * timeRampFactor
+           F = matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)),                                &
+                       this%firstDirection(1:nDimensions))
 
-           patch%adjointForcing(patchIndex,:) = F
+           patch%adjointForcing(patchIndex,1) = - timeRampFactor * ( F(1) - const1 )
+           patch%adjointForcing(patchIndex,2:nUnknowns) = - timeRampFactor * F(2:nUnknowns)
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
