@@ -10,6 +10,7 @@ module LighthillSource_mod
 
      SCALAR_TYPE :: timeWindowCenter, timeWindowWidth
      logical :: useTimeWindow = .false., viscosityOn = .false.
+     real(SCALAR_KIND) :: firstDirection(3), secondDirection(3)
 
    contains
 

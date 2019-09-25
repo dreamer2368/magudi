@@ -108,6 +108,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use CostTargetPatch_mod, only : t_CostTargetPatch
   use LighthillTensorComponent_mod, only : t_LighthillTensorComponent
+  use LighthillSource_mod, only : t_LighthillSource
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT
@@ -272,6 +273,11 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
                                / sqrt( sum(functional%firstDirection(1:nDimensions)**2) )
     functional%secondDirection(1:nDimensions) = functional%firstDirection(1:nDimensions)    &
                                / sqrt( sum(functional%secondDirection(1:nDimensions)**2) )
+  class is (t_LighthillSource)
+    call random_number(functional%firstDirection)
+    functional%firstDirection = 2.0_wp * functional%firstDirection - 1.0_wp
+    functional%firstDirection(1:nDimensions) = functional%firstDirection(1:nDimensions)     &
+                                / sqrt( sum(functional%firstDirection(1:nDimensions)**2) )
   end select
   functional%runningTimeQuadrature = 0.0_wp
 
@@ -491,7 +497,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   call controller%hookAfterTimemarch(region, ADJOINT)
 
   ! Do finite difference approximation
-  stepSizes(1) = 1.0E-2
+  stepSizes(1) = 1.0E-40
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
