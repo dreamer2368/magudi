@@ -329,11 +329,15 @@ subroutine computeLighthillTensorComponentAdjointForcing(this, simulationFlags, 
            !
            ! F = - localFluxJacobian1(this%firstComponent+1,:) * timeRampFactor
 
-           F = matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)),                                &
-                       this%firstDirection(1:nDimensions))
+           F = matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)),                       &
+                      this%firstDirection(1:nDimensions))
 
-           patch%adjointForcing(patchIndex,1) = - timeRampFactor * ( F(1) - const1 )
-           patch%adjointForcing(patchIndex,2:nUnknowns) = - timeRampFactor * F(2:nUnknowns)
+           patch%adjointForcing(patchIndex,1) = - timeRampFactor                              &
+                                                 * grid%targetMollifier(gridIndex, 1)         &
+                                                 * ( F(1) - const1 )
+           patch%adjointForcing(patchIndex,2:nUnknowns) = - timeRampFactor                    &
+                                                 * grid%targetMollifier(gridIndex, 1)         &
+                                                 * F(2:nUnknowns)
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
