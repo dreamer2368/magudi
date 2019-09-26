@@ -11,6 +11,7 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
   use ReynoldsStress_mod, only : t_ReynoldsStress
   use LighthillSource_mod, only : t_LighthillSource
   use LighthillTensorComponent_mod, only : t_LighthillTensorComponent
+  use DensityGradient_mod, only: t_DensityGradient
 
   implicit none
 
@@ -53,6 +54,9 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
 
      case ('LIGHTHILL_TENSOR_COMPONENT')
         allocate(t_LighthillTensorComponent :: this%functional)
+
+     case ('DENSITY_GRADIENT')
+        allocate(t_DensityGradient :: this%functional)
 
      case default
         this%functionalType = ""

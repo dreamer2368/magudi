@@ -497,7 +497,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   call controller%hookAfterTimemarch(region, ADJOINT)
 
   ! Do finite difference approximation
-  stepSizes(1) = 1.0E-40
+  stepSizes(1) = 1.0E-2
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
