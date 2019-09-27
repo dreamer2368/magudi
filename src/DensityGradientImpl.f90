@@ -261,9 +261,7 @@ subroutine computeDensityGradientAdjointForcing(this, simulationFlags, solverOpt
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
-  SAFE_DEALLOCATE(divTensor)
-  SAFE_DEALLOCATE(divTensor2)
-  SAFE_DEALLOCATE(F)
+  SAFE_DEALLOCATE(adjointVector)
 
 end subroutine computeDensityGradientAdjointForcing
 
