@@ -89,7 +89,7 @@ subroutine setupLighthillSource(this, region)
 
              ! NOTE: adjoint derivative is transposed derivative PRE-MULTIPLIED by norm.
              do k = 1, nDimensions
-               temp = region%grids(j)%targetMollifier
+               temp = region%grids(j)%targetMollifier * region%grids(j)%jacobian
                call region%grids(j)%adjointFirstDerivative(k)%apply(temp, region%grids(j)%localSize)
                this%data_(i)%adjointVector(:,k) = temp(:,1)
              end do
@@ -363,10 +363,10 @@ subroutine computeLighthillSourceAdjointForcing(this, simulationFlags, solverOpt
   nUnknowns = nDimensions + 2
 
   allocate(adjointVector(patch%nPatchPoints,nDimensions))
-  allocate(jacobian(patch%nPatchPoints))
+  ! allocate(jacobian(patch%nPatchPoints))
   i = grid%index
   call patch%collect(this%data_(i)%adjointVector, adjointVector)
-  call patch%collect(grid%jacobian(:,1), jacobian)
+  ! call patch%collect(grid%jacobian(:,1), jacobian)
 
   allocate(localFluxJacobian1(nUnknowns, nUnknowns))
   allocate(localConservedVariables(nUnknowns))
@@ -449,15 +449,15 @@ subroutine computeLighthillSourceAdjointForcing(this, simulationFlags, solverOpt
 
            end do
 
-           patch%adjointForcing(patchIndex,:) = - F * timeRampFactor                                        &
-                                                    * jacobian(patchIndex)
+           patch%adjointForcing(patchIndex,:) = - F * timeRampFactor!                                        &
+                                                    ! * jacobian(patchIndex)
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
   SAFE_DEALLOCATE(adjointVector)
-  SAFE_DEALLOCATE(jacobian)
+  ! SAFE_DEALLOCATE(jacobian)
   SAFE_DEALLOCATE(divTensor)
   SAFE_DEALLOCATE(divTensor2)
   SAFE_DEALLOCATE(F)
