@@ -27,6 +27,7 @@ subroutine setupLighthillSource(this, region)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
+  SCALAR_TYPE, allocatable :: temp(:,:)
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
@@ -82,13 +83,18 @@ subroutine setupLighthillSource(this, region)
     do i = 1, size(this%data_)
        do j = 1, size(region%grids)
           if (region%grids(j)%index == i) then
-             allocate(this%data_(i)%adjointVector(region%grids(j)%nGridPoints,1))
-             this%data_(i)%adjointVector = region%grids(j)%targetMollifier
+             allocate(this%data_(i)%adjointVector(region%grids(j)%nGridPoints,nDimensions))
+
+             allocate(temp(region%grids(j)%nGridPoints,1))
 
              ! NOTE: adjoint derivative is transposed derivative PRE-MULTIPLIED by norm.
-             k = this%secondComponent
-             call region%grids(j)%adjointFirstDerivative(k)%apply(this%data_(i)%adjointVector,  &
-                                                                  region%grids(j)%localSize)
+             do k = 1, nDimensions
+               temp = region%grids(j)%targetMollifier
+               call region%grids(j)%adjointFirstDerivative(k)%apply(temp, region%grids(j)%localSize)
+               this%data_(i)%adjointVector(:,k) = temp(:,1)
+             end do
+
+             SAFE_DEALLOCATE(temp)
              exit
           end if
        end do
@@ -188,25 +194,17 @@ subroutine computeLighthillSourceSpatialDistribution(this, grid, state, F)
 
   ! Transform fluxes from Cartesian to contravariant form: `fluxes1` has the Cartesian form of
   ! total fluxes... upon return, `fluxes2` has the contravariant form.
-  ! call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
-
-  ! ! Take derivatives of fluxes.
-  ! do k = 1, nDimensions
-  !     call grid%firstDerivative(k)%apply(fluxes2(:,2:nDimensions+1,k),         &
-  !                                                   grid%localSize)
-  ! end do
-  ! F1(:,1,:) = sum(fluxes2(:,2:nDimensions+1,:), dim = 3)
-  ! do k = 1, nDimensions
-  !    F1(:,1,k) = F1(:,1,k) * grid%jacobian(:,1)
-  ! end do
+  call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
 
   ! Take derivatives of fluxes.
-  k = this%secondComponent
-  call grid%firstDerivative(k)%apply(fluxes1(:,2:nDimensions+1,k),grid%localSize)
-  F1(:,1,:) = fluxes1(:,2:nDimensions+1,k)
-  ! do k = 1, nDimensions
-  !    F1(:,1,k) = F1(:,1,k) * grid%jacobian(:,1)
-  ! end do
+  do k = 1, nDimensions
+      call grid%firstDerivative(k)%apply(fluxes2(:,2:nDimensions+1,k),         &
+                                                    grid%localSize)
+  end do
+  F1(:,1,:) = sum(fluxes2(:,2:nDimensions+1,:), dim = 3)
+  do k = 1, nDimensions
+     F1(:,1,k) = F1(:,1,k) * grid%jacobian(:,1)
+  end do
 
   ! do i = 1, grid%nGridPoints
   !   F(i,1) = dot_product( F1(i,1,:), this%firstDirection(1:nDimensions) )
@@ -334,7 +332,7 @@ subroutine computeLighthillSourceAdjointForcing(this, simulationFlags, solverOpt
        localVelocity(:), localMetricsAlongDirection1(:),                                     &
        localStressTensor(:), localHeatFlux(:), localAdjointDiffusion(:,:)
   SCALAR_TYPE, allocatable :: divTensor(:,:,:), divTensor2(:,:), F(:)
-  SCALAR_TYPE, allocatable :: adjointVector(:)
+  SCALAR_TYPE, allocatable :: adjointVector(:,:), jacobian(:)
   real(wp) :: temp, timeRampFactor
 
   ! <<< Internal interface >>>
@@ -364,9 +362,11 @@ subroutine computeLighthillSourceAdjointForcing(this, simulationFlags, solverOpt
   assert_key(nDimensions, (1, 2, 3))
   nUnknowns = nDimensions + 2
 
-  allocate(adjointVector(patch%nPatchPoints))
+  allocate(adjointVector(patch%nPatchPoints,nDimensions))
+  allocate(jacobian(patch%nPatchPoints))
   i = grid%index
-  call patch%collect(this%data_(i)%adjointVector(:,1), adjointVector)
+  call patch%collect(this%data_(i)%adjointVector, adjointVector)
+  call patch%collect(grid%jacobian(:,1), jacobian)
 
   allocate(localFluxJacobian1(nUnknowns, nUnknowns))
   allocate(localConservedVariables(nUnknowns))
@@ -418,11 +418,8 @@ subroutine computeLighthillSourceAdjointForcing(this, simulationFlags, solverOpt
            localConservedVariables = state%conservedVariables(gridIndex,:)
            localVelocity = state%velocity(gridIndex,:)
 
-           l = this%secondComponent
-           localMetricsAlongDirection1 = 0.0_wp
-           localMetricsAlongDirection1(l) = 1.0_wp
-           ! do l = 1, nDimensions
-             ! localMetricsAlongDirection1 = grid%metrics(gridIndex,1+nDimensions*(l-1):nDimensions*l)
+           do l = 1, nDimensions
+             localMetricsAlongDirection1 = grid%metrics(gridIndex,1+nDimensions*(l-1):nDimensions*l)
 
              select case (nDimensions)
              case (1)
@@ -447,19 +444,20 @@ subroutine computeLighthillSourceAdjointForcing(this, simulationFlags, solverOpt
              !           * this%secondDirection(l)
              ! F(1) = F(1) - dot_product( localMetricsAlongDirection1, this%firstDirection(1:nDimensions) )   &
              !                  * this%secondDirection(l)
-             F = F + localFluxJacobian1(this%firstComponent+1,:)
+             F = F + localFluxJacobian1(this%firstComponent+1,:) * adjointVector(patchIndex,l)
              ! F(1) = F(1) - localMetricsAlongDirection1(this%firstComponent)
 
-           ! end do
+           end do
 
            patch%adjointForcing(patchIndex,:) = - F * timeRampFactor                                        &
-                                                    * adjointVector(patchIndex)
+                                                    * jacobian(patchIndex)
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
   SAFE_DEALLOCATE(adjointVector)
+  SAFE_DEALLOCATE(jacobian)
   SAFE_DEALLOCATE(divTensor)
   SAFE_DEALLOCATE(divTensor2)
   SAFE_DEALLOCATE(F)
