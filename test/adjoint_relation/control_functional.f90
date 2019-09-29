@@ -273,11 +273,6 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
                                / sqrt( sum(functional%firstDirection(1:nDimensions)**2) )
     functional%secondDirection(1:nDimensions) = functional%firstDirection(1:nDimensions)    &
                                / sqrt( sum(functional%secondDirection(1:nDimensions)**2) )
-  class is (t_LighthillSource)
-    call random_number(functional%firstDirection)
-    functional%firstDirection = 2.0_wp * functional%firstDirection - 1.0_wp
-    functional%firstDirection(1:nDimensions) = functional%firstDirection(1:nDimensions)     &
-                                / sqrt( sum(functional%firstDirection(1:nDimensions)**2) )
   end select
   functional%runningTimeQuadrature = 0.0_wp
 
