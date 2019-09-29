@@ -7,7 +7,7 @@ module LighthillSource_mod
   implicit none
 
   type, private :: t_LighthillSourceInternal
-     SCALAR_TYPE, pointer :: adjointVector(:,:) => null()
+     SCALAR_TYPE, pointer :: adjointTensor(:,:,:) => null()
   end type t_LighthillSourceInternal
 
   type, extends(t_Functional), public :: t_LighthillSource
@@ -15,8 +15,6 @@ module LighthillSource_mod
      type(t_LighthillSourceInternal), allocatable :: data_(:)
      SCALAR_TYPE :: timeWindowCenter, timeWindowWidth
      logical :: useTimeWindow = .false., viscosityOn = .false.
-     real(SCALAR_KIND) :: firstDirection(3), secondDirection(3)
-     integer :: firstComponent, secondComponent
 
    contains
 
