@@ -160,9 +160,13 @@ subroutine computeLighthillTensorComponentSpatialDistribution(this, grid, state,
     fluxes1(:,k+1,k) = fluxes1(:,k+1,k) - state%conservedVariables(:,1)
   end do
 
+  ! Transform fluxes from Cartesian to contravariant form: `fluxes1` has the Cartesian form of
+  ! total fluxes... upon return, `fluxes2` has the contravariant form.
+  call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
+
   do i = 1, grid%nGridPoints
     F(i,1) = dot_product( this%firstDirection(1:nDimensions),                                &
-                           matmul(fluxes1(i,2:nDimensions+1,:),                              &
+                           matmul(fluxes2(i,2:nDimensions+1,:),                              &
                                    this%secondDirection(1:nDimensions)) )
   end do
   SAFE_DEALLOCATE(fluxes1)
@@ -266,7 +270,7 @@ subroutine computeLighthillTensorComponentAdjointForcing(this, simulationFlags, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, nDimensions, nUnknowns, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:,:), thirdPartialViscousJacobian(:,:),  &
+  SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:,:), localMetricsAlongDirection1(:),    &
        localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
        localVelocity(:), unitVector1(:), unitVector2(:),                                     &
        localStressTensor(:), localHeatFlux(:), localAdjointDiffusion(:,:)
@@ -280,10 +284,12 @@ subroutine computeLighthillTensorComponentAdjointForcing(this, simulationFlags, 
   allocate(localFluxJacobian1(nUnknowns, nUnknowns))
   allocate(localConservedVariables(nUnknowns))
   allocate(localVelocity(nDimensions))
+  allocate(localMetricsAlongDirection1(nDimensions))
   allocate(unitVector2(nDimensions))
   allocate(F(nUnknowns))
   unitVector2 = this%secondDirection
-  const1 = dot_product(this%firstDirection,this%secondDirection)
+  const1 = dot_product(this%firstDirection(1:nDimensions),                                   &
+                       this%secondDirection(1:nDimensions))
 
   timeRampFactor = 1.0_wp
   if (this%useTimeWindow)                                                                    &
@@ -304,40 +310,48 @@ subroutine computeLighthillTensorComponentAdjointForcing(this, simulationFlags, 
 
            localConservedVariables = state%conservedVariables(gridIndex,:)
            localVelocity = state%velocity(gridIndex,:)
+           F = 0.0_wp
 
-           select case (nDimensions)
-           case (1)
-              call computeJacobianOfInviscidFlux1D(localConservedVariables,                             &
-                   unitVector2, solverOptions%ratioOfSpecificHeats,                                     &
-                   localFluxJacobian1, specificVolume = state%specificVolume(gridIndex,1),              &
-                   velocity = localVelocity, temperature = state%temperature(gridIndex,1))
-           case (2)
-              call computeJacobianOfInviscidFlux2D(localConservedVariables,                             &
-                   unitVector2, solverOptions%ratioOfSpecificHeats,                                     &
-                   localFluxJacobian1, specificVolume = state%specificVolume(gridIndex,1),              &
-                   velocity = localVelocity, temperature = state%temperature(gridIndex,1))
-           case (3)
-              call computeJacobianOfInviscidFlux3D(localConservedVariables,                             &
-                   unitVector2, solverOptions%ratioOfSpecificHeats,                                     &
-                   localFluxJacobian1, specificVolume = state%specificVolume(gridIndex,1),              &
-                   velocity = localVelocity, temperature = state%temperature(gridIndex,1))
-           end select !... nDimensions
+           do l = 1, nDimensions
 
-           ! ! For density identity tensor jacobian.
-           ! localFluxJacobian1(this%secondComponent,1) = localFluxJacobian1(this%secondComponent,1)      &
-           !                                                  - 1.0_wp
-           !
-           ! F = - localFluxJacobian1(this%firstComponent+1,:) * timeRampFactor
+             localMetricsAlongDirection1 = grid%metrics(gridIndex,1+nDimensions*(l-1):nDimensions*l)
 
-           F = matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)),                       &
-                      this%firstDirection(1:nDimensions))
+             select case (nDimensions)
+             case (1)
+                call computeJacobianOfInviscidFlux1D(localConservedVariables,                             &
+                     localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,                     &
+                     localFluxJacobian1, specificVolume = state%specificVolume(gridIndex,1),              &
+                     velocity = localVelocity, temperature = state%temperature(gridIndex,1))
+             case (2)
+                call computeJacobianOfInviscidFlux2D(localConservedVariables,                             &
+                     localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,                     &
+                     localFluxJacobian1, specificVolume = state%specificVolume(gridIndex,1),              &
+                     velocity = localVelocity, temperature = state%temperature(gridIndex,1))
+             case (3)
+                call computeJacobianOfInviscidFlux3D(localConservedVariables,                             &
+                     localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,                     &
+                     localFluxJacobian1, specificVolume = state%specificVolume(gridIndex,1),              &
+                     velocity = localVelocity, temperature = state%temperature(gridIndex,1))
+             end select !... nDimensions
 
-           patch%adjointForcing(patchIndex,1) = - timeRampFactor                              &
+             localFluxJacobian1(2:nDimensions+1,1) = localFluxJacobian1(2:nDimensions+1,1)      &
+                                                      - localMetricsAlongDirection1
+
+             F = F + matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)),                       &
+                            this%firstDirection(1:nDimensions))                                     &
+                      * this%secondDirection(l)
+
+           end do
+
+           patch%adjointForcing(patchIndex,:) = - timeRampFactor                              &
                                                  * grid%targetMollifier(gridIndex, 1)         &
-                                                 * ( F(1) - const1 )
-           patch%adjointForcing(patchIndex,2:nUnknowns) = - timeRampFactor                    &
-                                                 * grid%targetMollifier(gridIndex, 1)         &
-                                                 * F(2:nUnknowns)
+                                                 * F
+           ! patch%adjointForcing(patchIndex,1) = - timeRampFactor                              &
+           !                                       * grid%targetMollifier(gridIndex, 1)         &
+           !                                       * ( F(1) - const1 )
+           ! patch%adjointForcing(patchIndex,2:nUnknowns) = - timeRampFactor                    &
+           !                                       * grid%targetMollifier(gridIndex, 1)         &
+           !                                       * F(2:nUnknowns)
 
         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
