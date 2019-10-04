@@ -109,16 +109,6 @@ program control_space_norm
 
   ! Main code logic.
   call collectControlSpaceNorm(solver, region)
-  ! dummyValue = solver%runAdjoint(region)
-  ! call get_command_argument(1, resultFilename, STATUS)
-  ! if( STATUS .eq. 0 )                                                                      &
-  !   resultFilename = trim(outputPrefix) // ".adjoint_run.txt"
-  ! if (procRank == 0) then
-  !   open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
-  !     iostat = stat, status = 'replace')
-  !   write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
-  !   close(fileUnit)
-  ! end if
 
   call solver%cleanup()
   call region%cleanup()
@@ -211,42 +201,12 @@ contains
     controller%onsetTime = region%states(1)%time
     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
 
-    ! Load the adjoint coefficients corresponding to the end of the control time horizon.
-    if (region%simulationFlags%steadyStateSimulation) then
-       write(filename, '(2A)') trim(this%outputPrefix), ".steady_state.q"
-    else
-       write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-",                            &
-            region%timestep + this%nTimesteps, ".q"
-    end if
-    call region%loadData(QOI_FORWARD_STATE, filename)
-    ! do i = 1, size(region%states) !... update state
-    !    call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
-    !         region%solverOptions)
-    ! end do
-
-    startTimestep = region%timestep
-    startTime = region%states(1)%time
-
-    ! ! Connect to the previously allocated reverse migrator.
-    ! call reverseMigratorFactory%connect(reverseMigrator,                                       &
-    !      region%solverOptions%checkpointingScheme)
-    ! assert(associated(reverseMigrator))
-
-    ! ! Setup the revese-time migrator if this is not a steady-state simulation.
-    ! if (.not. region%simulationFlags%steadyStateSimulation)                                    &
-    !      call reverseMigrator%setup(region, timeIntegrator, this%outputPrefix,                 &
-    !      startTimestep - this%nTimesteps, startTimestep, this%saveInterval,                    &
-    !      this%saveInterval * timeIntegrator%nStages)
+    startTimestep = region%timestep + this%nTimesteps
+    startTime = region%states(1)%time + this%nTimesteps * region%solverOptions%timeStepSize
 
     ! March forward for adjoint steady-state simulation.
     timemarchDirection = -1
     if (region%simulationFlags%steadyStateSimulation) timemarchDirection = 1
-
-    ! ! Adjoint initial condition (if specified).
-    ! call loadInitialCondition(this, region, ADJOINT)
-
-    ! write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
-    ! call region%saveData(QOI_ADJOINT_STATE, filename)
 
     ! Put norm filename into gradient filename and use gradient filename.
     do i = 1, size(region%patchFactories)
@@ -263,12 +223,6 @@ contains
     end do
     ! Call controller hooks before time marching starts.
     call controller%hookBeforeTimemarch(region, ADJOINT)
-    ! !!!SeungWhan: need additional execution with FORWARD, in case of non-zero control forcing.
-    ! if (controller%controllerSwitch) then
-    !   controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-    !   controller%onsetTime = startTime - controller%duration
-    !   call controller%hookBeforeTimemarch(region, FORWARD)
-    ! end if
 
     ! Reset probes.
     if (this%probeInterval > 0) call region%resetProbes()
@@ -283,41 +237,8 @@ contains
 
        do i = timeIntegrator%nStages, 1, -1
 
-          ! ! Load adjoint coefficients.
-          ! if (.not. region%simulationFlags%steadyStateSimulation) then !... unsteady simulation.
-          !    if (i == 1) then
-          !       call reverseMigrator%migrateTo(region, controller, timeIntegrator,             &
-          !            timestep, timeIntegrator%nStages)
-          !    else
-          !       call reverseMigrator%migrateTo(region, controller, timeIntegrator,             &
-          !            timestep + 1, i - 1)
-          !    end if
-          ! end if
-
           ! Collect norm
-          call controller%collectNorm(region, timeIntegrator%norm(i)*timeStepSize)
-
-          ! ! Update cost sensitivity.
-          ! instantaneousCostSensitivity = controller%computeSensitivity(region)
-          ! controller%runningTimeQuadrature = controller%runningTimeQuadrature +                &
-          !      timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
-
-          ! ! Update adjoint forcing on cost target patches.
-          ! ! SeungWhan: Bug fix for final step
-          ! if( (timestep.eq.startTimestep+sign(this%nTimesteps,timemarchDirection)) .and.       &
-          !     (i.eq.1) ) then
-          !     IS_FINAL_STEP = .true.
-          ! else
-          !     IS_FINAL_STEP = .false.
-          ! end if
-          ! call functional%updateAdjointForcing(region,IS_FINAL_STEP)
-          !
-          ! ! Take a single adjoint sub-step using the time integrator.
-          ! call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep, i)
-          !
-          ! ! TODO: how to enforce limits on adjoint variables... check for NaN?
-          ! if (region%simulationFlags%enableSolutionLimits)                                     &
-          !      call checkSolutionLimits(region, ADJOINT, this%outputPrefix)
+          call controller%collectNorm(region, timeIntegrator%norm(i) * timeStepSize)
 
        end do
 
@@ -325,33 +246,13 @@ contains
        write(message, '(A,I8)') 'Collected control space norm at the time step = ', timestep
        call writeAndFlush(region%comm, output_unit, message)
 
-       ! ! Save solution on probe patches.
-       ! if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
-       !      call region%saveProbeData(ADJOINT)
-
-       ! ! Stop if this is a steady-state simulation and solution has converged.
-       ! if (this%residualManager%hasSimulationConverged) exit
-
-       ! ! Filter solution if required.
-       ! if (region%simulationFlags%filterOn) then
-       !    do j = 1, size(region%grids)
-       !       call region%grids(j)%applyFilter(region%states(j)%adjointVariables, timestep)
-       !    end do
-       ! end if
-
     end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
-
-    ! ! Finish writing remaining data gathered on probes.
-    ! if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
 
     ! Call controller hooks after time marching ends.
     if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
     call controller%hookAfterTimemarch(region, ADJOINT)
 
     call this%residualManager%cleanup()
-    ! call reverseMigratorFactory%cleanup()
-
-    ! costSensitivity = controller%runningTimeQuadrature
 
     write(message, '(A)') 'Control space norm collection is finished.'
     call writeAndFlush(region%comm, output_unit, message)
