@@ -71,8 +71,8 @@ def mapping(xi, offset1, offset2, width):
     c0 = width * np.log(np.cosh(offset2/width)/np.cosh(offset1/width))
     return xi + 2.39 * ( width * np.log( np.cosh((xi-offset2)/width)/np.cosh((xi-offset1)/width) ) - c0 + 2. * c0 * xi )
 
-def initial_condition(g, R=1.0/0.15, Ma=0.56,
-                      Pr=0.7, gamma=1.4):
+def initial_and_target_condition(g, R=1.0/0.15, Ma=0.56,
+                                 Pr=0.7, gamma=1.4):
     from numpy.matlib import repmat
     from scipy.sparse import spdiags, kron, eye, csr_matrix
     from scipy.sparse.linalg import spsolve
@@ -86,7 +86,7 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
     src = np.zeros([n,n],dtype=np.double)
 
     eps = 0.0e-16
-    loci = [[0.,0.]]
+    loci = [[0.,R],[0.,-R]]
     for location in loci:
         radius = np.sqrt( (xg-location[0])**2 + (yg-location[1])**2 )
         vt = 1.428 * Ma / (radius+eps) * ( 1. - np.exp(-1.25*(radius**2)) )
@@ -118,16 +118,16 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
     dA[:,-1] *= 0.5 * ( yg[:,-1] - yg[:,-2] )
     dA[:,1:-1] *= 0.5 * ( yg[:,2::] - yg[:,:-2] )
 
-    src *= dA
-
     from joblib import Parallel, delayed
-    pOverRho = Parallel(n_jobs=2)(delayed(poisson_greens_function)(xg,yg,src,dA,xs,ys)              \
+    pOverRho = Parallel(n_jobs=36*8)(delayed(poisson_greens_function)(xg,yg,src,dA,xs,ys)              \
                                     for xs, ys in zip(np.nditer(xg),np.nditer(yg)))
+    pOverRho = np.reshape(pOverRho,[n,n]).T + 1./gamma
 
     p0 = ( gamma**(1./gamma) * pOverRho )**(gamma/(gamma-1.))
     rho0 = ( gamma * p0 )**(1./gamma)
 
     s = p3d.Solution().copy_from(g).quiescent(gamma)
+    t = p3d.Solution().copy_from(g).quiescent(gamma)
     for i, xyz in enumerate(g.xyz):
         s.q[i][:,:,0,0] = rho0
         # s.q[i][:,:,0,0] = 1.0
@@ -135,7 +135,14 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
         s.q[i][:,:,0,2] = vy
         s.q[i][:,:,0,4] = p0
         # s.q[i][:,:,0,4] = 1.0/gamma
-    return s.fromprimitive(gamma)
+
+        t.q[i][:,:,0,0] = rho0
+        # t.q[i][:,:,0,0] = 1.0
+        t.q[i][:,:,0,1] = 0.
+        t.q[i][:,:,0,2] = 0.
+        t.q[i][:,:,0,4] = p0
+        # s.q[i][:,:,0,4] = 1.0/gamma
+    return s.fromprimitive(gamma), t.fromprimitive(gamma)
 
 def poisson_greens_function(xg,yg,src,dA,xs,ys):
     # xg, yg: global grid coordinates
@@ -212,6 +219,8 @@ if __name__ == '__main__':
     g = grid(429, 115.*R, 100., 0.03, 0.2)
     # g = grid([429, 429], 115.*R)
     g.save('VortexDynamics.xyz')
-    initial_condition(g).save('VortexDynamics.ic.q')
+    s, t = initial_and_target_condition(g)
+    s.save('VortexDynamics.ic.q')
+    t.save('VortexDynamics.target.q')
     constant_radius_mollifier(g,0.5*52.5*R,0.1*R).save('AcousticMonopole.target_mollifier.f')
     # control_mollifier(g).save('AcousticMonopole.control_mollifier.f')
