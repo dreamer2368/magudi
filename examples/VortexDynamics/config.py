@@ -78,16 +78,12 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
     from scipy.sparse.linalg import spsolve
 
     n = g.get_size(0)[0]
-    # dx = ( g.xyz[0][-1:,0,0,0] - g.xyz[0][0,0,0,0] )/(n-1)
-    # B2 = repmat([[1./90.], [-3./20.], [3./2.], [-49./18.], [3./2.], [-3./20.], [1./90.]],1,n)
-    # D2 = spdiags(B2,[-3, -2, -1, 0, 1, 2, 3],n,n)
-    # K = ( kron(eye(n),D2) + kron(D2,eye(n)) )/dx/dx
-    # K = csr_matrix(K)
 
     xg, yg = g.xyz[0][:,:,0,0], g.xyz[0][:,:,0,1]
-    src = np.zeros([n,n],dtype=np.double)
+    src_tensor = np.zeros([n,n,4],dtype=np.double)
     vx = np.zeros([n,n],dtype=np.double)
     vy = np.zeros([n,n],dtype=np.double)
+    src = np.zeros([n,n],dtype=np.double)
 
     eps = 0.0e-16
     loci = [[0.,0.]]
@@ -95,31 +91,63 @@ def initial_condition(g, R=1.0/0.15, Ma=0.56,
         radius = np.sqrt( (xg-location[0])**2 + (yg-location[1])**2 )
         vt = 1.428 * Ma / (radius+eps) * ( 1. - np.exp(-1.25*(radius**2)) )
 
-#        vt_over_r = vt/radius
-#        dvtdr = 3.57*np.exp(-1.25*radius**2) - 1.428/(radius**2)*( 1. - np.exp(-1.25*radius**2) )
-#        src += -2.0 * dvtdr * vt_over_r
+        cosine, sine = (xg-location[0])/(radius+eps), (yg-location[1])/(radius+eps)
+        vx += -vt * sine
+        vy += vt * cosine
 
-        vx += -vt * (yg-location[1]) / (radius+eps)
-        vy += vt * (xg-location[0]) / (radius+eps)
+        dvtdr = 3.57 * Ma * np.exp(-1.25*radius**2) - 1.428/(radius**2) * Ma * ( 1. - np.exp(-1.25*radius**2) )
+        src_tensor[:,:,0] -= ( dvtdr * cosine * sine - vt * cosine * sine / radius ) # v_x,x
+        src_tensor[:,:,1] -= ( dvtdr * sine * sine + vt * cosine * cosine / radius ) # v_x,y
+        src_tensor[:,:,2] += ( dvtdr * cosine * cosine + vt * sine * sine / radius ) # v_y,x
+        src_tensor[:,:,3] += ( dvtdr * sine * cosine - vt * cosine * sine / radius ) # v_y,y
 
-    # np.savetxt('loci.txt', loci)
-    #
-    # import subprocess
-    # command = 'matlab -nodesktop -nosplash -r "poisson(' + str(n) + ',' + str(R) + ',' + str(Ma) + ',' + str(gamma) + '); exit"'
-    # subprocess.check_call(command,shell=True)
-    # p0 = np.fromfile('p0.bin',dtype=np.double)
-    # rho0 = np.fromfile('rho0.bin',dtype=np.double)
-    # p0, rho0 = np.reshape(p0,[n,n]).T, np.reshape(rho0,[n,n]).T
+    src = - (gamma-1.)/gamma * ( src_tensor[:,:,0]**2                                                   \
+                                 + 2. * src_tensor[:,:,1] * src_tensor[:,:,2]                           \
+                                 + src_tensor[:,:,3]**2 )
+
+    # xg.T.tofile('xg.dat')
+    # yg.T.tofile('yg.dat')
+    # src.T.tofile('src.dat')
+
+    dA = np.zeros([n,n],dtype=np.double)
+    dA.fill(1.)
+    dA[0,:] *= 0.5 * ( xg[1,:] - xg[0,:] )
+    dA[-1,:] *= 0.5 * ( xg[-1,:] - xg[-2,:] )
+    dA[1:-1,:] *= 0.5 * ( xg[2::,:] - xg[:-2,:] )
+    dA[:,0] *= 0.5 * ( yg[:,1] - yg[:,0] )
+    dA[:,-1] *= 0.5 * ( yg[:,-1] - yg[:,-2] )
+    dA[:,1:-1] *= 0.5 * ( yg[:,2::] - yg[:,:-2] )
+
+    src *= dA
+
+    from joblib import Parallel, delayed
+    pOverRho = Parallel(n_jobs=2)(delayed(poisson_greens_function)(xg,yg,src,dA,xs,ys)              \
+                                    for xs, ys in zip(np.nditer(xg),np.nditer(yg)))
+
+    p0 = ( gamma**(1./gamma) * pOverRho )**(gamma/(gamma-1.))
+    rho0 = ( gamma * p0 )**(1./gamma)
 
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     for i, xyz in enumerate(g.xyz):
-        # s.q[i][:,:,0,0] = rho0
-        s.q[i][:,:,0,0] = 1.0
+        s.q[i][:,:,0,0] = rho0
+        # s.q[i][:,:,0,0] = 1.0
         s.q[i][:,:,0,1] = vx
         s.q[i][:,:,0,2] = vy
-        # s.q[i][:,:,0,4] = p0
-        s.q[i][:,:,0,4] = 1.0/gamma
+        s.q[i][:,:,0,4] = p0
+        # s.q[i][:,:,0,4] = 1.0/gamma
     return s.fromprimitive(gamma)
+
+def poisson_greens_function(xg,yg,src,dA,xs,ys):
+    # xg, yg: global grid coordinates
+    # src: source global
+    # dA: global area element
+    # xs, ys: local position of solution
+    # return: local value of solution
+
+    rs = np.sqrt( (xg-xs)**2 + (yg-ys)**2 )
+    idx = np.where(rs!=0.)
+
+    return np.sum( src[idx] * dA[idx] / 2. / np.pi * np.log(rs[idx]) )
 
 def constant_radius_mollifier(g,radius,width):
     r = np.sqrt( g.xyz[0][:,:,0,0]**2 + g.xyz[0][:,:,0,1]**2 )
@@ -185,5 +213,5 @@ if __name__ == '__main__':
     # g = grid([429, 429], 115.*R)
     g.save('VortexDynamics.xyz')
     initial_condition(g).save('VortexDynamics.ic.q')
-    constant_radius_mollifier(g).save('AcousticMonopole.target_mollifier.f',0.5*52.5*R,0.1*R)
+    constant_radius_mollifier(g,0.5*52.5*R,0.1*R).save('AcousticMonopole.target_mollifier.f')
     # control_mollifier(g).save('AcousticMonopole.control_mollifier.f')
