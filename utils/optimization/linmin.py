@@ -1,5 +1,13 @@
 from base import *
 
+def parabolic_interp(stepBracket, JBracket):
+    a,b,c = stepBracket
+    fa,fb,fc = JBracket
+
+    x = b - 0.5 * ( ((b-a)**2)*(fb-fc) - ((b-c)**2)*(fb-fa) )                                           \
+                / ( (b-a)*(fb-fc) - (b-c)*(fb-fa) )
+    return x
+
 def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseline=True, initial=True, stop=False):
     import pandas as pd
     import subprocess
@@ -63,22 +71,24 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 #        commandFile.write('exit 1\n')
         commandFile.close()
         return 0
-               
-    steps, Js = np.zeros(NumSearch), np.zeros(NumSearch)
-    h = (stepBracket[2]-stepBracket[0])/(NumSearch+1)
-    idx = int((stepBracket[1]-stepBracket[0])//h)
-    if (idx==0):
-        h = (stepBracket[2]-stepBracket[1])/(NumSearch+1)
-        steps = np.linspace(stepBracket[1]+h,stepBracket[2]-h,NumSearch)
-    elif (idx==NumSearch):
-        h = (stepBracket[1]-stepBracket[0])/(NumSearch+1)
-        steps = np.linspace(stepBracket[0]+h,stepBracket[1]-h,NumSearch)
+
+    xs = parabolic_interp(stepBracket,JBracket)
+    if (np.remainder(NumSearch,2)==1):
+        idx = int(NumSearch/2) + 1
+        nLeft, nRight = int(NumSearch/2), int(NumSearch/2)
+    elif ( xs < 0.5*(stepBracket[0]+stepBracket[2]) ):
+        idx = int(NumSearch/2) - 1
+        nLeft, nRight = int(NumSearch/2)-1, int(NumSearch/2)
     else:
-        h1 = (stepBracket[1]-stepBracket[0])/(idx+1)
-        steps[:idx] = np.linspace(stepBracket[0]+h1,stepBracket[1]-h1,idx)
-        h2 = (stepBracket[2]-stepBracket[1])/(NumSearch-idx+1)
-        steps[idx:] = np.linspace(stepBracket[1]+h2,stepBracket[2]-h2,NumSearch-idx)
-    Js = np.zeros(NumSearch)
+        idx = int(NumSearch/2)
+        nLeft, nRight = int(NumSearch/2), int(NumSearch/2)-1
+
+    steps, Js = np.zeros(NumSearch), np.zeros(NumSearch)
+    steps[idx] = xs
+    dx = xs * ( (stepBracket[0]/xs)**( 1./(nLeft+1)*np.arange(1,nLeft+1) ) )
+    dx -= stepBracket[0]
+    steps[:nLeft] = xs - dx
+    steps[nRight:] = xs * ( (stepBracket[2]/xs)**( 1./(nRight+1)*np.arange(1,nRight+1) ) )
 
     df.loc[df['directory index']<=NumSearch,'directory index'] = 0
     data = {'step':steps, 'QoI':np.ones(NumSearch)*np.nan, 'directory index':list(range(1,NumSearch+1))}

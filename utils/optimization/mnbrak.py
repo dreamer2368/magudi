@@ -82,7 +82,7 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         print (df[df['directory index']>NumSearch])
         print ('MNBRAK: rerunning zaxpy works. Run '+commandFilename+'.')
         return 3
-    
+
 
     df = collectQoIs(lineMinLog, forwardFilename, NumSearch)
     steps = np.array(df['step'][df['directory index']>0])
@@ -114,8 +114,11 @@ def NextMnbrak(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
         dirIdx = switchDirectory(1,NumSearch+3,df)
         df.loc[df['directory index']<=NumSearch,'directory index'] = 0
 
-        h = (steps[1]-steps[0])/(NumSearch+1)
-        steps = np.linspace(steps[0]+h,steps[1]-h,NumSearch)
+        if( steps[0]==0. ):
+            steps = steps[1] * golden_ratio ** (-np.arange(1,NumSearch+1))
+        else:
+            h = (steps[1]/steps[0]) ** (1./(NumSearch+1.))
+            steps = steps[0] * ( h ** np.arange(1,NumSearch+1) )
         data = {'step':steps, 'QoI':np.ones(NumSearch)*np.nan, 'directory index':list(range(1,NumSearch+1))}
         new_df = pd.DataFrame(data)
         df = df.append(new_df, ignore_index=True)
