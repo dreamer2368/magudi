@@ -20,7 +20,11 @@ program forward
 
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, stat, fileUnit, procRank, numProcs, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message, resultFilename
+  integer :: kthArgument, numberOfArguments
+  logical :: lookForInput = .false., lookForOutput = .false., lookForRestart = .false.,                   &
+              inputFlag = .false., outputFlag = .false., restartFlag = .false.
+  character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, restartFilename
+  character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
@@ -37,24 +41,62 @@ program forward
 
   call initializeErrorHandler()
 
-  if (command_argument_count() > 2) then
-     write(message, '(A)') "Usage: magudi [FILE]"
-     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-     write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
-     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-     write(message, '(A)')                                                                   &
-          "FILE is an optional restart file used if running in prediction-only mode."
-     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-     call cleanupErrorHandler()
-     call MPI_Finalize(ierror)
-     stop -1
+  numberOfArguments = command_argument_count()
+  do kthArgument = 1, numberOfArguments
+    call get_command_argument(kthArgument,argument)
+    select case(trim(adjustl(argument)))
+    case("--input")
+      lookForInput = .true.
+    case("--output")
+      lookForOutput = .true.
+    case("--restart")
+      lookForRestart = .true.
+    case default
+      if (lookForInput) then
+        inputFilename = trim(adjustl(argument))
+        if (procRank==0) inquire(file=inputFilename,exist=fileExists)
+        call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+        if (.not.fileExists) then
+           write(message, '(3A)') "input file ", trim(inputFilename), " does not exists!"
+           call gracefulExit(MPI_COMM_WORLD, message)
+        end if
+        lookForInput = .false.
+        inputFlag = .true.
+      elseif (lookForOutput) then
+        outputFilename = trim(adjustl(argument))
+        lookForOutput = .false.
+        outputFlag = .true.
+      elseif (lookForRestart) then
+        restartFilename = trim(adjustl(argument))
+        if (procRank==0) inquire(file=restartFilename,exist=fileExists)
+        call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+        if (.not.fileExists) then
+           write(message, '(3A)') "restart file ", trim(restartFilename), " does not exists!"
+           call gracefulExit(MPI_COMM_WORLD, message)
+        end if
+        lookForRestart = .false.
+        restartFlag = .true.
+      else
+        write(message, '(3A)') "option ", trim(argument), " unknown!"
+        call gracefulExit(MPI_COMM_WORLD, message)
+      end if
+    end select
+  end do
+  if ( .not. inputFlag ) inputFilename = PROJECT_NAME // ".inp"
+  if ( .not. outputFlag ) outputFilename = trim(outputPrefix) // ".forward_run.txt"
+  write(message, '(2A)') "Input file: ", trim(inputFilename)
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  write(message, '(2A)') "Output file: ", trim(outputFilename)
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  if (restartFlag) then
+    write(message, '(2A)') "Restart file: ", trim(restartFilename)
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
   end if
 
   call startTiming("total")
 
   ! Parse options from the input file.
-  filename = PROJECT_NAME // ".inp"
-  call parseInputFile(filename)
+  call parseInputFile(inputFilename)
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
@@ -103,19 +145,15 @@ program forward
   end if
 
   ! Main code logic.
-  if (command_argument_count() == 2) then
-     call get_command_argument(2, filename)
-     dummyValue = solver%runForward(region, restartFilename = filename)
+  if (restartFlag) then
+     dummyValue = solver%runForward(region, restartFilename = restartFilename)
   else
      dummyValue = solver%runForward(region)
   end if
 
   if ( region%simulationFlags%enableFunctional ) then
-    call get_command_argument(1, resultFilename, stat)
-    if( stat.eq.0 )                                                                            &
-      resultFilename = trim(outputPrefix) // ".forward_run.txt"
     if (procRank == 0) then
-      open(unit = getFreeUnit(fileUnit), file = trim(resultFilename), action='write',          &
+      open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',          &
            iostat = stat, status = 'replace')
       write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
       close(fileUnit)
