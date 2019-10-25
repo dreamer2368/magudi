@@ -72,15 +72,10 @@ program adjoint
       end if
     end select
   end do
-  if ( .not. inputFlag ) inputFilename = PROJECT_NAME // ".inp"
-  if ( .not. outputFlag ) outputFilename = trim(outputPrefix) // ".adjoint_run.txt"
-  write(message, '(2A)') "Input file: ", trim(inputFilename)
-  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-  write(message, '(2A)') "Output file: ", trim(outputFilename)
-  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
   call startTiming("total")
 
+  if ( .not. inputFlag ) inputFilename = PROJECT_NAME // ".inp"
   ! Parse options from the input file.
   call parseInputFile(inputFilename)
 
@@ -89,6 +84,12 @@ program adjoint
   dict(dictIndex)%val = "true"
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
+
+  if ( .not. outputFlag ) outputFilename = trim(outputPrefix) // ".adjoint_run.txt"
+  write(message, '(2A)') "Input file: ", trim(inputFilename)
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  write(message, '(2A)') "Output file: ", trim(outputFilename)
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.

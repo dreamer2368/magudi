@@ -82,7 +82,15 @@ program forward
       end if
     end select
   end do
+
+  call startTiming("total")
+
   if ( .not. inputFlag ) inputFilename = PROJECT_NAME // ".inp"
+  ! Parse options from the input file.
+  call parseInputFile(inputFilename)
+
+  outputPrefix = getOption("output_prefix", PROJECT_NAME)
+
   if ( .not. outputFlag ) outputFilename = trim(outputPrefix) // ".forward_run.txt"
   write(message, '(2A)') "Input file: ", trim(inputFilename)
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
@@ -92,13 +100,6 @@ program forward
     write(message, '(2A)') "Restart file: ", trim(restartFilename)
     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
   end if
-
-  call startTiming("total")
-
-  ! Parse options from the input file.
-  call parseInputFile(inputFilename)
-
-  outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
