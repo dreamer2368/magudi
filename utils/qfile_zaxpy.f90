@@ -1,12 +1,11 @@
 #include "config.h"
 
-program spatial_inner_product
+program qfile_zaxpy
 
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   use Region_mod, only : t_Region
-  use RegionImpl, only : normalizeControlMollifier
 
   use Grid_enum
   use State_enum
@@ -25,18 +24,19 @@ program spatial_inner_product
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, stat, fileUnit, procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
-  logical :: lookForInput = .false., lookForOutput = .false., lookForMollifier = .false.,                   &
-              inputFlag = .false., outputFlag = .false., mollifierFlag = .false.
-  character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, mollifierFilename
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message, Qfilenames(2)
-  logical :: fileExists, success
+  logical :: lookForInput = .false., lookForMollifier = .false.,                                              &
+              inputFlag = .false., mollifierFlag = .false.
+  character(len = STRING_LENGTH) :: argument, inputFilename, mollifierFilename
+  character(len = STRING_LENGTH) :: filename, outputPrefix, message,                                          &
+                                    Zfilename, Astr, Xfilename, Yfilename
+  logical :: fileExists, zeroYfile = .false., success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
-  type(t_VectorInternal), allocatable :: temp(:)
+  type(t_VectorInternal), allocatable :: X(:), Y(:)
 
   ! << output variables >>
   integer :: inputNumber, simulationNumber
-  SCALAR_TYPE :: dummyValue = 0.0_wp
+  SCALAR_TYPE :: A
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -46,32 +46,56 @@ program spatial_inner_product
   call initializeErrorHandler()
 
   numberOfArguments = command_argument_count()
-  if (numberOfArguments<2) then
-    write(message, '(2A)') "spatial_inner_product requires the first 2 arguments ",                         &
-                           "to be the filenames of two solution vectors."
+  if (numberOfArguments<4) then
+    write(message, '(2A)') "qfile_zaxpy requires the first 4 arguments: ",                         &
+                           "z = a * x + y."
     call gracefulExit(MPI_COMM_WORLD, message)
   end if
-  do i=1,2
-    call get_command_argument(i,argument)
-    Qfilenames(i) = trim(adjustl(argument))
-    if (procRank==0) inquire(file=Qfilenames(i),exist=fileExists)
+  call get_command_argument(1,argument)
+  Zfilename = trim(adjustl(argument))
+  write(message, '(2A)') "Z file: ", trim(Zfilename)
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+
+  call get_command_argument(2, Astr)
+  read( Astr, * ) A
+  write(message, '(A,1X,SP,' // SCALAR_FORMAT // ')') "A: ", A
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+
+  call get_command_argument(3,argument)
+  Xfilename = trim(adjustl(argument))
+  if (procRank==0) inquire(file=Xfilename,exist=fileExists)
+  call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+  if (.not.fileExists) then
+     write(message, '(3A)') "X file ", trim(Xfilename), " does not exists!"
+     call gracefulExit(MPI_COMM_WORLD, message)
+  else
+    write(message, '(2A)') "X file: ", trim(Xfilename)
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  end if
+
+  call get_command_argument(4,argument)
+  if (trim(adjustl(argument))=="--zero") then
+    zeroYfile = .true.
+  else
+    Yfilename = trim(adjustl(argument))
+    if (procRank==0) inquire(file=Yfilename,exist=fileExists)
     call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
     if (.not.fileExists) then
-       write(message, '(3A)') "Q file ", trim(Qfilenames(i)), " does not exists!"
+       write(message, '(3A)') "Y file ", trim(Yfilename), " does not exists!"
        call gracefulExit(MPI_COMM_WORLD, message)
     else
-      write(message, '(2A)') "Q file: ", trim(Qfilenames(i))
+      write(message, '(2A)') "Y file: ", trim(Yfilename)
       call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
     end if
-  end do
-  if (numberOfArguments>2) then
-    do kthArgument = 3, numberOfArguments
+    zeroYfile = .false.
+  end if
+
+  if (numberOfArguments>4) then
+    do kthArgument = 5, numberOfArguments
       call get_command_argument(kthArgument,argument)
       select case(trim(adjustl(argument)))
       case("--input")
         lookForInput = .true.
-      case("--output")
-        lookForOutput = .true.
       case("--mollifier")
         lookForMollifier = .true.
       case default
@@ -85,10 +109,6 @@ program spatial_inner_product
           end if
           lookForInput = .false.
           inputFlag = .true.
-        elseif (lookForOutput) then
-          outputFilename = trim(adjustl(argument))
-          lookForOutput = .false.
-          outputFlag = .true.
         elseif (lookForMollifier) then
           mollifierFilename = trim(adjustl(argument))
           if (procRank==0) inquire(file=mollifierFilename,exist=fileExists)
@@ -115,10 +135,7 @@ program spatial_inner_product
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
-  if ( .not. outputFlag ) outputFilename = trim(outputPrefix) // ".spatial_inner_product.txt"
   write(message, '(2A)') "Input file: ", trim(inputFilename)
-  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-  write(message, '(2A)') "Output file: ", trim(outputFilename)
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
   if (mollifierFlag) then
     write(message, '(2A)') "Mollifier file: ", trim(mollifierFilename)
@@ -139,35 +156,40 @@ program spatial_inner_product
   call getRequiredOption("grid_file", filename)
   call region%loadData(QOI_GRID, filename)
 
-  ! Update the grids by computing the Jacobian, metrics, and norm.
-  do i = 1, size(region%grids)
-     call region%grids(i)%update()
-  end do
-  call MPI_Barrier(region%comm, ierror)
+  ! ! Update the grids by computing the Jacobian, metrics, and norm.
+  ! do i = 1, size(region%grids)
+  !    call region%grids(i)%update()
+  ! end do
+  ! call MPI_Barrier(region%comm, ierror)
+  !
+  ! ! Write out some useful information.
+  ! call region%reportGridDiagnostics()
 
-  ! Write out some useful information.
-  call region%reportGridDiagnostics()
-
-  call startTiming("load solution variables")
+  call startTiming("load solutions")
 
   ! Load Q solution vectors.
-  do i=1,2
-    call region%loadData(QOI_FORWARD_STATE, Qfilenames(i))
-    if(i==2) exit
-    allocate(temp(size(region%states)))
-    do j=1,size(region%states)
-      allocate(temp(j)%F(region%grids(j)%nGridPoints,region%solverOptions%nUnknowns))
-      temp(j)%F = region%states(j)%conservedVariables
-    end do
+  call region%loadData(QOI_FORWARD_STATE, Xfilename)
+  allocate(X(size(region%states)))
+  do j=1,size(region%states)
+    allocate(X(j)%F(region%grids(j)%nGridPoints,region%solverOptions%nUnknowns))
+    X(j)%F = region%states(j)%conservedVariables
   end do
 
-  call endTiming("load solution variables")
+  if (.not. zeroYfile) then
+    call region%loadData(QOI_FORWARD_STATE, Yfilename)
+    allocate(Y(size(region%states)))
+    do j=1,size(region%states)
+      allocate(Y(j)%F(region%grids(j)%nGridPoints,region%solverOptions%nUnknowns))
+      Y(j)%F = region%states(j)%conservedVariables
+    end do
+  end if
+
+  call endTiming("load solutions")
 
   call startTiming("load mollifier")
 
   if (mollifierFlag) then
     call region%loadData(QOI_CONTROL_MOLLIFIER, mollifierFilename)
-    call normalizeControlMollifier(region)
   else
     do i = 1, size(region%grids)
        region%grids(i)%controlMollifier = 1.0_wp
@@ -176,41 +198,28 @@ program spatial_inner_product
 
   call endTiming("load mollifier")
 
-  call startTiming("compute inner products")
-
-  dummyValue = 0.0_wp
-
-  do i=1,size(region%states)
-    dummyValue = dummyValue +                                                                &
-                  region%grids(i)%computeInnerProduct(region%states(i)%conservedVariables,   &
-                                        temp(i)%F, region%grids(i)%controlMollifier(:,1))
-  end do
-
-  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-       call MPI_Allreduce(MPI_IN_PLACE, dummyValue, 1,                                       &
-       SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  call startTiming("compute Z = A * X + Y")
 
   do i = 1, size(region%grids)
-     call MPI_Bcast(dummyValue, 1, SCALAR_TYPE_MPI,                                          &
-          0, region%grids(i)%comm, ierror)
+    do j = 1, region%solverOptions%nUnknowns
+      region%states(i)%conservedVariables(:,j) = A * region%grids(i)%controlMollifier(:,1) *           &
+                                                    X(i)%F(:,j)
+    end do
+    if (.not. zeroYfile) then
+      region%states(i)%conservedVariables = region%states(i)%conservedVariables +                      &
+                                                  Y(i)%F
+    end if
   end do
+  call region%saveData(QOI_FORWARD_STATE, Zfilename)
 
-  call endTiming("compute inner products")
-
-  write(message, '(A,1X,SP,' // SCALAR_FORMAT // ')') 'Inner product = ', dummyValue
-  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-
-  if (procRank == 0) then
-    open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',          &
-         iostat = stat, status = 'replace')
-    write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
-    close(fileUnit)
-  end if
+  call endTiming("compute Z = A * X + Y")
 
   do i=1,size(region%states)
-    SAFE_DEALLOCATE(temp(i)%F)
+    SAFE_DEALLOCATE(X(i)%F)
+    SAFE_DEALLOCATE(Y(i)%F)
   end do
-  SAFE_DEALLOCATE(temp)
+  SAFE_DEALLOCATE(X)
+  SAFE_DEALLOCATE(Y)
   call region%cleanup()
 
   call endTiming("total")
@@ -221,4 +230,4 @@ program spatial_inner_product
   call cleanupErrorHandler()
   call MPI_Finalize(ierror)
 
-end program spatial_inner_product
+end program qfile_zaxpy

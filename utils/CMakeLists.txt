@@ -12,3 +12,4 @@ add_executable(slice_control_forcing $<TARGET_OBJECTS:magudiObj> slice_control_f
 add_executable(extend_control_forcing $<TARGET_OBJECTS:magudiObj> extend_control_forcing.f90)
 add_executable(cost_spatial_distribution $<TARGET_OBJECTS:magudiObj> cost_spatial_distribution.f90)
 add_executable(spatial_inner_product $<TARGET_OBJECTS:magudiObj> spatial_inner_product.f90)
+add_executable(qfile_zaxpy $<TARGET_OBJECTS:magudiObj> qfile_zaxpy.f90)
