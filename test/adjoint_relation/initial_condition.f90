@@ -1,6 +1,6 @@
 #include "config.h"
 
-program control_functional
+program initial_condition
 
   use MPI
 
@@ -80,7 +80,7 @@ program control_functional
   if (.not. success) stop -1
   stop 0
 
-end program control_functional
+end program initial_condition
 
 subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, tolerance)
 
@@ -144,7 +144,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   type(t_SimulationFlags) :: simulationFlags
   type(t_SolverOptions) :: solverOptions
   type(t_Region) :: region
-  type(t_State) :: icState, targetState
+  type(t_State) :: icState, targetState, adjointState
   class(t_Patch), pointer :: patch => null()
 
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
@@ -166,7 +166,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   integer :: i, j, k, l, nUnknowns, nTimesteps, saveInterval,                      &
               timestep, startTimestep, timemarchDirection
   real(wp) :: timeStepSize, time, startTime, velMin, velMax
-  real(SCALAR_KIND), allocatable :: forwardState(:,:), adjointState(:,:),           &
+  real(SCALAR_KIND), allocatable :: forwardState(:,:),                                         &
                                     controlForcing(:,:), adjointForcing(:,:), deltaState(:,:),&
                                     forwardRhs(:)
   character(len = STRING_LENGTH) :: filename, errorMessage
@@ -211,6 +211,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   !initialize initial condition state
   call icState%setup(region%grids(1), region%simulationFlags, region%solverOptions)
   call targetState%setup(region%grids(1), region%simulationFlags, region%solverOptions)
+  call adjointState%setup(region%grids(1), region%simulationFlags, region%solverOptions)
 
   velMax = 1.0E-5
   velMin = -1.0E-5
@@ -283,7 +284,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   end do
 
   ! randomize timesteps
-  nTimesteps = 1
+  nTimesteps = 5
   saveInterval = 1
   nTimesteps = nTimesteps - mod(nTimesteps,saveInterval)
 
@@ -384,7 +385,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
 
       ! ! Save forward states
       ! forwardState(:,(timestep-1)*timeIntegrator%nStages+i+1) = reshape(region%states(1)%conservedVariables,(/9/))
-! print *, functional%compute(region)
+
       ! Update the cost functional.
       scalar1 = scalar1 + timeIntegrator%norm(i) * timeStepSize * functional%compute(region)
 
@@ -487,7 +488,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
       call controller%updateGradient(region)
 
       ! Update cost sensitivity.
-      sensitivity = sensitivity + timeIntegrator%norm(i) * timeStepSize * controller%computeSensitivity(region)
+      ! sensitivity = sensitivity + timeIntegrator%norm(i) * timeStepSize * controller%computeSensitivity(region)
 
       ! Update adjoint forcing on cost target patches.
       ! SeungWhan: Bug fix for final step
@@ -498,24 +499,12 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
           IS_FINAL_STEP = .false.
       end if
       call functional%updateAdjointForcing(region,IS_FINAL_STEP)
-      ! record adjoint forcing
-      ! do j = 1, size(region%patchFactories)
-      !    call region%patchFactories(j)%connect(patch)
-      !    if (.not. associated(patch)) cycle
-      !    do l = 1, size(region%states)
-      !       if (patch%gridIndex /= region%grids(l)%index) cycle
-      !       select type (patch)
-      !       class is (t_CostTargetPatch)
-      !         adjointForcing(:,timestep*timeIntegrator%nStages+i) = reshape(patch%adjointForcing,(/9/))
-      !       end select
-      !    end do
-      ! end do
 
       ! Take a single sub-step using the time integrator.
       call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep, i)
 
-      ! Save adjoint states
-      adjointState(:,timestep*timeIntegrator%nStages+i) = reshape(region%states(1)%adjointVariables,(/9/))
+      ! ! Save adjoint states
+      ! adjointState(:,timestep*timeIntegrator%nStages+i) = reshape(region%states(1)%adjointVariables,(/9/))
     end do
 
     if (mod(timestep, max(1, saveInterval)) == 0) then
@@ -525,6 +514,10 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
 
   end do
 
+  sensitivity = region%grids(1)%computeInnerProduct(region%states(1)%adjointVariables,                                   &
+                                              region%states(1)%adjointVariables)
+  adjointState%conservedVariables = region%states(1)%adjointVariables
+
   ! Call controller hooks after time marching ends.
   if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
   call controller%hookAfterTimemarch(region, ADJOINT)
@@ -533,14 +526,15 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
 
   ! Do finite difference approximation
   ! stepSizes(1) = 1.0/sensitivity
-  stepSizes(1) = 1.0E04
+  stepSizes(1) = 1.0E0
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
   errorHistory = 0.0_wp
   do k = 1, size(stepSizes)
     ! forward initial condition
-    region%states(1)%conservedVariables = icState%conservedVariables
+    region%states(1)%conservedVariables = icState%conservedVariables +                          &
+                                          stepSizes(k) * adjointState%conservedVariables
     region%states(1)%targetState = targetState%conservedVariables
 
     ! Forward run setup
@@ -548,7 +542,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
     region%states(:)%time = time
     region%timestep = 0
 
-    controller%controllerSwitch = .true.
+    controller%controllerSwitch = .false.
     if (controller%controllerSwitch) then
        controller%onsetTime = time
        controller%duration = nTimesteps * region%solverOptions%timeStepSize
@@ -572,8 +566,8 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
 
       do i = 1, timeIntegrator%nStages
         ! Update control forcing.
+        call controller%cleanupForcing(region)
         if (controller%controllerSwitch) then
-          call controller%cleanupForcing(region)
           call controller%updateForcing(region)
         end if
 
@@ -651,6 +645,7 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   call reverseMigratorFactory%cleanup()
   call icState%cleanup()
   call targetState%cleanup()
+  call adjointState%cleanup()
   call region%cleanup()
 
   SAFE_DEALLOCATE(gridSize)
