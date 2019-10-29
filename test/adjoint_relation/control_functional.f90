@@ -283,8 +283,8 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
   end do
 
   ! randomize timesteps
-  nTimesteps = 1
-  saveInterval = 1
+  nTimesteps = 6
+  saveInterval = 2
   nTimesteps = nTimesteps - mod(nTimesteps,saveInterval)
 
   ! set up controller

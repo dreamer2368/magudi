@@ -35,7 +35,7 @@ def target_mollifier(g):
 
 def control_mollifier(g):
     x_min =  1.
-    x_max =  5.    
+    x_max =  5.
     y_min = -2.
     y_max =  2.
     f = p3d.Function().copy_from(g)
@@ -57,6 +57,19 @@ def mean_pressure(s):
     f = p3d.Function().copy_from(s)
     f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
     return f
+
+def random_solution(g):
+
+    gamma = 1.4
+    s = p3d.Solution().copy_from(g).quiescent(gamma)
+    n = s.get_size(0)
+    s.q[0][:,:,0,0] = (2.0 - 0.5) * np.random.rand(n[0],n[1]) + 0.5
+    s.q[0][:,:,0,1] = 2.0 * np.random.rand(n[0],n[1]) - 1.0
+    s.q[0][:,:,0,2] = 2.0 * np.random.rand(n[0],n[1]) - 1.0
+    s.q[0][:,:,0,4] = (2.0 - 0.5) * np.random.rand(n[0],n[1]) + 0.5
+    s.q[0][:,:,0,4] *= (gamma-1.)/gamma * s.q[0][:,:,0,0]
+
+    return s.fromprimitive(gamma)
 
 if __name__ == '__main__':
     g = grid([201, 201])

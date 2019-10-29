@@ -836,7 +836,7 @@ function runAdjoint(this, region) result(costSensitivity)
   accumulatedNTimesteps = -1
   intermediateEndTimestep = -1
   if (adjointRestart) then ! This is relative timesteps: timestep at initial condition must be added.
-    call getRequiredOption("adjoint_restart/accumulated_number_of_timesteps",accumulatedNTimesteps)
+    call getRequiredOption("adjoint_restart/accumulated_timesteps",accumulatedNTimesteps)
     call getRequiredOption("adjoint_restart/intermediate_end_timestep",intermediateEndTimestep)
     assert( (accumulatedNTimesteps.ge.0).and.(intermediateEndTimestep.ge.0) )
   end if
