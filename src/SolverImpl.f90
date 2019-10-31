@@ -831,7 +831,7 @@ function runAdjoint(this, region) result(costSensitivity)
   if (region%simulationFlags%steadyStateSimulation)                                          &
        call this%residualManager%setup("adjoint_residuals", region)
 
-  adjointRestart = getOption("adjoint_restart", .false.)
+  adjointRestart = getOption("enable_adjoint_restart", .false.)
   isFinalAdjointRestart = .true.
   accumulatedNTimesteps = -1
   intermediateEndTimestep = -1

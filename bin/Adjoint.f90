@@ -149,7 +149,7 @@ program adjoint
 
   dummyValue = 0.0_wp
 
-  adjointRestart = getOption("adjoint_restart", .false.)
+  adjointRestart = getOption("enable_adjoint_restart", .false.)
   accumulatedNTimesteps = -1
   if (adjointRestart) then ! This is relative timesteps: timestep at initial condition must be added.
     call getRequiredOption("adjoint_restart/accumulated_timesteps",accumulatedNTimesteps)
