@@ -6,16 +6,16 @@ def beforeLinmin(initial, zeroBaseline):
 
     J0, subJ0 = QoI()
     gg, subgg = readInnerProduct(ggFiles)
-    
+
     data = [[J0]+list(subJ0)]
     J_new_df = pd.DataFrame(data,columns=forwardLogColumns)
     data = [[gg]+list(subgg)]
     dJ_new_df = pd.DataFrame(data,columns=gradientLogColumns)
-    
+
     if (initial):
         J_new_df.to_csv(forwardLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
         dJ_new_df.to_csv(gradientLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-        
+
         df = pd.DataFrame([np.nan],columns=['reduction'])
         df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
@@ -33,12 +33,12 @@ def beforeLinmin(initial, zeroBaseline):
 
         print ('Initial line minimization is ready. Run mnbrak and linmin procedures.')
         return 0
-    
+
     df = pd.read_csv(forwardLog, sep='\t', header=0)
     J1 = df.at[df.index[-1],'total']
     df = df.append(J_new_df)
     df.to_csv(forwardLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-    
+
     df = pd.read_csv(gradientLog, sep='\t', header=0)
     gg1 = df.at[df.index[-1],'total']
     df = df.append(dJ_new_df)
@@ -66,7 +66,7 @@ def beforeLinmin(initial, zeroBaseline):
     commandFile = open(globalCommandFile,'w')
     commandFile.write(commandString)
     commandFile.close()
-    
+
     commandFile = open(decisionMakerCommandFile,'w')
     command = 'python3 '+decisionMaker+' 2'
     if(zeroBaseline):
@@ -113,7 +113,7 @@ def afterLinmin(zeroBaseline):
 
     commandString = ''
     for k in range(NcontrolSpace):
-        commandString += 'cp b/%s ./ & \n' % (globalControlSpaceFiles[k])
+        commandString += 'cp b/%s ./ \n' % (globalControlSpaceFiles[k])
         commandString += 'mv %s previous.%s \n' % (globalGradFiles[k],globalGradFiles[k])
         commandString += 'mv %s previous.%s \n' % (globalConjugateGradientFiles[k],globalConjugateGradientFiles[k])
     commandString += '\n'
