@@ -49,9 +49,6 @@ def beforeLinmin(initial, zeroBaseline):
     df.loc[df.index[-1],'directory index'] = J1/J0
     df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
-    # Polak-Ribiere
-    commandString = dggCommand()
-    subprocess.check_call(commandString,shell=True)
     dgg, dummy = readInnerProduct(dggFiles)
 
     # # Fletcher-Reeves
@@ -130,6 +127,8 @@ def afterLinmin(zeroBaseline):
     commandString += gatherControlForcingGradientCommand()
     commandString += '\n'
     commandString += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
+    # Polak-Ribiere
+    commandString += dggCommand()
     fID = open(globalCommandFile,'w')
     fID.write(commandString)
     fID.close()
