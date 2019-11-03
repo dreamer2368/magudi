@@ -1,104 +1,9 @@
-NumSearch = 10
-Nsplit = 3                                               # number of split time segments
-Nts = 6                                                  # number of timesteps of each time segment
-NtimestepOffset = 4                                      # timestep offset between time segments
-startTimestep = 12                                       # initial timestep of the first time segment
-totalTimestep = (Nsplit-1) * NtimestepOffset + Nts       # number of timesteps for the entire time span
-
-matchingConditionWeight = 1.0e-7                         # weight for matching condition penalty
-initialConditionControllability = 1.0e-9                 # weight for derivative with respect to initial conditions
-
-NcontrolRegion = 1                                       # number of control region
-
-initial_step = 0.1
-golden_ratio = 1.618034
-tol, eps = 1.0e-7,  1.0e-7
+from constants import *
+from filenames import *
 
 import numpy as np
 import subprocess
 import pandas as pd
-
-globalPrefix = 'AcousticMonopole'
-prefixes, inputFiles, outputFiles, commandFiles = [], [], [], []
-icFiles, diffFiles, diffOutputFiles             = [], [], []
-matchingForwardFiles, matchingAdjointFiles      = [], []
-icAdjointFiles, icGradientFiles, directories    = [], [], []
-for k in range(Nsplit):
-    prefixes += ['%s-%01d'%(globalPrefix,k)]
-    inputFiles += ['magudi-%01d.inp'%(k)]
-    outputFiles += ['%s-%01d.forward_run.txt'%(globalPrefix,k)]
-    commandFiles += ['%s-%01d.command.sh'%(globalPrefix,k)]
-    icFiles += ['%s-%01d.ic.q'%(globalPrefix,k)]
-    
-    kOffset = startTimestep + NtimestepOffset * (k+1)
-    diffFiles += ['%s-%01d.diff.q'%(globalPrefix,k)]                             #use only 0, ... , Nsplit-2
-    diffOutputFiles += ['%s-%01d.diff.txt'%(globalPrefix,k)]                     #use only 0, ... , Nsplit-2
-    matchingForwardFiles += ['%s-%01d-%08d.q'%(globalPrefix,k,kOffset)]          #use only 0, ... , Nsplit-2
-    matchingAdjointFiles += ['%s-%01d-%08d.adjoint.q'%(globalPrefix,k,kOffset)]  #use only 0, ... , Nsplit-2
-    
-    kOffset = startTimestep + NtimestepOffset * k
-    icAdjointFiles += ['%s-%01d-%08d.adjoint.q'%(globalPrefix,k,kOffset)]        #use only 1, ... , Nsplit-1
-    icGradientFiles += ['%s-%01d.ic.adjoint.q'%(globalPrefix,k)]                 #use only 1, ... , Nsplit-1
-    directories += ['%01d'%k]
-    
-diffFiles[-1] = ''
-diffOutputFiles[-1] = ''
-matchingForwardFiles[-1] = ''
-matchingAdjointFiles[-1] = ''
-icAdjointFiles[0] = ''
-icGradientFiles[0] = ''
-
-controlRegions = ['controlRegion']
-gradientFiles, normFiles, conjugateGradientFiles, controlForcingFiles = [], [], [], []
-for k in range(NcontrolRegion):
-    gradientFiles += ['.gradient_%s.dat'%controlRegions[k]]
-    normFiles += ['.norm_%s.dat'%controlRegions[k]]
-    conjugateGradientFiles += ['.conjugate_gradient_%s.dat'%controlRegions[k]]
-    controlForcingFiles += ['.control_forcing_%s.dat'%controlRegions[k]]
-    
-globalGradFiles, globalNormFiles, globalConjugateGradientFiles, globalControlForcingFiles = [], [], [], []
-globalSensitivityFiles = []
-for k in range(NcontrolRegion):
-    globalGradFiles += [globalPrefix + gradientFiles[k]]
-    globalNormFiles += [globalPrefix + normFiles[k]]
-    globalConjugateGradientFiles += [globalPrefix + conjugateGradientFiles[k]]
-    globalControlForcingFiles += [globalPrefix + controlForcingFiles[k]]
-    globalSensitivityFiles += ['%s.adjoint_run_%s.txt'%(globalPrefix,controlRegions[k])]
-    
-innerProductFiles = []
-for j in range(NcontrolRegion):
-    innerProductFiles += ['%s.inner_product_%s.txt'%(globalPrefix,controlRegions[j])]
-for k in range(1,Nsplit):
-    innerProductFiles += ['%s-%01d.inner_product.txt'%(globalPrefix,k)]
-    
-globalCommandFile = globalPrefix + '.command.sh'
-
-# lineMinLog = prefix+'.line_minimization.txt'
-# CGLog = prefix+'.conjugate_gradient.txt'
-# dggFilename = prefix+'.dgg.txt'
-
-# forwardFilename = prefix+'.forward_run.txt'
-# adjointFilename = prefix+'.adjoint_run.txt'
-# controlForcingFilenames = [prefix+'.control_forcing_controlRegion.E.dat',                       \
-#                             prefix+'.control_forcing_controlRegion.W.dat',                      \
-#                             prefix+'.control_forcing_controlRegion.N.dat',                      \
-#                             prefix+'.control_forcing_controlRegion.S.dat']
-# gradientFilenames = [prefix+'.gradient_controlRegion.E.dat',                                    \
-#                      prefix+'.gradient_controlRegion.W.dat',                                    \
-#                      prefix+'.gradient_controlRegion.N.dat',                                    \
-#                      prefix+'.gradient_controlRegion.S.dat']
-# CGFilenames = [prefix+'.conjugate_gradient_controlRegion.E.dat',                                \
-#                 prefix+'.conjugate_gradient_controlRegion.W.dat',                               \
-#                 prefix+'.conjugate_gradient_controlRegion.N.dat',                               \
-#                 prefix+'.conjugate_gradient_controlRegion.S.dat']
-# normFilenames = [prefix+'.norm_controlRegion.E.dat',                                            \
-#                  prefix+'.norm_controlRegion.W.dat',                                            \
-#                  prefix+'.norm_controlRegion.N.dat',                                            \
-#                  prefix+'.norm_controlRegion.S.dat']
-
-decisionMaker = 'optimization.py'
-# commandFilename = prefix+'.command.sh'
-# decisionMakerCommandFilename = prefix+'.command.python.ready.sh'
 
 magudiSetOptionCommand = 'function setOption() {\n'                                         \
                          '    if grep -q "$1" magudi.inp\n'                                 \
@@ -140,8 +45,11 @@ def readScalar(scalarFilename):
         fID.close()
         return scalar
     
-def QoI(rootDirectory):
-    rdir = rootDirectory
+def QoI(rootDirectory = None):
+    if (rootDirectory is None):
+        rdir = '.'
+    else:
+        rdir = rootDirectory
     
     subJ = np.zeros(2*Nsplit-1)
     J = 0.0
@@ -153,37 +61,48 @@ def QoI(rootDirectory):
             J += matchingConditionWeight * subJ[Nsplit+k]
     return J, subJ
 
-def innerProductCommand(xFiles,yFiles):
+def collectQoI(logFilename):
+    import pandas as pd
+
+    new_J, dummy = QoI('x')
+    
+    df = pd.read_csv(logFilename, sep='\t', header=0)
+    df.at[df['directory index']=='x','QoI'] = new_J
+    df = df.sort_values(by='step',ascending=True)
+    df = df.reset_index(drop=True)
+    return df
+
+def innerProductCommand(xFiles,yFiles,outputFiles_=None):
+    if (outputFiles_ is None):
+        outputFiles_ = innerProductFiles
+    
     Nx, Ny = len(xFiles), len(yFiles)
     if ((Nx!=Nsplit+NcontrolRegion-1) or (Ny!=Nsplit+NcontrolRegion-1)):
         raise LookupError('Number of files must be equal to '+str(Nsplit+NcontrolRegion-1)+'!')
     
     commandString = ''
     for j in range(NcontrolRegion):
-        command = './zxdoty ' + innerProductFiles[j] + ' ' +                                \
-                  xFiles[j] + ' ' + yFiles[j] + ' ' + globalNormFiles[j] + '\n'
-        commandString += 'echo ' + command
+        command = './zxdoty %s %s %s %s \n'                                                        \
+                % (outputFiles_[j], xFiles[j], yFiles[j], globalNormFiles[j])
         commandString += command
 
     for k in range(NcontrolRegion,NcontrolRegion+Nsplit-1):
         index = k+1 - NcontrolRegion
         inputFile = '%s/%s'%(directories[index],inputFiles[index])
-        commandString += './spatial_inner_product '+xFiles[k]+' '+yFiles[k] +                      \
-                         ' --input ' + inputFile + ' --output ' + innerProductFiles[k] + '\n'
+        commandString += './spatial_inner_product %s %s --input %s --output %s \n'                 \
+                            % (xFiles[k], yFiles[k], inputFile, outputFiles_[k])
 
     return commandString
 
-def readInnerProduct(outputFile=None):
+def readInnerProduct(outputFiles_=None):
+    if (outputFiles_ is None):
+        outputFiles_ = innerProductFiles
+        
     scalar = 0.0
     subScalar = np.zeros(NcontrolRegion+Nsplit-1)
     for k in range(NcontrolRegion+Nsplit-1):
-        subScalar[k] = readScalar(innerProductFiles[k])
+        subScalar[k] = readScalar(outputFiles_[k])
         scalar += subScalar[k]
-        
-    if(outputFile is not None):
-        fID = open(outputFile,'w')
-        fID.write('{:.15E}'.format(scalar))
-        fID.close()
         
     return scalar, subScalar
 
@@ -203,6 +122,7 @@ def zaxpyCommand(zFiles,a,xFiles,yFiles=None):
             commandString += ' '+yFiles[j]+'\n'
         else:
             commandString += '\n'
+        commandString += bashCheckResultCommand('zaxpy-control-forcing-%d'%j)
             
     w2 = initialConditionControllability
     for k in range(NcontrolRegion,NcontrolRegion+Nsplit-1):
@@ -213,6 +133,7 @@ def zaxpyCommand(zFiles,a,xFiles,yFiles=None):
             commandString += ' '+yFiles[k]+'\n'
         else:
             commandString += '\n'
+        commandString += bashCheckResultCommand('zaxpy-initial-condition-%d'%index)
             
     return commandString
 
@@ -224,16 +145,18 @@ def distributeCommand(rootDirectory):
         kOffset = NtimestepOffset * k
         for j in range(NcontrolRegion):
             sliceControlForcingFile = '%s/%s/%s%s'%(rdir,directories[k],prefixes[k],controlForcingFiles[j])
-            globalControlForcingFile = '%s/%s'%(rdir,globalControlForcingFiles[j])
+            globalControlForcingFile = '%s/%s'%(rdir,globalControlSpaceFiles[j])
             commandString += './slice_control_forcing ' + sliceControlForcingFile + ' ' + globalControlForcingFile + ' ' + \
                              str(int(totalTimestep)) + ' ' + str(int(kOffset)) + ' ' + str(int(Nts)) + '\n'
+        
+    for k in range(Nsplit):
         commandString += 'cp ' + '%s/%s'%(rdir,icFiles[k]) + ' ' + '%s/%s/%s'%(rdir,directories[k],icFiles[k]) + '\n'
         
     return commandString
 
 def gatherControlForcingGradientCommand():
     commandString = ''
-    for k in range(0):
+    for k in range(Nsplit):
         kOffset = NtimestepOffset * k
         for j in range(NcontrolRegion):
             sliceGradFile = '%s/%s%s'%(directories[k],prefixes[k],gradientFiles[j])
@@ -257,14 +180,126 @@ def switchDirectory(firstDirectory, secondDirectory, df=None):
         df.at[df['directory index']==-1,'directory index'] = secondDirectory
     return
 
-def collectQoIs(logFilename, forwardFilename, NumSearch):
-    import pandas as pd
+def forwardRunCommand(rootDirectory=None):
+    if (rootDirectory is None):
+        rdir = '.'
+    else:
+        rdir = rootDirectory
+    
+    commandString = ''
+    commandString += distributeCommand(rdir)
+    
+    for k in range(Nsplit):
+        commandString += 'cd %s/%s \n'%(rdir,directories[k])
+        commandString += './forward --input %s \n' % inputFiles[k]
+        if (rdir=='.'):
+            commandString += 'cd .. \n'
+        else:
+            commandString += 'cd ../../ \n'
+            
+    for k in range(Nsplit-1):
+        kOffset = startTimestep + NtimestepOffset * (k+1)
+        matchingFile = '%s/%s/%s'%(rdir,directories[k],matchingForwardFiles[k])
+        icFile = '%s/%s/%s'%(rdir,directories[k+1],icFiles[k+1])
+        diffFile = '%s/%s'%(rdir,diffFiles[k])
+        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
+        commandString += './qfile_zaxpy %s %.16E %s %s --input %s \n'                       \
+                            % (diffFile,-1.0,icFile,matchingFile,inputFile)
+        
+    for k in range(Nsplit-1):
+        diffFile = '%s/%s'%(rdir,diffFiles[k])
+        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
+        diffOutputFile = '%s/%s'%(rdir,diffOutputFiles[k])
+        commandString += './spatial_inner_product %s %s --output %s --input %s \n'          \
+                            % (diffFile, diffFile, diffOutputFile, inputFile)
+    return commandString
 
-    df = pd.read_csv(logFilename, sep='\t', header=0)
+def adjointRunCommand(rootDirectory=None):
+    if (rootDirectory is None):
+        rdir = '.'
+    else:
+        rdir = rootDirectory
 
-    for k in range(1,NumSearch+1):
-        directory = str(k)+'/'
-        df.at[df['directory index']==k,'QoI'] = readScalar(directory+forwardFilename)
-    df = df.sort_values(by='step',ascending=True)
-    df = df.reset_index(drop=True)
-    return df
+    commandString = ''
+    for k in range(Nsplit-1):
+        commandString += 'cd %s/%s \n' % (rdir,directories[k])
+        commandString += setOptionCommand(inputFiles[k])
+        commandString += 'setOption "enable_adjoint_restart" "true"\n'
+        commandString += 'setOption "number_of_timesteps" %d \n' % (Nts-NtimestepOffset)
+        commandString += 'setOption "adjoint_restart\/accumulated_timesteps" 0 \n'
+        commandString += 'setOption "adjoint_restart\/intermediate_end_timestep" %d \n' % (NtimestepOffset)
+        commandString += './adjoint --input %s \n' % inputFiles[k]
+        if (rdir=='.'):
+            commandString += 'cd .. \n'
+        else:
+            commandString += 'cd ../../ \n'
+        commandString += '\n'
+            
+    k = Nsplit - 1
+    commandString += 'cd %s/%s \n' % (rdir,directories[k])
+    commandString += setOptionCommand(inputFiles[k])
+    commandString += 'setOption "enable_adjoint_restart" "false"\n'
+    commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
+    commandString += './adjoint --input %s \n' % inputFiles[k]
+    if (rdir=='.'):
+        commandString += 'cd .. \n'
+    else:
+        commandString += 'cd ../../ \n'
+    commandString += '\n'
+    
+    for k in range(Nsplit-1):
+        matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
+        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
+        diffFile = '%s/%s'%(rdir,diffFiles[k])
+        commandString += './qfile_zaxpy %s %.16E %s %s --input %s \n'                              \
+        % (matchingAdjointFile, matchingConditionWeight, diffFile, matchingAdjointFile, inputFile)
+        commandString += '\n'
+    
+    for k in range(Nsplit-1):
+        commandString += 'cd %s/%s \n' % (rdir,directories[k])
+        commandString += setOptionCommand(inputFiles[k])
+        commandString += '\n'
+        commandString += 'setOption "number_of_timesteps" %d \n' % (NtimestepOffset)
+        commandString += 'setOption "adjoint_restart\/accumulated_timesteps" %d \n' % (Nts-NtimestepOffset)
+        commandString += 'setOption "adjoint_restart\/intermediate_end_timestep" 0 \n'
+        commandString += './adjoint --input %s \n' % inputFiles[k]
+        commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
+        commandString += 'setOption "enable_adjoint_restart" "false"\n'
+        if (rdir=='.'):
+            commandString += 'cd .. \n'
+        else:
+            commandString += 'cd ../../ \n'
+        commandString += '\n'
+    
+    for k in range(1,Nsplit):
+        icAdjointFile = '%s/%s/%s' % (rdir,directories[k],icAdjointFiles[k])
+        diffFile = '%s/%s.diff.q'%(rdir,prefixes[k-1])
+        icGradFile = '%s/%s' % (rdir,icGradientFiles[k])
+        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
+        commandString += './qfile_zaxpy %s %.16E %s %s --input %s \n'                             \
+        % (icGradFile, -matchingConditionWeight, diffFile, icAdjointFile, inputFile)
+        commandString += '\n'
+
+    return commandString
+
+def dggCommand():
+    commandString = ''
+    for j in range(NcontrolRegion):
+        commandString += './zwxmwy %s %s %s previous.%s %s \n'                                            \
+        %(dggFiles[j], globalGradFiles[j], globalGradFiles[j], globalGradFiles[j], globalNormFiles[j])
+    commandString += '\n'
+    for k in range(1,Nsplit):
+        diffFile = '%s.diff.adjoint.q'%(prefixes[k])
+        icGradFile = '%s' % (icGradientFiles[k])
+        inputFile = '%s/%s'%(directories[k],inputFiles[k])
+        commandString += './qfile_zaxpy %s %.16E previous.%s %s --input %s \n'                             \
+                            % (diffFile, -1.0, icGradFile, icGradFile, inputFile)
+    commandString += '\n'
+    for k in range(1,Nsplit):
+        idx = NcontrolRegion-1 + k
+        diffFile = '%s.diff.adjoint.q'%(prefixes[k])
+        inputFile = '%s/%s'%(directories[k],inputFiles[k])
+        commandString += './spatial_inner_product %s %s --output %s --input %s \n'          \
+                            % (diffFile, icGradientFiles[k], dggFiles[idx], inputFile)
+    return commandString
+        
