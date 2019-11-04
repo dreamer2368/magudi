@@ -161,10 +161,11 @@ contains
 
   end subroutine showProgress
 
-  subroutine checkSolutionLimits(region, mode, outputPrefix)
+  function checkSolutionLimits(region, mode, outputPrefix) result(solutionCrashes)
 
     ! <<< External modules >>>
     use MPI
+    use, intrinsic :: iso_fortran_env, only : output_unit
 
     ! <<< Derived types >>>
     use State_mod, only : t_State
@@ -175,17 +176,21 @@ contains
     use Region_enum, only : FORWARD
 
     ! <<< Internal modules >>>
-    use ErrorHandler, only : gracefulExit
+    use ErrorHandler, only : gracefulExit, writeAndFlush
 
     ! <<< Arguments >>>
     class(t_Region) :: region
     integer, intent(in) :: mode
     character(len = *), intent(in) :: outputPrefix
 
+    logical :: solutionCrashes
+
     ! <<< Local variables >>>
     integer :: i, iGlobal, jGlobal, kGlobal, rankReportingError, procRank, ierror
     character(len = STRING_LENGTH) :: message
     SCALAR_TYPE :: fOutsideRange
+
+    solutionCrashes = .false.
 
     rankReportingError = -1
     call MPI_Comm_rank(region%comm, procRank, ierror)
@@ -237,12 +242,12 @@ contains
        case (FORWARD)
           call region%saveData(QOI_FORWARD_STATE, trim(outputPrefix) // "-crashed.q")
        end select
-
-       call gracefulExit(region%comm, message)
+       call writeAndFlush(region%comm, output_unit, message)
+       solutionCrashes = .true.
 
     end if
 
-  end subroutine checkSolutionLimits
+  end function checkSolutionLimits
 
   subroutine loadInitialCondition(this, region, mode, restartFilename)
     ! <<< External modules >>>
@@ -596,7 +601,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
-  logical :: controllerSwitch = .false.
+  logical :: controllerSwitch = .false., solutionCrashes = .false.
 
   call startTiming("runForward")
 
@@ -671,8 +676,12 @@ function runForward(this, region, restartFilename) result(costFunctional)
      do i = 1, timeIntegrator%nStages
 
         ! Check if physical quantities are within allowed limits.
-        if (region%simulationFlags%enableSolutionLimits)                                     &
-             call checkSolutionLimits(region, FORWARD, this%outputPrefix)
+        if (region%simulationFlags%enableSolutionLimits) then
+          if ( checkSolutionLimits(region, FORWARD, this%outputPrefix) ) then
+            costFunctional = HUGE(0.0_wp)
+            return
+          end if
+        end if
 
         ! Update control forcing.
         !SeungWhan: flush out previous control forcing
@@ -956,8 +965,12 @@ function runAdjoint(this, region) result(costSensitivity)
         call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep, i)
 
         ! TODO: how to enforce limits on adjoint variables... check for NaN?
-        if (region%simulationFlags%enableSolutionLimits)                                     &
-             call checkSolutionLimits(region, ADJOINT, this%outputPrefix)
+        if (region%simulationFlags%enableSolutionLimits) then
+          if ( checkSolutionLimits(region, ADJOINT, this%outputPrefix) ) then
+            costSensitivity = HUGE(0.0_wp)
+            return
+          end if
+        end if
 
      end do
 
