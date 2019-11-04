@@ -157,27 +157,29 @@ def zaxpyCommand(zFiles,a,xFiles,yFiles=None):
 
     return commandString
 
-def distributeCommand(rootDirectory):
+def distributeCommand(rootDirectory,zeroControlForcing):
     rdir = rootDirectory
 
     commandString = ''
     commandString += bashGetNodeListCommand()
-    for k in range(Nsplit):
-        kOffset = NtimestepOffset * k
-        for j in range(NcontrolRegion):
-            nodeIndex = NcontrolRegion * k + j
-            commandString += bashGetNodeListSliceCommand(nodeIndex,NodesSlice)
-            commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesSlice,NprocSlice)
 
-            sliceControlForcingFile = '%s/%s/%s%s'%(rdir,directories[k],prefixes[k],controlForcingFiles[j])
-            globalControlForcingFile = '%s/%s'%(rdir,globalControlSpaceFiles[j])
-            commandString += './slice_control_forcing %s %s %d %d %d'                                                           \
-                             % (sliceControlForcingFile, globalControlForcingFile, totalTimestep, kOffset, Nts)
-            commandString += ' &> slice_result_%d.out &' % nodeIndex
-            commandString += '\n'
-            commandString += 'pids[%d]=$!\n\n' % nodeIndex
+    if (not zeroControlForcing):
+        for k in range(Nsplit):
+            kOffset = NtimestepOffset * k
+            for j in range(NcontrolRegion):
+                nodeIndex = NcontrolRegion * k + j
+                commandString += bashGetNodeListSliceCommand(nodeIndex,NodesSlice)
+                commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesSlice,NprocSlice)
 
-    commandString += bashCheckResultCommand('slice_control_forcing',Nsplit*NcontrolRegion)
+                sliceControlForcingFile = '%s/%s/%s%s'%(rdir,directories[k],prefixes[k],controlForcingFiles[j])
+                globalControlForcingFile = '%s/%s'%(rdir,globalControlSpaceFiles[j])
+                commandString += './slice_control_forcing %s %s %d %d %d'                                                           \
+                                 % (sliceControlForcingFile, globalControlForcingFile, totalTimestep, kOffset, Nts)
+                commandString += ' &> slice_result_%d.out &' % nodeIndex
+                commandString += '\n'
+                commandString += 'pids[%d]=$!\n\n' % nodeIndex
+
+        commandString += bashCheckResultCommand('slice_control_forcing',Nsplit*NcontrolRegion)
 
     for k in range(Nsplit):
         commandString += 'cp ' + '%s/%s'%(rdir,icFiles[k]) + ' ' + '%s/%s/%s'%(rdir,directories[k],icFiles[k]) + '\n'
@@ -218,14 +220,14 @@ def switchDirectory(firstDirectory, secondDirectory, df=None):
         df.at[df['directory index']==-1,'directory index'] = secondDirectory
     return
 
-def forwardRunCommand(rootDirectory=None):
+def forwardRunCommand(rootDirectory=None,zeroControlForcing=False):
     if (rootDirectory is None):
         rdir = '.'
     else:
         rdir = rootDirectory
 
     commandString = ''
-    commandString += distributeCommand(rdir)
+    commandString += distributeCommand(rdir,zeroControlForcing)
 
     for k in range(Nsplit):
         commandString += 'cd %s/%s \n'%(rdir,directories[k])
