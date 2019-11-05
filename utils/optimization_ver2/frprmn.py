@@ -51,14 +51,19 @@ def beforeLinmin(initial, zeroBaseline):
 
     dgg, dummy = readInnerProduct(dggFiles)
 
-    # # Fletcher-Reeves
-    # dgg = gg0
+    # Fletcher-Reeves
+    gamma1 = gg0/gg1
+    # Polak-Ribiere
     gamma = dgg/gg1
+    if (gamma > gamma1):
+        gamma = gamma1
+    elif (gamma < -gamma1):
+        gamma = -gamma1
 
     temp = globalConjugateGradientFiles.copy()
     for k, file in enumerate(temp):
         temp[k] = 'previous.' + file
-    commandString += zaxpyCommand(globalConjugateGradientFiles,gamma,temp,globalGradFiles)
+    commandString = zaxpyCommand(globalConjugateGradientFiles,gamma,temp,globalGradFiles)
     commandString += '\n'
     commandFile = open(globalCommandFile,'w')
     commandFile.write(commandString)

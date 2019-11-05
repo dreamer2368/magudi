@@ -358,9 +358,6 @@ def adjointRunCommand(rootDirectory=None):
         commandString += ' &> adjoint_result_%d.out &' % k
         commandString += '\n'
         commandString += 'pids[%d]=$!\n\n' % k
-
-        commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
-        commandString += 'setOption "enable_adjoint_restart" "false"\n'
         if (rdir=='.'):
             commandString += 'cd .. \n'
         else:
@@ -368,6 +365,17 @@ def adjointRunCommand(rootDirectory=None):
         commandString += '\n'
 
     commandString += bashCheckResultCommand('adjoint_run_2',Nsplit)
+
+    for k in range(Nsplit):
+        commandString += 'cd %s/%s \n' % (rdir,directories[k])
+        commandString += setOptionCommand(inputFiles[k])
+        commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
+        commandString += 'setOption "enable_adjoint_restart" "false"\n'
+        if (rdir=='.'):
+            commandString += 'cd .. \n'
+        else:
+            commandString += 'cd ../../ \n'
+        commandString += '\n'
 
     for k in range(1,Nsplit):
         commandString += bashGetNodeListSliceCommand(k-1,NodesQfileZaxpy)
