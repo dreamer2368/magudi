@@ -21,7 +21,7 @@ def beforeLinmin(initial, zeroBaseline):
 
         fID = open(globalCommandFile,'w')
         for k in range(NcontrolSpace):
-            command = 'cp %s %s & \n' % (globalGradFiles[k], globalConjugateGradientFiles[k])
+            command = 'cp %s %s \n' % (globalGradFiles[k], globalConjugateGradientFiles[k])
             fID.write(command)
         fID.close()
         fID = open(decisionMakerCommandFile,'w')
@@ -46,7 +46,8 @@ def beforeLinmin(initial, zeroBaseline):
     df.to_csv(gradientLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
     df = pd.read_csv(CGLog, sep='\t', header=0)
-    df.loc[df.index[-1],'directory index'] = J1/J0
+    df_addendum = pd.DataFrame([(1.0-J0/J1)], columns=['reduction'])
+    df = df.append(df_addendum)
     df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
     dgg, dummy = readInnerProduct(dggFiles)

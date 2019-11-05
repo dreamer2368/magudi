@@ -74,7 +74,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 
     xs = parabolic_interp(stepBracket,JBracket)
     if (np.remainder(NumSearch,2)==1):
-        idx = int(NumSearch/2) + 1
+        idx = int(NumSearch/2)
         nLeft, nRight = int(NumSearch/2), int(NumSearch/2)
     elif ( xs < 0.5*(stepBracket[0]+stepBracket[2]) ):
         idx = int(NumSearch/2) - 1
@@ -88,7 +88,7 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
     dx = xs * ( (stepBracket[0]/xs)**( 1./(nLeft+1)*np.arange(1,nLeft+1) ) )
     dx -= stepBracket[0]
     steps[:nLeft] = xs - dx
-    steps[nRight:] = xs * ( (stepBracket[2]/xs)**( 1./(nRight+1)*np.arange(1,nRight+1) ) )
+    steps[-nRight:] = xs * ( (stepBracket[2]/xs)**( 1./(nRight+1)*np.arange(1,nRight+1) ) )
 
     df.loc[df['directory index']<=NumSearch,'directory index'] = 0
     data = {'step':steps, 'QoI':np.ones(NumSearch)*np.nan, 'directory index':list(range(1,NumSearch+1))}
