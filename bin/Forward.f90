@@ -154,7 +154,8 @@ program forward
 
   if ( region%simulationFlags%enableFunctional ) then
     if (procRank == 0) then
-      open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',          &
+      fileUnit = getFreeUnit()
+      open(unit = fileUnit, file = trim(outputFilename), action='write',          &
            iostat = stat, status = 'replace')
       write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
       close(fileUnit)

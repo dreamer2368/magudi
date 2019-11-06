@@ -201,7 +201,8 @@ program spatial_inner_product
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
   if (procRank == 0) then
-    open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',          &
+    fileUnit = getFreeUnit()
+    open(unit = fileUnit, file = trim(outputFilename), action='write',          &
          iostat = stat, status = 'replace')
     write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
     close(fileUnit)

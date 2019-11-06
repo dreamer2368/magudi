@@ -814,6 +814,7 @@ function runAdjoint(this, region) result(costSensitivity)
   real(SCALAR_KIND) :: time, startTime, timeStepSize
   logical :: adjointRestart, isFinalAdjointRestart, IS_FINAL_STEP
   integer :: accumulatedNTimesteps, intermediateEndTimestep
+  integer :: procRank, ierror
   SCALAR_TYPE :: instantaneousCostSensitivity
 
   assert(region%simulationFlags%enableController)
@@ -994,12 +995,15 @@ function runAdjoint(this, region) result(costSensitivity)
 
   end do !... timestep = startTimestep + sign(1, timemarchDirection), ...
 
+  call MPI_Comm_rank(region%comm, procRank, ierror)
+
   ! Finish writing remaining data gathered on probes.
   if (this%probeInterval > 0) call region%saveProbeData(ADJOINT, finish = .true.)
 
   ! Call controller hooks after time marching ends.
   if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
   call controller%hookAfterTimemarch(region, ADJOINT)
+print *, procRank, 'gradient is saved.'
 
   call this%residualManager%cleanup()
   call reverseMigratorFactory%cleanup()
