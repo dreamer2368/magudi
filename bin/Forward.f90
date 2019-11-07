@@ -152,15 +152,18 @@ program forward
      dummyValue = solver%runForward(region)
   end if
 
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
   if ( region%simulationFlags%enableFunctional ) then
     if (procRank == 0) then
-      fileUnit = getFreeUnit()
-      open(unit = fileUnit, file = trim(outputFilename), action='write',          &
+      open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',          &
            iostat = stat, status = 'replace')
       write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
       close(fileUnit)
     end if
   end if
+
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
   call solver%cleanup()
   call region%cleanup()

@@ -55,8 +55,7 @@ program run_zwxmwy
 
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
   if (procRank == 0) then
-    fileUnit = getFreeUnit()
-    open(unit = fileUnit, file = trim(zFilename), action='write',          &
+    open(unit = getFreeUnit(fileUnit), file = trim(zFilename), action='write',          &
          iostat = stat, status = 'replace')
     write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') z
     close(fileUnit)

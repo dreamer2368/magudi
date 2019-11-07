@@ -151,10 +151,12 @@ program adjoint
 
   adjointRestart = getOption("enable_adjoint_restart", .false.)
   accumulatedNTimesteps = -1
+
   if (adjointRestart) then ! This is relative timesteps: timestep at initial condition must be added.
     call getRequiredOption("adjoint_restart/accumulated_timesteps",accumulatedNTimesteps)
     assert(accumulatedNTimesteps.ge.0)
   end if
+
   if (adjointRestart .and. (accumulatedNTimesteps>0)) then
     if (procRank==0) then
       fileUnit = getFreeUnit()
@@ -165,14 +167,19 @@ program adjoint
     end if
     call MPI_Bcast(dummyValue, 1, SCALAR_TYPE_MPI, 0, MPI_COMM_WORLD, ierror)
   end if
+
   dummyValue = dummyValue + solver%runAdjoint(region)
+
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
   if (procRank == 0) then
-    fileUnit = getFreeUnit()
-    open(unit = fileUnit, file = trim(outputFilename), action='write',          &
+    open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',          &
       iostat = stat, status = 'replace')
     write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
     close(fileUnit)
   end if
+
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
   call solver%cleanup()
   call region%cleanup()
