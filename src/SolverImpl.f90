@@ -25,6 +25,7 @@ contains
 
     ! <<< Internal modules >>>
     use ErrorHandler, only : writeAndFlush
+    use InputHelper, only : getOption, getRequiredOption
 
     ! <<< Arguments >>>
     class(t_Solver) :: this
@@ -39,7 +40,8 @@ contains
     character(len = STRING_LENGTH) :: str, str_, filename
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
-    !integer :: j                                                    !SeungWhan: for debugging
+    logical :: adjointRestart, append
+    integer :: accumulatedTimesteps = -1
 
     assert_key(mode, (FORWARD, ADJOINT))
     assert(startTimestep >= 0)
@@ -93,9 +95,18 @@ contains
           case (ADJOINT)
              call this%controllerFactory%connect(controller)
              assert(associated(controller))
+
+             append = (startTimestep - timestep > this%reportInterval)
+             if (.not. append ) then
+                adjointRestart = getOption("enable_adjoint_restart", .false.)
+                if (adjointRestart) then ! This is relative timesteps: timestep at initial condition must be added.
+                    call getRequiredOption("adjoint_restart/accumulated_timesteps",accumulatedTimesteps)
+                    assert( accumulatedTimesteps.ge.0 )
+                end if
+                append = adjointRestart .and. (accumulatedTimesteps>0)
+             end if
              call controller%writeSensitivityToFile(region%comm, trim(this%outputPrefix) //  &
-                  ".cost_sensitivity.txt", timestep, time,                                   &
-                  startTimestep - timestep > this%reportInterval)
+                  ".cost_sensitivity.txt", timestep, time, append)
 
           end select
 
