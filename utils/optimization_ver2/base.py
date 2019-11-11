@@ -43,7 +43,7 @@ def QoI(rootDirectory = None):
     else:
         rdir = rootDirectory
 
-    subJ = np.zeros(2*Nsplit-1)
+    subJ = np.zeros(3*Nsplit-2)
     J = 0.0
     for k in range(Nsplit):
         subJ[k] = readScalar(rdir + '/' + directories[k] + '/' + outputFiles[k])
@@ -51,6 +51,9 @@ def QoI(rootDirectory = None):
         if (k<Nsplit-1):
             subJ[Nsplit+k] = 0.5 * readScalar(rdir+'/'+diffOutputFiles[k])
             J += matchingConditionWeight * subJ[Nsplit+k]
+
+            subJ[2*Nsplit-1+k] = readScalar(rdir+'/'+lagrangianOutputFiles[k])
+            J += subJ[2*Nsplit-1+k]
     return J, subJ
 
 def collectQoI(logFilename):
@@ -280,6 +283,21 @@ def forwardRunCommand(rootDirectory=None,zeroControlForcing=False):
 
     commandString += bashCheckResultCommand('forward_run_qfile_zxdoty',Nsplit-1)
 
+    for k in range(Nsplit-1):
+        commandString += bashGetNodeListSliceCommand(k,NodesQfileZxdoty)
+        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZxdoty,NprocQfileZxdoty)
+
+        diffFile = '%s/%s'%(rdir,diffFiles[k])
+        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
+        lagrangianOutputFile = '%s/%s'%(rdir,lagrangianOutputFiles[k])
+        commandString += './spatial_inner_product %s %s --output %s --input %s'             \
+                            % (diffFile, lagrangianFiles[k], lagrangianOutputFile, inputFile)
+        commandString += ' &> forward_qfile_lagrangian_result_%d.out &' % k
+        commandString += '\n'
+        commandString += 'pids[%d]=$!\n\n' % k
+
+    commandString += bashCheckResultCommand('forward_run_qfile_lagrangian',Nsplit-1)
+
     return commandString
 
 def adjointRunCommand(rootDirectory=None):
@@ -347,6 +365,20 @@ def adjointRunCommand(rootDirectory=None):
     commandString += bashCheckResultCommand('adjoint_run_qfile_zaxpy',Nsplit-1)
 
     for k in range(Nsplit-1):
+        commandString += bashGetNodeListSliceCommand(k,NodesQfileZaxpy)
+        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
+
+        matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
+        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
+        commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                      \
+        % (matchingAdjointFile, 1.0, lagrangianFiles[k], matchingAdjointFile, inputFile)
+        commandString += ' &> adjoint_qfile_lagrangian_result_%d.out &' % k
+        commandString += '\n'
+        commandString += 'pids[%d]=$!\n\n' % k
+
+    commandString += bashCheckResultCommand('adjoint_run_qfile_lagrangian',Nsplit-1)
+
+    for k in range(Nsplit-1):
         commandString += 'cd %s/%s \n' % (rdir,directories[k])
         commandString += setOptionCommand(inputFiles[k])
         commandString += '\n'
@@ -394,6 +426,20 @@ def adjointRunCommand(rootDirectory=None):
         commandString += 'pids[%d]=$!\n\n' % (k-1)
 
     commandString += bashCheckResultCommand('adjoint_run_ic',Nsplit-1)
+
+    for k in range(1,Nsplit):
+        commandString += bashGetNodeListSliceCommand(k-1,NodesQfileZaxpy)
+        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
+
+        icGradFile = '%s/%s' % (rdir,icGradientFiles[k])
+        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
+        commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                \
+                         % (icGradFile, -1.0, lagrangianFiles[k-1], icGradFile, inputFile)
+        commandString += ' &> adjoint_initial_condition_%d.out &' % (k-1)
+        commandString += '\n'
+        commandString += 'pids[%d]=$!\n\n' % (k-1)
+
+    commandString += bashCheckResultCommand('adjoint_run_ic_lagrangian',Nsplit-1)
 
     return commandString
 
