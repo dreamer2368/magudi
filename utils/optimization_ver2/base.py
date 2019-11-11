@@ -111,6 +111,8 @@ def readInnerProduct(outputFiles_=None):
     subScalar = np.zeros(NcontrolRegion+Nsplit-1)
     for k in range(NcontrolRegion+Nsplit-1):
         subScalar[k] = readScalar(outputFiles_[k])
+        if (k>=NcontrolRegion):
+            subScalar[k] *= initialConditionControllability
         scalar += subScalar[k]
 
     return scalar, subScalar
