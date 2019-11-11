@@ -85,9 +85,13 @@ def nextLinmin(forwardFilename, CGFilenames, controlForcingFilenames, zeroBaseli
 
     steps, Js = np.zeros(NumSearch), np.zeros(NumSearch)
     steps[idx] = xs
-    dx = xs * ( (stepBracket[0]/xs)**( 1./(nLeft+1)*np.arange(1,nLeft+1) ) )
-    dx -= stepBracket[0]
-    steps[:nLeft] = xs - dx
+    if (stepBracket[0]>0.0):
+        dx = xs * ( (stepBracket[0]/xs)**( 1./(nLeft+1)*np.arange(1,nLeft+1) ) )
+        dx -= stepBracket[0]
+        steps[:nLeft] = xs - dx
+    else:
+        dx = xs * ( golden_ratio**( -nLeft-1 + np.arange(1,nLeft+1) ) )
+        steps[:nLeft] = dx
     steps[-nRight:] = xs * ( (stepBracket[2]/xs)**( 1./(nRight+1)*np.arange(1,nRight+1) ) )
 
     df.loc[df['directory index']<=NumSearch,'directory index'] = 0
