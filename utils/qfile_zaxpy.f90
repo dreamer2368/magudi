@@ -216,9 +216,13 @@ program qfile_zaxpy
 
   do i=1,size(region%states)
     SAFE_DEALLOCATE(X(i)%F)
-    SAFE_DEALLOCATE(Y(i)%F)
   end do
   SAFE_DEALLOCATE(X)
+  if (allocated(Y)) then
+    do i = 1, size(Y)
+      SAFE_DEALLOCATE(Y(i)%F)
+    end do
+  end if
   SAFE_DEALLOCATE(Y)
   call region%cleanup()
 
