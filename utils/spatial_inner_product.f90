@@ -6,7 +6,7 @@ program spatial_inner_product
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   use Region_mod, only : t_Region
-  use RegionImpl, only : normalizeControlMollifier
+  use RegionImpl, only : normalizeControlMollifier, readBoundaryConditions
 
   use Grid_enum
   use State_enum
@@ -158,6 +158,7 @@ program spatial_inner_product
     do j=1,size(region%states)
       allocate(temp(j)%F(region%grids(j)%nGridPoints,region%solverOptions%nUnknowns))
       temp(j)%F = region%states(j)%conservedVariables
+      ! temp(j)%F(:,1:region%solverOptions%nUnknowns-1) = 0.0_wp
     end do
   end do
 
@@ -166,6 +167,10 @@ program spatial_inner_product
   call startTiming("load mollifier")
 
   if (mollifierFlag) then
+    ! Setup boundary conditions.
+    call getRequiredOption("boundary_condition_file", filename)
+    call region%setupBoundaryConditions(filename)
+
     call region%loadData(QOI_CONTROL_MOLLIFIER, mollifierFilename)
     call normalizeControlMollifier(region)
   else
@@ -183,7 +188,7 @@ program spatial_inner_product
   do i=1,size(region%states)
     dummyValue = dummyValue +                                                                &
                   region%grids(i)%computeInnerProduct(region%states(i)%conservedVariables,   &
-                                        temp(i)%F, region%grids(i)%controlMollifier(:,1))
+                                        temp(i)%F, region%grids(i)%controlMollifier(:,1)**2)
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
