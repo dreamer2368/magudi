@@ -41,8 +41,8 @@ def beforeLinmin(initial, zeroBaseline):
 
     df = pd.read_csv(gradientLog, sep='\t', header=0)
     gg1 = df.at[df.index[-1],'total']
+    gg0 = df.at[df.index[0],'total']
     df = df.append(dJ_new_df)
-    gg0 = df.at[df.index[-1],'total']
     df.to_csv(gradientLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
     df = pd.read_csv(CGLog, sep='\t', header=0)
@@ -50,10 +50,21 @@ def beforeLinmin(initial, zeroBaseline):
     df = df.append(df_addendum)
     df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
+    reduction = gg/gg0
+    if (reduction<=tol):
+        print ('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
+        commandFile = open(globalCommandFile,'w')
+        commandFile.write('exit 1\n')
+        commandFile.close()
+        commandFile = open(decisionMakerCommandFile,'w')
+        commandFile.write('exit 1\n')
+        commandFile.close()
+        return 0
+
     dgg, dummy = readInnerProduct(dggFiles)
 
     # Fletcher-Reeves
-    gamma1 = gg0/gg1
+    gamma1 = gg/gg1
     # Polak-Ribiere
     gamma = dgg/gg1
     if (gamma > gamma1):
@@ -88,21 +99,6 @@ def afterLinmin(zeroBaseline):
     J1, subJ1 = QoI('b')
     reduction = abs(J1-J0)/abs(J0+eps)
 
-#     df = pd.read_csv(CGLog, sep='\t', header=0)
-#     df.at[df.index[-1],'after linmin'] = J1
-#     df.at[df.index[-1],'reduction'] = reduction
-#     df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-
-    if (reduction<=tol):
-        print ('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
-        commandFile = open(globalCommandFile,'w')
-        commandFile.write('exit 1\n')
-        commandFile.close()
-        commandFile = open(decisionMakerCommandFile,'w')
-        commandFile.write('exit 1\n')
-        commandFile.close()
-        return 0
-
     #copy line minimization log
     import os
     numFiles = len(os.listdir('./linminLog/'))
@@ -133,6 +129,11 @@ def afterLinmin(zeroBaseline):
     commandString += gatherControlForcingGradientCommand()
     commandString += '\n'
     commandString += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
+
+    for k in range(Nsplit):
+        costSensitivityFile = '%s/%s.cost_sensitivity.txt'%(directories[k],prefixes[k])
+        commandString += 'cp %s linminLog/%d/\n'%(costSensitivityFile,numFiles)
+        
     # Polak-Ribiere
     commandString += dggCommand()
     fID = open(globalCommandFile,'w')
