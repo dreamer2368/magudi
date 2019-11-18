@@ -14,3 +14,5 @@ add_executable(extend_control_forcing $<TARGET_OBJECTS:magudiObj> extend_control
 add_executable(cost_spatial_distribution $<TARGET_OBJECTS:magudiObj> cost_spatial_distribution.f90)
 add_executable(spatial_inner_product $<TARGET_OBJECTS:magudiObj> spatial_inner_product.f90)
 add_executable(qfile_zaxpy $<TARGET_OBJECTS:magudiObj> qfile_zaxpy.f90)
+add_executable(control_mollifier_factor $<TARGET_OBJECTS:magudiObj> control_mollifier_factor.f90)
+add_executable(control_forcing_magnitude_in_time $<TARGET_OBJECTS:magudiObj> control_forcing_magnitude_in_time.f90)
