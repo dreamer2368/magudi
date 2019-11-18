@@ -242,7 +242,7 @@ contains
              if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
              select type (patch)
              class is (t_ActuatorPatch)
-                call patch%disperseAddVectorFromPatch(patch%controlForcing, F)
+                call patch%disperseAdd(patch%controlForcing, F)
              end select
            end do
 

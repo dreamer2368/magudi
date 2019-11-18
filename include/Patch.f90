@@ -45,7 +45,7 @@ module Patch_mod
      procedure, private, pass :: disperseTensorFromPatch
 
      procedure, private, pass :: disperseAddScalarFromPatch
-     procedure, pass :: disperseAddVectorFromPatch
+     procedure, private, pass :: disperseAddVectorFromPatch
      procedure, private, pass :: disperseAddTensorFromPatch
 
      procedure, private, pass :: gatherScalarOnPatch
