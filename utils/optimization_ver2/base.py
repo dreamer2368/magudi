@@ -262,7 +262,7 @@ def forwardRunCommand(rootDirectory=None,zeroControlForcing=False):
         inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
         commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                          \
                             % (diffFile,-1.0,icFile,matchingFile,inputFile)
-        commandString += ' &> forward_qfile_zaxpy_result_%d.out &' % k
+        commandString += ' &> %s/forward_qfile_zaxpy_result_%d.out &' % (rdir,k)
         commandString += '\n'
         commandString += 'pids[%d]=$!\n\n' % k
 
@@ -277,7 +277,7 @@ def forwardRunCommand(rootDirectory=None,zeroControlForcing=False):
         diffOutputFile = '%s/%s'%(rdir,diffOutputFiles[k])
         commandString += './spatial_inner_product %s %s --output %s --input %s'             \
                             % (diffFile, diffFile, diffOutputFile, inputFile)
-        commandString += ' &> forward_qfile_zxdoty_result_%d.out &' % k
+        commandString += ' &> %s/forward_qfile_zxdoty_result_%d.out &' % (rdir,k)
         commandString += '\n'
         commandString += 'pids[%d]=$!\n\n' % k
 
@@ -292,7 +292,7 @@ def forwardRunCommand(rootDirectory=None,zeroControlForcing=False):
         lagrangianOutputFile = '%s/%s'%(rdir,lagrangianOutputFiles[k])
         commandString += './spatial_inner_product %s %s --output %s --input %s'             \
                             % (diffFile, lagrangianFiles[k], lagrangianOutputFile, inputFile)
-        commandString += ' &> forward_qfile_lagrangian_result_%d.out &' % k
+        commandString += ' &> %s/forward_qfile_lagrangian_result_%d.out &' % (rdir,k)
         commandString += '\n'
         commandString += 'pids[%d]=$!\n\n' % k
 
@@ -358,7 +358,7 @@ def adjointRunCommand(rootDirectory=None):
         diffFile = '%s/%s'%(rdir,diffFiles[k])
         commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                      \
         % (matchingAdjointFile, matchingConditionWeight, diffFile, matchingAdjointFile, inputFile)
-        commandString += ' &> adjoint_qfile_zaxpy_result_%d.out &' % k
+        commandString += ' &> %s/adjoint_qfile_zaxpy_result_%d.out &' % (rdir,k)
         commandString += '\n'
         commandString += 'pids[%d]=$!\n\n' % k
 
@@ -372,7 +372,7 @@ def adjointRunCommand(rootDirectory=None):
         inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
         commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                      \
         % (matchingAdjointFile, 1.0, lagrangianFiles[k], matchingAdjointFile, inputFile)
-        commandString += ' &> adjoint_qfile_lagrangian_result_%d.out &' % k
+        commandString += ' &> %s/adjoint_qfile_lagrangian_result_%d.out &' % (rdir,k)
         commandString += '\n'
         commandString += 'pids[%d]=$!\n\n' % k
 
@@ -421,7 +421,7 @@ def adjointRunCommand(rootDirectory=None):
         inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
         commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                \
                          % (icGradFile, -matchingConditionWeight, diffFile, icAdjointFile, inputFile)
-        commandString += ' &> adjoint_initial_condition_%d.out &' % (k-1)
+        commandString += ' &> %s/adjoint_initial_condition_%d.out &' % (rdir,k-1)
         commandString += '\n'
         commandString += 'pids[%d]=$!\n\n' % (k-1)
 
@@ -435,7 +435,7 @@ def adjointRunCommand(rootDirectory=None):
         inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
         commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                \
                          % (icGradFile, -1.0, lagrangianFiles[k-1], icGradFile, inputFile)
-        commandString += ' &> adjoint_initial_condition_%d.out &' % (k-1)
+        commandString += ' &> %s/adjoint_initial_condition_%d.out &' % (rdir,k-1)
         commandString += '\n'
         commandString += 'pids[%d]=$!\n\n' % (k-1)
 
