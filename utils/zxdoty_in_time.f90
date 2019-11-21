@@ -97,9 +97,8 @@ contains
     integer(kind = MPI_OFFSET_KIND) :: globalSize, patchSize, bufferSize, sendcnt, indexQuotient
     integer(kind = MPI_OFFSET_KIND), dimension(:), allocatable :: recvcnt, displc
     SCALAR_TYPE, dimension(:), allocatable :: XBuffer, YBuffer, normBuffer
-    SCALAR_TYPE :: z, runningTimeQuadrature, RK4norm(4)
+    SCALAR_TYPE :: z, runningTimeQuadrature
 
-    RK4norm = (/ 1.0_wp/6.0_wp, 1.0_wp/3.0_wp, 1.0_wp/3.0_wp, 1.0_wp/6.0_wp /)
 
     ! Initialize MPI.
     call MPI_Comm_rank(comm, procRank, ierror)
@@ -162,7 +161,7 @@ contains
       call gracefulExit(comm, message)
     end if
     globalSize = XFileSize/SIZEOF_SCALAR
-    if (MOD(globalSize,int(4*nTimesteps,MPI_OFFSET_KIND))==0) then
+    if (MOD(globalSize,int(4*nTimesteps,MPI_OFFSET_KIND)) .ne. 0) then
       write(message, '(A)') "Number of timesteps does not match with global file size!"
       call gracefulExit(comm, message)
     end if
@@ -205,6 +204,7 @@ contains
         call startTiming("Read files")
 
         timeOffset = int( 4 * (nTimesteps-timestep) + (4-stage) , MPI_OFFSET_KIND)
+        timeOffset = timeOffset * patchSize * SIZEOF_SCALAR
 
         call MPI_Barrier(comm, ierror)
 
@@ -250,7 +250,7 @@ contains
         call MPI_Allreduce(MPI_IN_PLACE, z, 1, SCALAR_TYPE_MPI, MPI_SUM, comm, ierror)
         ! call MPI_Bcast(z, 1, SCALAR_TYPE_MPI, 0, comm, ierror)
 
-        runningTimeQuadrature = runningTimeQuadrature + z * RK4norm(stage)
+        runningTimeQuadrature = runningTimeQuadrature + z
 
         call endTiming("Compute z=X^T*norm*Y")
 
@@ -272,6 +272,10 @@ contains
 
     write(message, '(A)') 'z in time collection is finished.'
     call writeAndFlush(comm, output_unit, message)
+
+    deallocate(XBuffer)
+    deallocate(YBuffer)
+    deallocate(normBuffer)    
 
   end subroutine
 
