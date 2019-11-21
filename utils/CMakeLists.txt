@@ -16,3 +16,4 @@ add_executable(spatial_inner_product $<TARGET_OBJECTS:magudiObj> spatial_inner_p
 add_executable(qfile_zaxpy $<TARGET_OBJECTS:magudiObj> qfile_zaxpy.f90)
 add_executable(control_mollifier_factor $<TARGET_OBJECTS:magudiObj> control_mollifier_factor.f90)
 add_executable(control_forcing_magnitude_in_time $<TARGET_OBJECTS:magudiObj> control_forcing_magnitude_in_time.f90)
+add_executable(zxdoty_in_time $<TARGET_OBJECTS:magudiObj> zxdoty_in_time.f90)
