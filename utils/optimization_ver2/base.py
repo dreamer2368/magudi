@@ -115,7 +115,8 @@ def readInnerProduct(outputFiles_=None):
     for k in range(NcontrolRegion+Nsplit-1):
         subScalar[k] = readScalar(outputFiles_[k])
         if (k>=NcontrolRegion):
-            subScalar[k] *= initialConditionControllability
+            ic_idx = k + 1 - NcontrolRegion
+            subScalar[k] *= initialConditionControllability[ic_idx]
         scalar += subScalar[k]
 
     return scalar, subScalar
@@ -144,9 +145,9 @@ def zaxpyCommand(zFiles,a,xFiles,yFiles=None):
 
     commandString += bashCheckResultCommand('zaxpy_control_forcing',NcontrolRegion)
 
-    w2 = initialConditionControllability
     for k in range(NcontrolRegion,NcontrolRegion+Nsplit-1):
         index = k+1 - NcontrolRegion
+        w2 = initialConditionControllability[index]
         commandString += bashGetNodeListSliceCommand(index,NodesQfileZaxpy)
         commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
 

@@ -5,7 +5,9 @@ startTimestep = 12                                       # initial timestep of t
 totalTimestep = (Nsplit-1) * NtimestepOffset + Nts       # number of timesteps for the entire time span
 
 matchingConditionWeight = 1.0e-7                         # weight for matching condition penalty
-initialConditionControllability = 1.0e0                  # weight for derivative with respect to initial conditions
+import numpy as np
+initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
+initialConditionControllability[0] = 0.0
 
 NcontrolRegion = 1                                       # number of control region
 
