@@ -37,16 +37,17 @@ def grid(size, eta=0.97):
 
 def initial_condition(g, mach_number=1.5, gamma=1.4):
     y = g.xyz[0][:,:,:,1]
+    u0 = mach_number * 1.5 * ( 1.0 - y**2 )
 
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     s.q[0][:,:,:,0] = 1.0
     s.q[0][:,:,:,2:4] = 0.0
     s.q[0][:,:,:,4] = 1.0 / gamma
 
-    s.q[0][:,:,:,1] = mach_number * 1.5 * ( 1.0 - y**2 )
+    s.q[0][:,:,:,1] = u0
     for k in range(7):
         amp = 0.1 * np.random.random()
-        s.q[0][:,1:-1,:,1] += mach_number * amp * np.sin( (2*k+3) * np.pi * y[:,1:-1,:] )
+        s.q[0][:,1:-1,:,1] += u0[:,1:-1,:] * amp * np.sin( (2*k+3) * np.pi * y[:,1:-1,:] )
     return s.fromprimitive()
 
 if __name__ == '__main__':
