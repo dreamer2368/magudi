@@ -194,6 +194,13 @@ def distributeCommand(rootDirectory,zeroControlForcing):
 
 def gatherControlForcingGradientCommand():
     commandString = ''
+
+    from os import path
+    for j in range(NcontrolRegion):
+        if (path.exists(globalGradFiles[j])):
+            print ("Previous global gradient file %s still exists. Purging it for safety."%(globalGradFiles[j]))
+            commandString += 'rm %s \n'%(globalGradFiles[j])
+
     commandString += bashGetNodeListCommand()
     for k in range(Nsplit):
         kOffset = NtimestepOffset * k
