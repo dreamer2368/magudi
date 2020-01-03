@@ -58,21 +58,29 @@ def mean_pressure(s):
     f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
     return f
 
-def random_solution(g):
+def random_solution(g,time=0.0,timestep=0):
 
     gamma = 1.4
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     n = s.get_size(0)
-    s.q[0][:,:,0,0] = (2.0 - 0.5) * np.random.rand(n[0],n[1]) + 0.5
-    s.q[0][:,:,0,1] = 2.0 * np.random.rand(n[0],n[1]) - 1.0
-    s.q[0][:,:,0,2] = 2.0 * np.random.rand(n[0],n[1]) - 1.0
-    s.q[0][:,:,0,4] = (2.0 - 0.5) * np.random.rand(n[0],n[1]) + 0.5
+    s.q[0][:,:,0,0] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-2 + 1.0
+    s.q[0][:,:,0,1] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-3 + 0.0
+    s.q[0][:,:,0,2] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-3 + 0.0
+    s.q[0][:,:,0,4] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-2 + 1./(gamma-1.)
     s.q[0][:,:,0,4] *= (gamma-1.)/gamma * s.q[0][:,:,0,0]
+
+    s.time = time
+    s._format.aux_header[0] = timestep
 
     return s.fromprimitive(gamma)
 
 if __name__ == '__main__':
     g = grid([201, 201])
     g.save('AcousticMonopole.xyz')
+
+    dt = 5.0e-2
+    Nt = 100
+    for k in range(2):
+        random_solution(g,k*Nt*dt,k*Nt).save('AcousticMonopole-%d.ic.q'%k)
     target_mollifier(g).save('AcousticMonopole.target_mollifier.f')
     control_mollifier(g).save('AcousticMonopole.control_mollifier.f')
