@@ -323,6 +323,7 @@ def adjointRunCommand(rootDirectory=None):
         commandString += 'setOption "number_of_timesteps" %d \n' % (Nts-NtimestepOffset)
         commandString += 'setOption "adjoint_restart\/accumulated_timesteps" 0 \n'
         commandString += 'setOption "adjoint_restart\/intermediate_end_timestep" %d \n' % (NtimestepOffset)
+        commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "false" \n'
 
         commandString += bashGetNodeListSliceCommand(k,NodesAdjoint)
         commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesAdjoint,NprocAdjoint)
@@ -393,6 +394,8 @@ def adjointRunCommand(rootDirectory=None):
         commandString += 'setOption "number_of_timesteps" %d \n' % (NtimestepOffset)
         commandString += 'setOption "adjoint_restart\/accumulated_timesteps" %d \n' % (Nts-NtimestepOffset)
         commandString += 'setOption "adjoint_restart\/intermediate_end_timestep" 0 \n'
+        if (Nts==NtimestepOffset):
+            commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "true" \n'
 
         commandString += bashGetNodeListSliceCommand(k,NodesAdjoint)
         commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesAdjoint,NprocAdjoint)
@@ -413,6 +416,7 @@ def adjointRunCommand(rootDirectory=None):
         commandString += setOptionCommand(inputFiles[k])
         commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
         commandString += 'setOption "enable_adjoint_restart" "false"\n'
+        commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "false" \n'
         if (rdir=='.'):
             commandString += 'cd .. \n'
         else:

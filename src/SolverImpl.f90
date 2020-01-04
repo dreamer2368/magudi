@@ -823,7 +823,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
-  logical :: adjointRestart, isFinalAdjointRestart, IS_FINAL_STEP
+  logical :: adjointRestart, nonzeroAdjointInitialCondition, isFinalAdjointRestart, IS_FINAL_STEP
   integer :: accumulatedNTimesteps, intermediateEndTimestep
   integer :: procRank, ierror
   SCALAR_TYPE :: instantaneousCostSensitivity
@@ -852,6 +852,7 @@ function runAdjoint(this, region) result(costSensitivity)
   if (region%simulationFlags%steadyStateSimulation)                                          &
        call this%residualManager%setup("adjoint_residuals", region)
 
+  ! Load adjoint restart options.
   adjointRestart = getOption("enable_adjoint_restart", .false.)
   isFinalAdjointRestart = .true.
   accumulatedNTimesteps = -1
@@ -860,6 +861,9 @@ function runAdjoint(this, region) result(costSensitivity)
     call getRequiredOption("adjoint_restart/accumulated_timesteps",accumulatedNTimesteps)
     call getRequiredOption("adjoint_restart/intermediate_end_timestep",intermediateEndTimestep)
     assert( (accumulatedNTimesteps.ge.0).and.(intermediateEndTimestep.ge.0) )
+
+    nonzeroAdjointInitialCondition =                                                          &
+      getOption("adjoint_restart/nonzero_initial_condition",.false.) .or. (accumulatedNTimesteps>0)
   end if
 
   ! Load the initial condition: this does not require restart filename even for adjoint restart.
@@ -906,12 +910,11 @@ function runAdjoint(this, region) result(costSensitivity)
   region%states(:)%timeProgressive = startTime
 
   ! Adjoint initial condition (if specified).
-  if (adjointRestart .and. (accumulatedNTimesteps>0) ) then
-    write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
+  write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
+  if (nonzeroAdjointInitialCondition) then
     call loadInitialCondition(this, region, ADJOINT, filename)
   else
     call loadInitialCondition(this, region, ADJOINT)
-    write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
     call region%saveData(QOI_ADJOINT_STATE, filename)
   end if
 
