@@ -28,7 +28,7 @@ gradientLogColumns = ['total']
 for j in range(NcontrolRegion):
     gradientLogColumns += ['control_forcing%d'%j]
 for k in range(Nsplit):
-    gradientLogColumns += ['initial_condition%d'%(k+1)]
+    gradientLogColumns += ['initial_condition%d'%k]
 
 ##################           global level files              #####################
 
