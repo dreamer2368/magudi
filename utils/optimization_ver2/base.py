@@ -180,7 +180,9 @@ def gatherControlForcingGradientCommand():
             sliceGradFile = '%s/%s%s'%(directories[k],prefixes[k],gradientFiles[j])
             commands += ['./paste_control_forcing %s %s %d %d %d'                                                           \
                          % (globalGradFiles[j], sliceGradFile, totalTimestep, kOffset, Nts)]
-    commandString += bashParallelLoopCommand(commands,NodesPaste,NprocPaste,'paste_control_forcing')
+    commandString += bashSerialLoopCommand(commands,NodesPaste,NprocPaste,'paste_control_forcing')
+
+    return commandString
 
 def switchDirectory(firstDirectory, secondDirectory, df=None):
     if (firstDirectory==secondDirectory):
@@ -231,7 +233,7 @@ def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
         diffFile = '%s/%s'%(bdir,diffFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         diffOutputFile = '%s/%s'%(bdir,diffOutputFiles[k])
-        commands += ['./spatial_inner_product %s %s --output %s --input %s'             \
+        commands += ['./spatial_inner_product %s %s --output %s --input %s'                 \
                     % (diffFile, diffFile, diffOutputFile, inputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
                                             'forward_qfile_zxdoty')
@@ -241,8 +243,8 @@ def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
         diffFile = '%s/%s'%(bdir,diffFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         lagrangianOutputFile = '%s/%s'%(bdir,lagrangianOutputFiles[k])
-        commandString += './spatial_inner_product %s %s --output %s --input %s'             \
-                            % (diffFile, lagrangianFiles[k], lagrangianOutputFile, inputFile)
+        commands += ['./spatial_inner_product %s %s --output %s --input %s'                 \
+                    % (diffFile, lagrangianFiles[k], lagrangianOutputFile, inputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
                                             'forward_qfile_lagrangian')
 

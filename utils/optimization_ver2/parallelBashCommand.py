@@ -29,11 +29,15 @@ def bashCheckResultCommand(procedureName, countFails=0):
     return commandString
 
 def bashGetNodeListCommand():
-    commandString = 'nodeList=()\n'                                                         \
-                    'while IFS= read -r line\n'                                             \
-                    'do\n'                                                                  \
-                    '    nodeList+=("$line")\n'                                             \
-                    'done < <( scontrol show hostnames ${SLURM_JOB_NODELIST} )\n\n'
+    commandString =  'if [ ${SLURM_JOB_NUM_NODES} -ne %d ]; then\n' % maxNodes
+    commandString += '   echo "${SLURM_JOB_NUM_NODES} number of nodes are assigned."\n'     \
+                     '   echo "max nodes in python: %d."\n' % maxNodes
+    commandString += '   exit -1\n fi \n\n'
+    commandString += 'nodeList=()\n'                                                        \
+                     'while IFS= read -r line\n'                                            \
+                     'do\n'                                                                 \
+                     '    nodeList+=("$line")\n'                                            \
+                     'done < <( scontrol show hostnames ${SLURM_JOB_NODELIST} )\n\n'
     return commandString
 
 def bashGetNodeListSliceCommand(index, numNodes):
@@ -46,6 +50,30 @@ def bashGetNodeListSliceCommand(index, numNodes):
         commandString += '    let "nodeIndex=%d+${j}"\n' % nodeIndex
         commandString += '    nodeListString+=",${nodeList[${nodeIndex}]}"\n'               \
                          'done\n\n'
+
+    return commandString
+
+def bashSerialLoopCommand(commands,nodePerCommand,procsPerCommand,
+                            prefix='job',directories=None):
+    if (directories is None):
+        moveDir = False
+    else:
+        moveDir = True
+        if (len(commands)!=len(directories)):
+            raise ValueError('Provide directories for all commands.')
+
+    commandString = ''
+    commandString += bashGetNodeListCommand()
+
+    for k, command in enumerate(commands):
+        if (moveDir): commandString += 'cd %s \n'%(directories[k])
+        commandString += bashGetNodeListSliceCommand(k,nodePerCommand)
+        commandString += 'srun -N %d -n %d -w ${nodeListString} '                         \
+                         % (nodePerCommand,procsPerCommand)
+        commandString += command
+        commandString += ' &> %s/%s_result_%d.out \n' % (OUTDIR,prefix,k)
+        commandString += bashCheckResultCommand('%s-serial-%d'%(prefix,k))
+        if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
 
     return commandString
 
