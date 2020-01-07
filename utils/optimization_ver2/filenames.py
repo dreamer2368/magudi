@@ -4,6 +4,10 @@ from constants import *
 
 decisionMaker = 'optimization.py'
 
+from os import path, getcwd
+ROOTDIR = getcwd()
+OUTDIR = '%s/out'%ROOTDIR
+
 globalPrefix = 'AcousticMonopole'
 
 globalCommandFile = globalPrefix + '.command.sh'

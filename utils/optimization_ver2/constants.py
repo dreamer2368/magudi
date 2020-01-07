@@ -13,7 +13,11 @@ NcontrolRegion = 1                                       # number of control reg
 
 NcontrolSpace = NcontrolRegion + Nsplit - 1              # dimension of control space
 
+enableParallelBash = True
+bashVerbose = False                                      # check only when serial bash loops
 pcc = 36
+maxNodes = 10
+
 NprocForward, NprocAdjoint = pcc*3, pcc*3                # number of processors for forward/adjoint run
 NprocZaxpy, NprocQfileZaxpy = 10, 10                     # number of processors for zaxpy works
 NprocZxdoty, NprocQfileZxdoty = 10, 10                   # number of processors for inner product works

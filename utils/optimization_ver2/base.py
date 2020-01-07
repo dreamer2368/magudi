@@ -37,22 +37,22 @@ def readScalar(scalarFilename):
         fID.close()
         return scalar
 
-def QoI(rootDirectory = None):
-    if (rootDirectory is None):
-        rdir = '.'
+def QoI(baseDirectory = None):
+    if (baseDirectory is None):
+        bdir = '.'
     else:
-        rdir = rootDirectory
+        bdir = baseDirectory
 
     subJ = np.zeros(3*Nsplit-2)
     J = 0.0
     for k in range(Nsplit):
-        subJ[k] = readScalar(rdir + '/' + directories[k] + '/' + outputFiles[k])
+        subJ[k] = readScalar(bdir + '/' + directories[k] + '/' + outputFiles[k])
         J += subJ[k]
         if (k<Nsplit-1):
-            subJ[Nsplit+k] = 0.5 * readScalar(rdir+'/'+diffOutputFiles[k])
+            subJ[Nsplit+k] = 0.5 * readScalar(bdir+'/'+diffOutputFiles[k])
             J += matchingConditionWeight * subJ[Nsplit+k]
 
-            subJ[2*Nsplit-1+k] = readScalar(rdir+'/'+lagrangianOutputFiles[k])
+            subJ[2*Nsplit-1+k] = readScalar(bdir+'/'+lagrangianOutputFiles[k])
             J += subJ[2*Nsplit-1+k]
     return J, subJ
 
@@ -76,33 +76,22 @@ def innerProductCommand(xFiles,yFiles,outputFiles_=None):
         raise LookupError('Number of files must be equal to '+str(Nsplit+NcontrolRegion-1)+'!')
 
     commandString = ''
-    commandString += bashGetNodeListCommand()
+
+    commands = []
     for j in range(NcontrolRegion):
-        command = bashGetNodeListSliceCommand(j,NodesZxdoty)
-        command += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesZxdoty,NprocZxdoty)
-        command += './zxdoty %s %s %s %s'                                                           \
-                    % (outputFiles_[j], xFiles[j], yFiles[j], globalNormFiles[j])
-        command += ' &> zxdoty_result_%d.out &' % j
-        command += '\n'
-        command += 'pids[%d]=$!\n\n' % j
-        commandString += command
+        commands += ['./zxdoty %s %s %s %s'                                                           \
+                    % (outputFiles_[j], xFiles[j], yFiles[j], globalNormFiles[j])]
+    commandString += bashParallelLoopCommand(commands,NodesZxdoty,NprocZxdoty,
+                                            'zxdoty_control_forcing')
 
-    commandString += bashCheckResultCommand('zxdoty_control_forcing',NcontrolRegion)
-
+    commands = []
     for k in range(NcontrolRegion,NcontrolRegion+Nsplit-1):
         index = k+1 - NcontrolRegion
-        command = bashGetNodeListSliceCommand(index,NodesQfileZxdoty)
-        command += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZxdoty,NprocQfileZxdoty)
-
         inputFile = '%s/%s'%(directories[index],inputFiles[index])
-        command += './spatial_inner_product %s %s --input %s --output %s'                    \
-                    % (xFiles[k], yFiles[k], inputFile, outputFiles_[k])
-        command += ' &> zxdoty_result_%d.out &' % k
-        command += '\n'
-        command += 'pids[%d]=$!\n\n' % k
-        commandString += command
-
-    commandString += bashCheckResultCommand('zxdoty_initial_condition',Nsplit-1)
+        commands += ['./spatial_inner_product %s %s --input %s --output %s'                    \
+                    % (xFiles[k], yFiles[k], inputFile, outputFiles_[k])]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
+                                            'zxdoty_initial_condition')
 
     return commandString
 
@@ -131,64 +120,49 @@ def zaxpyCommand(zFiles,a,xFiles,yFiles=None):
             raise LookupError('Number of files must be equal to '+str(Nsplit+NcontrolRegion-1)+'!')
 
     commandString = ''
-    commandString += bashGetNodeListCommand()
+
+    commands = []
     for j in range(NcontrolRegion):
-        commandString += bashGetNodeListSliceCommand(j,NodesZaxpy)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesZaxpy,NprocZaxpy)
-
-        commandString += './zaxpy ' + zFiles[j] + ' ' + "{:.16E}".format(a) + ' ' + xFiles[j]
+        command = './zaxpy ' + zFiles[j] + ' ' + "{:.16E}".format(a) + ' ' + xFiles[j]
         if (yFiles is not None):
-            commandString += ' '+yFiles[j]
-        commandString += ' &> zaxpy_result_%d.out &' % j
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % j
+            command += ' '+yFiles[j]
+        commands += [command]
+    commandString += bashParallelLoopCommand(commands,NodesZaxpy,NprocZaxpy,
+                                            'zaxpy_control_forcing')
 
-    commandString += bashCheckResultCommand('zaxpy_control_forcing',NcontrolRegion)
-
+    commands = []
     for k in range(NcontrolRegion,NcontrolRegion+Nsplit-1):
         index = k+1 - NcontrolRegion
         w2 = initialConditionControllability[index]
-        commandString += bashGetNodeListSliceCommand(index,NodesQfileZaxpy)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
-
         inputFile = '%s/%s'%(directories[index],inputFiles[index])
-        commandString += './qfile_zaxpy ' + zFiles[k] + ' ' + "{:.16E}".format(a*w2) + ' ' + xFiles[k]
+        command = './qfile_zaxpy ' + zFiles[k] + ' ' + "{:.16E}".format(a*w2) + ' ' + xFiles[k]
         if (yFiles is not None):
-            commandString += ' '+yFiles[k]
-        commandString += ' &> zaxpy_result_%d.out &' % k
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
-
-    commandString += bashCheckResultCommand('zaxpy_initial_condition',Nsplit-1)
+            command += ' '+yFiles[k]
+        commands += [command]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                            'zaxpy_initial_condition')
 
     return commandString
 
-def distributeCommand(rootDirectory,zeroControlForcing):
-    rdir = rootDirectory
+def distributeCommand(baseDirectory,zeroControlForcing):
+    bdir = baseDirectory
 
     commandString = ''
     commandString += bashGetNodeListCommand()
 
     if (not zeroControlForcing):
+        commands = []
         for k in range(Nsplit):
             kOffset = NtimestepOffset * k
             for j in range(NcontrolRegion):
-                nodeIndex = NcontrolRegion * k + j
-                commandString += bashGetNodeListSliceCommand(nodeIndex,NodesSlice)
-                commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesSlice,NprocSlice)
-
-                sliceControlForcingFile = '%s/%s/%s%s'%(rdir,directories[k],prefixes[k],controlForcingFiles[j])
-                globalControlForcingFile = '%s/%s'%(rdir,globalControlSpaceFiles[j])
-                commandString += './slice_control_forcing %s %s %d %d %d'                                                           \
-                                 % (sliceControlForcingFile, globalControlForcingFile, totalTimestep, kOffset, Nts)
-                commandString += ' &> slice_result_%d.out &' % nodeIndex
-                commandString += '\n'
-                commandString += 'pids[%d]=$!\n\n' % nodeIndex
-
-        commandString += bashCheckResultCommand('slice_control_forcing',Nsplit*NcontrolRegion)
+                sliceControlForcingFile = '%s/%s/%s%s'%(bdir,directories[k],prefixes[k],controlForcingFiles[j])
+                globalControlForcingFile = '%s/%s'%(bdir,globalControlSpaceFiles[j])
+                commands += ['./slice_control_forcing %s %s %d %d %d'                                                           \
+                             % (sliceControlForcingFile, globalControlForcingFile, totalTimestep, kOffset, Nts)]
+        commandString += bashParallelLoopCommand(commands,NodesSlice,NprocSlice,'slice_control_forcing')
 
     for k in range(Nsplit):
-        commandString += 'cp ' + '%s/%s'%(rdir,icFiles[k]) + ' ' + '%s/%s/%s'%(rdir,directories[k],icFiles[k]) + '\n'
+        commandString += 'cp ' + '%s/%s'%(bdir,icFiles[k]) + ' ' + '%s/%s/%s'%(bdir,directories[k],icFiles[k]) + '\n'
 
     return commandString
 
@@ -201,21 +175,14 @@ def gatherControlForcingGradientCommand():
             print ("Previous global gradient file %s still exists. Purging it for safety."%(globalGradFiles[j]))
             commandString += 'rm %s \n'%(globalGradFiles[j])
 
-    commandString += bashGetNodeListCommand()
+    commands = []
     for k in range(Nsplit):
         kOffset = NtimestepOffset * k
         for j in range(NcontrolRegion):
-            commandString += bashGetNodeListSliceCommand(j,NodesPaste)
-            commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesPaste,NprocPaste)
-
             sliceGradFile = '%s/%s%s'%(directories[k],prefixes[k],gradientFiles[j])
-            commandString += './paste_control_forcing %s %s %d %d %d'                                                           \
-                             % (globalGradFiles[j], sliceGradFile, totalTimestep, kOffset, Nts)
-            commandString += ' &> paste_result_%d.out &' % j
-            commandString += '\n'
-            commandString += 'pids[%d]=$!\n\n' % j
-        commandString += bashCheckResultCommand('paste_control_forcing_%d'%k,NcontrolRegion)
-    return commandString
+            commands += ['./paste_control_forcing %s %s %d %d %d'                                                           \
+                         % (globalGradFiles[j], sliceGradFile, totalTimestep, kOffset, Nts)]
+    commandString += bashParallelLoopCommand(commands,NodesPaste,NprocPaste,'paste_control_forcing')
 
 def switchDirectory(firstDirectory, secondDirectory, df=None):
     if (firstDirectory==secondDirectory):
@@ -233,113 +200,85 @@ def switchDirectory(firstDirectory, secondDirectory, df=None):
         df.at[df['directory index']==-1,'directory index'] = secondDirectory
     return
 
-def forwardRunCommand(rootDirectory=None,zeroControlForcing=False):
-    if (rootDirectory is None):
-        rdir = '.'
+def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
+    if (baseDirectory is None):
+        bdir = '.'
     else:
-        rdir = rootDirectory
+        bdir = baseDirectory
 
     commandString = ''
-    commandString += distributeCommand(rdir,zeroControlForcing)
+    commandString += distributeCommand(bdir,zeroControlForcing)
 
+    commands, commandDirs = [], []
     for k in range(Nsplit):
-        commandString += 'cd %s/%s \n'%(rdir,directories[k])
+        commandDirs += ['%s/%s'%(bdir,directories[k])]
+        commands += ['./forward --input %s' % inputFiles[k]]
+    commandString += bashParallelLoopCommand(commands,NodesForward,NprocForward,
+                                            'forward',directories=commandDirs)
 
-        commandString += bashGetNodeListSliceCommand(k,NodesForward)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesForward,NprocForward)
-        commandString += './forward --input %s' % inputFiles[k]
-        commandString += ' &> forward_result_%d.out &' % k
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
-
-        if (rdir=='.'):
-            commandString += 'cd .. \n'
-        else:
-            commandString += 'cd ../../ \n'
-
-    commandString += bashCheckResultCommand('forward_runs',Nsplit)
-
+    commands = []
     for k in range(Nsplit-1):
-        commandString += bashGetNodeListSliceCommand(k,NodesQfileZaxpy)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
+        matchingFile = '%s/%s/%s'%(bdir,directories[k],matchingForwardFiles[k])
+        icFile = '%s/%s/%s'%(bdir,directories[k+1],icFiles[k+1])
+        diffFile = '%s/%s'%(bdir,diffFiles[k])
+        inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
+        commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                              \
+                    % (diffFile,-1.0,icFile,matchingFile,inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                            'forward_qfile_zaxpy')
 
-        kOffset = startTimestep + NtimestepOffset * (k+1)
-        matchingFile = '%s/%s/%s'%(rdir,directories[k],matchingForwardFiles[k])
-        icFile = '%s/%s/%s'%(rdir,directories[k+1],icFiles[k+1])
-        diffFile = '%s/%s'%(rdir,diffFiles[k])
-        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
-        commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                          \
-                            % (diffFile,-1.0,icFile,matchingFile,inputFile)
-        commandString += ' &> %s/forward_qfile_zaxpy_result_%d.out &' % (rdir,k)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
-
-    commandString += bashCheckResultCommand('forward_run_qfile_zaxpy',Nsplit-1)
-
+    commands = []
     for k in range(Nsplit-1):
-        commandString += bashGetNodeListSliceCommand(k,NodesQfileZxdoty)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZxdoty,NprocQfileZxdoty)
+        diffFile = '%s/%s'%(bdir,diffFiles[k])
+        inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
+        diffOutputFile = '%s/%s'%(bdir,diffOutputFiles[k])
+        commands += ['./spatial_inner_product %s %s --output %s --input %s'             \
+                    % (diffFile, diffFile, diffOutputFile, inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
+                                            'forward_qfile_zxdoty')
 
-        diffFile = '%s/%s'%(rdir,diffFiles[k])
-        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
-        diffOutputFile = '%s/%s'%(rdir,diffOutputFiles[k])
-        commandString += './spatial_inner_product %s %s --output %s --input %s'             \
-                            % (diffFile, diffFile, diffOutputFile, inputFile)
-        commandString += ' &> %s/forward_qfile_zxdoty_result_%d.out &' % (rdir,k)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
-
-    commandString += bashCheckResultCommand('forward_run_qfile_zxdoty',Nsplit-1)
-
+    commands = []
     for k in range(Nsplit-1):
-        commandString += bashGetNodeListSliceCommand(k,NodesQfileZxdoty)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZxdoty,NprocQfileZxdoty)
-
-        diffFile = '%s/%s'%(rdir,diffFiles[k])
-        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
-        lagrangianOutputFile = '%s/%s'%(rdir,lagrangianOutputFiles[k])
+        diffFile = '%s/%s'%(bdir,diffFiles[k])
+        inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
+        lagrangianOutputFile = '%s/%s'%(bdir,lagrangianOutputFiles[k])
         commandString += './spatial_inner_product %s %s --output %s --input %s'             \
                             % (diffFile, lagrangianFiles[k], lagrangianOutputFile, inputFile)
-        commandString += ' &> %s/forward_qfile_lagrangian_result_%d.out &' % (rdir,k)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
-
-    commandString += bashCheckResultCommand('forward_run_qfile_lagrangian',Nsplit-1)
+    commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
+                                            'forward_qfile_lagrangian')
 
     return commandString
 
-def adjointRunCommand(rootDirectory=None):
-    if (rootDirectory is None):
-        rdir = '.'
+def adjointRunCommand(baseDirectory=None):
+    if (baseDirectory is None):
+        bdir = '.'
     else:
-        rdir = rootDirectory
+        bdir = baseDirectory
 
     commandString = ''
-    commandString += bashGetNodeListCommand()
     for k in range(Nsplit-1):
-        commandString += 'cd %s/%s \n' % (rdir,directories[k])
+        commandString += 'cd %s/%s \n' % (bdir,directories[k])
         commandString += setOptionCommand(inputFiles[k])
         commandString += 'setOption "enable_adjoint_restart" "true"\n'
         commandString += 'setOption "number_of_timesteps" %d \n' % (Nts-NtimestepOffset)
         commandString += 'setOption "adjoint_restart\/accumulated_timesteps" 0 \n'
         commandString += 'setOption "adjoint_restart\/intermediate_end_timestep" %d \n' % (NtimestepOffset)
         commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "false" \n'
-
-        commandString += bashGetNodeListSliceCommand(k,NodesAdjoint)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesAdjoint,NprocAdjoint)
-        commandString += './adjoint --input %s' % inputFiles[k]
-        commandString += ' &> adjoint_result_%d.out &' % k
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
-
-        if (rdir=='.'):
+        if (bdir=='.'):
             commandString += 'cd .. \n'
         else:
             commandString += 'cd ../../ \n'
         commandString += '\n'
 
+    commands, commandDirs = [], []
+    for k in range(Nsplit-1):
+        commandDirs += ['%s/%s' % (bdir,directories[k])]
+        commands += ['./adjoint --input %s' % inputFiles[k]]
+    commandString += bashParallelLoopCommand(commands,NodesAdjoint,NprocAdjoint,
+                                            'adjoint1',directories=commandDirs)
+
     k = Nsplit - 1
-    commandString += 'cd %s/%s \n' % (rdir,directories[k])
+    commandString += 'cd %s/%s \n' % (bdir,directories[k])
     commandString += setOptionCommand(inputFiles[k])
     commandString += 'setOption "enable_adjoint_restart" "false"\n'
     commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
@@ -350,45 +289,33 @@ def adjointRunCommand(rootDirectory=None):
     commandString += ' &> adjoint_result_%d.out &' % k
     commandString += '\n'
     commandString += 'pids[%d]=$!\n\n' % k
-    if (rdir=='.'):
+    if (bdir=='.'):
         commandString += 'cd .. \n'
     else:
         commandString += 'cd ../../ \n'
     commandString += '\n'
 
-    commandString += bashCheckResultCommand('adjoint_run_1',Nsplit-1)
-
+    commands = []
     for k in range(Nsplit-1):
-        commandString += bashGetNodeListSliceCommand(k,NodesQfileZaxpy)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
-
         matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
-        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
-        diffFile = '%s/%s'%(rdir,diffFiles[k])
-        commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-        % (matchingAdjointFile, matchingConditionWeight, diffFile, matchingAdjointFile, inputFile)
-        commandString += ' &> %s/adjoint_qfile_zaxpy_result_%d.out &' % (rdir,k)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
+        inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
+        diffFile = '%s/%s'%(bdir,diffFiles[k])
+        commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
+        % (matchingAdjointFile, matchingConditionWeight, diffFile, matchingAdjointFile, inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                            'adjoint_run_qfile_zaxpy')
 
-    commandString += bashCheckResultCommand('adjoint_run_qfile_zaxpy',Nsplit-1)
-
+    commands = []
     for k in range(Nsplit-1):
-        commandString += bashGetNodeListSliceCommand(k,NodesQfileZaxpy)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
-
         matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
-        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
-        commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-        % (matchingAdjointFile, 1.0, lagrangianFiles[k], matchingAdjointFile, inputFile)
-        commandString += ' &> %s/adjoint_qfile_lagrangian_result_%d.out &' % (rdir,k)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
-
-    commandString += bashCheckResultCommand('adjoint_run_qfile_lagrangian',Nsplit-1)
+        inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
+        commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
+        % (matchingAdjointFile, 1.0, lagrangianFiles[k], matchingAdjointFile, inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                            'adjoint_run_qfile_lagrangian')
 
     for k in range(Nsplit-1):
-        commandString += 'cd %s/%s \n' % (rdir,directories[k])
+        commandString += 'cd %s/%s \n' % (bdir,directories[k])
         commandString += setOptionCommand(inputFiles[k])
         commandString += '\n'
         commandString += 'setOption "number_of_timesteps" %d \n' % (NtimestepOffset)
@@ -396,107 +323,93 @@ def adjointRunCommand(rootDirectory=None):
         commandString += 'setOption "adjoint_restart\/intermediate_end_timestep" 0 \n'
         if (Nts==NtimestepOffset):
             commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "true" \n'
-
-        commandString += bashGetNodeListSliceCommand(k,NodesAdjoint)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesAdjoint,NprocAdjoint)
-        commandString += './adjoint --input %s' % inputFiles[k]
-        commandString += ' &> adjoint_result_%d.out &' % k
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % k
-        if (rdir=='.'):
+        if (bdir=='.'):
             commandString += 'cd .. \n'
         else:
             commandString += 'cd ../../ \n'
         commandString += '\n'
 
-    commandString += bashCheckResultCommand('adjoint_run_2',Nsplit)
+    commands, commandDirs = [], []
+    for k in range(Nsplit-1):
+        commandDirs += ['%s/%s' % (bdir,directories[k])]
+        commands += ['./adjoint --input %s' % inputFiles[k]]
+    commandString += bashParallelLoopCommand(commands,NodesAdjoint,NprocAdjoint,
+                                            'adjoint2',directories=commandDirs)
+
+    # TODO: Either check the last adjoint run, or complete the periodic optimization!!
 
     for k in range(Nsplit):
-        commandString += 'cd %s/%s \n' % (rdir,directories[k])
+        commandString += 'cd %s/%s \n' % (bdir,directories[k])
         commandString += setOptionCommand(inputFiles[k])
         commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
         commandString += 'setOption "enable_adjoint_restart" "false"\n'
         commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "false" \n'
-        if (rdir=='.'):
+        if (bdir=='.'):
             commandString += 'cd .. \n'
         else:
             commandString += 'cd ../../ \n'
         commandString += '\n'
 
+    commands = []
     for k in range(1,Nsplit):
-        commandString += bashGetNodeListSliceCommand(k-1,NodesQfileZaxpy)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
+        icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])
+        diffFile = '%s/%s.diff.q'%(bdir,prefixes[k-1])
+        icGradFile = '%s/%s' % (bdir,icGradientFiles[k])
+        inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
+        commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
+                     % (icGradFile, -matchingConditionWeight, diffFile, icAdjointFile, inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                            'adjoint_run_ic')
 
-        icAdjointFile = '%s/%s/%s' % (rdir,directories[k],icAdjointFiles[k])
-        diffFile = '%s/%s.diff.q'%(rdir,prefixes[k-1])
-        icGradFile = '%s/%s' % (rdir,icGradientFiles[k])
-        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
-        commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                \
-                         % (icGradFile, -matchingConditionWeight, diffFile, icAdjointFile, inputFile)
-        commandString += ' &> %s/adjoint_initial_condition_%d.out &' % (rdir,k-1)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % (k-1)
-
-    commandString += bashCheckResultCommand('adjoint_run_ic',Nsplit-1)
-
+    commands = []
     for k in range(1,Nsplit):
-        commandString += bashGetNodeListSliceCommand(k-1,NodesQfileZaxpy)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
-
-        icGradFile = '%s/%s' % (rdir,icGradientFiles[k])
-        inputFile = '%s/%s/%s'%(rdir,directories[k],inputFiles[k])
-        commandString += './qfile_zaxpy %s %.16E %s %s --input %s'                                \
-                         % (icGradFile, -1.0, lagrangianFiles[k-1], icGradFile, inputFile)
-        commandString += ' &> %s/adjoint_initial_condition_%d.out &' % (rdir,k-1)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % (k-1)
-
-    commandString += bashCheckResultCommand('adjoint_run_ic_lagrangian',Nsplit-1)
+        icGradFile = '%s/%s' % (bdir,icGradientFiles[k])
+        inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
+        commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                     \
+                     % (icGradFile, -1.0, lagrangianFiles[k-1], icGradFile, inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                            'adjoint_run_ic_lagrangian')
 
     return commandString
 
 def dggCommand():
     commandString = ''
-    commandString += bashGetNodeListCommand()
+
+    commands = []
     for j in range(NcontrolRegion):
-        commandString += bashGetNodeListSliceCommand(j,NodesZxdoty)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesZxdoty,NprocZxdoty)
-        commandString += './zwxmwy %s %s %s previous.%s %s'                                               \
-        %(dggFiles[j], globalGradFiles[j], globalGradFiles[j], globalGradFiles[j], globalNormFiles[j])
-        commandString += ' &> dgg_zwxmwy_%d.out &' % j
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % j
+        commands += ['./zwxmwy %s %s %s previous.%s %s'                                                    \
+        %(dggFiles[j], globalGradFiles[j], globalGradFiles[j], globalGradFiles[j], globalNormFiles[j])]
+    commandString += bashParallelLoopCommand(commands,NodesZxdoty,NprocZxdoty,
+                                            'dgg_zwxmwy')
 
-    commandString += bashCheckResultCommand('dgg_zwxmwy',NcontrolRegion)
-
+    commands = []
     for k in range(1,Nsplit):
-        commandString += bashGetNodeListSliceCommand(k-1,NodesQfileZaxpy)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZaxpy,NprocQfileZaxpy)
-
         diffFile = '%s.diff.adjoint.q'%(prefixes[k])
         icGradFile = '%s' % (icGradientFiles[k])
         inputFile = '%s/%s'%(directories[k],inputFiles[k])
-        commandString += './qfile_zaxpy %s %.16E previous.%s %s --input %s'                                \
-                            % (diffFile, -1.0, icGradFile, icGradFile, inputFile)
-        commandString += ' &> dgg_qfile_zaxpy_%d.out &' % (k-1)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % (k-1)
+        commands += ['./qfile_zaxpy %s %.16E previous.%s %s --input %s'                                    \
+                            % (diffFile, -1.0, icGradFile, icGradFile, inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                            'dgg_qfile_zaxpy')
 
-    commandString += bashCheckResultCommand('dgg_qfile_zaxpy',Nsplit-1)
-
+    commands = []
     for k in range(1,Nsplit):
-        commandString += bashGetNodeListSliceCommand(k-1,NodesQfileZxdoty)
-        commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesQfileZxdoty,NprocQfileZxdoty)
+        diffFile = '%s.diff.adjoint.q'%(prefixes[k])
+        icGradFile = '%s' % (icGradientFiles[k])
+        inputFile = '%s/%s'%(directories[k],inputFiles[k])
+        commands += ['./qfile_zaxpy %s %.16E previous.%s %s --input %s'                                    \
+                            % (diffFile, -1.0, icGradFile, icGradFile, inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                            'dgg_qfile_zaxpy')
 
+    commands = []
+    for k in range(1,Nsplit):
         idx = NcontrolRegion-1 + k
         diffFile = '%s.diff.adjoint.q'%(prefixes[k])
         inputFile = '%s/%s'%(directories[k],inputFiles[k])
-        commandString += './spatial_inner_product %s %s --output %s --input %s'                            \
-                            % (diffFile, icGradientFiles[k], dggFiles[idx], inputFile)
-        commandString += ' &> dgg_qfile_zxdoty_%d.out &' % (k-1)
-        commandString += '\n'
-        commandString += 'pids[%d]=$!\n\n' % (k-1)
-
-    commandString += bashCheckResultCommand('dgg_qfile_zxdoty',Nsplit-1)
+        commands += ['./spatial_inner_product %s %s --output %s --input %s'                                \
+                            % (diffFile, icGradientFiles[k], dggFiles[idx], inputFile)]
+    commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
+                                            'dgg_qfile_zxdoty')
 
     return commandString
