@@ -20,14 +20,14 @@ forwardLog = globalPrefix + '.cost_reduction.txt'
 forwardLogColumns = ['total']
 for k in range(Nsplit):
     forwardLogColumns += ['cost_functional%d'%k]
-for k in range(Nsplit-1):
+for k in range(Nsplit):
     forwardLogColumns += ['matching_penalty%d'%k]
 
 gradientLog = globalPrefix + '.gg_log.txt'
 gradientLogColumns = ['total']
 for j in range(NcontrolRegion):
     gradientLogColumns += ['control_forcing%d'%j]
-for k in range(Nsplit-1):
+for k in range(Nsplit):
     gradientLogColumns += ['initial_condition%d'%(k+1)]
 
 ##################           global level files              #####################
@@ -67,15 +67,6 @@ for k in range(Nsplit):
     icGradientFiles += ['%s-%01d.ic.adjoint.q'%(globalPrefix,k)]                 #use only 1, ... , Nsplit-1
     directories += ['%01d'%k]
 
-diffFiles[-1] = ''
-diffOutputFiles[-1] = ''
-matchingForwardFiles[-1] = ''
-matchingAdjointFiles[-1] = ''
-lagrangianFiles[-1] = ''
-lagrangianOutputFiles[-1] = ''
-icAdjointFiles[0] = ''
-icGradientFiles[0] = ''
-
 ##################           global+slice level files              #####################
 
 innerProductFiles, ggFiles, dggFiles = [], [], []
@@ -83,7 +74,7 @@ for j in range(NcontrolRegion):
     innerProductFiles += ['%s.inner_product_%s.txt'%(globalPrefix,controlRegions[j])]
     ggFiles += ['%s.gg_%s.txt'%(globalPrefix,controlRegions[j])]
     dggFiles += ['%s.dgg_%s.txt'%(globalPrefix,controlRegions[j])]
-for k in range(1,Nsplit):
+for k in range(Nsplit):
     innerProductFiles += ['%s-%01d.inner_product.txt'%(globalPrefix,k)]
     ggFiles += ['%s-%01d.gg.txt'%(globalPrefix,k)]
     dggFiles += ['%s-%01d.dgg.txt'%(globalPrefix,k)]
@@ -97,11 +88,7 @@ for k in range(NcontrolRegion):
     globalControlSpaceFiles += [globalPrefix + controlForcingFiles[k]]
     globalSensitivityFiles += ['%s.adjoint_run_%s.txt'%(globalPrefix,controlRegions[k])]
 
-globalGradFiles += icGradientFiles[1:]
-globalControlSpaceFiles += icFiles[1:]
-for k in range(1,Nsplit):
+globalGradFiles += icGradientFiles
+globalControlSpaceFiles += icFiles
+for k in range(Nsplit):
     globalConjugateGradientFiles += ['%s-%01d.ic.conjugate_gradient.q'%(globalPrefix,k)]
-
-
-# dggFilename = prefix+'.dgg.txt'
-# commandFilename = prefix+'.command.sh'

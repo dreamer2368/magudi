@@ -43,17 +43,17 @@ def QoI(baseDirectory = None):
     else:
         bdir = baseDirectory
 
-    subJ = np.zeros(3*Nsplit-2)
+    subJ = np.zeros(3*Nsplit)
     J = 0.0
     for k in range(Nsplit):
         subJ[k] = readScalar(bdir + '/' + directories[k] + '/' + outputFiles[k])
         J += subJ[k]
-        if (k<Nsplit-1):
-            subJ[Nsplit+k] = 0.5 * readScalar(bdir+'/'+diffOutputFiles[k])
-            J += matchingConditionWeight * subJ[Nsplit+k]
 
-            subJ[2*Nsplit-1+k] = readScalar(bdir+'/'+lagrangianOutputFiles[k])
-            J += subJ[2*Nsplit-1+k]
+        subJ[Nsplit+k] = 0.5 * readScalar(bdir+'/'+diffOutputFiles[k])
+        J += matchingConditionWeight[k] * subJ[Nsplit+k]
+
+        subJ[2*Nsplit+k] = readScalar(bdir+'/'+lagrangianOutputFiles[k])
+        J += subJ[2*Nsplit+k]
     return J, subJ
 
 def collectQoI(logFilename):
@@ -72,8 +72,8 @@ def innerProductCommand(xFiles,yFiles,outputFiles_=None):
         outputFiles_ = innerProductFiles
 
     Nx, Ny = len(xFiles), len(yFiles)
-    if ((Nx!=Nsplit+NcontrolRegion-1) or (Ny!=Nsplit+NcontrolRegion-1)):
-        raise LookupError('Number of files must be equal to '+str(Nsplit+NcontrolRegion-1)+'!')
+    if ((Nx!=NcontrolSpace) or (Ny!=NcontrolSpace)):
+        raise LookupError('Number of files must be equal to '+str(NcontrolSpace)+'!')
 
     commandString = ''
 
@@ -85,8 +85,8 @@ def innerProductCommand(xFiles,yFiles,outputFiles_=None):
                                             'zxdoty_control_forcing')
 
     commands = []
-    for k in range(NcontrolRegion,NcontrolRegion+Nsplit-1):
-        index = k+1 - NcontrolRegion
+    for k in range(NcontrolRegion,NcontrolSpace):
+        index = k - NcontrolRegion
         inputFile = '%s/%s'%(directories[index],inputFiles[index])
         commands += ['./spatial_inner_product %s %s --input %s --output %s'                    \
                     % (xFiles[k], yFiles[k], inputFile, outputFiles_[k])]
@@ -100,24 +100,22 @@ def readInnerProduct(outputFiles_=None):
         outputFiles_ = innerProductFiles
 
     scalar = 0.0
-    subScalar = np.zeros(NcontrolRegion+Nsplit-1)
-    for k in range(NcontrolRegion+Nsplit-1):
+    subScalar = np.zeros(NcontrolSpace)
+    for k in range(NcontrolSpace):
         subScalar[k] = readScalar(outputFiles_[k])
-        if (k>=NcontrolRegion):
-            ic_idx = k + 1 - NcontrolRegion
-            subScalar[k] *= initialConditionControllability[ic_idx]
-        scalar += subScalar[k]
+    subScalar[-Nsplit:] *= initialConditionControllability
+    scalar = np.sum(subScalar)
 
     return scalar, subScalar
 
 def zaxpyCommand(zFiles,a,xFiles,yFiles=None):
     Nx, Nz = len(xFiles), len(zFiles)
-    if ((Nx!=Nsplit+NcontrolRegion-1) or (Nz!=Nsplit+NcontrolRegion-1)):
-        raise LookupError('Number of files must be equal to '+str(Nsplit+NcontrolRegion-1)+'!')
+    if ((Nx!=NcontrolSpace) or (Nz!=NcontrolSpace)):
+        raise LookupError('Number of files must be equal to '+str(NcontrolSpace)+'!')
     if (yFiles is not None):
         Ny = len(yFiles)
-        if (Ny!=Nsplit+NcontrolRegion-1):
-            raise LookupError('Number of files must be equal to '+str(Nsplit+NcontrolRegion-1)+'!')
+        if (Ny!=NcontrolSpace):
+            raise LookupError('Number of files must be equal to '+str(NcontrolSpace)+'!')
 
     commandString = ''
 
@@ -131,8 +129,8 @@ def zaxpyCommand(zFiles,a,xFiles,yFiles=None):
                                             'zaxpy_control_forcing')
 
     commands = []
-    for k in range(NcontrolRegion,NcontrolRegion+Nsplit-1):
-        index = k+1 - NcontrolRegion
+    for k in range(NcontrolRegion,NcontrolSpace):
+        index = k - NcontrolRegion
         w2 = initialConditionControllability[index]
         inputFile = '%s/%s'%(directories[index],inputFiles[index])
         command = './qfile_zaxpy ' + zFiles[k] + ' ' + "{:.16E}".format(a*w2) + ' ' + xFiles[k]
@@ -217,9 +215,10 @@ def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
                                             'forward',directories=commandDirs)
 
     commands = []
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
+        nextK = k+1 if (k<Nsplit-1) else 0
         matchingFile = '%s/%s/%s'%(bdir,directories[k],matchingForwardFiles[k])
-        icFile = '%s/%s/%s'%(bdir,directories[k+1],icFiles[k+1])
+        icFile = '%s/%s/%s'%(bdir,directories[nextK],icFiles[nextK])
         diffFile = '%s/%s'%(bdir,diffFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                              \
@@ -228,7 +227,7 @@ def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
                                             'forward_qfile_zaxpy')
 
     commands = []
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
         diffFile = '%s/%s'%(bdir,diffFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         diffOutputFile = '%s/%s'%(bdir,diffOutputFiles[k])
@@ -238,7 +237,7 @@ def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
                                             'forward_qfile_zxdoty')
 
     commands = []
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
         diffFile = '%s/%s'%(bdir,diffFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         lagrangianOutputFile = '%s/%s'%(bdir,lagrangianOutputFiles[k])
@@ -256,7 +255,7 @@ def adjointRunCommand(baseDirectory=None):
         bdir = baseDirectory
 
     commandString = ''
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
         commandString += 'cd %s/%s \n' % (bdir,directories[k])
         commandString += setOptionCommand(inputFiles[k])
         commandString += 'setOption "enable_adjoint_restart" "true"\n'
@@ -271,42 +270,24 @@ def adjointRunCommand(baseDirectory=None):
         commandString += '\n'
 
     commands, commandDirs = [], []
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
         commandDirs += ['%s/%s' % (bdir,directories[k])]
         commands += ['./adjoint --input %s' % inputFiles[k]]
     commandString += bashParallelLoopCommand(commands,NodesAdjoint,NprocAdjoint,
                                             'adjoint1',directories=commandDirs)
 
-    k = Nsplit - 1
-    commandString += 'cd %s/%s \n' % (bdir,directories[k])
-    commandString += setOptionCommand(inputFiles[k])
-    commandString += 'setOption "enable_adjoint_restart" "false"\n'
-    commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
-
-    commandString += bashGetNodeListSliceCommand(k,NodesAdjoint)
-    commandString += 'srun -N %d -n %d -w ${nodeListString} ' % (NodesAdjoint,NprocAdjoint)
-    commandString += './adjoint --input %s' % inputFiles[k]
-    commandString += ' &> adjoint_result_%d.out &' % k
-    commandString += '\n'
-    commandString += 'pids[%d]=$!\n\n' % k
-    if (bdir=='.'):
-        commandString += 'cd .. \n'
-    else:
-        commandString += 'cd ../../ \n'
-    commandString += '\n'
-
     commands = []
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
         matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         diffFile = '%s/%s'%(bdir,diffFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-        % (matchingAdjointFile, matchingConditionWeight, diffFile, matchingAdjointFile, inputFile)]
+        % (matchingAdjointFile, matchingConditionWeight[k], diffFile, matchingAdjointFile, inputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                             'adjoint_run_qfile_zaxpy')
 
     commands = []
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
         matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
@@ -314,7 +295,7 @@ def adjointRunCommand(baseDirectory=None):
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                             'adjoint_run_qfile_lagrangian')
 
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
         commandString += 'cd %s/%s \n' % (bdir,directories[k])
         commandString += setOptionCommand(inputFiles[k])
         commandString += '\n'
@@ -330,7 +311,7 @@ def adjointRunCommand(baseDirectory=None):
         commandString += '\n'
 
     commands, commandDirs = [], []
-    for k in range(Nsplit-1):
+    for k in range(Nsplit):
         commandDirs += ['%s/%s' % (bdir,directories[k])]
         commands += ['./adjoint --input %s' % inputFiles[k]]
     commandString += bashParallelLoopCommand(commands,NodesAdjoint,NprocAdjoint,
@@ -351,18 +332,18 @@ def adjointRunCommand(baseDirectory=None):
         commandString += '\n'
 
     commands = []
-    for k in range(1,Nsplit):
+    for k in range(Nsplit):
         icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])
         diffFile = '%s/%s.diff.q'%(bdir,prefixes[k-1])
         icGradFile = '%s/%s' % (bdir,icGradientFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-                     % (icGradFile, -matchingConditionWeight, diffFile, icAdjointFile, inputFile)]
+                     % (icGradFile, -matchingConditionWeight[k-1], diffFile, icAdjointFile, inputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                             'adjoint_run_ic')
 
     commands = []
-    for k in range(1,Nsplit):
+    for k in range(Nsplit):
         icGradFile = '%s/%s' % (bdir,icGradientFiles[k])
         inputFile = '%s/%s/%s'%(bdir,directories[k],inputFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                     \
@@ -383,7 +364,7 @@ def dggCommand():
                                             'dgg_zwxmwy')
 
     commands = []
-    for k in range(1,Nsplit):
+    for k in range(Nsplit):
         diffFile = '%s.diff.adjoint.q'%(prefixes[k])
         icGradFile = '%s' % (icGradientFiles[k])
         inputFile = '%s/%s'%(directories[k],inputFiles[k])
@@ -393,7 +374,7 @@ def dggCommand():
                                             'dgg_qfile_zaxpy')
 
     commands = []
-    for k in range(1,Nsplit):
+    for k in range(Nsplit):
         diffFile = '%s.diff.adjoint.q'%(prefixes[k])
         icGradFile = '%s' % (icGradientFiles[k])
         inputFile = '%s/%s'%(directories[k],inputFiles[k])
@@ -403,8 +384,8 @@ def dggCommand():
                                             'dgg_qfile_zaxpy')
 
     commands = []
-    for k in range(1,Nsplit):
-        idx = NcontrolRegion-1 + k
+    for k in range(Nsplit):
+        idx = NcontrolRegion + k
         diffFile = '%s.diff.adjoint.q'%(prefixes[k])
         inputFile = '%s/%s'%(directories[k],inputFiles[k])
         commands += ['./spatial_inner_product %s %s --output %s --input %s'                                \

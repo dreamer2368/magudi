@@ -4,14 +4,15 @@ NtimestepOffset = 4                                      # timestep offset betwe
 startTimestep = 12                                       # initial timestep of the first time segment
 totalTimestep = (Nsplit-1) * NtimestepOffset + Nts       # number of timesteps for the entire time span
 
-matchingConditionWeight = 1.0e-7                         # weight for matching condition penalty
 import numpy as np
+matchingConditionWeight = 1.0e-7 * np.ones(Nsplit)       # weight for matching condition penalty
+matchingConditionWeight[-1] = 0.0
 initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
 initialConditionControllability[0] = 0.0
 
 NcontrolRegion = 1                                       # number of control region
 
-NcontrolSpace = NcontrolRegion + Nsplit - 1              # dimension of control space
+NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
 
 enableParallelBash = True
 bashVerbose = False                                      # check only when serial bash loops
