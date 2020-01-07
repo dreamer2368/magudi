@@ -67,7 +67,7 @@ def bashSerialLoopCommand(commands,nodePerCommand,procsPerCommand,
 
     for k, command in enumerate(commands):
         if (moveDir): commandString += 'cd %s \n'%(directories[k])
-        commandString += bashGetNodeListSliceCommand(k,nodePerCommand)
+        commandString += bashGetNodeListSliceCommand(0,nodePerCommand)
         commandString += 'srun -N %d -n %d -w ${nodeListString} '                         \
                          % (nodePerCommand,procsPerCommand)
         commandString += command
