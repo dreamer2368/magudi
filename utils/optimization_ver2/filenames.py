@@ -8,6 +8,8 @@ from os import path, getcwd
 ROOTDIR = getcwd()
 OUTDIR = '%s/out'%ROOTDIR
 
+globalInputFile = 'magudi.inp'
+
 globalPrefix = 'AcousticMonopole'
 
 globalCommandFile = globalPrefix + '.command.sh'
