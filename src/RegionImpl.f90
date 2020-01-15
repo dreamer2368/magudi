@@ -487,7 +487,7 @@ contains
       mpiOperator = MPI_SUM
     case('L_Inf_without_timestep')
       mpiOperator = MPI_MAX
-      timeStepFactor = 2.0 / sqrt(this%solverOptions%timeStepSize)
+      timeStepFactor = 0.5_wp * sqrt(this%solverOptions%timeStepSize)
     case default
       mpiOperator = -1
       timeStepFactor = - 1.0_wp
