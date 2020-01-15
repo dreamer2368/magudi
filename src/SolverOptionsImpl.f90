@@ -105,8 +105,11 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
              trim(this%controllerType), "'!"
         call gracefulExit(comm_, message)
      end if
+
+     this%controllerNorm = getOption("controller_norm", "L1")
   else
      this%controllerType = ""
+     this%controllerNorm = ""
   end if
 
   if (simulationFlags%enableFunctional) then

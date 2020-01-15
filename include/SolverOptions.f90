@@ -11,7 +11,7 @@ module SolverOptions_mod
           temperatureRange(2), cfl, timeStepSize
      integer :: nSpecies, nUnknowns
      character(len = STRING_LENGTH) :: discretizationType, timeintegratorType,               &
-          costFunctionalType, controllerType, checkpointingScheme
+          costFunctionalType, controllerType, controllerNorm, checkpointingScheme
      logical :: IsInitialized = .false.
 
    contains

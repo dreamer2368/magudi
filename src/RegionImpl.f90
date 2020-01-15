@@ -473,12 +473,25 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    real(wp) :: mollifierNorm
-    integer :: i, ierror
+    real(wp) :: mollifierNorm, timeStepFactor
+    integer :: i, ierror, mpiOperator
     logical :: hasNegativeMollifier
-    character(len = STRING_LENGTH) :: str
+    character(len = STRING_LENGTH) :: str, controllerNorm
 
     assert(allocated(this%grids))
+
+    controllerNorm = trim(this%solverOptions%controllerNorm)
+    assert_key(controllerNorm,('L1','L_Inf_without_timestep'))
+    select case (controllerNorm)
+    case('L1')
+      mpiOperator = MPI_SUM
+    case('L_Inf_without_timestep')
+      mpiOperator = MPI_MAX
+      timeStepFactor = 2.0 / sqrt(this%solverOptions%timeStepSize)
+    case default
+      mpiOperator = -1
+      timeStepFactor = - 1.0_wp
+    end select
 
     mollifierNorm = 0.0_wp
 
@@ -494,14 +507,24 @@ contains
                this%grids(i)%index, " is not non-negative everywhere!"
           call gracefulExit(this%grids(i)%comm, str)
        end if
-       mollifierNorm = mollifierNorm +                                                       &
-            real(computeQuadratureOnPatches(this%patchFactories,                             &
-            'ACTUATOR', this%grids(i), this%grids(i)%controlMollifier(:,1)), wp)
+
+       select case(controllerNorm)
+       case ('L1')
+         mollifierNorm = mollifierNorm +                                                     &
+              real(computeQuadratureOnPatches(this%patchFactories,                           &
+              'ACTUATOR', this%grids(i), this%grids(i)%controlMollifier(:,1)), wp)
+       case ('L_Inf_without_timestep')
+         mollifierNorm = max(mollifierNorm,                                                  &
+                            timeStepFactor * maxval(this%grids(i)%controlMollifier(:,1)) )
+       case default
+         write(str, '(A)') "Solver Option 'controller_norm' is not specified!"
+         call gracefulExit(this%grids(i)%comm, str)
+       end select
     end do
 
     if (this%commGridMasters /= MPI_COMM_NULL)                                               &
          call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                   &
-         MPI_SUM, this%commGridMasters, ierror)
+         mpiOperator, this%commGridMasters, ierror)
 
     do i = 1, size(this%grids)
        call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, this%grids(i)%comm, ierror)
