@@ -481,13 +481,13 @@ contains
     assert(allocated(this%grids))
 
     controllerNorm = trim(this%solverOptions%controllerNorm)
-    assert_key(controllerNorm,('L1','L_Inf_without_timestep'))
+    assert_key(controllerNorm,('L1','L_Inf_with_timestep'))
     select case (controllerNorm)
     case('L1')
       mpiOperator = MPI_SUM
-    case('L_Inf_without_timestep')
+    case('L_Inf_with_timestep')
       mpiOperator = MPI_MAX
-      timeStepFactor = 0.5_wp * sqrt(this%solverOptions%timeStepSize)
+      timeStepFactor = sqrt( this%solverOptions%timeStepSize / 12.0_wp )
     case default
       mpiOperator = -1
       timeStepFactor = - 1.0_wp
@@ -513,9 +513,11 @@ contains
          mollifierNorm = mollifierNorm +                                                     &
               real(computeQuadratureOnPatches(this%patchFactories,                           &
               'ACTUATOR', this%grids(i), this%grids(i)%controlMollifier(:,1)), wp)
-       case ('L_Inf_without_timestep')
+       case ('L_Inf_with_timestep')
          mollifierNorm = max(mollifierNorm,                                                  &
                             timeStepFactor * maxval(this%grids(i)%controlMollifier(:,1)) )
+         call MPI_Allreduce(MPI_IN_PLACE, mollifierNorm, 1, REAL_TYPE_MPI,                   &
+                            mpiOperator, this%grids(i)%comm, ierror)
        case default
          write(str, '(A)') "Solver Option 'controller_norm' is not specified!"
          call gracefulExit(this%grids(i)%comm, str)
@@ -529,6 +531,7 @@ contains
     do i = 1, size(this%grids)
        call MPI_Bcast(mollifierNorm, 1, REAL_TYPE_MPI, 0, this%grids(i)%comm, ierror)
     end do
+
     if (mollifierNorm <= 0.0_wp)                                                             &
          call issueWarning(this%comm,                                                        &
          "Control mollifying support is trivial! Is an actuator patch present?")

@@ -110,13 +110,13 @@ program control_mollifier_factor
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
-  ! Setup boundary conditions.
-  call getRequiredOption("boundary_condition_file", filename)
-  call region%setupBoundaryConditions(filename)
-
   ! Read control mollifier file.
   call getRequiredOption("control_mollifier_file", filename)
   call region%loadData(QOI_CONTROL_MOLLIFIER, filename)
+
+  ! Setup boundary conditions.
+  call getRequiredOption("boundary_condition_file", filename)
+  call region%setupBoundaryConditions(filename)
 
   ! Normalize control mollifier.
   call normalizeControlMollifier(region)
