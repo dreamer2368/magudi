@@ -50,8 +50,9 @@ def beforeLinmin(initial, zeroBaseline):
     df = df.append(df_addendum)
     df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
-    reduction = gg/gg0
-    if (reduction<=tol):
+    #reduction = gg/gg0
+    #if (reduction<=tol):
+    if (gg<=tol):
         print ('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
         commandFile = open(globalCommandFile,'w')
         commandFile.write('exit 1\n')
