@@ -602,6 +602,169 @@ contains
 
   end subroutine normalizeTargetMollifier
 
+  function computeXmomentum(region) result(xMomentum)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! ! <<< SeungWhan: debugging >>>
+    ! use, intrinsic :: iso_fortran_env, only : output_unit
+    ! use ErrorHandler, only : writeAndFlush
+
+    ! <<< Arguments >>>
+    class(t_Region), intent(in) :: region
+
+    ! <<< Result >>>
+    SCALAR_TYPE :: xMomentum
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, ierror
+    SCALAR_TYPE, allocatable :: F(:,:)
+
+    ! ! <<< SeungWhan: message, timeRampFactor >>
+    ! character(len=STRING_LENGTH) :: message
+    ! real(wp) :: timeRampFactor
+
+    assert(allocated(region%grids))
+    assert(allocated(region%states))
+    assert(size(region%grids) == size(region%states))
+
+    xMomentum = 0.0_wp
+
+    do i = 1, size(region%grids)
+
+       assert(region%grids(i)%nGridPoints > 0)
+       assert(allocated(region%states(i)%conservedVariables))
+       assert(size(region%states(i)%conservedVariables, 1) == region%grids(i)%nGridPoints)
+       assert(size(region%states(i)%conservedVariables, 2) > 2)
+
+       allocate(F(region%grids(i)%nGridPoints, 2))
+       F(:,1) = region%states(i)%conservedVariables(:,2)
+       F(:,2) = 1.0_wp
+       xMomentum = xMomentum + region%grids(i)%computeInnerProduct(F(:,1),F(:,2))
+       SAFE_DEALLOCATE(F)
+    end do
+
+    if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+         call MPI_Allreduce(MPI_IN_PLACE, xMomentum, 1,                                        &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(xMomentum, 1, SCALAR_TYPE_MPI,                                           &
+            0, region%grids(i)%comm, ierror)
+    end do
+
+  end function computeXmomentum
+
+  function computeVolume(region) result(volume)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! ! <<< SeungWhan: debugging >>>
+    ! use, intrinsic :: iso_fortran_env, only : output_unit
+    ! use ErrorHandler, only : writeAndFlush
+
+    ! <<< Arguments >>>
+    class(t_Region), intent(in) :: region
+
+    ! <<< Result >>>
+    SCALAR_TYPE :: volume
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, ierror
+    SCALAR_TYPE, allocatable :: F(:,:)
+
+    ! ! <<< SeungWhan: message, timeRampFactor >>
+    ! character(len=STRING_LENGTH) :: message
+    ! real(wp) :: timeRampFactor
+
+    assert(allocated(region%grids))
+
+    volume = 0.0_wp
+
+    do i = 1, size(region%grids)
+
+       assert(region%grids(i)%nGridPoints > 0)
+
+       allocate(F(region%grids(i)%nGridPoints, 1))
+       F(:,1) = 1.0_wp
+       volume = volume + region%grids(i)%computeInnerProduct(F(:,1),F(:,1))
+       SAFE_DEALLOCATE(F)
+    end do
+
+    if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+         call MPI_Allreduce(MPI_IN_PLACE, volume, 1,                                        &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(volume, 1, SCALAR_TYPE_MPI,                                           &
+            0, region%grids(i)%comm, ierror)
+    end do
+
+  end function computeVolume
+
+  subroutine addBodyForce(region, stage)
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! use, intrinsic :: iso_fortran_env, only : output_unit
+    use ErrorHandler, only : writeAndFlush
+
+    ! <<< Internal modules >>>
+    use MPITimingsHelper, only : startTiming, endTiming
+
+    implicit none
+
+    ! <<< Arguments >>>
+    class(t_Region) :: region
+    integer, intent(in) :: stage
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, nDimensions
+    SCALAR_TYPE :: stageFactor(4), currentXmomentum, temp
+
+    character(len=STRING_LENGTH) :: message
+
+    call startTiming("addBodyForce")
+
+    assert(allocated(region%states))
+    assert(allocated(region%grids))
+    nDimensions = region%grids(1)%nDimensions
+    assert_key(nDimensions, (1, 2, 3))
+
+    stageFactor = (/ 2.0_wp, 2.0_wp, 1.0_wp, 6.0_wp /)
+    stageFactor = stageFactor / region%getTimeStepSize()
+    assert_key(stage, (1, 2, 3, 4))
+
+    currentXmomentum = computeXmomentum(region)
+    region%momentumLossPerVolume = region%oneOverVolume *                             &
+                                  ( region%initialXmomentum - currentXmomentum )
+    temp = region%momentumLossPerVolume * stageFactor(stage)
+
+    do i = 1, size(region%states)
+      region%states(i)%rightHandSide(:,2) =                                           &
+                                      region%states(i)%rightHandSide(:,2) + temp
+
+      region%states(i)%rightHandSide(:,nDimensions+2) =                               &
+                           region%states(i)%rightHandSide(:,nDimensions+2) +          &
+                                           temp * region%states(i)%velocity(:,1)
+    end do
+
+    call endTiming("addBodyForce")
+
+  end subroutine addBodyForce
+
 end module RegionImpl
 
 subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptions, verbose)
@@ -1263,13 +1426,14 @@ subroutine computeRhs(this, mode, timeStep, stage)
   use RhsHelper, only : computeRhsForward, computeRhsAdjoint, addInterfaceAdjointPenalty
   use InterfaceHelper, only : exchangeInterfaceData
   use MPITimingsHelper, only : startTiming, endTiming
+  use RegionImpl, only : addBodyForce
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_Region) :: this
   integer, intent(in) :: mode
-  integer, intent(in), optional :: timeStep, stage
+  integer, intent(in) :: timeStep, stage
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -1357,6 +1521,10 @@ subroutine computeRhs(this, mode, timeStep, stage)
   do i = 1, size(this%states)
      call this%states(i)%addSources(mode, this%grids(i))
   end do
+
+  ! x-momentum conserving body force. ONLY FOR RK4
+  if (this%simulationFlags%enableBodyForce)                                                  &
+    call addBodyForce(this,stage)
 
   ! Zero out right-hand-side in holes.
   do i = 1, size(this%states)
