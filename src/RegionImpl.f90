@@ -717,7 +717,7 @@ contains
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
 
-    ! use, intrinsic :: iso_fortran_env, only : output_unit
+    use, intrinsic :: iso_fortran_env, only : output_unit
     use ErrorHandler, only : writeAndFlush
 
     ! <<< Internal modules >>>
@@ -732,7 +732,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, nDimensions
-    SCALAR_TYPE :: stageFactor(4), currentXmomentum, temp
+    SCALAR_TYPE :: stageFactor(4), currentXmomentum
 
     character(len=STRING_LENGTH) :: message
 
@@ -748,17 +748,22 @@ contains
     assert_key(stage, (1, 2, 3, 4))
 
     currentXmomentum = computeXmomentum(region)
-    region%momentumLossPerVolume = region%oneOverVolume *                             &
-                                  ( region%initialXmomentum - currentXmomentum )
-    temp = region%momentumLossPerVolume * stageFactor(stage)
+    if (stage==1)                                                                     &
+      region%momentumLossPerVolume =                                                  &
+                    region%oneOverVolume / region%getTimeStepSize() *                 &
+                      ( region%initialXmomentum - currentXmomentum )
+
+    write(message,*) region%initialXmomentum, ', ', currentXmomentum,                 &
+                     ', ', region%momentumLossPerVolume
+    call writeAndFlush(region%comm,output_unit,message)
 
     do i = 1, size(region%states)
       region%states(i)%rightHandSide(:,2) =                                           &
-                                      region%states(i)%rightHandSide(:,2) + temp
+              region%states(i)%rightHandSide(:,2) + region%momentumLossPerVolume
 
       region%states(i)%rightHandSide(:,nDimensions+2) =                               &
                            region%states(i)%rightHandSide(:,nDimensions+2) +          &
-                                           temp * region%states(i)%velocity(:,1)
+                   region%momentumLossPerVolume * region%states(i)%velocity(:,1)
     end do
 
     call endTiming("addBodyForce")

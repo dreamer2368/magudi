@@ -650,6 +650,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
   if (region%simulationFlags%enableBodyForce) then
      region%initialXmomentum = computeXmomentum(region)
      region%oneOverVolume = 1.0_wp / computeVolume(region)
+     region%momentumLossPerVolume = 0.0_wp
    end if
 
   startTimestep = region%timestep
