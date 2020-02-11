@@ -24,6 +24,7 @@ module SimulationFlags_mod
                 useContinuousAdjoint  = .false., &
                 compositeDissipation  = .true.,  &
                 computeTimeAverage    = .false., &
+                enableBodyForce       = .false., &
                 IsInitialized         = .false.
 
    contains

@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
+#set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 project(magudi Fortran C)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -148,6 +149,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/JetExcitationPatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ResidualManager.f90
   ${PROJECT_SOURCE_DIR}/src/ResidualManagerImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/XmomentumConservingBodyForce.f90
+  ${PROJECT_SOURCE_DIR}/src/XmomentumConservingBodyForceImpl.f90
 
   # Abstract types.
   ${PROJECT_SOURCE_DIR}/include/Patch.f90

@@ -575,6 +575,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
   use Functional_mod, only : t_Functional
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use TimeIntegrator_mod, only : t_TimeIntegrator
+  use XmomentumConservingBodyForce_mod, only : t_BodyForce
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE, QOI_TIME_AVERAGED_STATE
@@ -609,6 +610,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
+  type(t_BodyForce) :: bodyForce
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
@@ -645,6 +647,9 @@ function runForward(this, region, restartFilename) result(costFunctional)
   else
      call loadInitialCondition(this, region, FORWARD)
   end if
+
+  if (region%simulationFlags%enableBodyForce)                                                &
+     call bodyForce%setup(region)
 
   startTimestep = region%timestep
   startTime = region%states(1)%time
@@ -703,6 +708,10 @@ function runForward(this, region, restartFilename) result(costFunctional)
 
         ! Take a single sub-step using the time integrator.
         call timeIntegrator%substepForward(region, time, timeStepSize, timestep, i)
+
+        ! momentum-conserving body force is added after substep.
+        if (region%simulationFlags%enableBodyForce)                                                &
+           call bodyForce%add(region)
 
         do j = 1, size(region%states) !... update state
            call region%states(j)%update(region%grids(j), region%simulationFlags,             &
