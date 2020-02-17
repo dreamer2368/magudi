@@ -25,6 +25,7 @@ module SimulationFlags_mod
                 compositeDissipation  = .true.,  &
                 computeTimeAverage    = .false., &
                 enableBodyForce       = .false., &
+                checkConservation     = .false., &
                 IsInitialized         = .false.
 
    contains

@@ -24,6 +24,7 @@ contains
     use Region_enum, only : FORWARD, ADJOINT
 
     ! <<< Internal modules >>>
+    use RegionImpl, only : computeBulkQuantities
     use ErrorHandler, only : writeAndFlush
     use InputHelper, only : getOption, getRequiredOption
 
@@ -37,7 +38,8 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: nDimensions
     real(SCALAR_KIND) :: timeStepSize, cfl, residuals(3)
-    character(len = STRING_LENGTH) :: str, str_, filename
+    real(SCALAR_KIND), allocatable :: bulkConservedVariables(:)
+    character(len = STRING_LENGTH) :: str, str_, filename, strFormat
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
     logical :: adjointRestart, append
@@ -78,6 +80,15 @@ contains
        end select
 
        call writeAndFlush(region%comm, output_unit, str)
+
+       if (region%simulationFlags%checkConservation) then
+         allocate(bulkConservedVariables(nDimensions+2))
+         call computeBulkQuantities(region,bulkConservedVariables)
+         write(strFormat,'(A,I1,A)') "(A,", nDimensions+2, "(X,E13.6),A)"
+         write(str, strFormat) "Conservation status: (", bulkConservedVariables, ")"
+         call writeAndFlush(region%comm, output_unit, str)
+         SAFE_DEALLOCATE(bulkConservedVariables)
+       end if
 
        if (region%outputOn) then
 

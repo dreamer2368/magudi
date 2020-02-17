@@ -732,7 +732,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, nDimensions
-    SCALAR_TYPE :: stageFactor(4), currentXmomentum
+    SCALAR_TYPE :: currentXmomentum
 
     character(len=STRING_LENGTH) :: message
 
@@ -743,19 +743,17 @@ contains
     nDimensions = region%grids(1)%nDimensions
     assert_key(nDimensions, (1, 2, 3))
 
-    stageFactor = (/ 2.0_wp, 2.0_wp, 1.0_wp, 6.0_wp /)
-    stageFactor = stageFactor / region%getTimeStepSize()
-    assert_key(stage, (1, 2, 3, 4))
-
     currentXmomentum = computeXmomentum(region)
-    if (stage==1)                                                                     &
+    if (stage==1) then
       region%momentumLossPerVolume =                                                  &
                     region%oneOverVolume / region%getTimeStepSize() *                 &
                       ( region%initialXmomentum - currentXmomentum )
 
-    write(message,*) region%initialXmomentum, ', ', currentXmomentum,                 &
-                     ', ', region%momentumLossPerVolume
-    call writeAndFlush(region%comm,output_unit,message)
+      if (region%momentumLossPerVolume<0) then
+        write(message,'(A,E13.6)') 'Negative body force detected: ', region%momentumLossPerVolume
+        call writeAndFlush(region%comm,output_unit,message)
+      end if
+    end if
 
     do i = 1, size(region%states)
       region%states(i)%rightHandSide(:,2) =                                           &
@@ -769,6 +767,71 @@ contains
     call endTiming("addBodyForce")
 
   end subroutine addBodyForce
+
+  subroutine computeBulkQuantities(region, bulkConservedVariables)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! ! <<< SeungWhan: debugging >>>
+    ! use, intrinsic :: iso_fortran_env, only : output_unit
+    ! use ErrorHandler, only : writeAndFlush
+
+    ! <<< Arguments >>>
+    class(t_Region), intent(in) :: region
+
+    ! <<< Result >>>
+    SCALAR_TYPE, intent(out) :: bulkConservedVariables(:)
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, ierror, nDimensions
+    SCALAR_TYPE, allocatable :: F(:,:)
+
+    ! ! <<< SeungWhan: message, timeRampFactor >>
+    ! character(len=STRING_LENGTH) :: message
+    ! real(wp) :: timeRampFactor
+
+    assert(allocated(region%grids))
+    assert(allocated(region%states))
+    assert(size(region%grids) == size(region%states))
+
+    nDimensions = size(region%globalGridSizes, 1)
+    assert_key(nDimensions, (1, 2, 3))
+    assert(size(bulkConservedVariables)==nDimensions+2)
+
+    bulkConservedVariables = 0.0_wp
+
+    do i = 1, size(region%grids)
+
+       assert(region%grids(i)%nGridPoints > 0)
+       assert(allocated(region%states(i)%conservedVariables))
+       assert(size(region%states(i)%conservedVariables, 1) == region%grids(i)%nGridPoints)
+       assert(size(region%states(i)%conservedVariables, 2) > 2)
+
+       allocate(F(region%grids(i)%nGridPoints, nDimensions+3))
+       F(:,1:nDimensions+2) = region%states(i)%conservedVariables
+       F(:,nDimensions+3) = 1.0_wp
+       do j = 1, nDimensions+2
+         bulkConservedVariables(j) = bulkConservedVariables(j)                                 &
+                            + region%grids(i)%computeInnerProduct(F(:,j),F(:,nDimensions+3))
+       end do
+       SAFE_DEALLOCATE(F)
+    end do
+
+    if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+         call MPI_Allreduce(MPI_IN_PLACE, bulkConservedVariables, nDimensions+2,               &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(bulkConservedVariables, nDimensions+2, SCALAR_TYPE_MPI,                  &
+            0, region%grids(i)%comm, ierror)
+    end do
+
+  end subroutine computeBulkQuantities
 
 end module RegionImpl
 
