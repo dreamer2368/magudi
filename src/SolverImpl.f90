@@ -662,7 +662,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
      region%initialXmomentum = computeXmomentum(region)
      region%oneOverVolume = 1.0_wp / computeVolume(region)
      region%momentumLossPerVolume = 0.0_wp
-   end if
+  end if
 
   startTimestep = region%timestep
   startTime = region%states(1)%time
@@ -813,6 +813,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! <<< Private members >>>
   use SolverImpl, only : showProgress, checkSolutionLimits, loadInitialCondition
+  use RegionImpl, only : computeXmomentum, computeVolume
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -870,6 +871,10 @@ function runAdjoint(this, region) result(costSensitivity)
   if (region%simulationFlags%steadyStateSimulation)                                          &
        call this%residualManager%setup("adjoint_residuals", region)
 
+  ! Adjoint initial condition option.
+  nonzeroAdjointInitialCondition =                                                           &
+                  getOption("adjoint_restart/nonzero_initial_condition",.false.)
+
   ! Load adjoint restart options.
   adjointRestart = getOption("enable_adjoint_restart", .false.)
   isFinalAdjointRestart = .true.
@@ -880,8 +885,7 @@ function runAdjoint(this, region) result(costSensitivity)
     call getRequiredOption("adjoint_restart/intermediate_end_timestep",intermediateEndTimestep)
     assert( (accumulatedNTimesteps.ge.0).and.(intermediateEndTimestep.ge.0) )
 
-    nonzeroAdjointInitialCondition =                                                          &
-      getOption("adjoint_restart/nonzero_initial_condition",.false.) .or. (accumulatedNTimesteps>0)
+    nonzeroAdjointInitialCondition =  (accumulatedNTimesteps>0)
   end if
 
   ! Load the initial condition: this does not require restart filename even for adjoint restart.
@@ -889,6 +893,13 @@ function runAdjoint(this, region) result(costSensitivity)
   controller%onsetTime = region%states(1)%time
   controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
   if (intermediateEndTimestep>0) isFinalAdjointRestart = .false.
+
+  if (region%simulationFlags%enableBodyForce) then
+     region%initialXmomentum = computeXmomentum(region)
+     region%oneOverVolume = 1.0_wp / computeVolume(region)
+     region%momentumLossPerVolume = 0.0_wp
+     region%adjointMomentumLossPerVolume = 0.0_wp
+  end if
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
   if (region%simulationFlags%steadyStateSimulation) then
