@@ -36,18 +36,37 @@ def grid(size, eta=0.97):
     return g
 
 def initial_condition(g, mach_number=1.5, gamma=1.4):
+    x = g.xyz[0][:,:,:,0]
     y = g.xyz[0][:,:,:,1]
+    z = g.xyz[0][:,:,:,2]
     u0 = mach_number * 1.5 * ( 1.0 - y**2 )
 
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     s.q[0][:,:,:,0] = 1.0
-    s.q[0][:,:,:,2:4] = 0.0
+    s.q[0][:,:,:,1:4] = 0.0
     s.q[0][:,:,:,4] = 1.0 / gamma
 
+    temp = np.zeros_like(s.q[0][:,:,:,1:4],dtype=np.complex128)
+    for k in range(3,6):
+        for l in range(18,21):
+            for m in range(6,9):
+                for dim in range(3):
+                    amp = np.random.rand(2)
+                    amp = amp[0] + amp[1] * 1.0j
+                    phase = 2.0 * np.pi * np.random.rand(2)
+                    yphase = 2 * np.random.randint(2) - 1
+                    print ('amp: (%.15E + %.15E i), phase: (%.15E, %.15E), y-phase: %d'
+                            %(amp.real,amp.imag,phase[0],phase[1],yphase))
+                    temp[:,1:-1,:,dim] += u0[:,1:-1,:] * amp                    \
+                              * np.sin( k * np.pi * y[:,1:-1,:] * yphase )      \
+                      * np.exp( l * 0.5j * x[:,1:-1,:] + phase[0] * 1.0j )      \
+                      * np.exp( m * 1.5j * z[:,1:-1,:] + phase[1] * 1.0j )
+
+    temp = temp.real
+    temp *= 0.05 * mach_number * 1.5 / np.amax(np.abs(temp))
+
     s.q[0][:,:,:,1] = u0
-    for k in range(7):
-        amp = 0.1 * np.random.random()
-        s.q[0][:,1:-1,:,1] += u0[:,1:-1,:] * amp * np.sin( (2*k+3) * np.pi * y[:,1:-1,:] )
+    s.q[0][:,:,:,1:4] += temp.real
     return s.fromprimitive()
 
 if __name__ == '__main__':
