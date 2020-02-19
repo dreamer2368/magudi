@@ -795,6 +795,7 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, nDimensions
     SCALAR_TYPE :: currentXmomentum, adjointForcingFactor
+    SCALAR_TYPE, allocatable :: temp(:)
 
     character(len=STRING_LENGTH) :: message
 
@@ -823,9 +824,9 @@ contains
         region%states(i)%rightHandSide(:,2) =                                           &
                 region%states(i)%rightHandSide(:,2) + region%momentumLossPerVolume
 
-        ! region%states(i)%rightHandSide(:,nDimensions+2) =                               &
-        !                      region%states(i)%rightHandSide(:,nDimensions+2) +          &
-        !              region%momentumLossPerVolume * region%states(i)%velocity(:,1)
+        region%states(i)%rightHandSide(:,nDimensions+2) =                               &
+                             region%states(i)%rightHandSide(:,nDimensions+2) +          &
+                     region%momentumLossPerVolume * region%states(i)%velocity(:,1)
       end do
     case(ADJOINT)
       if ( (stage.eq.2) .or. (stage.eq.3) ) then
@@ -836,10 +837,17 @@ contains
       region%adjointMomentumLossPerVolume = region%adjointMomentumLossPerVolume           &
                                 - adjointForcingFactor * computeAdjointXmomentum(region)
 
-! write(message,'(A,I1,2(A,E13.6))') 'stage: ',stage,                               &
-!         ', adjointMomentumLossPerVolume: ', region%adjointMomentumLossPerVolume, &
-!         ', currentAdjointXmomentum: ', computeAdjointXmomentum(region)
-! call writeAndFlush(region%comm,output_unit,message)
+      do i = 1, size(region%states)
+        allocate(temp(region%grids(i)%nGridPoints))
+        temp = region%momentumLossPerVolume * region%states(i)%specificVolume(:,1)                &
+                                            * region%states(i)%adjointVariables(:,nDimensions+2)
+
+        !Here the sign is minus (or plus), because magudi adjoint RK4 takes negative time step unnecessarily.
+        region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2) - temp
+        region%states(i)%rightHandSide(:,1) = region%states(i)%rightHandSide(:,1) + temp          &
+                                                                * region%states(i)%velocity(:,1)
+        SAFE_DEALLOCATE(temp)
+      end do
 
       if (stage.eq.1) then
         do i = 1, size(region%states)

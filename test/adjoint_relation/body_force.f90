@@ -406,6 +406,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   currentMomentum = grid%computeInnerProduct(F(:,1),state0%conservedVariables(:,2))
   SAFE_DEALLOCATE(F)
   state0%rightHandSide(:,2) = ( targetMomentum - currentMomentum )/volume/timestep
+  state0%rightHandSide(:,nDimensions+2) = ( targetMomentum - currentMomentum )/volume/timestep * state0%velocity(:,1)
 
   ! Compute adjoint rhs
   nUnknowns = solverOptions%nUnknowns
@@ -419,6 +420,12 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   adjointMomentum = grid%computeInnerProduct(F(:,1),state0%adjointVariables(:,2))
   SAFE_DEALLOCATE(F)
   state0%rightHandSide(:,2) = - adjointMomentum/volume/timestep
+  state0%rightHandSide(:,2) = state0%rightHandSide(:,2)                                             &
+                        + ( targetMomentum - currentMomentum )/volume/timestep                      &
+                        * state0%adjointVariables(:,nDimensions+2) / state0%conservedVariables(:,1)
+  state0%rightHandSide(:,1) = - ( targetMomentum - currentMomentum )/volume/timestep                &
+                                          * state0%adjointVariables(:,nDimensions+2)                &
+                                          * state0%velocity(:,1) / state0%conservedVariables(:,1)
 
   adjointRightHandSide = state0%rightHandSide
   state0%rightHandSide = temp2
@@ -449,6 +456,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
     currentMomentum = grid%computeInnerProduct(F(:,1),state1%conservedVariables(:,2))
     SAFE_DEALLOCATE(F)
     state1%rightHandSide(:,2) = ( targetMomentum - currentMomentum )/volume/timestep
+    state1%rightHandSide(:,nDimensions+2) = ( targetMomentum - currentMomentum )/volume/timestep * state1%velocity(:,1)
 
     ! (3) <u, \delta R(v)>
     scalar2 = grid%computeInnerProduct(state0%adjointVariables,                             &
