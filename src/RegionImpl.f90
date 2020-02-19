@@ -660,6 +660,64 @@ contains
 
   end function computeXmomentum
 
+  function computeAdjointXmomentum(region) result(adjointXmomentum)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! ! <<< SeungWhan: debugging >>>
+    ! use, intrinsic :: iso_fortran_env, only : output_unit
+    ! use ErrorHandler, only : writeAndFlush
+
+    ! <<< Arguments >>>
+    class(t_Region), intent(in) :: region
+
+    ! <<< Result >>>
+    SCALAR_TYPE :: adjointXmomentum
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, ierror
+    SCALAR_TYPE, allocatable :: F(:,:)
+
+    ! ! <<< SeungWhan: message, timeRampFactor >>
+    ! character(len=STRING_LENGTH) :: message
+    ! real(wp) :: timeRampFactor
+
+    assert(allocated(region%grids))
+    assert(allocated(region%states))
+    assert(size(region%grids) == size(region%states))
+
+    adjointXmomentum = 0.0_wp
+
+    do i = 1, size(region%grids)
+
+       assert(region%grids(i)%nGridPoints > 0)
+       assert(allocated(region%states(i)%adjointVariables))
+       assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
+       assert(size(region%states(i)%adjointVariables, 2) > 2)
+
+       allocate(F(region%grids(i)%nGridPoints, 2))
+       F(:,1) = region%states(i)%adjointVariables(:,2)
+       F(:,2) = 1.0_wp
+       adjointXmomentum = adjointXmomentum + region%grids(i)%computeInnerProduct(F(:,1),F(:,2))
+       SAFE_DEALLOCATE(F)
+    end do
+
+    if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+         call MPI_Allreduce(MPI_IN_PLACE, adjointXmomentum, 1,                                 &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(adjointXmomentum, 1, SCALAR_TYPE_MPI,                                    &
+            0, region%grids(i)%comm, ierror)
+    end do
+
+  end function computeAdjointXmomentum
+
   function computeVolume(region) result(volume)
 
     ! <<< External modules >>>
@@ -712,13 +770,16 @@ contains
 
   end function computeVolume
 
-  subroutine addBodyForce(region, stage)
+  subroutine addBodyForce(region, mode, stage)
 
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
 
     use, intrinsic :: iso_fortran_env, only : output_unit
     use ErrorHandler, only : writeAndFlush
+
+    ! <<< Enumerations >>>
+    use Region_enum, only : FORWARD, ADJOINT
 
     ! <<< Internal modules >>>
     use MPITimingsHelper, only : startTiming, endTiming
@@ -727,12 +788,13 @@ contains
 
     ! <<< Arguments >>>
     class(t_Region) :: region
+    integer, intent(in) :: mode
     integer, intent(in) :: stage
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, nDimensions
-    SCALAR_TYPE :: currentXmomentum
+    SCALAR_TYPE :: currentXmomentum, adjointForcingFactor
 
     character(len=STRING_LENGTH) :: message
 
@@ -743,8 +805,8 @@ contains
     nDimensions = region%grids(1)%nDimensions
     assert_key(nDimensions, (1, 2, 3))
 
-    currentXmomentum = computeXmomentum(region)
     if (stage==1) then
+      currentXmomentum = computeXmomentum(region)
       region%momentumLossPerVolume =                                                  &
                     region%oneOverVolume / region%getTimeStepSize() *                 &
                       ( region%initialXmomentum - currentXmomentum )
@@ -755,14 +817,39 @@ contains
       end if
     end if
 
-    do i = 1, size(region%states)
-      region%states(i)%rightHandSide(:,2) =                                           &
-              region%states(i)%rightHandSide(:,2) + region%momentumLossPerVolume
+    select case(mode)
+    case(FORWARD)
+      do i = 1, size(region%states)
+        region%states(i)%rightHandSide(:,2) =                                           &
+                region%states(i)%rightHandSide(:,2) + region%momentumLossPerVolume
 
-      region%states(i)%rightHandSide(:,nDimensions+2) =                               &
-                           region%states(i)%rightHandSide(:,nDimensions+2) +          &
-                   region%momentumLossPerVolume * region%states(i)%velocity(:,1)
-    end do
+        ! region%states(i)%rightHandSide(:,nDimensions+2) =                               &
+        !                      region%states(i)%rightHandSide(:,nDimensions+2) +          &
+        !              region%momentumLossPerVolume * region%states(i)%velocity(:,1)
+      end do
+    case(ADJOINT)
+      if ( (stage.eq.2) .or. (stage.eq.3) ) then
+        adjointForcingFactor = 2.0_wp
+      else
+        adjointForcingFactor = 1.0_wp
+      end if
+      region%adjointMomentumLossPerVolume = region%adjointMomentumLossPerVolume           &
+                                - adjointForcingFactor * computeAdjointXmomentum(region)
+
+! write(message,'(A,I1,2(A,E13.6))') 'stage: ',stage,                               &
+!         ', adjointMomentumLossPerVolume: ', region%adjointMomentumLossPerVolume, &
+!         ', currentAdjointXmomentum: ', computeAdjointXmomentum(region)
+! call writeAndFlush(region%comm,output_unit,message)
+
+      if (stage.eq.1) then
+        do i = 1, size(region%states)
+          !Here the sign is minus, because magudi adjoint RK4 takes negative time step unnecessarily.
+          region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2)       &
+           - region%adjointMomentumLossPerVolume * region%oneOverVolume / region%getTimeStepSize()
+        end do
+        region%adjointMomentumLossPerVolume = 0.0_wp
+      end if
+    end select
 
     call endTiming("addBodyForce")
 
@@ -1592,7 +1679,7 @@ subroutine computeRhs(this, mode, timeStep, stage)
 
   ! x-momentum conserving body force. ONLY FOR RK4
   if (this%simulationFlags%enableBodyForce)                                                  &
-    call addBodyForce(this,stage)
+    call addBodyForce(this,mode,stage)
 
   ! Zero out right-hand-side in holes.
   do i = 1, size(this%states)
