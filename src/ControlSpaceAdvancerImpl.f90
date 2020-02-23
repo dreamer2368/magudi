@@ -563,6 +563,11 @@ function zXdotY(comm,XFilename,YFilename,normFilename) result(z)
     call endTiming("Compute z=X^T*norm*Y")
 
     globalOffset = globalOffset + globalBufferSize
+    SAFE_DEALLOCATE(recvcnt)
+    SAFE_DEALLOCATE(displc)
+    SAFE_DEALLOCATE(XBuffer)
+    SAFE_DEALLOCATE(YBuffer)
+    SAFE_DEALLOCATE(normBuffer)
 
   end do
 
