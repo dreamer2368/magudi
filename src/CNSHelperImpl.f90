@@ -467,6 +467,53 @@ PURE_SUBROUTINE computeVorticityMagnitudeAndDilatation(nDimensions, velocityGrad
 
 end subroutine computeVorticityMagnitudeAndDilatation
 
+PURE_SUBROUTINE computeQCriterion(nDimensions, velocityGradient,        &
+     qCriterion)
+
+  implicit none
+
+  ! <<< Arguments >>>
+  integer, intent(in) :: nDimensions
+  SCALAR_TYPE, intent(in) :: velocityGradient(:,:)
+  SCALAR_TYPE, intent(out), optional :: qCriterion(:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+
+  assert(size(velocityGradient, 1) > 0)
+  assert_key(nDimensions, (1, 2, 3))
+  assert(size(velocityGradient, 2) == nDimensions ** 2)
+
+  select case (nDimensions)
+
+  case (1)
+     if (present(qCriterion)) then
+        assert(size(qCriterion) == size(velocityGradient, 1))
+        qCriterion = 0.0_wp
+     end if
+
+  case (2)
+     if (present(qCriterion)) then
+        assert(size(qCriterion) == size(velocityGradient, 1))
+        qCriterion =  velocityGradient(:,1) * velocityGradient(:,4)             &
+                    - velocityGradient(:,2) * velocityGradient(:,3)
+     end if
+
+  case (3)
+     if (present(qCriterion)) then
+        assert(size(qCriterion) == size(velocityGradient, 1))
+        qCriterion =  velocityGradient(:,1) * velocityGradient(:,5)             &
+                    + velocityGradient(:,5) * velocityGradient(:,9)             &
+                    + velocityGradient(:,9) * velocityGradient(:,1)             &
+                    - velocityGradient(:,2) * velocityGradient(:,4)             &
+                    - velocityGradient(:,6) * velocityGradient(:,8)             &
+                    - velocityGradient(:,3) * velocityGradient(:,7)
+     end if
+
+  end select
+
+end subroutine computeQCriterion
+
 PURE_SUBROUTINE computeCartesianInviscidFluxes(nDimensions, conservedVariables,              &
      velocity, pressure, inviscidFluxes)
 

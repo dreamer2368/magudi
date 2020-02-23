@@ -100,6 +100,22 @@ module CNSHelper
 
   interface
 
+     pure subroutine computeQCriterion(nDimensions,                                         &
+          velocityGradient, qCriterion)
+
+       !> Computes the vorticity magnitude and dilatation from the velocity gradient.
+
+       integer, intent(in) :: nDimensions
+       SCALAR_TYPE, intent(in) :: velocityGradient(:,:)
+
+       SCALAR_TYPE, intent(out), optional :: qCriterion(:)
+
+     end subroutine computeQCriterion
+
+  end interface
+
+  interface
+
      pure subroutine computeCartesianInviscidFluxes(nDimensions, conservedVariables,         &
           velocity, pressure, inviscidFluxes)
 
