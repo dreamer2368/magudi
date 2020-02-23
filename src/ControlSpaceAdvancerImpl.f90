@@ -392,12 +392,13 @@ function zXdotY(comm,XFilename,YFilename,normFilename) result(z)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, procRank, numProcs, ierror, mpiFileHandle
+  integer :: i, j, procRank, numProcs, ierror, mpiFileHandle
   character(len = STRING_LENGTH) :: message
   logical :: XFileExists, YFileExists, normFileExists, success
   integer(kind = MPI_OFFSET_KIND) :: XFileSize, YFileSize, normFileSize, offset
 
   integer(kind = MPI_OFFSET_KIND) :: globalSize, bufferSize, sendcnt, indexQuotient
+  integer(kind = MPI_OFFSET_KIND) :: globalBufferSize, globalOffset
   integer(kind = MPI_OFFSET_KIND), dimension(:), allocatable :: recvcnt, displc
   SCALAR_TYPE, dimension(:), allocatable :: XBuffer, YBuffer, normBuffer
   SCALAR_TYPE :: dummyValue
@@ -472,80 +473,97 @@ function zXdotY(comm,XFilename,YFilename,normFilename) result(z)
   globalSize = XFileSize/SIZEOF_SCALAR
 
   call endTiming("File name and size check")
-  call startTiming("Buffer setup")
 
-  indexQuotient = MOD(globalSize,int(numProcs,MPI_OFFSET_KIND))
-  bufferSize = globalSize/int(numProcs,MPI_OFFSET_KIND)
-  allocate(recvcnt(0:numProcs-1))
-  allocate(displc(0:numProcs-1))
-  recvcnt(0:indexQuotient-1) = bufferSize+1
-  recvcnt(indexQuotient:numProcs-1) = bufferSize
-  displc = 0
-  do i=1,numProcs-1
-    displc(i) = SUM(recvcnt(0:i-1))
-  end do
-  offset = displc(procRank)*SIZEOF_SCALAR
+  z = 0.0_wp
+  globalOffset = 0
+  globalBufferSize = MERGE(globalSize, int(1e10,MPI_OFFSET_KIND),               &
+                           globalSize < int(1e10,MPI_OFFSET_KIND))
 
-  if( procRank<indexQuotient ) then
-    sendcnt = bufferSize+1
-  else
-    sendcnt = bufferSize
-  end if
-  allocate(XBuffer(sendcnt))
-  allocate(YBuffer(sendcnt))
-  allocate(normBuffer(sendcnt))
-  XBuffer = 0.0_wp
-  YBuffer = 0.0_wp
-  normBuffer = 1.0_wp
+  do while (globalOffset<globalSize)
 
-  call endTiming("Buffer setup")
-  call startTiming("Read files")
+    call startTiming("Buffer setup")
 
-  call MPI_Barrier(comm, ierror)
+    if ( globalSize - globalOffset < globalBufferSize )                         &
+      globalBufferSize = globalSize - globalOffset
 
-  call MPI_File_open(comm, trim(XFilename),                       &
-                     MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
-                     mpiFileHandle, ierror)
-  call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
-                         'native',MPI_INFO_NULL,ierror)
-  call MPI_File_read_all(mpiFileHandle, XBuffer, int(sendcnt),                   &
-                         SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
-  call MPI_File_close(mpiFileHandle, ierror)
+    indexQuotient = MOD(globalBufferSize,int(numProcs,MPI_OFFSET_KIND))
+    bufferSize = globalBufferSize/int(numProcs,MPI_OFFSET_KIND)
+    allocate(recvcnt(0:numProcs-1))
+    allocate(displc(0:numProcs-1))
+    recvcnt(0:indexQuotient-1) = bufferSize+1
+    recvcnt(indexQuotient:numProcs-1) = bufferSize
+    displc = 0
+    do i=1,numProcs-1
+      displc(i) = SUM(recvcnt(0:i-1))
+    end do
+    offset = displc(procRank)*SIZEOF_SCALAR + globalOffset
 
-  call MPI_Barrier(comm, ierror)
+    if( procRank<indexQuotient ) then
+      sendcnt = bufferSize+1
+    else
+      sendcnt = bufferSize
+    end if
+    allocate(XBuffer(sendcnt))
+    allocate(YBuffer(sendcnt))
+    allocate(normBuffer(sendcnt))
+    XBuffer = 0.0_wp
+    YBuffer = 0.0_wp
+    normBuffer = 1.0_wp
 
-  call MPI_File_open(comm, trim(YFilename),                       &
-                     MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
-                     mpiFileHandle, ierror)
-  call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
-                         'native',MPI_INFO_NULL,ierror)
-  call MPI_File_read_all(mpiFileHandle, YBuffer, int(sendcnt),                   &
-                         SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
-  call MPI_File_close(mpiFileHandle, ierror)
+    call endTiming("Buffer setup")
+    call startTiming("Read files")
 
-  call MPI_Barrier(comm, ierror)
+    call MPI_Barrier(comm, ierror)
 
-  if (normFileExists) then
-    call MPI_File_open(comm, trim(normFilename),                       &
+    call MPI_File_open(comm, trim(XFilename),                       &
                        MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
                        mpiFileHandle, ierror)
     call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
                            'native',MPI_INFO_NULL,ierror)
-    call MPI_File_read_all(mpiFileHandle, normBuffer, int(sendcnt),                   &
+    call MPI_File_read_all(mpiFileHandle, XBuffer, int(sendcnt),                   &
                            SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
     call MPI_File_close(mpiFileHandle, ierror)
-  end if
-  call MPI_Barrier(comm, ierror)
 
-  call endTiming("Read files")
-  call startTiming("Compute z=X^T*norm*Y")
+    call MPI_Barrier(comm, ierror)
 
-  z = 0.0_wp
-  z = SUM( XBuffer*normBuffer*YBuffer )
+    call MPI_File_open(comm, trim(YFilename),                       &
+                       MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
+                       mpiFileHandle, ierror)
+    call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
+                           'native',MPI_INFO_NULL,ierror)
+    call MPI_File_read_all(mpiFileHandle, YBuffer, int(sendcnt),                   &
+                           SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+    call MPI_File_close(mpiFileHandle, ierror)
 
-  call MPI_Allreduce(MPI_IN_PLACE, z, 1, SCALAR_TYPE_MPI, MPI_SUM, comm, ierror)
-  call MPI_Bcast(z, 1, SCALAR_TYPE_MPI, 0, comm, ierror)
+    call MPI_Barrier(comm, ierror)
 
-  call endTiming("Compute z=X^T*norm*Y")
+    if (normFileExists) then
+      call MPI_File_open(comm, trim(normFilename),                       &
+                         MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
+                         mpiFileHandle, ierror)
+      call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
+                             'native',MPI_INFO_NULL,ierror)
+      call MPI_File_read_all(mpiFileHandle, normBuffer, int(sendcnt),                   &
+                             SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+      call MPI_File_close(mpiFileHandle, ierror)
+    end if
+    call MPI_Barrier(comm, ierror)
+
+    call endTiming("Read files")
+    call startTiming("Compute z=X^T*norm*Y")
+
+    dummyValue = 0.0_wp
+    dummyValue = SUM( XBuffer*normBuffer*YBuffer )
+
+    call MPI_Allreduce(MPI_IN_PLACE, dummyValue, 1, SCALAR_TYPE_MPI, MPI_SUM, comm, ierror)
+    call MPI_Bcast(dummyValue, 1, SCALAR_TYPE_MPI, 0, comm, ierror)
+
+    z = z + dummyValue
+
+    call endTiming("Compute z=X^T*norm*Y")
+
+    globalOffset = globalOffset + globalBufferSize
+
+  end do
 
 end function
