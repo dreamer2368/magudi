@@ -885,7 +885,8 @@ function runAdjoint(this, region) result(costSensitivity)
     call getRequiredOption("adjoint_restart/intermediate_end_timestep",intermediateEndTimestep)
     assert( (accumulatedNTimesteps.ge.0).and.(intermediateEndTimestep.ge.0) )
 
-    nonzeroAdjointInitialCondition =  (accumulatedNTimesteps>0)
+    nonzeroAdjointInitialCondition = (accumulatedNTimesteps>0) .or.                          &
+                                                            nonzeroAdjointInitialCondition
   end if
 
   ! Load the initial condition: this does not require restart filename even for adjoint restart.
