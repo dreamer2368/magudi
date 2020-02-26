@@ -16,7 +16,7 @@ program control_mollifier_factor
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
-  use RegionImpl, only : normalizeControlMollifier
+  use RegionImpl, only : normalizeControlMollifier, computeVolume
 
   implicit none
 
@@ -113,6 +113,30 @@ program control_mollifier_factor
   ! Read control mollifier file.
   call getRequiredOption("control_mollifier_file", filename)
   call region%loadData(QOI_CONTROL_MOLLIFIER, filename)
+
+  ! Get maximum value of control mollifier before normalization
+  dummyValue = 0.0_wp
+  do i = 1, size(region%grids)
+    dummyValue = MAX(dummyValue, MAXVAL(region%grids(i)%controlMollifier))
+  end do
+
+  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+       call MPI_Allreduce(MPI_IN_PLACE, dummyValue, 1, REAL_TYPE_MPI,                        &
+       MPI_MAX, region%commGridMasters, ierror)
+
+  do i = 1, size(region%grids)
+     call MPI_Bcast(dummyValue, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+  end do
+
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
+  write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Before normalization: Maximum control mollifier value=', dummyValue
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+
+  dummyValue = computeVolume(region)
+
+  write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Before normalization: Volume=', dummyValue
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
   ! Setup boundary conditions.
   call getRequiredOption("boundary_condition_file", filename)
