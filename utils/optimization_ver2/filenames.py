@@ -24,6 +24,8 @@ for k in range(Nsplit):
     forwardLogColumns += ['cost_functional%d'%k]
 for k in range(Nsplit):
     forwardLogColumns += ['matching_penalty%d'%k]
+for k in range(Nsplit):
+    forwardLogColumns += ['lagrangian%d'%k]
 
 gradientLog = globalPrefix + '.gg_log.txt'
 gradientLogColumns = ['total']
