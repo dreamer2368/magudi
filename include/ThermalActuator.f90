@@ -74,7 +74,7 @@ module ThermalActuator_mod
 
   interface
 
-     subroutine updateThermalActuatorForcing(this, region)
+     subroutine updateThermalActuatorForcing(this, region, mode)
 
        use Region_mod, only : t_Region
 
@@ -82,6 +82,7 @@ module ThermalActuator_mod
 
        class(t_ThermalActuator) :: this
        class(t_Region), intent(in) :: region
+       integer, intent(in), optional :: mode
 
      end subroutine updateThermalActuatorForcing
 

@@ -21,7 +21,7 @@ contains
 
     ! <<< Enumerations >>>
     use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE    !SeungWhan: added rhs
-    use Region_enum, only : FORWARD, ADJOINT
+    use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
     ! <<< Internal modules >>>
     use RegionImpl, only : computeBulkQuantities
@@ -133,6 +133,9 @@ contains
           call region%saveData(QOI_FORWARD_STATE, filename)
        case (ADJOINT)
           write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".adjoint.q"
+          call region%saveData(QOI_ADJOINT_STATE, filename)
+       case (LINEARIZED)
+          write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", timestep, ".linearized.q"
           call region%saveData(QOI_ADJOINT_STATE, filename)
        end select
 
@@ -284,11 +287,11 @@ contains
 
     ! <<< Enumerations >>>
     use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE
-    use Region_enum, only : FORWARD, ADJOINT
+    use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
     ! <<< Internal modules >>>
     use InputHelper, only : getOption, getRequiredOption
-    use ErrorHandler, only : writeAndFlush
+    use ErrorHandler, only : writeAndFlush, gracefulExit
 
     implicit none
 
@@ -374,6 +377,15 @@ contains
           end do
           region%states(:)%adjointForcingFactor = 1.0_wp !... restore
 
+       end if
+
+     case (LINEARIZED) !... initialize linearized variables. use adjoint variable.
+
+       if (present(restartFilename)) then
+         call region%loadData(QOI_ADJOINT_STATE, restartFilename) !... initialize from file.
+       else
+         write(message,'(A)') "Initial condition file for linearized run is not given!"
+         call gracefulExit(region%comm,message)
        end if
 
     end select
@@ -829,7 +841,7 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_Solver) :: this
   class(t_Region) :: region
 
-  ! <<< Result >>>
+  ! <<< Result >>> - This value is currently not meaningful. left for future purpose.
   SCALAR_TYPE :: costSensitivity
 
   ! <<< Local variables >>>
@@ -1061,6 +1073,220 @@ print *, procRank, 'gradient is saved.'
   call endTiming("runAdjoint")
 
 end function runAdjoint
+
+function runLinearized(this, region) result(costFunctional)
+
+  ! <<< External modules >>>
+  use iso_fortran_env, only : output_unit
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use Solver_mod, only : t_Solver
+  use Controller_mod, only : t_Controller
+  use Functional_mod, only : t_Functional
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use TimeIntegrator_mod, only : t_TimeIntegrator
+
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_FORWARD_STATE, QOI_TIME_AVERAGED_STATE
+  use Region_enum, only : FORWARD, LINEARIZED
+
+  ! <<< Private members >>>
+  use SolverImpl, only : showProgress, checkSolutionLimits, loadInitialCondition
+  use RegionImpl, only : computeXmomentum, computeVolume
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+  use ErrorHandler, only : writeAndFlush
+  use InputHelper, only : getOption, getRequiredOption
+
+  ! <<< SeungWhan: debug >>>
+  use InputHelper, only : getOption
+  use, intrinsic :: iso_fortran_env, only : output_unit
+  use ErrorHandler, only : writeAndFlush
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Solver) :: this
+  class(t_Region) :: region
+
+  ! <<< Result >>>
+  SCALAR_TYPE :: costFunctional
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  character(len = STRING_LENGTH) :: filename, message
+  class(t_TimeIntegrator), pointer :: timeIntegrator => null()
+  class(t_Controller), pointer :: controller => null()
+  ! class(t_Functional), pointer :: functional => null()
+  integer :: i, j, timestep, startTimestep
+  real(wp) :: time, startTime, timeStepSize
+  SCALAR_TYPE :: instantaneousCostFunctional
+  logical :: controllerSwitch = .false., solutionCrashes = .false.
+
+  call startTiming("runLinearized")
+
+  costFunctional = 0.0_wp
+
+  ! Connect to the previously allocated time integrator.
+  call this%timeIntegratorFactory%connect(timeIntegrator)
+  assert(associated(timeIntegrator))
+
+  ! Connect to the previously allocated controller.
+  if (region%simulationFlags%enableController) then
+     call this%controllerFactory%connect(controller)
+     assert(associated(controller))
+  end if
+
+  ! ! Connect to the previously allocated functional.
+  ! if (region%simulationFlags%enableFunctional) then
+  !    call this%functionalFactory%connect(functional)
+  !    assert(associated(functional))
+  !    functional%runningTimeQuadrature = 0.0_wp
+  ! end if
+
+  ! Load the initial condition.
+  call loadInitialCondition(this, region, FORWARD)                              ! for baseline simulation.
+  write(filename, '(2A)') trim(this%outputPrefix), ".ic.linearized.q"
+  call loadInitialCondition(this, region, LINEARIZED, trim(filename))           ! for linearized simulation.
+
+  ! TODO: Fix the initial x momentum, read from magudi.inp.
+  if (region%simulationFlags%enableBodyForce) then
+     region%initialXmomentum = computeXmomentum(region)
+     region%oneOverVolume = 1.0_wp / computeVolume(region)
+     region%momentumLossPerVolume = 0.0_wp
+  end if
+
+  startTimestep = region%timestep
+  startTime = region%states(1)%time
+
+  ! Save the initial condition if it was not specified as a restart file.
+  write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", startTimestep, ".q"
+  call region%saveData(QOI_FORWARD_STATE, filename)
+  write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", startTimestep, ".linearized.q"
+  call region%saveData(QOI_ADJOINT_STATE, filename)
+
+  ! Call controller hooks before time marching starts. SeungWhan: changed
+  ! duration, onsetTime.
+  if (region%simulationFlags%enableController) then
+    controllerSwitch = controller%controllerSwitch
+    write(message,'(A,L4,A,F16.8,A,F16.8)') 'Control Forcing Flag: ',                          &
+                                            controller%controllerSwitch
+    call writeAndFlush(region%comm, output_unit, message)
+    controller%onsetTime = startTime
+    controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
+    if (controller%controllerSwitch) then
+       call controller%hookBeforeTimemarch(region, FORWARD)
+    end if
+    call controller%hookBeforeTimemarch(region, LINEARIZED) ! TODO: test linearized mode
+  end if
+
+  ! Reset probes.
+  if (this%probeInterval > 0) call region%resetProbes()
+
+  time = startTime
+  region%states(:)%time = time
+  do i = 1, size(region%states) !... update state
+     call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
+          region%solverOptions)
+  end do
+
+  do timestep = startTimestep + 1, startTimestep + this%nTimesteps
+
+     region%timestep = timestep
+     timeStepSize = region%getTimeStepSize()
+
+     do i = 1, timeIntegrator%nStages
+
+        ! Check if physical quantities are within allowed limits.
+        if (region%simulationFlags%enableSolutionLimits) then
+          if ( checkSolutionLimits(region, FORWARD, this%outputPrefix) ) then
+            costFunctional = HUGE(0.0_wp)
+            return
+          end if
+        end if
+
+        ! Update control forcing.
+        ! TODO: test linearized mode
+        if (controllerSwitch) then
+          call controller%cleanupForcing(region, LINEARIZED)
+          call controller%updateForcing(region, LINEARIZED)
+        end if
+
+        ! TODO: develop region%computeRHS
+        call timeIntegrator%substepLinearized(region, time, timeStepSize, timestep, i)
+
+        ! Take a single sub-step using the time integrator.
+        call timeIntegrator%substepForward(region, time, timeStepSize, timestep, i)
+
+        do j = 1, size(region%states) !... update state
+           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
+                region%solverOptions)
+        end do
+
+        ! ! Update the cost functional.
+        ! if (region%simulationFlags%enableFunctional) then
+        !    instantaneousCostFunctional = functional%compute(region)
+        !    functional%runningTimeQuadrature = functional%runningTimeQuadrature +             &
+        !         timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
+        ! end if
+
+        ! ! Update the time average.
+        ! if (region%simulationFlags%computeTimeAverage) then
+        !    do j = 1, size(region%states)
+        !       region%states(j)%timeAverage = region%states(j)%timeAverage +                  &
+        !            timeIntegrator%norm(i) * timeStepSize *                                   &
+        !            region%states(j)%conservedVariables
+        !    end do
+        ! end if
+
+     end do !... i = 1, timeIntegrator%nStages
+
+     ! Report simulation progess.
+     call showProgress(this, region, LINEARIZED, startTimestep, timestep,                       &
+          time, instantaneousCostFunctional)
+
+     ! Save solution on probe patches.
+     if (this%probeInterval > 0 .and. mod(timestep, max(1, this%probeInterval)) == 0)        &
+          call region%saveProbeData(FORWARD)
+
+     ! Filter solution if required.
+     if (region%simulationFlags%filterOn) then
+        do j = 1, size(region%grids)
+           call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
+        end do
+     end if
+
+  end do !... timestep = startTimestep + 1, startTimestep + this%nTimesteps
+
+  ! Finish writing remaining data gathered on probes.
+  if (this%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
+
+  ! Call controller hooks after time marching ends.
+  if (controllerSwitch) then
+    call controller%hookAfterTimemarch(region, FORWARD)
+    call controller%hookAfterTimemarch(region, LINEARIZED)
+  end if
+
+  ! if (region%simulationFlags%computeTimeAverage) then
+  !    do i = 1, size(region%states)
+  !       region%states(i)%timeAverage = region%states(i)%timeAverage / (time - startTime)
+  !    end do
+  !    call region%saveData(QOI_TIME_AVERAGED_STATE, trim(this%outputPrefix) // ".mean.q")
+  ! end if
+
+  ! if (region%simulationFlags%enableFunctional) then
+  !      costFunctional = functional%runningTimeQuadrature
+  !      write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Forward run: cost functional = ', &
+  !                                                              costFunctional
+  !      call writeAndFlush(region%comm, output_unit, message)
+  ! end if
+
+  call endTiming("runLinearized")
+
+end function runLinearized
 
 ! checkGradientAccuracy is obsolete!!
 subroutine checkGradientAccuracy(this, region)

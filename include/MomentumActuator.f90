@@ -72,7 +72,7 @@ module MomentumActuator_mod
 
   interface
 
-     subroutine updateMomentumActuatorForcing(this, region)
+     subroutine updateMomentumActuatorForcing(this, region, mode)
 
        use Region_mod, only : t_Region
 
@@ -80,6 +80,7 @@ module MomentumActuator_mod
 
        class(t_MomentumActuator) :: this
        class(t_Region), intent(in) :: region
+       integer, intent(in), optional :: mode
 
      end subroutine updateMomentumActuatorForcing
 

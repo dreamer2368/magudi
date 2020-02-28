@@ -18,9 +18,10 @@ module ActuatorPatch_mod
                 bufferOffsetIndex = -1, forwardReferenceTimestep = -1, adjointReferenceTimestep = -1
      integer(kind = MPI_OFFSET_KIND) :: gradientFileOffset = int(0, MPI_OFFSET_KIND),         &
                                         controlForcingFileOffset = int(0, MPI_OFFSET_KIND),   &
-                                        controlForcingFileSize = int(0, MPI_OFFSET_KIND)
+                                        controlForcingFileSize = int(0, MPI_OFFSET_KIND),     &
+                                        gradientFileSize = int(0, MPI_OFFSET_KIND)
      character(len = STRING_LENGTH) :: gradientFilename, controlForcingFilename
-     SCALAR_TYPE, allocatable :: controlForcing(:,:),                                         &
+     SCALAR_TYPE, allocatable :: controlForcing(:,:), deltaControlForcing(:,:)                &
                                  gradientBuffer(:,:,:), controlForcingBuffer(:,:,:)
 
    contains
@@ -31,6 +32,7 @@ module ActuatorPatch_mod
      procedure, pass :: updateRhs => updateActuatorPatch
      procedure, pass :: loadForcing => loadActuatorForcing
      procedure, pass :: pinpointForcing => pinpointActuatorForcing
+     procedure, pass :: loadDeltaForcing => loadActuatorDeltaForcing
      procedure, pass :: saveGradient => saveActuatorGradient
 
   end type t_ActuatorPatch
@@ -137,6 +139,18 @@ module ActuatorPatch_mod
        integer, intent(in) :: bufferOffsetIndex
 
      end subroutine pinpointActuatorForcing
+
+  end interface
+
+  interface
+
+     subroutine loadActuatorDeltaForcing(this)
+
+       import :: t_ActuatorPatch
+
+       class(t_ActuatorPatch) :: this
+
+     end subroutine loadActuatorDeltaForcing
 
   end interface
 
