@@ -32,3 +32,4 @@ NodesPaste, NodesSlice = 1, 1                            # number of nodes for p
 initial_step = 1.0e9
 golden_ratio = 1.618034
 tol, eps = 1.0e-2,  1.0e-15
+linminTol = 1.0e-1

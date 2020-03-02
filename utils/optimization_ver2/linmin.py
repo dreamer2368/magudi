@@ -54,7 +54,7 @@ def nextLinmin(zeroBaseline=True, initial=True, stop=False):
     Jb = np.array(df['QoI'][df['directory index']=='b'])[0]
     Jc = np.array(df['QoI'][df['directory index']=='c'])[0]
 
-    if ( (c-a) < b * tol + eps ):
+    if ( (c-a) < b * linminTol + eps ):
         print ('steps: %.16E %.16E %.16E'%(a,b,c))
         print ('QoIs: %.16E %.16E %.16E'%(Ja,Jb,Jc))
         print ('LINMIN: line minimization is finished.')
