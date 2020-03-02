@@ -38,3 +38,4 @@ add_mpi_test(testZAXPY "${numProcs}")
 
 # Subdirectories
 add_subdirectory(adjoint_relation)
+add_subdirectory(linearized_relation)
