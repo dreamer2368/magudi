@@ -366,12 +366,12 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
                   + deltaConservedVariables(:,i+1)
   end do
 
-  temp2(:,nUnknowns-1,1) = ( sum(state0%velocity**2,dim=2)                          &
-                              - state0%conservedVariables(:,nUnknowns)          &
-                              * state0%specificVolume(:,1) ) * deltaConservedVariables(:,1)
-
-  temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1) + deltaConservedVariables(:,nUnknowns)      &
-    - sum(state0%velocity * deltaConservedVariables(:,2:nDimensions+1), dim = 2)
+  temp2(:,nUnknowns-1,1) = - state0%specificVolume(:,1)                         &
+                           * state0%conservedVariables(:,nUnknowns)             &
+                           * deltaConservedVariables(:,1)
+  temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1)                               &
+                  - sum(state0%velocity * temp2(:,1:nDimensions,1), dim=2)      &
+                  + deltaConservedVariables(:,nUnknowns)
 
   temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1)                                 &
                              * solverOptions%ratioOfSpecificHeats
