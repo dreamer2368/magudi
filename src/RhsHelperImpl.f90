@@ -16,7 +16,7 @@ contains
     use SimulationFlags_mod, only : t_SimulationFlags
 
     ! <<< Enumerations >>>
-    use Region_enum, only : FORWARD, ADJOINT
+    use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
     ! <<< Internal modules >>>
     use MPITimingsHelper, only : startTiming, endTiming
@@ -51,6 +51,8 @@ contains
        dissipationAmount = + solverOptions%dissipationAmount
     case (ADJOINT)
        dissipationAmount = - solverOptions%dissipationAmount
+    case (LINEARIZED)
+       dissipationAmount = + solverOptions%dissipationAmount
     end select
 
     do i = 1, nDimensions
@@ -59,6 +61,8 @@ contains
        case (FORWARD)
           dissipationTerm = state%conservedVariables
        case (ADJOINT)
+          dissipationTerm = state%adjointVariables
+       case (LINEARIZED)
           dissipationTerm = state%adjointVariables
        end select
 
