@@ -14,6 +14,8 @@ include_viscous_terms = true
 use_constant_CFL_mode = false
 use_target_state = false
 curvilinear_domain = false
+enable_body_force = true
+body_force/initial_momentum = 1.5
 
 # Controller flags
 enable_controller = false

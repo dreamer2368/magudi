@@ -659,9 +659,11 @@ function runForward(this, region, restartFilename) result(costFunctional)
   end if
 
   if (region%simulationFlags%enableBodyForce) then
-     region%initialXmomentum = computeXmomentum(region)
-     region%oneOverVolume = 1.0_wp / computeVolume(region)
-     region%momentumLossPerVolume = 0.0_wp
+    call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
+    region%oneOverVolume = computeVolume(region)
+    region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+    region%oneOverVolume = 1.0_wp / region%oneOverVolume
+    region%momentumLossPerVolume = 0.0_wp
   end if
 
   startTimestep = region%timestep
@@ -896,10 +898,13 @@ function runAdjoint(this, region) result(costSensitivity)
   if (intermediateEndTimestep>0) isFinalAdjointRestart = .false.
 
   if (region%simulationFlags%enableBodyForce) then
-     region%initialXmomentum = computeXmomentum(region)
-     region%oneOverVolume = 1.0_wp / computeVolume(region)
-     region%momentumLossPerVolume = 0.0_wp
-     region%adjointMomentumLossPerVolume = 0.0_wp
+    call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
+    region%oneOverVolume = computeVolume(region)
+    region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+    region%oneOverVolume = 1.0_wp / region%oneOverVolume
+
+    region%momentumLossPerVolume = 0.0_wp
+    region%adjointMomentumLossPerVolume = 0.0_wp
   end if
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
