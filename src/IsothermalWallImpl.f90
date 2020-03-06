@@ -159,46 +159,46 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
 
      select case (mode)
 
-     case (FORWARD)
+     case (FORWARD) !TODO: this part is not implemented yet, also its intent is not clear. Not found in the formulation.
 
-        allocate(penaltyNearBoundary(grid%nGridPoints, nUnknowns - 1))
-        allocate(temp(this%nPatchPoints, nUnknowns - 1))
-        allocate(velocity(this%nPatchPoints, nDimensions))
-        allocate(temperature(this%nPatchPoints))
-        allocate(metrics(this%nPatchPoints, nDimensions))
-
-        call this%collect(state%velocity, velocity)
-        call this%collect(state%temperature(:,1), temperature)
-        call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction), &
-             metrics)
-
-        do i = 1, nDimensions
-           temp(:,i) = this%dynamicViscosity * velocity(:,i) * sum(metrics * metrics) +      &
-                (this%dynamicViscosity + this%secondCoefficientOfViscosity) *                &
-                sum(velocity * metrics, 2) * metrics(:,i)
-        end do
-        temp(:,nDimensions+1) = this%thermalDiffusivity * (temperature - this%temperature)
-
-        call this%disperse(temp, penaltyNearBoundary)
-
-        do i = 1, size(penaltyNearBoundary, 2)
-           penaltyNearBoundary(:,i) = grid%jacobian(:,1) * penaltyNearBoundary(:,i)
-        end do
-        call grid%adjointFirstDerivative(direction)%projectOnBoundaryAndApply(               &
-             penaltyNearBoundary, grid%localSize, this%normalDirection)
-        call grid%firstDerivative(direction)%applyNorm(penaltyNearBoundary, grid%localSize)
-        do i = 1, size(penaltyNearBoundary, 2)
-           penaltyNearBoundary(:,i) = grid%jacobian(:,1) * penaltyNearBoundary(:,i)
-        end do
-
-        state%rightHandSide(:,2:nUnknowns) = state%rightHandSide(:,2:nUnknowns) -            &
-             this%viscousPenaltyAmounts(2) * penaltyNearBoundary
-
-        SAFE_DEALLOCATE(metrics)
-        SAFE_DEALLOCATE(temperature)
-        SAFE_DEALLOCATE(velocity)
-        SAFE_DEALLOCATE(temp)
-        SAFE_DEALLOCATE(penaltyNearBoundary)
+        ! allocate(penaltyNearBoundary(grid%nGridPoints, nUnknowns - 1))
+        ! allocate(temp(this%nPatchPoints, nUnknowns - 1))
+        ! allocate(velocity(this%nPatchPoints, nDimensions))
+        ! allocate(temperature(this%nPatchPoints))
+        ! allocate(metrics(this%nPatchPoints, nDimensions))
+        !
+        ! call this%collect(state%velocity, velocity)
+        ! call this%collect(state%temperature(:,1), temperature)
+        ! call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction), &
+        !      metrics)
+        !
+        ! do i = 1, nDimensions
+        !    temp(:,i) = this%dynamicViscosity * velocity(:,i) * sum(metrics * metrics) +      &
+        !         (this%dynamicViscosity + this%secondCoefficientOfViscosity) *                &
+        !         sum(velocity * metrics, 2) * metrics(:,i)
+        ! end do
+        ! temp(:,nDimensions+1) = this%thermalDiffusivity * (temperature - this%temperature)
+        !
+        ! call this%disperse(temp, penaltyNearBoundary)
+        !
+        ! do i = 1, size(penaltyNearBoundary, 2)
+        !    penaltyNearBoundary(:,i) = grid%jacobian(:,1) * penaltyNearBoundary(:,i)
+        ! end do
+        ! call grid%adjointFirstDerivative(direction)%projectOnBoundaryAndApply(               &
+        !      penaltyNearBoundary, grid%localSize, this%normalDirection)
+        ! call grid%firstDerivative(direction)%applyNorm(penaltyNearBoundary, grid%localSize)
+        ! do i = 1, size(penaltyNearBoundary, 2)
+        !    penaltyNearBoundary(:,i) = grid%jacobian(:,1) * penaltyNearBoundary(:,i)
+        ! end do
+        !
+        ! state%rightHandSide(:,2:nUnknowns) = state%rightHandSide(:,2:nUnknowns) -            &
+        !      this%viscousPenaltyAmounts(2) * penaltyNearBoundary
+        !
+        ! SAFE_DEALLOCATE(metrics)
+        ! SAFE_DEALLOCATE(temperature)
+        ! SAFE_DEALLOCATE(velocity)
+        ! SAFE_DEALLOCATE(temp)
+        ! SAFE_DEALLOCATE(penaltyNearBoundary)
 
      case (ADJOINT)
 
