@@ -72,7 +72,7 @@ subroutine addDamping(this, mode, simulationFlags, solverOptions, grid, state)
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -134,6 +134,25 @@ subroutine addDamping(this, mode, simulationFlags, solverOptions, grid, state)
                       (k - 1 - this%offset(3)))
                  state%rightHandSide(gridIndex, l) = state%rightHandSide(gridIndex, l) +     &
                       this%spongeStrength(patchIndex) * state%adjointVariables(gridIndex, l)
+              end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+           end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+        end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+     end do !... l = 1, solverOptions%nUnknowns
+
+  case (LINEARIZED)
+     do l = 1, solverOptions%nUnknowns
+        do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+           do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+              do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+                  gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                &
+                       (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                  &
+                       (k - 1 - this%gridOffset(3)))
+                  if (grid%iblank(gridIndex) == 0) cycle
+                  patchIndex = i - this%offset(1) + this%localSize(1) *                       &
+                       (j - 1 - this%offset(2) + this%localSize(2) *                          &
+                       (k - 1 - this%offset(3)))
+                  state%rightHandSide(gridIndex, l) = state%rightHandSide(gridIndex, l) -     &
+                       this%spongeStrength(patchIndex) * state%adjointVariables(gridIndex, l)
               end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
            end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
         end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)

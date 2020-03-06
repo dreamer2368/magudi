@@ -1,6 +1,6 @@
 #include "config.h"
 
-program artificial_dissipation_linearized
+program sponge_linearized
 
   use MPI
 
@@ -10,8 +10,8 @@ program artificial_dissipation_linearized
 
   implicit none
 
-  logical :: success, success_, isPeriodic
-  integer :: i, j, k, nDimensions, ierror
+  logical :: success, success1, success2, success_, isPeriodic
+  integer :: i, j, k, nDimensions, direction, ierror
   integer :: procRank
   character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
@@ -26,13 +26,14 @@ program artificial_dissipation_linearized
        real(SCALAR_KIND), intent(inout) :: a(:)
      end subroutine sort
 
-     subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, tolerance)
+     subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, direction, tolerance)
 
        character(len = *), intent(in) :: identifier
        integer, intent(in) :: nDimensions
        logical, intent(out) :: success
 
-       logical, intent(in), optional :: isPeriodic
+       logical, intent(in) :: isPeriodic
+       integer, intent(in) :: direction
        real(SCALAR_KIND), intent(in), optional :: tolerance
 
      end subroutine testLinearizedRelation
@@ -48,35 +49,46 @@ program artificial_dissipation_linearized
   call initializeRandomNumberGenerator()
 
   do nDimensions = 1, 3
-    do j = 1, 4 !... for each discretizationTypes
+    do j = 1, 4!... for each discretizationTypes
       success = .true.
       do i = 1, 10 !... test multiple times
+        success1 = .true.
         ! Didn't test periodic grid yet!!
         ! isPeriodic = .true.
-        ! call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
-        !                          success_, isPeriodic)
-        ! success = success .and. success_
-        ! if( .not. success) then
-        !   if( procRank == 0 ) then
-        !     print *, 'Failed, ', trim(discretizationTypes(j))
-        !     print *, 'dimension: ', nDimensions
-        !     print *, 'periodicity: ', isPeriodic
+        ! do direction = 1, nDimensions
+        !   call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
+        !                            success_, isPeriodic, direction)
+        !   success1 = success1 .and. success_
+        !   if( .not. success_) then
+        !    if( procRank == 0 ) then
+        !      print *, 'Failed, ', trim(discretizationTypes(j))
+        !      print *, 'dimension: ', nDimensions
+        !      print *, 'periodicity: ', isPeriodic
+        !      print *, 'direction: ', direction
+        !    end if
+        !    exit
         !   end if
-        !   exit
-        ! end if
+        ! end do
 
+        success2 = .true.
         isPeriodic = .false.
-        call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
-                                 success_, isPeriodic)
-        success = success .and. success_
-        if( .not. success_) then
-          if( procRank == 0 ) then
-            print *, 'Failed, ', trim(discretizationTypes(j))
-            print *, 'dimension: ', nDimensions
-            print *, 'periodicity: ', isPeriodic
-          end if
-          exit
-        end if
+        do direction = 1, nDimensions
+          call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
+                                   success_, isPeriodic, direction)
+          success2 = success2 .and. success_
+            if( .not. success_) then
+              if( procRank == 0 ) then
+                print *, 'Failed, ', trim(discretizationTypes(j))
+                print *, 'dimension: ', nDimensions
+                print *, 'periodicity: ', isPeriodic
+                print *, 'direction: ', direction
+              end if
+              exit
+            end if
+        end do
+
+        success = success .and. success1 .and. success2
+        if (.not. success) exit
       end do
       if( procRank == 0 .and. success ) then
         print *, 'Success, ', trim(discretizationTypes(j))
@@ -92,7 +104,7 @@ program artificial_dissipation_linearized
   if (.not. success) stop -1
   stop 0
 
-end program artificial_dissipation_linearized
+end program sponge_linearized
 
 subroutine sort(a)
 
@@ -175,7 +187,7 @@ real(SCALAR_KIND) function meanTrimmed(a)
 
 end function meanTrimmed
 
-subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, tolerance)
+subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, direction, tolerance)
 
   ! <<< External modules >>>
   use MPI
@@ -188,10 +200,14 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
+  use PatchDescriptor_mod, only : t_PatchDescriptor
+  use Patch_factory, only : t_PatchFactory, computeSpongeStrengths
+  use Patch_mod, only : t_Patch
+  use SpongePatch_mod, only : t_SpongePatch
+
   use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   use CNSHelper
-  use RhsHelperImpl, only : addDissipation
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
@@ -202,7 +218,8 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   character(len = *), intent(in) :: identifier
   integer, intent(in) :: nDimensions
   logical, intent(out) :: success
-  logical, intent(in), optional :: isPeriodic
+  logical, intent(in) :: isPeriodic
+  integer, intent(in) :: direction
   real(SCALAR_KIND), intent(in), optional :: tolerance
 
   ! <<< interface >>>
@@ -221,21 +238,24 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   type(t_SolverOptions) :: solverOptions
   type(t_Grid) :: grid
   type(t_State) :: state0, state1
+  type(t_PatchDescriptor) :: patchDescriptor
+  type(t_PatchFactory), allocatable :: patchFactories(:)
+  class(t_Patch), pointer :: patch => null()
+  ! type(t_SpongePatch) :: patch
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  logical :: isPeriodic_(3), hasNegativeJacobian
-  real(wp) :: scalar1, scalar2, tolerance_, scalarHistory(32),                   &
+  real(wp) :: scalar1, scalar2, tolerance_, scalarHistory(32),                            &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
-  integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns
-  real(SCALAR_KIND), allocatable :: F(:,:),                                           &
+  integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns, direction_, errorCode, extent(6)
+  real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),            &
                                     linearizedRightHandSide(:,:),                        &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     temp2(:,:)
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
   character(len = STRING_LENGTH) :: errorMessage
 
-  tolerance_ = 1.0E-9
+  tolerance_ = 1.0E-10
   if( present(tolerance) ) tolerance_ = tolerance
 
   success = .true.
@@ -246,9 +266,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   simulationFlags%enableFunctional = .true.
   simulationFlags%enableAdjoint = .true.
   simulationFlags%isDomainCurvilinear = .true.
-  simulationFlags%dissipationOn = .true.
-  simulationFlags%compositeDissipation = .false. !(random(0,1)==0)
-  if( trim(identifier)=="SBP 1-2" ) simulationFlags%compositeDissipation = .true.
+  simulationFlags%useTargetState = .true.
 
   ! randomize grid size
   ! Note that too small grid size will yield null matrix for stencil operators.
@@ -258,11 +276,8 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   end do
 
   ! initialize solver option, grid, and states
-  simulationFlags%dissipationOn = .false. !...only for solverOptions initialization
   call solverOptions%initialize(nDimensions, simulationFlags)
   solverOptions%discretizationType = trim(identifier)
-  simulationFlags%dissipationOn = .true.
-  solverOptions%dissipationAmount = random(0.01_wp,1.0_wp)
   call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
        simulationFlags = simulationFlags)
   call grid%setupSpatialDiscretization(simulationFlags, solverOptions)
@@ -283,6 +298,53 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   call state0%setup(grid, simulationFlags, solverOptions)
   call state1%setup(grid, simulationFlags, solverOptions)
 
+  ! setup patch
+  allocate(patchFactories(1))
+  direction_ = direction
+  extent(1::2) = 1
+  extent(2::2) = -1
+  if (random(0, 1) == 0) then
+     extent(1+2*(direction_-1)) = 1
+     extent(2+2*(direction_-1)) = 1 + random(1,gridSize(direction_,1)/2)
+  else
+     extent(1+2*(direction_-1)) = gridSize(direction_, 1) - random(1,gridSize(direction_,1)/2)
+     extent(2+2*(direction_-1)) = gridSize(direction_, 1)
+     direction_ = -direction_
+  end if
+  patchDescriptor = t_PatchDescriptor("testPatch", "SPONGE", 1, direction_,     &
+       extent(1), extent(2), extent(3), extent(4), extent(5), extent(6))
+  call patchDescriptor%validate(gridSize, simulationFlags,                             &
+                                solverOptions, errorCode, errorMessage)
+  if (errorCode .ne. 0) then
+    print *, trim(errorMessage)
+    success = .false.
+    return
+  end if
+  call patchFactories(1)%connect(patch,trim(patchDescriptor%patchType))
+  call patch%setup(1, MPI_COMM_WORLD, patchDescriptor,                                 &
+       grid, simulationFlags, solverOptions)
+  select type(patch)
+    class is (t_SpongePatch)
+      patch%spongeAmount = random(10.0_wp, 100.0_wp)
+      patch%spongeExponent = random(1,3)
+  end select
+  call computeSpongeStrengths(patchFactories, grid)
+
+  ! Randomize target state.
+  do i = 1, grid%nGridPoints
+    state0%targetState(i,1) = random(0.01_wp, 10.0_wp)
+    do j = 1, nDimensions
+       state0%targetState(i,j+1) =                                              &
+            state0%targetState(i,1) * random(-10.0_wp, 10.0_wp)
+    end do
+    state0%targetState(i, nDimensions + 2) = state0%targetState(i,1) *   &
+         random(0.01_wp, 10.0_wp) / solverOptions%ratioOfSpecificHeats +               &
+         0.5_wp / state0%targetState(i,1) *                                     &
+         sum(state0%targetState(i,2:nDimensions+1) ** 2)
+  end do
+  assert(all(state0%targetState(:,1) > 0.0_wp))
+  state1%targetState = state0%targetState
+
   ! Randomize conserved variables.
   do i = 1, grid%nGridPoints
      state0%conservedVariables(i,1) = random(0.01_wp, 10.0_wp)
@@ -290,12 +352,15 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
         state0%conservedVariables(i,j+1) =                                              &
              state0%conservedVariables(i,1) * random(-10.0_wp, 10.0_wp)
      end do
-     state0%conservedVariables(i, nDimensions + 2) = state0%conservedVariables(i,1) *    &
-          random(0.01_wp, 10.0_wp) / solverOptions%ratioOfSpecificHeats +              &
+     state0%conservedVariables(i, nDimensions + 2) = state0%conservedVariables(i,1) *   &
+          random(0.01_wp, 10.0_wp) / solverOptions%ratioOfSpecificHeats +               &
           0.5_wp / state0%conservedVariables(i,1) *                                     &
           sum(state0%conservedVariables(i,2:nDimensions+1) ** 2)
   end do
   assert(all(state0%conservedVariables(:,1) > 0.0_wp))
+
+  ! Compute dependent variables.
+  call state0%update(grid, simulationFlags, solverOptions)
 
   ! Randomize delta conserved variables.
   allocate(deltaConservedVariables(grid%nGridPoints, solverOptions%nUnknowns))
@@ -318,33 +383,29 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
        state0%conservedVariables(:,1) / solverOptions%ratioOfSpecificHeats *                               &
        deltaPrimitiveVariables(:,nDimensions+2)
 
-  ! Compute baseline dissipation
+  ! Compute baseline sponge
+  ! (1) Add patch penalty
   state0%rightHandSide = 0.0_wp
-  ! (1) add dissipation
-  if (simulationFlags%dissipationOn)                                                         &
-       call addDissipation(FORWARD, simulationFlags, solverOptions, grid, state0)
-  ! (2) Multiply by Jacobian
-  do j = 1, solverOptions%nUnknowns
-     state0%rightHandSide(:,j) = state0%rightHandSide(:,j) * grid%jacobian(:,1)
-  end do
+  select type (patch)
+    class is (t_SpongePatch)
+      call patch%updateRhs(FORWARD, simulationFlags, solverOptions, grid, state0)
+  end select
 
-  ! Compute adjoint rhs for dissipation
+  ! Compute adjoint rhs for viscous flux
   nUnknowns = solverOptions%nUnknowns
   allocate(linearizedRightHandSide(grid%nGridPoints, solverOptions%nUnknowns))
   allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns))
   temp2 = state0%rightHandSide
   state0%rightHandSide = 0.0_wp
   state0%adjointVariables = deltaConservedVariables
-  ! (1) add dissipation
-  if (simulationFlags%dissipationOn)                                                         &
-       call addDissipation(LINEARIZED, simulationFlags, solverOptions, grid, state0)
+  ! (1) Add patch penalties
+  select type (patch)
+    class is (t_SpongePatch)
+      call patch%updateRhs(LINEARIZED, simulationFlags, solverOptions, grid, state0)
+  end select
   linearizedRightHandSide = state0%rightHandSide
   state0%rightHandSide = temp2
   SAFE_DEALLOCATE(temp2)
-  ! (2) Multiply by Jacobian
-  do j = 1, solverOptions%nUnknowns
-     linearizedRightHandSide(:,j) = linearizedRightHandSide(:,j) * grid%jacobian(:,1)
-  end do
 
   ! Randomize adjoint variables.
   allocate(F(grid%nGridPoints, solverOptions%nUnknowns))
@@ -354,41 +415,44 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   ! <R^{\dagger}u, \delta v>
   scalar1 = grid%computeInnerProduct(state0%adjointVariables,linearizedRightHandSide)
+
   ! <u, \delta R(v)>
+  errorHistory = 0.0_wp
   ! Prepare step sizes
   stepSizes(1) = 0.01_wp
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
-  errorHistory = 0.0_wp
-  convergenceHistory = 0.0_wp
   do k = 1, size(stepSizes)
     !(1) finite difference on conserved variables
     state1%conservedVariables = state0%conservedVariables + stepSizes(k) * deltaConservedVariables
+    assert(all(state1%conservedVariables(:,1) > 0.0_wp))
+    ! Compute dependent variables.
+    call state1%update(grid, simulationFlags, solverOptions)
 
-    ! (2)Compute baseline dissipation
+    ! (2) Compute baseline SAT far-field
+    ! (2-1) Add patch penalty
     state1%rightHandSide = 0.0_wp
-    ! (2-1) add dissipation
-    if (simulationFlags%dissipationOn)                                                         &
-         call addDissipation(FORWARD, simulationFlags, solverOptions, grid, state1)
-    ! (2-2) Multiply by Jacobian
-    do j = 1, solverOptions%nUnknowns
-       state1%rightHandSide(:,j) = state1%rightHandSide(:,j) * grid%jacobian(:,1)
-    end do
+    select type (patch)
+      class is (t_SpongePatch)
+        call patch%updateRhs(FORWARD, simulationFlags, solverOptions, grid, state1)
+    end select
+    SAFE_DEALLOCATE(fluxes2)
 
     ! (3) <u, \delta R(v)>
     scalar2 = grid%computeInnerProduct(state0%adjointVariables,                             &
                                         state1%rightHandSide - state0%rightHandSide)
 
     scalarHistory(k) = scalar2/stepSizes(k)
-    errorHistory(k) = abs( (scalar2/stepSizes(k) - scalar1)/scalar1 )
+    errorHistory(k) = 0.0_wp
+    if( abs(scalar1)>0.0_wp ) errorHistory(k) = abs( (scalar2/stepSizes(k) - scalar1)/scalar1 )
 
     if (k > 1) then
        convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
             log(stepSizes(k) / stepSizes(k-1))
-      if (k > 5) then
-        if (sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
-      end if
+       if (k > 5) then
+         if (sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
+       end if
     end if
   end do
 
@@ -418,6 +482,9 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   SAFE_DEALLOCATE(deltaConservedVariables)
   SAFE_DEALLOCATE(deltaPrimitiveVariables)
 
+  call patch%cleanup()
+  call patchFactories(1)%cleanup()
+  SAFE_DEALLOCATE(patchFactories)
   call state0%cleanup()
   call state1%cleanup()
   call grid%cleanup()
