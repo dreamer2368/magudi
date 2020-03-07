@@ -16,7 +16,7 @@ program control_mollifier_factor
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
 
-  use RegionImpl, only : normalizeControlMollifier, computeVolume
+  use RegionImpl, only : normalizeControlMollifier, computeRegionIntegral
 
   implicit none
 
@@ -133,7 +133,7 @@ program control_mollifier_factor
   write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Before normalization: Maximum control mollifier value=', dummyValue
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
-  dummyValue = computeVolume(region)
+  dummyValue = computeRegionIntegral(region)
 
   write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Before normalization: Volume=', dummyValue
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)

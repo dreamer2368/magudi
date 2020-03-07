@@ -593,7 +593,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
 
   ! <<< Private members >>>
   use SolverImpl, only : showProgress, checkSolutionLimits, loadInitialCondition
-  use RegionImpl, only : computeXmomentum, computeVolume
+  use RegionImpl, only : computeRegionIntegral
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -660,7 +660,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
 
   if (region%simulationFlags%enableBodyForce) then
     call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
-    region%oneOverVolume = computeVolume(region)
+    region%oneOverVolume = computeRegionIntegral(region)
     region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
     region%oneOverVolume = 1.0_wp / region%oneOverVolume
     region%momentumLossPerVolume = 0.0_wp
@@ -815,7 +815,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! <<< Private members >>>
   use SolverImpl, only : showProgress, checkSolutionLimits, loadInitialCondition
-  use RegionImpl, only : computeXmomentum, computeVolume
+  use RegionImpl, only : computeRegionIntegral
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -899,7 +899,7 @@ function runAdjoint(this, region) result(costSensitivity)
 
   if (region%simulationFlags%enableBodyForce) then
     call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
-    region%oneOverVolume = computeVolume(region)
+    region%oneOverVolume = computeRegionIntegral(region)
     region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
     region%oneOverVolume = 1.0_wp / region%oneOverVolume
 

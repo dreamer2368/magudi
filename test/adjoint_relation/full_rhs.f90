@@ -238,6 +238,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   use RandomNumber, only : random
   use PLOT3DHelper
   use InputHelper, only : getOption
+  use RegionImpl, only : computeRegionIntegral
 
   ! <<< Arguments >>>
   class(t_Solver) :: solver
@@ -269,7 +270,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   real(wp) :: scalar1, scalar2, tolerance_,&
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, ierror, procRank
-  integer :: nDimensions, nUnknowns
+  integer :: nDimensions, nUnknowns, stage
   logical :: success_
   character(len=STRING_LENGTH) :: filename
   real(SCALAR_KIND), allocatable :: F(:,:), deltaPrimitiveVariables(:,:)
@@ -356,14 +357,29 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
     region%states(i)%adjointVariables = state0(i)%adjointVariables
   end do
 
+  stage = random(1,4)
+  if (region%simulationFlags%enableBodyForce) then
+    region%oneOverVolume = computeRegionIntegral(region)
+    call random_number(region%initialXmomentum)
+    region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+    if (stage==1) then
+      region%momentumLossPerVolume = 0.0_wp
+    else
+      call random_number(region%momentumLossPerVolume)
+    end if
+    region%oneOverVolume = 1.0_wp / region%oneOverVolume
+
+    region%adjointMomentumLossPerVolume = 0.0_wp
+  end if
+
   ! Compute baseline rhs
-  call region%computeRhs(FORWARD)
+  call region%computeRhs(FORWARD,1,stage)
   do i = 1, size(state0)
     state0(i)%rightHandSide = region%states(i)%rightHandSide
   end do
 
   ! Compute adjoint rhs for inviscid flux
-  call region%computeRhs(ADJOINT)
+  call region%computeRhs(ADJOINT,1,stage)
 
   ! <R^{\dagger}u, \delta v>
   scalar1 = 0.0_wp
@@ -400,7 +416,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
     end do
 
     ! (2)Compute baseline rhs
-    call region%computeRhs(FORWARD)
+    call region%computeRhs(FORWARD,1,stage)
 
     ! (3) <u, \delta R(v)>
     scalar2 = 0.0_wp

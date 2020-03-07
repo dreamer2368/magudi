@@ -602,7 +602,7 @@ contains
 
   end subroutine normalizeTargetMollifier
 
-  function computeXmomentum(region) result(xMomentum)
+  function computeRegionIntegral(region, quantityOfInterest, index) result(quadrature)
 
     ! <<< External modules >>>
     use MPI
@@ -610,55 +610,71 @@ contains
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
 
-    ! ! <<< SeungWhan: debugging >>>
-    ! use, intrinsic :: iso_fortran_env, only : output_unit
-    ! use ErrorHandler, only : writeAndFlush
+    ! <<< Enumerations >>>
+    use State_enum, only : QOI_ADJOINT_STATE, QOI_FORWARD_STATE, QOI_DUMMY_FUNCTION
 
     ! <<< Arguments >>>
     class(t_Region), intent(in) :: region
+    integer, intent(in), optional :: quantityOfInterest, index
 
     ! <<< Result >>>
-    SCALAR_TYPE :: xMomentum
+    SCALAR_TYPE :: quadrature
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
+    integer :: quantityOfInterest_, index_
     integer :: i, ierror
     SCALAR_TYPE, allocatable :: F(:,:)
-
-    ! ! <<< SeungWhan: message, timeRampFactor >>
-    ! character(len=STRING_LENGTH) :: message
-    ! real(wp) :: timeRampFactor
 
     assert(allocated(region%grids))
     assert(allocated(region%states))
     assert(size(region%grids) == size(region%states))
 
-    xMomentum = 0.0_wp
+    quantityOfInterest_ = QOI_FORWARD_STATE
+    index_ = 0
+    if( present(quantityOfInterest) ) quantityOfInterest_ = quantityOfInterest
+    if( present(index) ) index_ = index
+    if( index_==0 ) quantityOfInterest_ = QOI_DUMMY_FUNCTION
+
+    quadrature = 0.0_wp
 
     do i = 1, size(region%grids)
 
        assert(region%grids(i)%nGridPoints > 0)
-       assert(allocated(region%states(i)%conservedVariables))
-       assert(size(region%states(i)%conservedVariables, 1) == region%grids(i)%nGridPoints)
-       assert(size(region%states(i)%conservedVariables, 2) > 2)
-
        allocate(F(region%grids(i)%nGridPoints, 2))
-       F(:,1) = region%states(i)%conservedVariables(:,2)
        F(:,2) = 1.0_wp
-       xMomentum = xMomentum + region%grids(i)%computeInnerProduct(F(:,1),F(:,2))
+
+       select case(quantityOfInterest_)
+       case(QOI_FORWARD_STATE)
+         assert(allocated(region%states(i)%conservedVariables))
+         assert(size(region%states(i)%conservedVariables, 1) == region%grids(i)%nGridPoints)
+         assert(size(region%states(i)%conservedVariables, 2) > 2)
+
+         F(:,1) = region%states(i)%conservedVariables(:,index_)
+       case(QOI_ADJOINT_STATE)
+         assert(allocated(region%states(i)%adjointVariables))
+         assert(size(region%states(i)%adjointVariables, 1) == region%grids(i)%nGridPoints)
+         assert(size(region%states(i)%adjointVariables, 2) > 2)
+
+         F(:,1) = region%states(i)%adjointVariables(:,index_)
+       case(QOI_DUMMY_FUNCTION)
+         F(:,1) = 1.0_wp
+       end select
+
+       quadrature = quadrature + region%grids(i)%computeInnerProduct(F(:,1),F(:,2))
        SAFE_DEALLOCATE(F)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-         call MPI_Allreduce(MPI_IN_PLACE, xMomentum, 1,                                        &
+         call MPI_Allreduce(MPI_IN_PLACE, quadrature, 1,                                       &
          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
 
     do i = 1, size(region%grids)
-       call MPI_Bcast(xMomentum, 1, SCALAR_TYPE_MPI,                                           &
+       call MPI_Bcast(quadrature, 1, SCALAR_TYPE_MPI,                                          &
             0, region%grids(i)%comm, ierror)
     end do
 
-  end function computeXmomentum
+  end function computeRegionIntegral
 
   function computeAdjointXmomentum(region) result(adjointXmomentum)
 
@@ -668,10 +684,6 @@ contains
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
 
-    ! ! <<< SeungWhan: debugging >>>
-    ! use, intrinsic :: iso_fortran_env, only : output_unit
-    ! use ErrorHandler, only : writeAndFlush
-
     ! <<< Arguments >>>
     class(t_Region), intent(in) :: region
 
@@ -680,12 +692,10 @@ contains
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
-    integer :: i, ierror
+    integer :: i, nUnknowns, ierror
     SCALAR_TYPE, allocatable :: F(:,:)
 
-    ! ! <<< SeungWhan: message, timeRampFactor >>
-    ! character(len=STRING_LENGTH) :: message
-    ! real(wp) :: timeRampFactor
+    nUnknowns = region%solverOptions%nUnknowns
 
     assert(allocated(region%grids))
     assert(allocated(region%states))
@@ -701,8 +711,9 @@ contains
        assert(size(region%states(i)%adjointVariables, 2) > 2)
 
        allocate(F(region%grids(i)%nGridPoints, 2))
-       F(:,1) = region%states(i)%adjointVariables(:,2)
-       F(:,2) = 1.0_wp
+       F(:,1) = region%states(i)%adjointVariables(:,nUnknowns)
+       F(:,2) = region%states(i)%velocity(:,1)
+
        adjointXmomentum = adjointXmomentum + region%grids(i)%computeInnerProduct(F(:,1),F(:,2))
        SAFE_DEALLOCATE(F)
     end do
@@ -718,58 +729,6 @@ contains
 
   end function computeAdjointXmomentum
 
-  function computeVolume(region) result(volume)
-
-    ! <<< External modules >>>
-    use MPI
-
-    ! <<< Derived types >>>
-    use Region_mod, only : t_Region
-
-    ! ! <<< SeungWhan: debugging >>>
-    ! use, intrinsic :: iso_fortran_env, only : output_unit
-    ! use ErrorHandler, only : writeAndFlush
-
-    ! <<< Arguments >>>
-    class(t_Region), intent(in) :: region
-
-    ! <<< Result >>>
-    SCALAR_TYPE :: volume
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, ierror
-    SCALAR_TYPE, allocatable :: F(:,:)
-
-    ! ! <<< SeungWhan: message, timeRampFactor >>
-    ! character(len=STRING_LENGTH) :: message
-    ! real(wp) :: timeRampFactor
-
-    assert(allocated(region%grids))
-
-    volume = 0.0_wp
-
-    do i = 1, size(region%grids)
-
-       assert(region%grids(i)%nGridPoints > 0)
-
-       allocate(F(region%grids(i)%nGridPoints, 1))
-       F(:,1) = 1.0_wp
-       volume = volume + region%grids(i)%computeInnerProduct(F(:,1),F(:,1))
-       SAFE_DEALLOCATE(F)
-    end do
-
-    if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-         call MPI_Allreduce(MPI_IN_PLACE, volume, 1,                                        &
-         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
-
-    do i = 1, size(region%grids)
-       call MPI_Bcast(volume, 1, SCALAR_TYPE_MPI,                                           &
-            0, region%grids(i)%comm, ierror)
-    end do
-
-  end function computeVolume
-
   subroutine addBodyForce(region, mode, stage)
 
     ! <<< Derived types >>>
@@ -779,7 +738,8 @@ contains
     use ErrorHandler, only : writeAndFlush
 
     ! <<< Enumerations >>>
-    use Region_enum, only : FORWARD, ADJOINT
+    use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
+    use State_enum, only : QOI_ADJOINT_STATE, QOI_FORWARD_STATE, QOI_DUMMY_FUNCTION
 
     ! <<< Internal modules >>>
     use MPITimingsHelper, only : startTiming, endTiming
@@ -807,7 +767,7 @@ contains
     assert_key(nDimensions, (1, 2, 3))
 
     if (stage==1) then
-      currentXmomentum = computeXmomentum(region)
+      currentXmomentum = computeRegionIntegral(region,QOI_FORWARD_STATE,2)
       region%momentumLossPerVolume =                                                  &
                     region%oneOverVolume / region%getTimeStepSize() *                 &
                       ( region%initialXmomentum - currentXmomentum )
@@ -815,6 +775,12 @@ contains
       if (region%momentumLossPerVolume<0) then
         write(message,'(A,E13.6)') 'Negative body force detected: ', region%momentumLossPerVolume
         call writeAndFlush(region%comm,output_unit,message)
+      end if
+
+      if (mode==LINEARIZED) then
+        region%adjointMomentumLossPerVolume =                                           &
+                  - region%oneOverVolume / region%getTimeStepSize() *                   &
+                    computeRegionIntegral(region,QOI_ADJOINT_STATE,2)
       end if
     end if
 
@@ -828,6 +794,7 @@ contains
                              region%states(i)%rightHandSide(:,nDimensions+2) +          &
                      region%momentumLossPerVolume * region%states(i)%velocity(:,1)
       end do
+
     case(ADJOINT)
       if ( (stage.eq.2) .or. (stage.eq.3) ) then
         adjointForcingFactor = 2.0_wp
@@ -835,7 +802,8 @@ contains
         adjointForcingFactor = 1.0_wp
       end if
       region%adjointMomentumLossPerVolume = region%adjointMomentumLossPerVolume           &
-                                - adjointForcingFactor * computeAdjointXmomentum(region)
+        - adjointForcingFactor * ( computeRegionIntegral(region,QOI_ADJOINT_STATE,2)      &
+                                    + computeAdjointXmomentum(region) )
 
       do i = 1, size(region%states)
         allocate(temp(region%grids(i)%nGridPoints))
@@ -857,6 +825,25 @@ contains
         end do
         region%adjointMomentumLossPerVolume = 0.0_wp
       end if
+
+    case(LINEARIZED)
+      do i = 1, size(region%states)
+        allocate(temp(region%grids(i)%nGridPoints))
+        temp = - region%states(i)%velocity(:,1) * region%states(i)%adjointVariables(:,1)&
+               + region%states(i)%adjointVariables(:,2)
+        temp = temp * region%states(i)%specificVolume(:,1)
+
+        region%states(i)%rightHandSide(:,2) =                                           &
+            region%states(i)%rightHandSide(:,2) + region%adjointMomentumLossPerVolume
+
+        region%states(i)%rightHandSide(:,nDimensions+2) =                               &
+            region%states(i)%rightHandSide(:,nDimensions+2)                             &
+            + region%adjointMomentumLossPerVolume * region%states(i)%velocity(:,1)      &
+            + region%momentumLossPerVolume * temp
+
+        SAFE_DEALLOCATE(temp)
+      end do
+
     end select
 
     call endTiming("addBodyForce")
