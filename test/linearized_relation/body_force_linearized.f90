@@ -1,6 +1,6 @@
 #include "config.h"
 
-program body_force
+program body_force_linearized
 
   use MPI
 
@@ -26,7 +26,7 @@ program body_force
        real(SCALAR_KIND), intent(inout) :: a(:)
      end subroutine sort
 
-     subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, direction, tolerance)
+     subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, direction, tolerance)
 
        character(len = *), intent(in) :: identifier
        integer, intent(in) :: nDimensions
@@ -36,7 +36,7 @@ program body_force
        integer, intent(in) :: direction
        real(SCALAR_KIND), intent(in), optional :: tolerance
 
-     end subroutine testAdjointRelation
+     end subroutine testLinearizedRelation
 
   end interface
 
@@ -56,7 +56,7 @@ program body_force
         ! Didn't test periodic grid yet!!
         ! isPeriodic = .true.
         ! do direction = 1, nDimensions
-        !   call testAdjointRelation(discretizationTypes(j), nDimensions,           &
+        !   call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
         !                            success_, isPeriodic, direction)
         !   success1 = success1 .and. success_
         !   if( .not. success_) then
@@ -73,7 +73,7 @@ program body_force
         success2 = .true.
         isPeriodic = .false.
         do direction = 1, nDimensions
-          call testAdjointRelation(discretizationTypes(j), nDimensions,           &
+          call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
                                    success_, isPeriodic, direction)
           success2 = success2 .and. success_
             if( .not. success_) then
@@ -104,7 +104,7 @@ program body_force
   if (.not. success) stop -1
   stop 0
 
-end program body_force
+end program body_force_linearized
 
 subroutine sort(a)
 
@@ -187,7 +187,7 @@ real(SCALAR_KIND) function meanTrimmed(a)
 
 end function meanTrimmed
 
-subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, direction, tolerance)
+subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, direction, tolerance)
 
   ! <<< External modules >>>
   use MPI
@@ -245,15 +245,15 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  real(wp) :: scalar1, scalar2, tolerance_, scalarHistory(32),                            &
+  real(wp) :: scalar1, scalar2, tolerance_, scalarHistory(32),                              &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns, direction_, errorCode, extent(6)
   real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),            &
-                                    adjointRightHandSide(:,:),                        &
+                                    linearizedRightHandSide(:,:),                        &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     temp2(:,:)
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
-  SCALAR_TYPE :: volume, targetMomentum, currentMomentum, adjointMomentum, adjointEnergy, timestep
+  SCALAR_TYPE :: volume, targetMomentum, currentMomentum, adjointMomentum, timestep
   character(len = STRING_LENGTH) :: errorMessage
 
   call random_number(timestep)
@@ -378,30 +378,31 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
   ! Compute adjoint rhs
   nUnknowns = solverOptions%nUnknowns
-  allocate(adjointRightHandSide(grid%nGridPoints, solverOptions%nUnknowns))
+  allocate(linearizedRightHandSide(grid%nGridPoints, solverOptions%nUnknowns))
   allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns))
   temp2 = state0%rightHandSide
   state0%rightHandSide = 0.0_wp
   ! (1) Add patch penalties
   allocate(F(grid%nGridPoints,1))
   F = 1.0_wp
-  adjointMomentum = grid%computeInnerProduct(F(:,1),state0%adjointVariables(:,2))
-  adjointEnergy = grid%computeInnerProduct(F(:,1),state0%adjointVariables(:,nDimensions+2)                  &
-                                                  * state0%velocity(:,1) )
+  adjointMomentum = grid%computeInnerProduct(F(:,1),deltaConservedVariables(:,2))
 
-  F(:,1) = ( targetMomentum - currentMomentum )/volume/timestep / state0%conservedVariables(:,1)         &
-                                                      * state0%adjointVariables(:,nDimensions+2)
-  state0%rightHandSide(:,2) = (adjointMomentum + adjointEnergy)/volume/timestep
-  state0%rightHandSide(:,2) = state0%rightHandSide(:,2) - F(:,1)
-  state0%rightHandSide(:,1) = state0%rightHandSide(:,1) + F(:,1) * state0%velocity(:,1)
+  F(:,1) = - state0%velocity(:,1) * deltaConservedVariables(:,1)                                         &
+              + deltaConservedVariables(:,2)
+  F(:,1) = F(:,1) * state0%specificVolume(:,1)
 
-  adjointRightHandSide = state0%rightHandSide
-  state0%rightHandSide = temp2
-  SAFE_DEALLOCATE(temp2)
+  state0%rightHandSide(:,2) = - adjointMomentum/volume/timestep
+  state0%rightHandSide(:,nDimensions+2) =                                                           &
+          - adjointMomentum/volume/timestep * state0%velocity(:,1)                                  &
+          + ( targetMomentum - currentMomentum )/volume/timestep * F(:,1)
   SAFE_DEALLOCATE(F)
 
+  linearizedRightHandSide = state0%rightHandSide
+  state0%rightHandSide = temp2
+  SAFE_DEALLOCATE(temp2)
+
   ! <R^{\dagger}u, \delta v>
-  scalar1 = grid%computeInnerProduct(adjointRightHandSide,deltaConservedVariables)
+  scalar1 = grid%computeInnerProduct(state0%adjointVariables,linearizedRightHandSide)
 
   ! <u, \delta R(v)>
   errorHistory = 0.0_wp
@@ -433,8 +434,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
     scalarHistory(k) = scalar2/stepSizes(k)
     errorHistory(k) = 0.0_wp
-    if( abs(scalar1)>0.0_wp ) errorHistory(k) = abs( (scalar2/stepSizes(k) + scalar1)/scalar1 )
-    ! print *, stepSizes(k), -scalar1, scalar2/stepSizes(k), errorHistory(k)
+    if( abs(scalar1)>0.0_wp ) errorHistory(k) = abs( (scalar2/stepSizes(k) - scalar1)/scalar1 )
 
     if (k > 1) then
        convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
@@ -456,13 +456,13 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
   if (.not. success) then
     do i = 1, k
-      write(errorMessage,'(E8.3,3(3X,E32.15))') stepSizes(i), -scalar1,                        &
+      write(errorMessage,'(E8.3,3(3X,E32.15))') stepSizes(i), scalar1,                        &
                                             scalarHistory(i), errorHistory(i)
       call writeAndFlush(MPI_COMM_WORLD,output_unit,errorMessage)
     end do
   end if
 
-  SAFE_DEALLOCATE(adjointRightHandSide)
+  SAFE_DEALLOCATE(linearizedRightHandSide)
   SAFE_DEALLOCATE(deltaConservedVariables)
   SAFE_DEALLOCATE(deltaPrimitiveVariables)
 
@@ -470,4 +470,4 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   call state1%cleanup()
   call grid%cleanup()
 
-end subroutine testAdjointRelation
+end subroutine testLinearizedRelation
