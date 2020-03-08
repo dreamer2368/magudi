@@ -1,6 +1,6 @@
 #include "config.h"
 
-program viscous_flux_linearized
+program SAT_farfield_linearized
 
   use MPI
 
@@ -11,7 +11,7 @@ program viscous_flux_linearized
   implicit none
 
   logical :: success, success_, isPeriodic
-  integer :: i, j, k, nDimensions, ierror
+  integer :: i, j, k, nDimensions, direction, ierror
   integer :: procRank
   character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
@@ -26,13 +26,14 @@ program viscous_flux_linearized
        real(SCALAR_KIND), intent(inout) :: a(:)
      end subroutine sort
 
-     subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, tolerance)
+     subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, direction, tolerance)
 
        character(len = *), intent(in) :: identifier
        integer, intent(in) :: nDimensions
        logical, intent(out) :: success
 
-       logical, intent(in), optional :: isPeriodic
+       logical, intent(in) :: isPeriodic
+       integer, intent(in) :: direction
        real(SCALAR_KIND), intent(in), optional :: tolerance
 
      end subroutine testLinearizedRelation
@@ -48,41 +49,33 @@ program viscous_flux_linearized
   call initializeRandomNumberGenerator()
 
   do nDimensions = 1, 3
-    do j = 1, 4 !... for each discretizationTypes
-      success = .true.
-      do i = 1, 10 !... test multiple times
-        ! Didn't test periodic grid yet!!
-        ! isPeriodic = .true.
-        ! call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
-        !                          success_, isPeriodic)
-        ! success = success .and. success_
-        ! if( .not. success) then
-        !   if( procRank == 0 ) then
-        !     print *, 'Failed, ', trim(discretizationTypes(j))
-        !     print *, 'dimension: ', nDimensions
-        !     print *, 'periodicity: ', isPeriodic
-        !   end if
-        !   exit
-        ! end if
-
+    do j = 1, 4!... for each discretizationTypes
+      do direction = 1, nDimensions
+        success = .true.
         isPeriodic = .false.
-        call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
-                                 success_, isPeriodic)
-        success = success .and. success_
-        if( .not. success_) then
+        do i = 1, 10 !... test multiple times
+
+          call testLinearizedRelation(discretizationTypes(j), nDimensions,           &
+                                   success_, isPeriodic, direction)
+          success = success .and. success_
+          if( .not. success_) then
+            exit
+          end if
+        end do
+        if( .not. success) then
           if( procRank == 0 ) then
             print *, 'Failed, ', trim(discretizationTypes(j))
             print *, 'dimension: ', nDimensions
             print *, 'periodicity: ', isPeriodic
+            print *, 'direction: ', direction
           end if
-          exit
         end if
-      end do
+      end do !... for each direction
       if( procRank == 0 .and. success ) then
         print *, 'Success, ', trim(discretizationTypes(j))
         print *, 'dimension: ', nDimensions
       end if
-    end do
+    end do !... for each discretizationTypes
   end do
 
   call cleanupErrorHandler()
@@ -92,7 +85,7 @@ program viscous_flux_linearized
   if (.not. success) stop -1
   stop 0
 
-end program viscous_flux_linearized
+end program SAT_farfield_linearized
 
 subroutine sort(a)
 
@@ -175,7 +168,7 @@ real(SCALAR_KIND) function meanTrimmed(a)
 
 end function meanTrimmed
 
-subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, tolerance)
+subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, direction, tolerance)
 
   ! <<< External modules >>>
   use MPI
@@ -188,9 +181,15 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   use SolverOptions_mod, only : t_SolverOptions
   use SimulationFlags_mod, only : t_SimulationFlags
 
-  use Region_enum, only : FORWARD, ADJOINT
+  use PatchDescriptor_mod, only : t_PatchDescriptor
+  use Patch_factory, only : t_PatchFactory
+  use Patch_mod, only : t_Patch
+  use FarFieldPatch_mod, only : t_FarFieldPatch
+
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   use CNSHelper
+  use RhsHelperImpl, only : addFarFieldAdjointPenalty
 
   ! <<< Internal modules >>>
   use MPIHelper, only : pigeonhole
@@ -201,7 +200,8 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   character(len = *), intent(in) :: identifier
   integer, intent(in) :: nDimensions
   logical, intent(out) :: success
-  logical, intent(in), optional :: isPeriodic
+  logical, intent(in) :: isPeriodic
+  integer, intent(in) :: direction
   real(SCALAR_KIND), intent(in), optional :: tolerance
 
   ! <<< interface >>>
@@ -220,13 +220,16 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   type(t_SolverOptions) :: solverOptions
   type(t_Grid) :: grid
   type(t_State) :: state0, state1
+  type(t_PatchDescriptor) :: patchDescriptor
+  type(t_PatchFactory), allocatable :: patchFactories(:)
+  class(t_Patch), pointer :: patch => null()
+  ! type(t_FarFieldPatch) :: patch
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  logical :: isPeriodic_(3), hasNegativeJacobian
-  real(wp) :: scalar1, scalar2, tolerance_, scalarHistory(32),                        &
+  real(wp) :: scalar1, scalar2, tolerance_, scalarHistory(32),                             &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
-  integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns
+  integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns, direction_, errorCode, extent(6)
   real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),           &
                                     temp1(:,:,:), localFluxJacobian1(:,:),            &
                                     localConservedVariables(:), localVelocity(:),     &
@@ -236,9 +239,12 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     localFluxJacobian2(:,:), localStressTensor(:),    &
                                     localHeatFlux(:), localLinearizedDiffusion(:,:),     &
-                                    temp2(:,:,:)
+                                    temp2(:,:,:), temp3(:,:), targetViscousFluxes(:,:,:)
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
   character(len = STRING_LENGTH) :: errorMessage
+
+  tolerance_ = 1.0E-9
+  if( present(tolerance) ) tolerance_ = tolerance
 
   success = .true.
 
@@ -247,9 +253,12 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   simulationFlags%enableController = .true.
   simulationFlags%enableFunctional = .true.
   simulationFlags%enableAdjoint = .true.
+  ! randomize curvilinear domain
+  ! simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
   simulationFlags%isDomainCurvilinear = .true.
   simulationFlags%viscosityOn = .true.
   simulationFlags%repeatFirstDerivative = .true. ! this is default value.
+  simulationFlags%useTargetState = .true.
 
   ! randomize grid size
   ! Note that too small grid size will yield null matrix for stencil operators.
@@ -261,10 +270,10 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   ! initialize solver option, grid, and states
   call solverOptions%initialize(nDimensions, simulationFlags)
   solverOptions%discretizationType = trim(identifier)
-  solverOptions%reynoldsNumberInverse = 1.0_wp / 5.0_wp
-  solverOptions%prandtlNumberInverse = 1.0_wp / 0.72_wp
-  solverOptions%powerLawExponent = 0.666_wp
-  solverOptions%bulkViscosityRatio = 0.6_wp
+  solverOptions%reynoldsNumberInverse = 1.0_wp / random(5.0_wp,100.0_wp)
+  solverOptions%prandtlNumberInverse = 1.0_wp / random(0.1_wp,5.0_wp)
+  solverOptions%powerLawExponent = random(0.1_wp, 5.0_wp)
+  solverOptions%bulkViscosityRatio = random(0.1_wp, 5.0_wp)
   call grid%setup(1, gridSize(1:nDimensions,1), MPI_COMM_WORLD,                        &
        simulationFlags = simulationFlags)
   call grid%setupSpatialDiscretization(simulationFlags, solverOptions)
@@ -279,11 +288,72 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   ! grid is not randomized: do not put any argument in updateGrid!!
   call grid%update()
-  ! print *, 'Jacobian range: (', minval(grid%jacobian), ', ', maxval(grid%jacobian), ')'
-  ! print *, 'Metrics range: (', minval(grid%metrics), ', ', maxval(grid%metrics), ')'
 
   call state0%setup(grid, simulationFlags, solverOptions)
   call state1%setup(grid, simulationFlags, solverOptions)
+
+  ! setup patch
+  allocate(patchFactories(1))
+  direction_ = direction
+  extent(1::2) = 1
+  extent(2::2) = -1
+  if (random(0, 1) == 0) then
+     extent(1+2*(direction_-1)) = 1
+     extent(2+2*(direction_-1)) = 1
+  else
+     extent(1+2*(direction_-1)) = gridSize(direction_, 1)
+     extent(2+2*(direction_-1)) = gridSize(direction_, 1)
+     direction_ = -direction_
+  end if
+  patchDescriptor = t_PatchDescriptor("testPatch", "SAT_FAR_FIELD", 1, direction_,     &
+       extent(1), extent(2), extent(3), extent(4), extent(5), extent(6))
+  call patchDescriptor%validate(gridSize, simulationFlags,                             &
+                                solverOptions, errorCode, errorMessage)
+  if (errorCode .ne. 0) then
+    print *, trim(errorMessage)
+    success = .false.
+    return
+  end if
+  call patchFactories(1)%connect(patch,trim(patchDescriptor%patchType))
+  call patch%setup(1, MPI_COMM_WORLD, patchDescriptor,                                 &
+       grid, simulationFlags, solverOptions)
+  select type(patch)
+    class is (t_FarFieldPatch)
+      ! patch%inviscidPenaltyAmount = sign(random(0.01_wp,10.0_wp),                       &
+      !                                 real(patch%normalDirection,wp))                   &
+      !                                 /grid%firstDerivative(abs(direction_))%normBoundary(1)
+      patch%inviscidPenaltyAmount = 0.0_wp
+      if (simulationFlags%viscosityOn)                                                  &
+        patch%viscousPenaltyAmount = sign(random(0.01_wp,10.0_wp),                      &
+                                     real(patch%normalDirection,wp))                    &
+                                     /grid%firstDerivative(abs(direction_))%normBoundary(1)
+  end select
+
+  ! Randomize target state.
+  do i = 1, grid%nGridPoints
+    state0%targetState(i,1) = random(0.01_wp, 10.0_wp)
+    do j = 1, nDimensions
+       state0%targetState(i,j+1) =                                              &
+            state0%targetState(i,1) * random(-10.0_wp, 10.0_wp)
+    end do
+    state0%targetState(i, nDimensions + 2) = state0%targetState(i,1) *   &
+         random(0.01_wp, 10.0_wp) / solverOptions%ratioOfSpecificHeats +               &
+         0.5_wp / state0%targetState(i,1) *                                     &
+         sum(state0%targetState(i,2:nDimensions+1) ** 2)
+  end do
+  assert(all(state0%targetState(:,1) > 0.0_wp))
+  state1%targetState = state0%targetState
+  if( simulationFlags%viscosityOn ) then
+    allocate(targetViscousFluxes(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+    call state0%update(grid, simulationFlags, solverOptions, state0%targetState)
+    call computeCartesianViscousFluxes(nDimensions, state0%velocity,                      &
+         state0%stressTensor, state0%heatFlux, targetViscousFluxes)
+    call patchFactories(1)%connect(patch)
+    select type (patch)
+    class is (t_FarFieldPatch)
+      call patch%collect(targetViscousFluxes, patch%targetViscousFluxes)
+    end select
+  end if
 
   ! Randomize conserved variables.
   do i = 1, grid%nGridPoints
@@ -292,21 +362,15 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
         state0%conservedVariables(i,j+1) =                                              &
              state0%conservedVariables(i,1) * random(-10.0_wp, 10.0_wp)
      end do
-     state0%conservedVariables(i, nDimensions + 2) = state0%conservedVariables(i,1) *    &
-          random(0.01_wp, 10.0_wp) / solverOptions%ratioOfSpecificHeats +              &
+     state0%conservedVariables(i, nDimensions + 2) = state0%conservedVariables(i,1) *   &
+          random(0.01_wp, 10.0_wp) / solverOptions%ratioOfSpecificHeats +               &
           0.5_wp / state0%conservedVariables(i,1) *                                     &
           sum(state0%conservedVariables(i,2:nDimensions+1) ** 2)
   end do
   assert(all(state0%conservedVariables(:,1) > 0.0_wp))
 
   ! Compute dependent variables.
-  call state0%update(grid,simulationFlags,solverOptions)
-
-  ! Randomize adjoint variables.
-  allocate(F(grid%nGridPoints, solverOptions%nUnknowns))
-  call random_number(F)
-  state0%adjointVariables = F
-  SAFE_DEALLOCATE(F)
+  call state0%update(grid, simulationFlags, solverOptions)
 
   ! Randomize delta conserved variables.
   allocate(deltaConservedVariables(grid%nGridPoints, solverOptions%nUnknowns))
@@ -329,35 +393,38 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
        state0%conservedVariables(:,1) / solverOptions%ratioOfSpecificHeats *                               &
        deltaPrimitiveVariables(:,nDimensions+2)
 
-  ! Compute baseline viscous flux
+  ! Compute baseline SAT far-field
   ! (1) Cartesian form
-  allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
   allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
-  fluxes1 = 0.0_wp
   if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
      call computeCartesianViscousFluxes(nDimensions, state0%velocity,                         &
           state0%stressTensor, state0%heatFlux, fluxes2)
-     fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
   end if
-  ! (2) Transform fluxes
-  call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
-  ! (3) Take derivatives of fluxes
-  do i = 1, nDimensions
-     call grid%firstDerivative(i)%apply(fluxes2(:,:,i), grid%localSize)
-  end do
-  state0%rightHandSide = - sum(fluxes2, dim = 3) !... update RHS.
-  SAFE_DEALLOCATE(fluxes1)
+  ! (2) Send viscous fluxes to patch
+  if (simulationFlags%viscosityOn) then
+    call patchFactories(1)%connect(patch)
+    select type (patch)
+      class is (t_FarFieldPatch)
+        call patch%collect(fluxes2, patch%viscousFluxes)
+    end select
+  end if
+  ! (3) Add patch penalty
+  state0%rightHandSide = 0.0_wp
+  select type (patch)
+    class is (t_FarFieldPatch)
+      call patch%updateRhs(FORWARD, simulationFlags, solverOptions, grid, state0)
+  end select
   SAFE_DEALLOCATE(fluxes2)
-  ! (4) Multiply by Jacobian
-  do j = 1, solverOptions%nUnknowns
-     state0%rightHandSide(:,j) = state0%rightHandSide(:,j) * grid%jacobian(:,1)
-  end do
 
   ! Compute adjoint rhs for viscous flux
   nUnknowns = solverOptions%nUnknowns
   allocate(linearizedRightHandSide(grid%nGridPoints, solverOptions%nUnknowns))
-  linearizedRightHandSide = 0.0_wp
-  ! (1) D * C * dQ
+  allocate(temp3(grid%nGridPoints, solverOptions%nUnknowns))
+  temp3 = state0%rightHandSide
+  state0%rightHandSide = 0.0_wp
+  state0%adjointVariables = deltaConservedVariables
+  ! (1) Collect delta viscous fluxes on far-field patches: This is the same as linearized viscous flux.
+  ! (1-1) D * C * dQ
   allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns-1, nDimensions))
   temp2 = 0.0_wp
   ! temp2(:,1,1) = deltaConservedVariables(:,1)
@@ -385,7 +452,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   do i = 1, nDimensions
     call grid%firstDerivative(i)%apply(temp2(:,:,i), grid%localSize)
   end do
-  ! (2) A * dQ
+  ! (1-2) A * dQ
   allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
   temp1 = 0.0_wp
 
@@ -428,7 +495,10 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
                    localFluxJacobian2, specificVolume = state0%specificVolume(j,1),           &
                    velocity = localVelocity, temperature = state0%temperature(j,1))
            end select
-           localFluxJacobian1 = - localFluxJacobian2
+           ! This sign change is for combining with inviscid flux.
+           ! For collecting viscous flux, we should not change the sign.
+           ! localFluxJacobian1 = - localFluxJacobian2
+           localFluxJacobian1 = localFluxJacobian2
         end if
 
         temp1(j,:,i) = temp1(j,:,i) +                                                         &
@@ -489,7 +559,10 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
         end do !... i = 1, nDimensions
 
         do i = 1, nDimensions
-           temp1(k,2:nUnknowns,i) = temp1(k,2:nUnknowns,i) - localLinearizedDiffusion(:,i)
+          ! This sign change is for combining with inviscid flux.
+          ! For collecting viscous flux, we should not change the sign.
+           ! temp1(k,2:nUnknowns,i) = temp1(k,2:nUnknowns,i) - localLinearizedDiffusion(:,i)
+           temp1(k,2:nUnknowns,i) = temp1(k,2:nUnknowns,i) + localLinearizedDiffusion(:,i)
         end do
 
      end do !... k = 1, grid%nGridPoints
@@ -501,36 +574,49 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
      SAFE_DEALLOCATE(localMetricsAlongDirection2)
 
   end if !... simulationFlags%viscosityOn
-
-  ! (3) Take derivatives of fluxes
-  do i = 1, nDimensions
-    call grid%firstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
-  end do
-  linearizedRightHandSide = - sum(temp1, dim = 3) !... update RHS.
-
-  SAFE_DEALLOCATE(localVelocity)
-  SAFE_DEALLOCATE(localMetricsAlongDirection1)
+  ! (2) Send viscous fluxes to patch
+  if (simulationFlags%viscosityOn) then
+    call patchFactories(1)%connect(patch)
+    select type (patch)
+      class is (t_FarFieldPatch)
+        ! patch%viscousFluxes = 0.0_wp
+        ! call patch%collect(temp1(:,:,abs(patch%normalDirection)),                               &
+        !                     patch%viscousFluxes(:,:,abs(patch%normalDirection)) )
+        call patch%collect(temp1, patch%viscousFluxes)
+    end select
+  end if
   SAFE_DEALLOCATE(temp1)
 
-  ! (3) Multiply by Jacobian
-  do j = 1, solverOptions%nUnknowns
-     linearizedRightHandSide(:,j) = linearizedRightHandSide(:,j) * grid%jacobian(:,1)
-  end do
+  ! (2) Add patch penalties
+  select type (patch)
+    class is (t_FarFieldPatch)
+      call patch%updateRhs(LINEARIZED, simulationFlags, solverOptions, grid, state0)
+  end select
+  linearizedRightHandSide = state0%rightHandSide
+  state0%rightHandSide = temp3
+  SAFE_DEALLOCATE(temp3)
 
-  ! <u, \partial R\delta v>
+  ! Randomize adjoint variables.
+  allocate(F(grid%nGridPoints, solverOptions%nUnknowns))
+  call random_number(F)
+  state0%adjointVariables = F
+  SAFE_DEALLOCATE(F)
+
+  ! <R^{\dagger}u, \delta v>
   scalar1 = grid%computeInnerProduct(state0%adjointVariables,linearizedRightHandSide)
+
   ! <u, \delta R(v)>
   ! Prepare step sizes
-  stepSizes(1) = 0.001_wp
+  stepSizes(1) = 0.01_wp
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
   do k = 1, size(stepSizes)
     !(1) finite difference on conserved variables
     state1%conservedVariables = state0%conservedVariables + stepSizes(k) * deltaConservedVariables
-    assert(all(state1%conservedVariables(:,1) > 0.0_wp))
+    ! assert(all(state1%conservedVariables(:,1) > 0.0_wp))
     ! Compute dependent variables.
-    call state1%update(grid,simulationFlags,solverOptions)
+    call state1%update(grid, simulationFlags, solverOptions)
     ! call computeDependentVariables(nDimensions, state1%conservedVariables,                    &
     !      solverOptions%ratioOfSpecificHeats, state1%specificVolume(:,1), state1%velocity,       &
     !      state1%pressure(:,1), state1%temperature(:,1))
@@ -548,49 +634,56 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     !    state1%heatFlux(:,i) = - state1%thermalDiffusivity(:,1) * state1%heatFlux(:,i)
     ! end do
 
-    ! (2)Compute baseline viscous flux
+    ! (2) Compute baseline SAT far-field
     ! (2-1) Cartesian form
-    allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
     allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
-    fluxes1 = 0.0_wp
     if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
        call computeCartesianViscousFluxes(nDimensions, state1%velocity,                         &
             state1%stressTensor, state1%heatFlux, fluxes2)
-       fluxes1 = fluxes1 - fluxes2 !... Cartesian form of total fluxes.
     end if
-    ! (2-2) Transform fluxes
-    call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
-    ! (2-3) Take derivatives of fluxes
-    do i = 1, nDimensions
-       call grid%firstDerivative(i)%apply(fluxes2(:,:,i), grid%localSize)
-    end do
-    state1%rightHandSide = - sum(fluxes2, dim = 3) !... update RHS.
-    SAFE_DEALLOCATE(fluxes1)
+    ! (2-2) Send viscous fluxes to patch
+    if (simulationFlags%viscosityOn) then
+      call patchFactories(1)%connect(patch)
+      select type (patch)
+        class is (t_FarFieldPatch)
+          call patch%collect(fluxes2, patch%viscousFluxes)
+      end select
+    end if
+    ! (2-3) Add patch penalty
+    state1%rightHandSide = 0.0_wp
+    select type (patch)
+      class is (t_FarFieldPatch)
+        call patch%updateRhs(FORWARD, simulationFlags, solverOptions, grid, state1)
+    end select
     SAFE_DEALLOCATE(fluxes2)
-    ! (2-4) Multiply by Jacobian
-    do j = 1, solverOptions%nUnknowns
-       state1%rightHandSide(:,j) = state1%rightHandSide(:,j) * grid%jacobian(:,1)
-    end do
 
     ! (3) <u, \delta R(v)>
     scalar2 = grid%computeInnerProduct(state0%adjointVariables,                             &
                                         state1%rightHandSide - state0%rightHandSide)
 
     scalarHistory(k) = scalar2/stepSizes(k)
-    errorHistory(k) = abs( (scalar2/stepSizes(k) - scalar1)/scalar1 )
+    errorHistory(k) = 0.0_wp
+    if( abs(scalar1)>0.0_wp ) errorHistory(k) = abs( (scalar2/stepSizes(k) - scalar1)/scalar1 )
 
     if (k > 1) then
        convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
             log(stepSizes(k) / stepSizes(k-1))
        if (k > 5) then
-         if ( sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
+         if(sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
        end if
     end if
   end do
 
-  if (k > 2) then
+  if (k > 3) then
      call sort(convergenceHistory(:k-2))
-     success = success .and. nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
+     success = nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
+     if ((.not. success) .and. (maxval(errorHistory).le.tolerance_)) then
+       write(errorMessage,'(A,E8.3)')                                                     &
+       'Error does not follow first-order slope, but is smaller than the tolerance ',     &
+       tolerance_
+       call writeAndFlush(MPI_COMM_WORLD,output_unit,errorMessage)
+       success = .true.
+     end if
   else
      success = .false.
   end if
@@ -603,10 +696,14 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     end do
   end if
 
+  SAFE_DEALLOCATE(targetViscousFluxes)
   SAFE_DEALLOCATE(linearizedRightHandSide)
   SAFE_DEALLOCATE(deltaConservedVariables)
   SAFE_DEALLOCATE(deltaPrimitiveVariables)
 
+  call patch%cleanup()
+  call patchFactories(1)%cleanup()
+  SAFE_DEALLOCATE(patchFactories)
   call state0%cleanup()
   call state1%cleanup()
   call grid%cleanup()
