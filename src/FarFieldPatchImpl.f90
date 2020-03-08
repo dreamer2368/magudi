@@ -189,7 +189,7 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                    incomingDirection, incomingJacobianOfInviscidFlux)
            end select !... nDimensions
 
-           if ((mode .ne. FORWARD) .and. simulationFlags%viscosityOn) then
+           if (mode == ADJOINT .and. simulationFlags%viscosityOn) then
 
               localConservedVariables = state%conservedVariables(gridIndex,:)
               localVelocity = state%velocity(gridIndex,:)
@@ -261,16 +261,16 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
                   this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *                 &
                   matmul(incomingJacobianOfInviscidFlux, state%adjointVariables(gridIndex,:))
 
-             ! if (simulationFlags%viscosityOn)                                               &
-             !    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
-             !    this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *                   &
-             !    matmul(this%viscousFluxes(patchIndex,:,:), localMetricsAlongNormalDirection)
-
-             if (simulationFlags%viscosityOn) then
+             if (simulationFlags%viscosityOn)                                               &
                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
-                     this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
-                     matmul(localViscousFluxJacobian, state%adjointVariables(gridIndex,:))
-             end if
+                this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *                   &
+                this%viscousFluxes(patchIndex,:,direction)
+
+             ! if (simulationFlags%viscosityOn) then
+             !    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+             !         this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
+             !         matmul(localViscousFluxJacobian, state%adjointVariables(gridIndex,:))
+             ! end if
 
            end select !... mode
 
