@@ -250,7 +250,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   ! randomize curvilinear domain
   ! simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
   simulationFlags%isDomainCurvilinear = .true.
-  simulationFlags%viscosityOn = .false.
+  simulationFlags%viscosityOn = .true.
   simulationFlags%repeatFirstDerivative = .true. ! this is default value.
   simulationFlags%useTargetState = .true.
 
@@ -361,20 +361,6 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
        deltaPrimitiveVariables(:,nDimensions+2)
 
   ! Compute baseline SAT isothermal wall
-  ! ! (1) Cartesian form
-  ! allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
-  ! if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
-  !    call computeCartesianViscousFluxes(nDimensions, state0%velocity,                         &
-  !         state0%stressTensor, state0%heatFlux, fluxes2)
-  ! end if
-  ! ! (2) Send viscous fluxes to patch
-  ! if (simulationFlags%viscosityOn) then
-  !   call patchFactories(1)%connect(patch)
-  !   select type (patch)
-  !     class is (t_FarFieldPatch)
-  !       call patch%collect(fluxes2, patch%viscousFluxes)
-  !   end select
-  ! end if
   ! (3) Add patch penalty
   state0%rightHandSide = 0.0_wp
   select type (patch)
@@ -382,10 +368,6 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     call patch%updateRhs(FORWARD, simulationFlags, solverOptions, grid, state0)
   end select
   SAFE_DEALLOCATE(fluxes2)
-  ! ! (4) Multiply by Jacobian
-  ! do j = 1, solverOptions%nUnknowns
-  !    state0%rightHandSide(:,j) = state0%rightHandSide(:,j) * grid%jacobian(:,1)
-  ! end do
 
   ! Compute adjoint rhs for viscous flux
   nUnknowns = solverOptions%nUnknowns
@@ -394,14 +376,6 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   temp2 = state0%rightHandSide
   state0%rightHandSide = 0.0_wp
   state0%adjointVariables = deltaConservedVariables
-  ! ! (1) Viscous penalties on far-field patches.
-  ! if (simulationFlags%viscosityOn)                                                           &
-  !      call addFarFieldAdjointPenalty(simulationFlags, solverOptions,                        &
-  !                                      grid, state0, patchFactories)
-  ! ! (2) Multiply by Jacobian
-  ! do j = 1, solverOptions%nUnknowns
-  !    state0%rightHandSide(:,j) = state0%rightHandSide(:,j) * grid%jacobian(:,1)
-  ! end do
   ! (3) Add patch penalties
   select type (patch)
   class is (t_IsothermalWall)
@@ -433,21 +407,6 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     ! Compute dependent variables.
     call state1%update(grid, simulationFlags, solverOptions)
 
-    ! (2) Compute baseline SAT far-field
-    ! ! (2-1) Cartesian form
-    ! allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
-    ! if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
-    !    call computeCartesianViscousFluxes(nDimensions, state1%velocity,                         &
-    !         state1%stressTensor, state1%heatFlux, fluxes2)
-    ! end if
-    ! ! (2-2) Send viscous fluxes to patch
-    ! if (simulationFlags%viscosityOn) then
-    !   call patchFactories(1)%connect(patch)
-    !   select type (patch)
-    !     class is (t_FarFieldPatch)
-    !       call patch%collect(fluxes2, patch%viscousFluxes)
-    !   end select
-    ! end if
     ! (2-3) Add patch penalty
     state1%rightHandSide = 0.0_wp
     select type (patch)
@@ -473,11 +432,16 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     end if
   end do
 
-  if (maxval(errorHistory).le.tolerance_) then
-    success = .true.
-  elseif (k > 3) then
+  if (k > 3) then
      call sort(convergenceHistory(:k-2))
-     success = success .and. nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
+     success = nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
+     if ((.not. success) .and. (maxval(errorHistory).le.tolerance_)) then
+       write(errorMessage,'(A,E8.3)')                                                     &
+       'Error does not follow first-order slope, but is smaller than the tolerance ',     &
+       tolerance_
+       call writeAndFlush(MPI_COMM_WORLD,output_unit,errorMessage)
+       success = .true.
+     end if
   else
      success = .false.
   end if

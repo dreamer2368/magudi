@@ -75,6 +75,9 @@ subroutine setupIsothermalWall(this, index, comm, patchDescriptor,              
   else
      this%viscousPenaltyAmounts = 0.0_wp
   end if
+  ! second viscous penalty amount is not implemented yet.
+  ! also its intent is not clear in the formulation.
+  this%viscousPenaltyAmounts(2) = 0.0_wp
 
 end subroutine setupIsothermalWall
 
@@ -107,7 +110,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -130,7 +133,7 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
        metrics(:,:), penaltyAtBoundary(:), penaltyNearBoundary(:,:), temp(:,:),              &
        localVelocity(:), localFluxJacobian(:,:), adjointPenalties(:,:)
 
-  assert_key(mode, (FORWARD, ADJOINT))
+  assert_key(mode, (FORWARD, ADJOINT, LINEARIZED))
   assert(this%gridIndex == grid%index)
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
@@ -258,47 +261,63 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
               adjointPenalties(2:nDimensions+2,1) =                                          &
                    state%adjointVariables(gridIndex,2:nDimensions+2)
 
-              select case (nDimensions)
-              case (1)
-                 call computeSecondPartialViscousJacobian1D(localVelocity,                   &
-                      this%dynamicViscosity(patchIndex),                                     &
-                      this%secondCoefficientOfViscosity(patchIndex),                         &
-                      this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
-                      metricsAlongNormalDirection(1), localFluxJacobian)
-              case (2)
-                 call computeSecondPartialViscousJacobian2D(localVelocity,                   &
-                      this%dynamicViscosity(patchIndex),                                     &
-                      this%secondCoefficientOfViscosity(patchIndex),                         &
-                      this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
-                      metricsAlongNormalDirection, metricsAlongNormalDirection,              &
-                      localFluxJacobian)
-              case (3)
-                 call computeSecondPartialViscousJacobian3D(localVelocity,                   &
-                      this%dynamicViscosity(patchIndex),                                     &
-                      this%secondCoefficientOfViscosity(patchIndex),                         &
-                      this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
-                      metricsAlongNormalDirection, metricsAlongNormalDirection,              &
-                      localFluxJacobian)
-              end select !... nDimensions
-
-              adjointPenalties(2:nUnknowns,2) = matmul(transpose(localFluxJacobian),         &
-                   temp(gridIndex,:))
-
-              adjointPenalties(nDimensions+2,2) = solverOptions%ratioOfSpecificHeats *       &
-                   state%specificVolume(gridIndex,1) * adjointPenalties(nDimensions+2,2)
-              adjointPenalties(2:nDimensions+1,2) = state%specificVolume(gridIndex,1) *      &
-                   adjointPenalties(2:nDimensions+1,2) - localVelocity *                     &
-                   adjointPenalties(nDimensions+2,2)
-              adjointPenalties(1,2) = - state%specificVolume(gridIndex,1) *                  &
-                   state%conservedVariables(gridIndex,nDimensions+2) *                       &
-                   adjointPenalties(nDimensions+2,2) - sum(localVelocity *                   &
-                   adjointPenalties(2:nDimensions+1,2))
+              ! TODO: this part is not implemented yet, its intent is also not clear in the formulation.
+              adjointPenalties(:,2) = 0.0_wp
+              ! select case (nDimensions)
+              ! case (1)
+              !    call computeSecondPartialViscousJacobian1D(localVelocity,                   &
+              !         this%dynamicViscosity(patchIndex),                                     &
+              !         this%secondCoefficientOfViscosity(patchIndex),                         &
+              !         this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
+              !         metricsAlongNormalDirection(1), localFluxJacobian)
+              ! case (2)
+              !    call computeSecondPartialViscousJacobian2D(localVelocity,                   &
+              !         this%dynamicViscosity(patchIndex),                                     &
+              !         this%secondCoefficientOfViscosity(patchIndex),                         &
+              !         this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
+              !         metricsAlongNormalDirection, metricsAlongNormalDirection,              &
+              !         localFluxJacobian)
+              ! case (3)
+              !    call computeSecondPartialViscousJacobian3D(localVelocity,                   &
+              !         this%dynamicViscosity(patchIndex),                                     &
+              !         this%secondCoefficientOfViscosity(patchIndex),                         &
+              !         this%thermalDiffusivity(patchIndex), grid%jacobian(gridIndex,1),       &
+              !         metricsAlongNormalDirection, metricsAlongNormalDirection,              &
+              !         localFluxJacobian)
+              ! end select !... nDimensions
+              !
+              ! adjointPenalties(2:nUnknowns,2) = matmul(transpose(localFluxJacobian),         &
+              !      temp(gridIndex,:))
+              !
+              ! adjointPenalties(nDimensions+2,2) = solverOptions%ratioOfSpecificHeats *       &
+              !      state%specificVolume(gridIndex,1) * adjointPenalties(nDimensions+2,2)
+              ! adjointPenalties(2:nDimensions+1,2) = state%specificVolume(gridIndex,1) *      &
+              !      adjointPenalties(2:nDimensions+1,2) - localVelocity *                     &
+              !      adjointPenalties(nDimensions+2,2)
+              ! adjointPenalties(1,2) = - state%specificVolume(gridIndex,1) *                  &
+              !      state%conservedVariables(gridIndex,nDimensions+2) *                       &
+              !      adjointPenalties(nDimensions+2,2) - sum(localVelocity *                   &
+              !      adjointPenalties(2:nDimensions+1,2))
 
               adjointPenalties = grid%jacobian(gridIndex, 1) * adjointPenalties
 
               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +          &
                    this%viscousPenaltyAmounts(1) * adjointPenalties(:,1) -                   &
                    this%viscousPenaltyAmounts(2) * adjointPenalties(:,2)
+
+           case(LINEARIZED)
+
+             penaltyAtBoundary(1) = 0.0_wp
+             penaltyAtBoundary(2:nDimensions+2) =                                           &
+                  state%adjointVariables(gridIndex,2:nDimensions+2)
+             penaltyAtBoundary(nDimensions+2) = penaltyAtBoundary(nDimensions+2)            &
+                  - state%adjointVariables(gridIndex,1) * this%temperature(patchIndex)      &
+                    / solverOptions%ratioOfSpecificHeats
+
+             penaltyAtBoundary = grid%jacobian(gridIndex, 1) * penaltyAtBoundary
+
+             state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
+                  this%viscousPenaltyAmounts(1) * penaltyAtBoundary
 
            end select !... mode
 
