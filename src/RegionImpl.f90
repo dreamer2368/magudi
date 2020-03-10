@@ -1570,10 +1570,11 @@ subroutine computeRhs(this, mode, timeStep, stage)
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   ! <<< Internal modules >>>
-  use RhsHelper, only : computeRhsForward, computeRhsAdjoint, addInterfaceAdjointPenalty
+  use RhsHelper, only : computeRhsForward, computeRhsAdjoint,                                 &
+                        computeRhsLinearized, addInterfaceAdjointPenalty
   use InterfaceHelper, only : exchangeInterfaceData
   use MPITimingsHelper, only : startTiming, endTiming
   use RegionImpl, only : addBodyForce
@@ -1600,6 +1601,9 @@ subroutine computeRhs(this, mode, timeStep, stage)
              this%grids(i), this%states(i), this%patchFactories)
      case (ADJOINT)
         call computeRhsAdjoint(this%simulationFlags, this%solverOptions,                     &
+             this%grids(i), this%states(i), this%patchFactories)
+     case (LINEARIZED)
+        call computeRhsLinearized(this%simulationFlags, this%solverOptions,                  &
              this%grids(i), this%states(i), this%patchFactories)
      end select
   end do

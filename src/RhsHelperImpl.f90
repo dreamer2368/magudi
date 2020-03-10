@@ -813,6 +813,238 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
 
 end subroutine computeRhsAdjoint
 
+subroutine computeRhsLinearized(simulationFlags, solverOptions, grid, state, patchFactories)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
+  use Patch_mod, only : t_Patch
+  use State_mod, only : t_State
+  use Patch_factory, only : t_PatchFactory
+  use FarFieldPatch_mod, only : t_FarFieldPatch
+  use SolverOptions_mod, only : t_SolverOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : LINEARIZED
+
+  ! <<< Private members >>>
+  use RhsHelperImpl, only : addDissipation
+
+  ! <<< Internal modules >>>
+  use CNSHelper
+  use Patch_factory, only : queryPatchTypeExists
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  implicit none
+
+  ! <<< Arguments >>>
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+  class(t_Grid) :: grid
+  class(t_State) :: state
+  type(t_PatchFactory), allocatable :: patchFactories(:)
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, nDimensions, nUnknowns
+  SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:),                   &
+              localFluxJacobian1(:,:), localConservedVariables(:),              &
+              localVelocity(:), localMetricsAlongDirection1(:),                 &
+              localFluxJacobian2(:,:), localStressTensor(:),                    &
+              localHeatFlux(:), localLinearizedDiffusion(:,:),                  &
+              localMetricsAlongDirection2(:), temp(:,:,:)
+  class(t_Patch), pointer :: patch => null()
+
+  call startTiming("computeRhsLinearized")
+
+  nDimensions = grid%nDimensions
+  nUnknowns = solverOptions%nUnknowns
+  assert_key(nDimensions, (1, 2, 3))
+
+  allocate(fluxes1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+  allocate(fluxes2(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+
+  state%rightHandSide = 0.0_wp
+
+  ! Compute Cartesian form of delta inviscid fluxes.
+  fluxes1 = 0.0_wp
+
+  allocate(localFluxJacobian1(nUnknowns, nUnknowns))
+  allocate(localConservedVariables(nUnknowns))
+  allocate(localVelocity(nDimensions))
+  allocate(localMetricsAlongDirection1(nDimensions))
+  do j = 1, grid%nGridPoints
+     localConservedVariables = state%conservedVariables(j,:)
+     localVelocity = state%velocity(j,:)
+     do i = 1, nDimensions
+        localMetricsAlongDirection1 = grid%metrics(j,1+nDimensions*(i-1):nDimensions*i)
+        select case (nDimensions)
+        case (1)
+           call computeJacobianOfInviscidFlux1D(localConservedVariables,                     &
+                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
+                localFluxJacobian1, specificVolume = state%specificVolume(j,1),              &
+                velocity = localVelocity, temperature = state%temperature(j,1))
+        case (2)
+           call computeJacobianOfInviscidFlux2D(localConservedVariables,                     &
+                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
+                localFluxJacobian1, specificVolume = state%specificVolume(j,1),              &
+                velocity = localVelocity, temperature = state%temperature(j,1))
+        case (3)
+           call computeJacobianOfInviscidFlux3D(localConservedVariables,                     &
+                localMetricsAlongDirection1, solverOptions%ratioOfSpecificHeats,             &
+                localFluxJacobian1, specificVolume = state%specificVolume(j,1),              &
+                velocity = localVelocity, temperature = state%temperature(j,1))
+        end select !... nDimensions
+
+        fluxes1(j,:,i) = fluxes1(j,:,i) +                                                     &
+                        matmul(localFluxJacobian1, state%adjointVariables(j,:))
+
+     end do !... i = 1, nDimensions
+  end do !... j = 1, grid%nGridPoints
+
+  ! Compute Cartesian form of delta viscous fluxes if viscous terms are included and computed using
+  ! repeated first derivatives.
+  fluxes2 = 0.0_wp
+  if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
+    ! for second partial viscous terms
+    allocate(temp(grid%nGridPoints, nUnknowns-1, nDimensions))
+    temp = 0.0_wp
+    do i = 1, nDimensions
+      temp(:,i,1) = - state%velocity(:,i) * state%adjointVariables(:,1)         &
+                     + state%adjointVariables(:,i+1)
+    end do
+    temp(:,nUnknowns-1,1) = - state%specificVolume(:,1)                         &
+                             * state%conservedVariables(:,nUnknowns)            &
+                             * state%adjointVariables(:,1)
+    temp(:,nUnknowns-1,1) = temp(:,nUnknowns-1,1)                               &
+                    - sum(state%velocity * temp(:,1:nDimensions,1), dim=2)      &
+                    + state%adjointVariables(:,nUnknowns)
+    temp(:,nUnknowns-1,1) = temp(:,nUnknowns-1,1)                               &
+                               * solverOptions%ratioOfSpecificHeats
+    do i = 1, nUnknowns-1
+      temp(:,i,1) = temp(:,i,1) * state%specificVolume(:,1)
+    end do
+    do i = 2, nDimensions
+      temp(:,:,i) = temp(:,:,1)
+    end do
+    do i = 1, nDimensions
+      call grid%firstDerivative(i)%apply(temp(:,:,i), grid%localSize)
+    end do
+
+    allocate(localFluxJacobian2(nUnknowns-1, nUnknowns-1))
+    allocate(localStressTensor(nDimensions ** 2))
+    allocate(localHeatFlux(nDimensions))
+    allocate(localMetricsAlongDirection2(nDimensions))
+    allocate(localLinearizedDiffusion(nUnknowns-1, nDimensions))
+
+    do k = 1, grid%nGridPoints
+       localConservedVariables = state%conservedVariables(k,:)
+       localVelocity = state%velocity(k,:)
+       localStressTensor = state%stressTensor(k,:)
+       localHeatFlux = state%heatFlux(k,:)
+       localLinearizedDiffusion = 0.0_wp
+       do i = 1, nDimensions
+          localMetricsAlongDirection1 = grid%metrics(k,1+nDimensions*(i-1):nDimensions*i)
+           select case (nDimensions)
+           case (1)
+              call computeFirstPartialViscousJacobian1D(localConservedVariables,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localFluxJacobian1, specificVolume = state%specificVolume(k,1),           &
+                   velocity = localVelocity, temperature = state%temperature(k,1))
+           case (2)
+              call computeFirstPartialViscousJacobian2D(localConservedVariables,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localFluxJacobian1, specificVolume = state%specificVolume(k,1),           &
+                   velocity = localVelocity, temperature = state%temperature(k,1))
+           case (3)
+              call computeFirstPartialViscousJacobian3D(localConservedVariables,             &
+                   localMetricsAlongDirection1, localStressTensor, localHeatFlux,            &
+                   solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats,       &
+                   localFluxJacobian1, specificVolume = state%specificVolume(k,1),           &
+                   velocity = localVelocity, temperature = state%temperature(k,1))
+           end select
+
+          fluxes2(k,:,i) = fluxes2(k,:,i) +                                                    &
+                          matmul(localFluxJacobian1, state%adjointVariables(k,:))
+
+          do j = 1, nDimensions
+
+             localMetricsAlongDirection2 = grid%metrics(k,1+nDimensions*(j-1):nDimensions*j)
+
+             select case (nDimensions)
+             case (1)
+                call computeSecondPartialViscousJacobian1D(localVelocity,                   &
+                     state%dynamicViscosity(k,1), state%secondCoefficientOfViscosity(k,1),  &
+                     state%thermalDiffusivity(k,1), grid%jacobian(k,1),                     &
+                     localMetricsAlongDirection1(1), localFluxJacobian2)
+             case (2)
+                call computeSecondPartialViscousJacobian2D(localVelocity,                   &
+                     state%dynamicViscosity(k,1), state%secondCoefficientOfViscosity(k,1),  &
+                     state%thermalDiffusivity(k,1), grid%jacobian(k,1),                     &
+                     localMetricsAlongDirection1, localMetricsAlongDirection2,              &
+                     localFluxJacobian2)
+             case (3)
+                call computeSecondPartialViscousJacobian3D(localVelocity,                   &
+                     state%dynamicViscosity(k,1), state%secondCoefficientOfViscosity(k,1),  &
+                     state%thermalDiffusivity(k,1), grid%jacobian(k,1),                     &
+                     localMetricsAlongDirection1, localMetricsAlongDirection2,              &
+                     localFluxJacobian2)
+             end select !... nDimensions
+
+             localLinearizedDiffusion(:,i) = localLinearizedDiffusion(:,i) +                      &
+                                        matmul(localFluxJacobian2,temp(k,:,j))
+
+          end do !... j = 1, nDimensions
+
+          fluxes2(k,2:nUnknowns,i) = fluxes2(k,2:nUnknowns,i) + localLinearizedDiffusion(:,i)
+       end do !... i = 1, nDimensions
+    end do !... k = 1, grid%nGridPoints
+
+  end if
+
+  ! Send viscous fluxes to patches that will use it.
+  if (simulationFlags%viscosityOn .and. allocated(patchFactories)) then
+     do i = 1, size(patchFactories)
+        call patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
+
+        select type (patch)
+        class is (t_FarFieldPatch)
+           call patch%collect(fluxes2, patch%viscousFluxes)
+        ! class is (t_BlockInterfacePatch) ! TODO: linearized run for block interface.
+        !    call patch%collect(fluxes2, patch%cartesianViscousFluxesL)
+        end select
+
+     end do
+  end if
+
+  fluxes1 = fluxes1 - fluxes2
+
+  SAFE_DEALLOCATE(fluxes2) !... no longer needed.
+
+  ! Take derivatives of fluxes.
+  do i = 1, nDimensions
+     call grid%firstDerivative(i)%apply(fluxes1(:,:,i), grid%localSize)
+  end do
+  state%rightHandSide = state%rightHandSide - sum(fluxes1, dim = 3) !... update RHS.
+
+  SAFE_DEALLOCATE(fluxes1) !... no longer needed
+
+  ! Add dissipation if required.
+  if (simulationFlags%dissipationOn)                                                         &
+       call addDissipation(LINEARIZED, simulationFlags, solverOptions, grid, state)
+
+  call endTiming("computeRhsLinearized")
+
+end subroutine computeRhsLinearized
+
 subroutine addInterfaceAdjointPenalty(simulationFlags, solverOptions,                        &
      grid, state, patchFactories)
 
