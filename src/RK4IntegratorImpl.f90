@@ -268,3 +268,102 @@ subroutine substepAdjointRK4(this, region, time, timeStepSize, timestep, stage)
   call endTiming("substepAdjoint")
 
 end subroutine substepAdjointRK4
+
+subroutine substepLinearizedRK4(this, region, time, timeStepSize, timestep, stage)
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+  use RK4Integrator_mod, only : t_RK4Integrator
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : LINEARIZED
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_RK4Integrator) :: this
+  class(t_Region) :: region
+  real(SCALAR_KIND), intent(inout) :: time
+  real(SCALAR_KIND), intent(in) :: timeStepSize
+  integer, intent(in) :: timestep, stage
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer, save :: stageLastCall = 0
+  integer :: i
+
+  assert(timestep >= 0)
+  assert(stage >= 1 .and. stage <= 4)
+
+#ifdef DEBUG
+  if (stageLastCall /= 0) then
+     assert(stage == stageLastCall + 1 .or. (stageLastCall == 4 .and. stage == 1))
+  end if
+#endif
+
+  call startTiming("substepLinearized")
+
+  stageLastCall = stage
+
+  select case (stage)
+
+  case (1)
+
+     do i = 1, size(region%states)
+        this%data_(i)%buffer1 = region%states(i)%adjointVariables
+     end do
+
+     region%states(:)%timeProgressive = time + timeStepSize / 2.0_wp
+     call region%computeRhs(LINEARIZED, timestep, stage)
+
+     do i = 1, size(region%states)
+        this%data_(i)%buffer2 = region%states(i)%adjointVariables +                        &
+             timeStepSize * region%states(i)%rightHandSide / 6.0_wp
+        region%states(i)%adjointVariables = this%data_(i)%buffer1 +                        &
+             timeStepSize * region%states(i)%rightHandSide / 2.0_wp
+     end do
+
+  case (2)
+
+     time = time + timeStepSize / 2.0_wp
+     region%states(:)%time = time
+     call region%computeRhs(LINEARIZED, timestep, stage)
+
+     do i = 1, size(region%states)
+        this%data_(i)%buffer2 = this%data_(i)%buffer2 +                                      &
+             timeStepSize * region%states(i)%rightHandSide / 3.0_wp
+        region%states(i)%adjointVariables = this%data_(i)%buffer1 +                        &
+             timeStepSize * region%states(i)%rightHandSide / 2.0_wp
+     end do
+
+  case (3)
+
+     region%states(:)%timeProgressive = time + timeStepSize / 2.0_wp
+     call region%computeRhs(LINEARIZED, timestep, stage)
+
+     do i = 1, size(region%states)
+        this%data_(i)%buffer2 = this%data_(i)%buffer2 +                                      &
+             timeStepSize * region%states(i)%rightHandSide / 3.0_wp
+        region%states(i)%adjointVariables = this%data_(i)%buffer1 +                        &
+             timeStepSize * region%states(i)%rightHandSide
+     end do
+
+  case (4)
+
+     time = time + timeStepSize / 2.0_wp
+     region%states(:)%time = time
+     call region%computeRhs(LINEARIZED, timestep, stage)
+
+     do i = 1, size(region%states)
+        region%states(i)%adjointVariables = this%data_(i)%buffer2 +                        &
+             timeStepSize * region%states(i)%rightHandSide / 6.0_wp
+     end do
+
+  end select
+
+  call endTiming("substepLinearized")
+
+end subroutine substepLinearizedRK4

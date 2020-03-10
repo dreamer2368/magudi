@@ -18,6 +18,7 @@ module TimeIntegrator_mod
      procedure(cleanup), pass, deferred :: cleanup
      procedure(subStepForward), pass, deferred :: subStepForward
      procedure(subStepAdjoint), pass, deferred :: subStepAdjoint
+     procedure(substepLinearized), pass, deferred :: substepLinearized
 
   end type t_TimeIntegrator
 
@@ -105,6 +106,24 @@ module TimeIntegrator_mod
        integer, intent(in) :: timestep, stage
 
      end subroutine substepAdjoint
+
+  end interface
+
+  abstract interface
+
+     subroutine substepLinearized(this, region, time, timeStepSize, timestep, stage)
+
+       use Region_mod, only : t_Region
+
+       import :: t_TimeIntegrator
+
+       class(t_TimeIntegrator) :: this
+       class(t_Region) :: region
+       real(SCALAR_KIND), intent(inout) :: time
+       real(SCALAR_KIND), intent(in) :: timeStepSize
+       integer, intent(in) :: timestep, stage
+
+     end subroutine substepLinearized
 
   end interface
 

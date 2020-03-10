@@ -26,6 +26,7 @@ module Solver_mod
      procedure, pass :: cleanup => cleanupSolver
      procedure, pass :: runForward
      procedure, pass :: runAdjoint
+     procedure, pass :: runLinearized
      procedure, pass :: checkGradientAccuracy
 
   end type t_Solver
@@ -91,6 +92,23 @@ module Solver_mod
        SCALAR_TYPE :: costSensitivity
 
      end function runAdjoint
+
+  end interface
+
+  interface
+     ! right now dummy value does not have any meaning. just for future purpose.
+     function runLinearized(this, region) result(dummyValue)
+
+       use Region_mod, only : t_Region
+
+       import :: t_Solver
+
+       class(t_Solver) :: this
+       class(t_Region) :: region
+
+       SCALAR_TYPE :: dummyValue
+
+     end function runLinearized
 
   end interface
 

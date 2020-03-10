@@ -161,13 +161,16 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
 
 end function computeThermalActuatorSensitivity
 
-subroutine updateThermalActuatorForcing(this, region)
+subroutine updateThermalActuatorForcing(this, region, mode)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use ThermalActuator_mod, only : t_ThermalActuator
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   ! <<< SeungWhan: debug:time_ramp printing >>>
   use ErrorHandler, only : writeAndFlush
@@ -178,6 +181,7 @@ subroutine updateThermalActuatorForcing(this, region)
   ! <<< Arguments >>>
   class(t_ThermalActuator) :: this
   class(t_Region), intent(in) :: region
+  integer, intent(in), optional :: mode
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -228,6 +232,29 @@ subroutine updateThermalActuatorForcing(this, region)
 
            if (patch%iControlForcingBuffer == 1)                                                   &
                 patch%iControlForcingBuffer = size(patch%controlForcingBuffer, 3) + 1
+
+           if (present(mode)) then
+             if (mode==LINEARIZED) then
+               allocate(temp,MOLD=patch%deltaControlForcing)
+
+               patch%iGradientBuffer = patch%iGradientBuffer - 1
+
+               assert(patch%iGradientBuffer >= 1)
+               assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+
+               if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
+                    call patch%loadDeltaForcing()
+
+               temp(:,1:nDimensions+1) = 0.0_wp
+               temp(:,nDimensions+2) = patch%gradientBuffer(:,1,patch%iGradientBuffer)
+               patch%deltaControlForcing = patch%deltaControlForcing + timeRampFactor * temp
+
+               deallocate(temp)
+
+               if (patch%iGradientBuffer == 1)                                                   &
+                    patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+             end if
+           end if
 
         end select
      end do
@@ -428,7 +455,7 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode, referenceTimes
   use ActuatorPatch_mod, only : t_ActuatorPatch
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   ! <<< Internal modules >>>
   use InputHelper, only : getFreeUnit
@@ -523,6 +550,34 @@ subroutine hookThermalActuatorBeforeTimemarch(this, region, mode, referenceTimes
                                   size(patch%gradientBuffer, 2) * (4*referenceTimestep)
              patch%gradientFileOffset = patch%gradientFileOffset + referenceOffset
            end if
+
+         case (LINEARIZED) ! use gradient, adjoint variables for linearized run
+            if (procRank == 0) then
+               inquire(file = trim(patch%gradientFilename), exist = gradientFileExists)
+            end if
+            call MPI_Bcast(gradientFileExists, 1, MPI_LOGICAL, 0, patch%comm, ierror)
+            if (.not.gradientFileExists) then
+               write(message, '(3A,I0.0,A)') "No gradient information available for patch '", &
+                    trim(patch%name), "' on grid ", patch%gridIndex, "!"
+               call gracefulExit(patch%comm, message)
+            end if
+            if (gradientFileExists) then
+               patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+               call MPI_File_open(patch%comm, trim(patch%gradientFilename) // char(0),           &
+                    MPI_MODE_WRONLY, MPI_INFO_NULL, mpiFileHandle, ierror)
+               call MPI_File_get_size(mpiFileHandle, patch%gradientFileOffset, ierror)
+               call MPI_File_close(mpiFileHandle, ierror)
+
+               patch%gradientFileSize = patch%gradientFileOffset
+               if (PRESENT(referenceTimestep)) then
+                 patch%forwardReferenceTimestep = referenceTimestep
+                 assert(patch%forwardReferenceTimestep.ge.0)
+                 referenceOffset = SIZEOF_SCALAR * product(int(patch%globalSize, MPI_OFFSET_KIND)) *            &
+                                      size(patch%gradientBuffer, 2) * (4*referenceTimestep)
+                 patch%gradientFileOffset = patch%gradientFileOffset - referenceOffset
+               end if
+            end if
+
         end select
 
      end select
