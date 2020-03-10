@@ -161,7 +161,7 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
 
 end function computeThermalActuatorSensitivity
 
-subroutine updateThermalActuatorForcing(this, region, mode)
+subroutine updateThermalActuatorForcing(this, region)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -181,7 +181,6 @@ subroutine updateThermalActuatorForcing(this, region, mode)
   ! <<< Arguments >>>
   class(t_ThermalActuator) :: this
   class(t_Region), intent(in) :: region
-  integer, intent(in), optional :: mode
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -233,34 +232,87 @@ subroutine updateThermalActuatorForcing(this, region, mode)
            if (patch%iControlForcingBuffer == 1)                                                   &
                 patch%iControlForcingBuffer = size(patch%controlForcingBuffer, 3) + 1
 
-           if (present(mode)) then
-             if (mode==LINEARIZED) then
-               allocate(temp,MOLD=patch%deltaControlForcing)
-
-               patch%iGradientBuffer = patch%iGradientBuffer - 1
-
-               assert(patch%iGradientBuffer >= 1)
-               assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
-
-               if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
-                    call patch%loadDeltaForcing()
-
-               temp(:,1:nDimensions+1) = 0.0_wp
-               temp(:,nDimensions+2) = patch%gradientBuffer(:,1,patch%iGradientBuffer)
-               patch%deltaControlForcing = patch%deltaControlForcing + timeRampFactor * temp
-
-               deallocate(temp)
-
-               if (patch%iGradientBuffer == 1)                                                   &
-                    patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
-             end if
-           end if
-
         end select
      end do
   end do
 
 end subroutine updateThermalActuatorForcing
+
+subroutine updateThermalActuatorDeltaForcing(this, region)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use ThermalActuator_mod, only : t_ThermalActuator
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
+
+  ! <<< SeungWhan: debug:time_ramp printing >>>
+  use ErrorHandler, only : writeAndFlush
+  use, intrinsic :: iso_fortran_env, only : output_unit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_ThermalActuator) :: this
+  class(t_Region), intent(in) :: region
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions
+  real(SCALAR_KIND) :: timeRampFactor
+  class(t_Patch), pointer :: patch => null()
+  SCALAR_TYPE, allocatable :: temp(:,:)
+
+  ! <<< SeungWhan: variable for time_ramp printing >>>
+  character(len = STRING_LENGTH) :: message
+
+  if (.not. allocated(region%patchFactories)) return
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  timeRampFactor = 0.0_wp
+  if (region%states(1)%time>=this%onsetTime .and.                                            &
+      region%states(1)%time<=this%onsetTime+this%duration) timeRampFactor = 1.0_wp
+  if (this%useTimeRamp)                                                                      &
+       timeRampFactor = this%rampFunction(2.0_wp * (region%states(1)%time -                  &
+       this%onsetTime) / this%duration - 1.0_wp, this%rampWidthInverse, this%rampOffset)
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(j)%index) cycle
+        select type (patch)
+        class is (t_ActuatorPatch)
+
+           allocate(temp,MOLD=patch%deltaControlForcing)
+
+           patch%iGradientBuffer = patch%iGradientBuffer - 1
+
+           assert(patch%iGradientBuffer >= 1)
+           assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+
+           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
+                call patch%loadDeltaForcing()
+
+           temp(:,1:nDimensions+1) = 0.0_wp
+           temp(:,nDimensions+2) = patch%gradientBuffer(:,1,patch%iGradientBuffer)
+           patch%deltaControlForcing = patch%deltaControlForcing + timeRampFactor * temp
+
+           deallocate(temp)
+
+           if (patch%iGradientBuffer == 1)                                                   &
+                patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+
+        end select
+     end do
+  end do
+
+end subroutine updateThermalActuatorDeltaForcing
 
 subroutine migrateToThermalActuatorForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
 

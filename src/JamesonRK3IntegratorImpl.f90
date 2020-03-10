@@ -165,3 +165,31 @@ subroutine substepAdjointJamesonRK3(this, region, time, timeStepSize, timestep, 
   integer, intent(in) :: timestep, stage
 
 end subroutine substepAdjointJamesonRK3
+
+subroutine substepLinearizedJamesonRK3(this, region, time, timeStepSize, timestep, stage)
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+  use JamesonRK3Integrator_mod, only : t_JamesonRK3Integrator
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_JamesonRK3Integrator) :: this
+  class(t_Region) :: region
+  real(SCALAR_KIND), intent(inout) :: time
+  real(SCALAR_KIND), intent(in) :: timeStepSize
+  integer, intent(in) :: timestep, stage
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer, save :: stageLastCall = 0
+  integer :: i
+
+end subroutine substepLinearizedJamesonRK3

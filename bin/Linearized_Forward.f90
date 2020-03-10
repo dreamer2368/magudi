@@ -129,22 +129,12 @@ program linearized_forward
      if (len_trim(filename) == 0) call region%saveData(QOI_CONTROL_MOLLIFIER,                &
           trim(outputPrefix) // ".control_mollifier.f")
   end if
-  ! if (region%simulationFlags%enableFunctional) then
-  !    filename = getOption("target_mollifier_file", "")
-  !    if (len_trim(filename) == 0) call region%saveData(QOI_TARGET_MOLLIFIER,                 &
-  !         trim(outputPrefix) // ".target_mollifier.f")
-  ! end if
-
-  ! if (.not. region%simulationFlags%isBaselineAvailable) then
-  !   dummyValue = solver%runForward(region)
-  !   if (procRank == 0) then
-  !     filename = trim(outputPrefix) // ".forward_run.txt"
-  !     open(unit = getFreeUnit(fileUnit), file = trim(filename), action='write',          &
-  !       iostat = stat, status = 'replace')
-  !     write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
-  !     close(fileUnit)
-  !   end if
-  ! end if
+  ! TODO: compute delta functional.
+  if (region%simulationFlags%enableFunctional) then
+     filename = getOption("target_mollifier_file", "")
+     if (len_trim(filename) == 0) call region%saveData(QOI_TARGET_MOLLIFIER,                 &
+          trim(outputPrefix) // ".target_mollifier.f")
+  end if
 
   ! Main code logic.
   ! Right now, it does not have restart functionality.

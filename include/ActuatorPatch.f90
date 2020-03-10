@@ -21,7 +21,7 @@ module ActuatorPatch_mod
                                         controlForcingFileSize = int(0, MPI_OFFSET_KIND),     &
                                         gradientFileSize = int(0, MPI_OFFSET_KIND)
      character(len = STRING_LENGTH) :: gradientFilename, controlForcingFilename
-     SCALAR_TYPE, allocatable :: controlForcing(:,:), deltaControlForcing(:,:)                &
+     SCALAR_TYPE, allocatable :: controlForcing(:,:), deltaControlForcing(:,:),               &
                                  gradientBuffer(:,:,:), controlForcingBuffer(:,:,:)
 
    contains

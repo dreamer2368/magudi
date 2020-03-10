@@ -16,6 +16,7 @@ module MomentumActuator_mod
      procedure, pass :: cleanup => cleanupMomentumActuator
      procedure, pass :: computeSensitivity => computeMomentumActuatorSensitivity
      procedure, pass :: updateForcing => updateMomentumActuatorForcing
+     procedure, pass :: updateDeltaForcing => updateMomentumActuatorDeltaForcing
      procedure, pass :: migrateToForcing => migrateToMomentumActuatorForcing
      procedure, pass :: updateGradient => updateMomentumActuatorGradient
      procedure, pass :: isPatchValid => isMomentumActuatorPatchValid
@@ -72,7 +73,7 @@ module MomentumActuator_mod
 
   interface
 
-     subroutine updateMomentumActuatorForcing(this, region, mode)
+     subroutine updateMomentumActuatorForcing(this, region)
 
        use Region_mod, only : t_Region
 
@@ -80,9 +81,23 @@ module MomentumActuator_mod
 
        class(t_MomentumActuator) :: this
        class(t_Region), intent(in) :: region
-       integer, intent(in), optional :: mode
 
      end subroutine updateMomentumActuatorForcing
+
+  end interface
+
+  interface
+
+     subroutine updateMomentumActuatorDeltaForcing(this, region)
+
+       use Region_mod, only : t_Region
+
+       import :: t_MomentumActuator
+
+       class(t_MomentumActuator) :: this
+       class(t_Region), intent(in) :: region
+
+     end subroutine updateMomentumActuatorDeltaForcing
 
   end interface
 

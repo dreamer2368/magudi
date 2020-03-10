@@ -115,7 +115,7 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   implicit none
 
@@ -132,7 +132,7 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   integer :: i, j, k, l, nDimensions, nUnknowns, gridIndex, patchIndex
   real(wp) :: temp
 
-  assert_key(mode, (FORWARD, ADJOINT))
+  assert_key(mode, (FORWARD, ADJOINT, LINEARIZED))
   assert(this%gridIndex == grid%index)
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
@@ -140,7 +140,7 @@ subroutine updateActuatorPatch(this, mode, simulationFlags, solverOptions, grid,
   !SeungWhan: in adjoint-run for non-zero control forcing, we don't add forcing on the adjoint rhs.
   if ( mode == ADJOINT ) return
 
-  if ( .not. allocated(this%controlForcing) ) return
+  if ( (mode==FORWARD) .and. (.not. allocated(this%controlForcing)) ) return
 
   call startTiming("updateActuatorPatch")
 

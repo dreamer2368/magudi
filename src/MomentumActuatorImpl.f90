@@ -162,7 +162,7 @@ function computeMomentumActuatorSensitivity(this, region) result(instantaneousSe
 
 end function computeMomentumActuatorSensitivity
 
-subroutine updateMomentumActuatorForcing(this, region, mode)
+subroutine updateMomentumActuatorForcing(this, region)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
@@ -178,7 +178,6 @@ subroutine updateMomentumActuatorForcing(this, region, mode)
   ! <<< Arguments >>>
   class(t_MomentumActuator) :: this
   class(t_Region), intent(in) :: region
-  integer, intent(in), optional :: mode
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -218,36 +217,72 @@ subroutine updateMomentumActuatorForcing(this, region, mode)
            if (patch%iControlForcingBuffer == 1)                                                   &
                 patch%iControlForcingBuffer = size(patch%controlForcingBuffer, 3) + 1
 
-          if (present(mode)) then
-            if (mode==LINEARIZED) then
-
-              patch%iGradientBuffer = patch%iGradientBuffer - 1
-
-              assert(patch%iGradientBuffer >= 1)
-              assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
-
-              if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
-                   call patch%loadDeltaForcing()
-
-              patch%deltaControlForcing(:,1:nDimensions+2) = 0.0_wp
-              if (this%direction == 0) then
-                patch%deltaControlForcing(:,2:nDimensions+1) =                                      &
-                     patch%gradientBuffer(:,:,patch%iGradientBuffer)
-              else
-                patch%deltaControlForcing(:,this%direction+1) =                                     &
-                     patch%gradientBuffer(:,1,patch%iGradientBuffer)
-              end if
-
-              if (patch%iGradientBuffer == 1)                                                   &
-                  patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
-            end if
-          end if
-
         end select
      end do
   end do
 
 end subroutine updateMomentumActuatorForcing
+
+subroutine updateMomentumActuatorDeltaForcing(this, region)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+  use MomentumActuator_mod, only : t_MomentumActuator
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_MomentumActuator) :: this
+  class(t_Region), intent(in) :: region
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, nDimensions
+  class(t_Patch), pointer :: patch => null()
+
+  if (.not. allocated(region%patchFactories)) return
+
+  nDimensions = size(region%globalGridSizes, 1)
+  assert_key(nDimensions, (1, 2, 3))
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     do j = 1, size(region%states)
+        if (patch%gridIndex /= region%grids(j)%index) cycle
+        select type (patch)
+        class is (t_ActuatorPatch)
+
+          patch%iGradientBuffer = patch%iGradientBuffer - 1
+
+          assert(patch%iGradientBuffer >= 1)
+          assert(patch%iGradientBuffer <= size(patch%gradientBuffer, 3))
+
+          if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
+               call patch%loadDeltaForcing()
+
+          patch%deltaControlForcing(:,1:nDimensions+2) = 0.0_wp
+          if (this%direction == 0) then
+            patch%deltaControlForcing(:,2:nDimensions+1) =                                      &
+                 patch%gradientBuffer(:,:,patch%iGradientBuffer)
+          else
+            patch%deltaControlForcing(:,this%direction+1) =                                     &
+                 patch%gradientBuffer(:,1,patch%iGradientBuffer)
+          end if
+
+          if (patch%iGradientBuffer == 1)                                                   &
+              patch%iGradientBuffer = size(patch%gradientBuffer, 3) + 1
+
+        end select
+     end do
+  end do
+
+end subroutine updateMomentumActuatorDeltaForcing
 
 subroutine migrateToMomentumActuatorForcing(this, region, startTimeStep, endTimeStep, nStages, iTimeStep, jSubStep)
 

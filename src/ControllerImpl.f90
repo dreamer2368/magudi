@@ -103,21 +103,19 @@ subroutine writeSensitivityToFile(this, comm, filename, timestep, time, append)
 end subroutine writeSensitivityToFile
 
 !SeungWhan: clean up control forcing (not controller!)
-subroutine cleanUpControlForcing(this,region,mode)
+subroutine cleanUpControlForcing(this,region)
 
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
   use Controller_mod, only : t_Controller
   use ActuatorPatch_mod, only : t_ActuatorPatch
-  use Region_enum, only : LINEARIZED
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_Controller) :: this
   class(t_Region), intent(in) :: region
-  integer, intent(in), optional :: mode
 
   ! <<< Local variables >>>
   integer :: i
@@ -132,12 +130,37 @@ subroutine cleanUpControlForcing(this,region,mode)
      select type (patch)
         class is (t_ActuatorPatch)
            if( allocated(patch%controlForcing) ) patch%controlForcing = 0.0_wp
-           if( present(mode) ) then
-             select case(mode)
-             case(LINEARIZED)
-               if( allocated(patch%deltaControlForcing) ) patch%deltaControlForcing = 0.0_wp
-             end select
-           end if
+     end select
+  end do
+end subroutine
+
+subroutine cleanUpDeltaControlForcing(this,region)
+
+  ! <<< Derived types >>>
+  use Patch_mod, only : t_Patch
+  use Region_mod, only : t_Region
+  use Controller_mod, only : t_Controller
+  use ActuatorPatch_mod, only : t_ActuatorPatch
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Controller) :: this
+  class(t_Region), intent(in) :: region
+
+  ! <<< Local variables >>>
+  integer :: i
+  class(t_Patch), pointer :: patch => null()
+  integer, parameter :: wp = SCALAR_KIND
+
+  if (.not. allocated(region%patchFactories)) return
+
+  do i = 1, size(region%patchFactories)
+     call region%patchFactories(i)%connect(patch)
+     if (.not. associated(patch)) cycle
+     select type (patch)
+        class is (t_ActuatorPatch)
+           if( allocated(patch%deltaControlForcing) ) patch%deltaControlForcing = 0.0_wp
      end select
   end do
 end subroutine

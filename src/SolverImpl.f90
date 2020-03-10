@@ -1092,14 +1092,16 @@ function runLinearized(this, region) result(costFunctional)
   use Functional_mod, only : t_Functional
   use ActuatorPatch_mod, only : t_ActuatorPatch
   use TimeIntegrator_mod, only : t_TimeIntegrator
+  use ReverseMigrator_mod, only : t_ReverseMigrator
+  use ReverseMigrator_factory, only : t_ReverseMigratorFactory
 
   ! <<< Enumerations >>>
-  use State_enum, only : QOI_FORWARD_STATE, QOI_TIME_AVERAGED_STATE
+  use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_TIME_AVERAGED_STATE
   use Region_enum, only : FORWARD, LINEARIZED
 
   ! <<< Private members >>>
   use SolverImpl, only : showProgress, checkSolutionLimits, loadInitialCondition
-  use RegionImpl, only : computeXmomentum, computeVolume
+  use RegionImpl, only : computeRegionIntegral
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -1118,14 +1120,16 @@ function runLinearized(this, region) result(costFunctional)
   class(t_Region) :: region
 
   ! <<< Result >>>
-  SCALAR_TYPE :: costFunctional
+  SCALAR_TYPE :: costFunctional !TODO: compute delta functional.
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename, message
   class(t_TimeIntegrator), pointer :: timeIntegrator => null()
   class(t_Controller), pointer :: controller => null()
-  ! class(t_Functional), pointer :: functional => null()
+  class(t_Functional), pointer :: functional => null()
+  type(t_ReverseMigratorFactory) :: reverseMigratorFactory
+  class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
@@ -1145,27 +1149,40 @@ function runLinearized(this, region) result(costFunctional)
      assert(associated(controller))
   end if
 
-  ! ! Connect to the previously allocated functional.
-  ! if (region%simulationFlags%enableFunctional) then
-  !    call this%functionalFactory%connect(functional)
-  !    assert(associated(functional))
-  !    functional%runningTimeQuadrature = 0.0_wp
-  ! end if
+  ! Connect to the previously allocated functional.
+  if (region%simulationFlags%enableFunctional) then
+     call this%functionalFactory%connect(functional)
+     assert(associated(functional))
+     functional%runningTimeQuadrature = 0.0_wp
+  end if
 
   ! Load the initial condition.
   call loadInitialCondition(this, region, FORWARD)                              ! for baseline simulation.
   write(filename, '(2A)') trim(this%outputPrefix), ".ic.linearized.q"
   call loadInitialCondition(this, region, LINEARIZED, trim(filename))           ! for linearized simulation.
 
-  ! TODO: Fix the initial x momentum, read from magudi.inp.
   if (region%simulationFlags%enableBodyForce) then
-     region%initialXmomentum = computeXmomentum(region)
-     region%oneOverVolume = 1.0_wp / computeVolume(region)
-     region%momentumLossPerVolume = 0.0_wp
+    call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
+    region%oneOverVolume = computeRegionIntegral(region)
+    region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+    region%oneOverVolume = 1.0_wp / region%oneOverVolume
+
+    region%momentumLossPerVolume = 0.0_wp
+    region%adjointMomentumLossPerVolume = 0.0_wp
   end if
 
   startTimestep = region%timestep
   startTime = region%states(1)%time
+
+  ! Connect to the previously allocated reverse migrator.
+  call reverseMigratorFactory%connect(reverseMigrator,                                       &
+       region%solverOptions%checkpointingScheme)
+  assert(associated(reverseMigrator))
+
+  ! Setup the revese-time migrator.
+  call reverseMigrator%setup(region, timeIntegrator, this%outputPrefix,                      &
+  startTimestep, startTimestep + this%nTimesteps, this%saveInterval,                         &
+  this%saveInterval * timeIntegrator%nStages)
 
   ! Save the initial condition if it was not specified as a restart file.
   write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", startTimestep, ".q"
@@ -1205,38 +1222,27 @@ function runLinearized(this, region) result(costFunctional)
 
      do i = 1, timeIntegrator%nStages
 
-        ! Check if physical quantities are within allowed limits.
-        if (region%simulationFlags%enableSolutionLimits) then
-          if ( checkSolutionLimits(region, FORWARD, this%outputPrefix) ) then
-            costFunctional = HUGE(0.0_wp)
-            return
-          end if
-        end if
+       ! Load forward baseline state.
+       if (i == 1) then
+          call reverseMigrator%migrateTo(region, controller, timeIntegrator,             &
+               timestep - 1, timeIntegrator%nStages)
+       else
+          call reverseMigrator%migrateTo(region, controller, timeIntegrator,             &
+               timestep, i - 1)
+       end if
 
-        ! Update control forcing.
-        ! TODO: test linearized mode
-        if (controllerSwitch) then
-          call controller%cleanupForcing(region, LINEARIZED)
-          call controller%updateForcing(region, LINEARIZED)
-        end if
+        ! linearized step first
+        call controller%cleanupDeltaForcing(region)
+        call controller%updateDeltaForcing(region)
 
-        ! TODO: develop region%computeRHS
         call timeIntegrator%substepLinearized(region, time, timeStepSize, timestep, i)
 
-        ! Take a single sub-step using the time integrator.
-        call timeIntegrator%substepForward(region, time, timeStepSize, timestep, i)
-
-        do j = 1, size(region%states) !... update state
-           call region%states(j)%update(region%grids(j), region%simulationFlags,             &
-                region%solverOptions)
-        end do
-
-        ! ! Update the cost functional.
-        ! if (region%simulationFlags%enableFunctional) then
-        !    instantaneousCostFunctional = functional%compute(region)
-        !    functional%runningTimeQuadrature = functional%runningTimeQuadrature +             &
-        !         timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
-        ! end if
+        !TODO: Update the delta functional.
+        if (region%simulationFlags%enableFunctional) then
+           instantaneousCostFunctional = functional%compute(region)
+           functional%runningTimeQuadrature = functional%runningTimeQuadrature +             &
+                timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
+        end if
 
         ! ! Update the time average.
         ! if (region%simulationFlags%computeTimeAverage) then
@@ -1282,12 +1288,15 @@ function runLinearized(this, region) result(costFunctional)
   !    call region%saveData(QOI_TIME_AVERAGED_STATE, trim(this%outputPrefix) // ".mean.q")
   ! end if
 
-  ! if (region%simulationFlags%enableFunctional) then
-  !      costFunctional = functional%runningTimeQuadrature
-  !      write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Forward run: cost functional = ', &
-  !                                                              costFunctional
-  !      call writeAndFlush(region%comm, output_unit, message)
-  ! end if
+  call reverseMigratorFactory%cleanup()
+
+  ! TODO: compute delta functional.
+  if (region%simulationFlags%enableFunctional) then
+       costFunctional = functional%runningTimeQuadrature
+       write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Forward run: cost functional = ', &
+                                                               costFunctional
+       call writeAndFlush(region%comm, output_unit, message)
+  end if
 
   call endTiming("runLinearized")
 

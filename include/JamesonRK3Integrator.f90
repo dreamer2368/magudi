@@ -20,6 +20,7 @@ module JamesonRK3Integrator_mod
      procedure, pass :: cleanup => cleanupJamesonRK3Integrator
      procedure, pass :: substepForward => substepForwardJamesonRK3
      procedure, pass :: substepAdjoint => substepAdjointJamesonRK3
+     procedure, pass :: substepLinearized => substepLinearizedJamesonRK3
 
   end type t_JamesonRK3Integrator
 
@@ -83,6 +84,24 @@ module JamesonRK3Integrator_mod
        integer, intent(in) :: timestep, stage
 
      end subroutine substepAdjointJamesonRK3
+
+  end interface
+
+  interface
+
+     subroutine substepLinearizedJamesonRK3(this, region, time, timeStepSize, timestep, stage)
+
+       use Region_mod, only : t_Region
+
+       import :: t_JamesonRK3Integrator
+
+       class(t_JamesonRK3Integrator) :: this
+       class(t_Region) :: region
+       real(SCALAR_KIND), intent(inout) :: time
+       real(SCALAR_KIND), intent(in) :: timeStepSize
+       integer, intent(in) :: timestep, stage
+
+     end subroutine substepLinearizedJamesonRK3
 
   end interface
 

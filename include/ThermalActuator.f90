@@ -17,6 +17,7 @@ module ThermalActuator_mod
      procedure, pass :: cleanup => cleanupThermalActuator
      procedure, pass :: computeSensitivity => computeThermalActuatorSensitivity
      procedure, pass :: updateForcing => updateThermalActuatorForcing
+     procedure, pass :: updateDeltaForcing => updateThermalActuatorDeltaForcing
      procedure, pass :: migrateToForcing => migrateToThermalActuatorForcing
      procedure, pass :: updateGradient => updateThermalActuatorGradient
      procedure, pass :: isPatchValid => isThermalActuatorPatchValid
@@ -74,7 +75,7 @@ module ThermalActuator_mod
 
   interface
 
-     subroutine updateThermalActuatorForcing(this, region, mode)
+     subroutine updateThermalActuatorForcing(this, region)
 
        use Region_mod, only : t_Region
 
@@ -82,9 +83,23 @@ module ThermalActuator_mod
 
        class(t_ThermalActuator) :: this
        class(t_Region), intent(in) :: region
-       integer, intent(in), optional :: mode
 
      end subroutine updateThermalActuatorForcing
+
+  end interface
+
+  interface
+
+     subroutine updateThermalActuatorDeltaForcing(this, region)
+
+       use Region_mod, only : t_Region
+
+       import :: t_ThermalActuator
+
+       class(t_ThermalActuator) :: this
+       class(t_Region), intent(in) :: region
+
+     end subroutine updateThermalActuatorDeltaForcing
 
   end interface
 
