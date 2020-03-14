@@ -49,11 +49,12 @@ def QoI(baseDirectory = None):
         subJ[k] = readScalar(bdir + '/' + directories[k] + '/' + outputFiles[k])
         J += subJ[k]
 
-        subJ[Nsplit+k] = 0.5 * readScalar(bdir+'/'+diffOutputFiles[k])
+        subJ[Nsplit+k] = 0.5 * readScalar(diffOutputFiles[k])
         J += matchingConditionWeight[k] * subJ[Nsplit+k]
 
-        subJ[2*Nsplit+k] = readScalar(bdir+'/'+lagrangianOutputFiles[k])
-        J += subJ[2*Nsplit+k]
+        if (useLagrangian):
+            subJ[2*Nsplit+k] = readScalar(lagrangianOutputFiles[k])
+            J += subJ[2*Nsplit+k]
     return J, subJ
 
 def collectQoI(logFilename):
@@ -219,29 +220,25 @@ def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
         nextK = k+1 if (k<Nsplit-1) else 0
         matchingFile = '%s/%s/%s'%(bdir,directories[k],matchingForwardFiles[k])
         icFile = '%s/%s/%s'%(bdir,directories[nextK],icFiles[nextK])
-        diffFile = '%s/%s'%(bdir,diffFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                              \
-                    % (diffFile,-1.0,icFile,matchingFile,globalInputFile)]
+                    % (diffFiles[k],-1.0,icFile,matchingFile,globalInputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                             'forward_qfile_zaxpy')
 
     commands = []
     for k in range(Nsplit):
-        diffFile = '%s/%s'%(bdir,diffFiles[k])
-        diffOutputFile = '%s/%s'%(bdir,diffOutputFiles[k])
         commands += ['./spatial_inner_product %s %s --output %s --input %s'                 \
-                    % (diffFile, diffFile, diffOutputFile, globalInputFile)]
+                    % (diffFiles[k], diffFiles[k], diffOutputFiles[k], globalInputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
                                             'forward_qfile_zxdoty')
 
-    commands = []
-    for k in range(Nsplit):
-        diffFile = '%s/%s'%(bdir,diffFiles[k])
-        lagrangianOutputFile = '%s/%s'%(bdir,lagrangianOutputFiles[k])
-        commands += ['./spatial_inner_product %s %s --output %s --input %s'                 \
-                    % (diffFile, lagrangianFiles[k], lagrangianOutputFile, globalInputFile)]
-    commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
-                                            'forward_qfile_lagrangian')
+    if (useLagrangian):
+        commands = []
+        for k in range(Nsplit):
+            commands += ['./spatial_inner_product %s %s --output %s --input %s'                 \
+                        % (diffFiles[k], lagrangianFiles[k], lagrangianOutputFiles[k], globalInputFile)]
+        commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
+                                                'forward_qfile_lagrangian')
 
     return commandString
 
@@ -276,19 +273,19 @@ def adjointRunCommand(baseDirectory=None):
     commands = []
     for k in range(Nsplit):
         matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
-        diffFile = '%s/%s'%(bdir,diffFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-        % (matchingAdjointFile, matchingConditionWeight[k], diffFile, matchingAdjointFile, globalInputFile)]
+        % (matchingAdjointFile, matchingConditionWeight[k], diffFiles[k], matchingAdjointFile, globalInputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                             'adjoint_run_qfile_zaxpy')
 
-    commands = []
-    for k in range(Nsplit):
-        matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
-        commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-        % (matchingAdjointFile, 1.0, lagrangianFiles[k], matchingAdjointFile, globalInputFile)]
-    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
-                                            'adjoint_run_qfile_lagrangian')
+    if (useLagrangian):
+        commands = []
+        for k in range(Nsplit):
+            matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
+            commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
+            % (matchingAdjointFile, 1.0, lagrangianFiles[k], matchingAdjointFile, globalInputFile)]
+        commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                                'adjoint_run_qfile_lagrangian')
 
     for k in range(Nsplit):
         commandString += 'cd %s/%s \n' % (bdir,directories[k])
@@ -329,20 +326,18 @@ def adjointRunCommand(baseDirectory=None):
     commands = []
     for k in range(Nsplit):
         icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])
-        diffFile = '%s/%s.diff.q'%(bdir,prefixes[k-1])
-        icGradFile = '%s/%s' % (bdir,icGradientFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-                     % (icGradFile, -matchingConditionWeight[k-1], diffFile, icAdjointFile, globalInputFile)]
+                     % (icGradientFiles[k], -matchingConditionWeight[k-1], diffFiles[k-1], icAdjointFile, globalInputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                             'adjoint_run_ic')
 
-    commands = []
-    for k in range(Nsplit):
-        icGradFile = '%s/%s' % (bdir,icGradientFiles[k])
-        commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                     \
-                     % (icGradFile, -1.0, lagrangianFiles[k-1], icGradFile, globalInputFile)]
-    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
-                                            'adjoint_run_ic_lagrangian')
+    if (useLagrangian):
+        commands = []
+        for k in range(Nsplit):
+            commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                     \
+                         % (icGradientFiles[k], -1.0, lagrangianFiles[k-1], icGradientFiles[k], globalInputFile)]
+        commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
+                                                'adjoint_run_ic_lagrangian')
 
     return commandString
 
@@ -351,35 +346,28 @@ def dggCommand():
 
     commands = []
     for j in range(NcontrolRegion):
-        commands += ['./zwxmwy %s %s %s previous.%s %s'                                                    \
-        %(dggFiles[j], globalGradFiles[j], globalGradFiles[j], globalGradFiles[j], globalNormFiles[j])]
+        commands += ['./zwxmwy %s %s %s %s %s'                                                    \
+        %(dggFiles[j], globalGradFiles[j], globalGradFiles[j], previousGradFiles[j], globalNormFiles[j])]
     commandString += bashParallelLoopCommand(commands,NodesZxdoty,NprocZxdoty,
                                             'dgg_zwxmwy')
 
     commands = []
     for k in range(Nsplit):
-        diffFile = '%s.diff.adjoint.q'%(prefixes[k])
-        icGradFile = '%s' % (icGradientFiles[k])
-        commands += ['./qfile_zaxpy %s %.16E previous.%s %s --input %s'                                    \
-                            % (diffFile, -1.0, icGradFile, icGradFile, globalInputFile)]
-    commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
-                                            'dgg_qfile_zaxpy')
-
-    commands = []
-    for k in range(Nsplit):
-        diffFile = '%s.diff.adjoint.q'%(prefixes[k])
-        icGradFile = '%s' % (icGradientFiles[k])
-        commands += ['./qfile_zaxpy %s %.16E previous.%s %s --input %s'                                    \
-                            % (diffFile, -1.0, icGradFile, icGradFile, globalInputFile)]
+        idx = NcontrolRegion + k
+        diffFile = '%s/%s.diff.adjoint.q'%(DIFFDIR,prefixes[k])
+        prevICGradFile = '%s' % (previousGradFiles[idx])
+        icGradFile = '%s' % (globalGradFiles[idx])
+        commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                    \
+                            % (diffFile, -1.0, prevICGradFile, icGradFile, globalInputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                             'dgg_qfile_zaxpy')
 
     commands = []
     for k in range(Nsplit):
         idx = NcontrolRegion + k
-        diffFile = '%s.diff.adjoint.q'%(prefixes[k])
+        diffFile = '%s/%s.diff.adjoint.q'%(DIFFDIR,prefixes[k])
         commands += ['./spatial_inner_product %s %s --output %s --input %s'                                \
-                            % (diffFile, icGradientFiles[k], dggFiles[idx], globalInputFile)]
+                            % (diffFile, globalGradFiles[idx], dggFiles[idx], globalInputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZxdoty,NprocQfileZxdoty,
                                             'dgg_qfile_zxdoty')
 

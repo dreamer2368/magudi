@@ -7,6 +7,12 @@ decisionMaker = 'optimization.py'
 from os import path, getcwd
 ROOTDIR = getcwd()
 OUTDIR = '%s/out'%ROOTDIR
+DIFFDIR = '%s/diff'%ROOTDIR
+GRADDIR = '%s/grad'%ROOTDIR
+LGRNGDIR = '%s/lagrangian'%ROOTDIR
+TXTDIR = '%s/txt'%ROOTDIR
+CGDIR = '%s/cg'%ROOTDIR
+PREVDIR = '%s/previous'%ROOTDIR
 
 globalInputFile = 'magudi.inp'
 
@@ -96,3 +102,40 @@ globalGradFiles += icGradientFiles
 globalControlSpaceFiles += icFiles
 for k in range(Nsplit):
     globalConjugateGradientFiles += ['%s-%01d.ic.conjugate_gradient.q'%(globalPrefix,k)]
+
+# previous gradient file
+previousGradFiles = [PREVDIR + '/previous.' + file for file in globalGradFiles]
+previousCGFiles = [PREVDIR + '/previous.' + file for file in globalConjugateGradientFiles]
+
+# Sort the files into subdirectories.
+innerProductFiles = [TXTDIR + '/' + file for file in innerProductFiles]
+ggFiles = [TXTDIR + '/' + file for file in ggFiles]
+dggFiles = [TXTDIR + '/' + file for file in dggFiles]
+
+diffFiles = [DIFFDIR + '/' + file for file in diffFiles]
+diffOutputFiles = [TXTDIR + '/' + file for file in diffOutputFiles]
+lagrangianFiles = [LGRNGDIR + '/' + file for file in lagrangianFiles]
+lagrangianOutputFiles = [TXTDIR + '/' + file for file in lagrangianOutputFiles]
+
+globalGradFiles = [GRADDIR + '/' + file for file in globalGradFiles]
+globalConjugateGradientFiles = [CGDIR + '/' + file for file in globalConjugateGradientFiles]
+globalSensitivityFiles = [TXTDIR + '/' + file for file in globalSensitivityFiles]
+
+# #####################              Newton method files              =========================
+#
+# newtonDecisionMaker = 'inexactNewton.py'
+#
+# RESDIR = '%s/residual'%ROOTDIR
+# CGDIR = '%s/conjugate_gradient'%ROOTDIR
+#
+# residualLog = globalPrefix + '.residual_log.txt'
+# residualLogColumns = ['total']
+# for k in range(Nsplit):
+#     residualLogColumns += ['residual-%d'%k]
+#
+# # Newton method files
+# residualFiles, newtonFiles, newtonAdjointFiles           = [], [], []
+# for k in range(Nsplit):
+#     residualFiles += ['%s-%01d.residual.q'%(globalPrefix,k)]
+#     newtonFiles += ['%s-%01d.newton.q'%(globalPrefix,k)]
+#     newtonAdjointFiles += ['%s-%01d.newton_adjoint.q'%(globalPrefix,k)]

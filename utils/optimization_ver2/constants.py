@@ -14,6 +14,8 @@ NcontrolRegion = 1                                       # number of control reg
 
 NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
 
+useLagrangian = False                                    # flag for augmented lagrangian
+
 enableParallelBash = True
 bashVerbose = False                                      # check only when serial bash loops
 pcc = 36

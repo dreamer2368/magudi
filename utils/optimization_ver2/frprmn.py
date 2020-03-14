@@ -73,10 +73,7 @@ def beforeLinmin(initial, zeroBaseline):
     elif (gamma < -gamma1):
         gamma = -gamma1
 
-    temp = globalConjugateGradientFiles.copy()
-    for k, file in enumerate(temp):
-        temp[k] = 'previous.' + file
-    commandString = zaxpyCommand(globalConjugateGradientFiles,gamma,temp,globalGradFiles)
+    commandString = zaxpyCommand(globalConjugateGradientFiles,gamma,previousGradFiles,globalGradFiles)
     commandString += '\n'
     commandFile = open(globalCommandFile,'w')
     commandFile.write(commandString)
@@ -109,13 +106,13 @@ def afterLinmin(zeroBaseline):
         costFunctionalFile = 'b/%s/%s.cost_functional.txt'%(directories[k],prefixes[k])
         subprocess.check_call('cp %s linminLog/%d/'%(costFunctionalFile,numFiles), shell=True)
         if (k<Nsplit-1):
-            subprocess.check_call('cp b/%s linminLog/%d/'%(diffOutputFiles[k],numFiles), shell=True)
+            subprocess.check_call('cp %s linminLog/%d/'%(diffOutputFiles[k],numFiles), shell=True)
 
     commandString = ''
     for k in range(NcontrolSpace):
         commandString += 'cp b/%s ./ \n' % (globalControlSpaceFiles[k])
-        commandString += 'mv %s previous.%s \n' % (globalGradFiles[k],globalGradFiles[k])
-        commandString += 'mv %s previous.%s \n' % (globalConjugateGradientFiles[k],globalConjugateGradientFiles[k])
+        commandString += 'mv %s %s \n' % (globalGradFiles[k],previousGradFiles[k])
+        commandString += 'mv %s %s \n' % (globalConjugateGradientFiles[k],previousCGFiles[k])
     commandString += '\n'
     if( zeroBaseline ):
         for k in range(Nsplit):
@@ -134,7 +131,7 @@ def afterLinmin(zeroBaseline):
     for k in range(Nsplit):
         costSensitivityFile = '%s/%s.cost_sensitivity.txt'%(directories[k],prefixes[k])
         commandString += 'cp %s linminLog/%d/\n'%(costSensitivityFile,numFiles)
-        
+
     # Polak-Ribiere
     commandString += dggCommand()
     fID = open(globalCommandFile,'w')
