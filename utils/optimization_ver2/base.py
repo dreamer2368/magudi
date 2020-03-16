@@ -155,8 +155,11 @@ def distributeCommand(baseDirectory,zeroControlForcing):
                              % (sliceControlForcingFile, globalControlForcingFile, totalTimestep, kOffset, Nts)]
         commandString += bashParallelLoopCommand(commands,NodesSlice,NprocSlice,'slice_control_forcing')
 
+    commands = []
     for k in range(Nsplit):
-        commandString += 'cp ' + '%s/%s'%(bdir,icFiles[k]) + ' ' + '%s/%s/%s'%(bdir,directories[k],icFiles[k]) + '\n'
+        commands += ['cp ' + '%s/%s'%(bdir,icFiles[k]) + ' ' + '%s/%s/%s'       \
+                    %(bdir,directories[k],icFiles[k])]
+    commandString += bashParallelCopyCommand(commands,'copy_initial_condition')
 
     return commandString
 

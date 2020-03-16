@@ -7,12 +7,13 @@ def setupInitialSteps(zeroBaseline=True):
     commandString = ''
     J0, dummy = QoI()
 
+    commands = []
     for k in range(1,Nsplit):
-        commandString += 'cp x0/%s ./a/ & \n' % icFiles[k]
+        commands += ['cp x0/%s ./a/ ' % icFiles[k]]
     if (not zeroBaseline):
         for j in range(NcontrolRegion):
-            commandString += 'cp x0/%s ./a/ & \n' % globalControlSpaceFiles[j]
-    commandString += '\n'
+            commands += ['cp x0/%s ./a/ ' % globalControlSpaceFiles[j]]
+    commandString += bashParallelCopyCommand(commands,'copy_control_params')
 
     steps, Js = np.zeros(2), np.zeros(2)
     steps[1] = initial_step
@@ -97,10 +98,8 @@ def NextMnbrak(zeroBaseline=True):
             if (zeroBaseline):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
-            target = globalControlSpaceFiles.copy()
-            for k, file in enumerate(target):
-                target[k] = 'x/' + file
-                commandString += 'rm %s \n'%target[k]
+            target = ['x/'+file for file in globalControlSpaceFiles]
+            commandString += bashParallelPurgeCommand(target,'purge_target')
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
@@ -154,10 +153,8 @@ def NextMnbrak(zeroBaseline=True):
             if (zeroBaseline):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
-            target = globalControlSpaceFiles.copy()
-            for k, file in enumerate(target):
-                target[k] = 'x/' + file
-                commandString += 'rm %s \n'%target[k]
+            target = ['x/'+file for file in globalControlSpaceFiles]
+            commandString += bashParallelPurgeCommand(target,'purge_target')
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
@@ -191,10 +188,8 @@ def NextMnbrak(zeroBaseline=True):
             if (zeroBaseline):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
-            target = globalControlSpaceFiles.copy()
-            for k, file in enumerate(target):
-                target[k] = 'x/' + file
-                commandString += 'rm %s \n'%target[k]
+            target = ['x/'+file for file in globalControlSpaceFiles]
+            commandString += bashParallelPurgeCommand(target,'purge_target')
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
@@ -227,10 +222,8 @@ def NextMnbrak(zeroBaseline=True):
             if (zeroBaseline):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
-            target = globalControlSpaceFiles.copy()
-            for k, file in enumerate(target):
-                target[k] = 'x/' + file
-                commandString += 'rm %s \n'%target[k]
+            target = ['x/'+file for file in globalControlSpaceFiles]
+            commandString += bashParallelPurgeCommand(target,'purge_target')
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')

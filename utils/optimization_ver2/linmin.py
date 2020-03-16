@@ -85,10 +85,8 @@ def nextLinmin(zeroBaseline=True, initial=True, stop=False):
     if (zeroBaseline):
         for j in range(NcontrolRegion):
             temp[j] = ''
-    target = globalControlSpaceFiles.copy()
-    for k, file in enumerate(target):
-        target[k] = 'x/' + file
-        commandString += 'rm %s \n'%target[k]
+    target = ['x/'+file for file in globalControlSpaceFiles]
+    commandString += bashParallelPurgeCommand(target,'purge_target')
     commandString += zaxpyCommand(target, -xs, globalConjugateGradientFiles, temp)
     commandString += '\n'
     commandString += forwardRunCommand('x')

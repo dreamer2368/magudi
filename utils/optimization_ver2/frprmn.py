@@ -128,9 +128,11 @@ def afterLinmin(zeroBaseline):
     commandString += '\n'
     commandString += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
 
+    commands = []
     for k in range(Nsplit):
         costSensitivityFile = 'x0/%s/%s.cost_sensitivity.txt'%(directories[k],prefixes[k])
-        commandString += 'cp %s linminLog/%d/\n'%(costSensitivityFile,numFiles)
+        commands += ['cp %s linminLog/%d/ '%(costSensitivityFile,numFiles)]
+    commandString += bashParallelCopyCommand(commands,'copy_gradient_history')
 
     # Polak-Ribiere
     commandString += dggCommand()

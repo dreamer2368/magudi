@@ -123,3 +123,36 @@ def bashParallelLoopCommand(commands,nodePerCommand,procsPerCommand,
         loop += 1
 
     return commandString
+
+def bashParallelCopyCommand(commands,prefix='job'):
+    commandString = ''
+
+    nJobs = len(commands)
+    for k in range(nJobs):
+        command = ''
+        command += '%s &> %s/%s_result_%d.out &\n'                          \
+                % (commands[k],OUTDIR,prefix,k)
+        command += 'pids[%d]=$!\n\n' % k
+        commandString += command
+
+    commandString += bashCheckResultCommand(prefix,nJobs)
+
+    return commandString
+
+def bashParallelPurgeCommand(filenames,prefix='job'):
+    commandString = ''
+
+    nJobs = len(filenames)
+    idx = 0
+    for k in range(nJobs):
+        command = 'if [ -f "%s" ]; then \n' % filenames[k]
+        command += 'rm %s &> %s/%s_result_%d.out &\n'                          \
+                % (filenames[k],OUTDIR,prefix,k)
+        command += 'pids[%d]=$!\n' % idx
+        command += 'fi\n\n'
+        commandString += command
+        idx += 1
+
+    commandString += bashCheckResultCommand(prefix,idx)
+
+    return commandString
