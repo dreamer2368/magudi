@@ -44,7 +44,7 @@ subroutine setupJetExcitationPatch(this, index, comm, patchDescriptor,          
   call this%t_SpongePatch%setup(index, comm, patchDescriptor,                                &
        grid, simulationFlags, solverOptions)
 
-  outputPrefix = getOption("defaults/jet_excitation/output_prefix", PROJECT_NAME)
+  outputPrefix = getOption("jet_excitation_prefix", PROJECT_NAME)
 
   write(key, '(A)') "patches/" // trim(patchDescriptor%name) // "/"
 

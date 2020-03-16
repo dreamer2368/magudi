@@ -9,6 +9,8 @@ from os import path
 for dir in dirList:
     if (not path.exists(dir)):
         subprocess.check_call('mkdir -p %s'%dir, shell=True)
+if (not path.exists('linminLog')):
+    subprocess.check_call('mkdir -p linminLog', shell=True)
 
 descriptionString = 'Optimization script generator.\n\n'                                                          \
                     'Each time this produces a command shell file that will go through following loop:\n'       \
