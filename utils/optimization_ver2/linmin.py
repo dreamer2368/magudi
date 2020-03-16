@@ -81,7 +81,7 @@ def nextLinmin(zeroBaseline=True, initial=True, stop=False):
     df = df.append(new_df, ignore_index=True)
 
     commandString = ''
-    temp = globalControlSpaceFiles.copy()
+    temp = ['x0/'+file for file in globalControlSpaceFiles]
     if (zeroBaseline):
         for j in range(NcontrolRegion):
             temp[j] = ''

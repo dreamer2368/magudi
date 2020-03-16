@@ -119,7 +119,7 @@ def afterLinmin(zeroBaseline):
             commandString += 'cd x0/%s \n' % (directories[k])
             commandString += setOptionCommand(inputFiles[k])
             commandString += 'setOption "controller_switch" true \n'
-            commandString += 'cd .. \n'
+            commandString += 'cd ../.. \n'
     commandString += forwardRunCommand()
     commandString += '\n'
     commandString += adjointRunCommand()

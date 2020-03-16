@@ -8,10 +8,10 @@ def setupInitialSteps(zeroBaseline=True):
     J0, dummy = QoI()
 
     for k in range(1,Nsplit):
-        commandString += 'cp %s ./a/ & \n' % icFiles[k]
+        commandString += 'cp x0/%s ./a/ & \n' % icFiles[k]
     if (not zeroBaseline):
         for j in range(NcontrolRegion):
-            commandString += 'cp %s ./a/ & \n' % globalControlSpaceFiles[j]
+            commandString += 'cp x0/%s ./a/ & \n' % globalControlSpaceFiles[j]
     commandString += '\n'
 
     steps, Js = np.zeros(2), np.zeros(2)
@@ -93,7 +93,7 @@ def NextMnbrak(zeroBaseline=True):
             df = df.append(new_df, ignore_index=True)
 
             commandString = ''
-            temp = globalControlSpaceFiles.copy()
+            temp = ['x0/'+file for file in globalControlSpaceFiles]
             if (zeroBaseline):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
@@ -150,7 +150,7 @@ def NextMnbrak(zeroBaseline=True):
             df = df.append(new_df, ignore_index=True)
 
             commandString = ''
-            temp = globalControlSpaceFiles.copy()
+            temp = ['x0/'+file for file in globalControlSpaceFiles]
             if (zeroBaseline):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
@@ -187,7 +187,7 @@ def NextMnbrak(zeroBaseline=True):
             df = df.append(new_df, ignore_index=True)
 
             commandString = ''
-            temp = globalControlSpaceFiles.copy()
+            temp = ['x0/'+file for file in globalControlSpaceFiles]
             if (zeroBaseline):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
@@ -223,7 +223,7 @@ def NextMnbrak(zeroBaseline=True):
             df = df.append(new_df, ignore_index=True)
 
             commandString = ''
-            temp = globalControlSpaceFiles.copy()
+            temp = ['x0/'+file for file in globalControlSpaceFiles]
             if (zeroBaseline):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
