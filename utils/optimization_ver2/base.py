@@ -37,11 +37,8 @@ def readScalar(scalarFilename):
         fID.close()
         return scalar
 
-def QoI(baseDirectory = None):
-    if (baseDirectory is None):
-        bdir = '.'
-    else:
-        bdir = baseDirectory
+def QoI(baseDirectory = 'x0'):
+    bdir = baseDirectory
 
     subJ = np.zeros(3*Nsplit)
     J = 0.0
@@ -176,7 +173,7 @@ def gatherControlForcingGradientCommand():
     for k in range(Nsplit):
         kOffset = NtimestepOffset * k
         for j in range(NcontrolRegion):
-            sliceGradFile = '%s/%s%s'%(directories[k],prefixes[k],gradientFiles[j])
+            sliceGradFile = 'x0/%s/%s%s'%(directories[k],prefixes[k],gradientFiles[j])
             commands += ['./paste_control_forcing %s %s %d %d %d'                                                           \
                          % (globalGradFiles[j], sliceGradFile, totalTimestep, kOffset, Nts)]
     commandString += bashSerialLoopCommand(commands,NodesPaste,NprocPaste,'paste_control_forcing')
@@ -199,11 +196,8 @@ def switchDirectory(firstDirectory, secondDirectory, df=None):
         df.at[df['directory index']==-1,'directory index'] = secondDirectory
     return
 
-def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
-    if (baseDirectory is None):
-        bdir = '.'
-    else:
-        bdir = baseDirectory
+def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
+    bdir = baseDirectory
 
     commandString = ''
     commandString += distributeCommand(bdir,zeroControlForcing)
@@ -242,11 +236,8 @@ def forwardRunCommand(baseDirectory=None,zeroControlForcing=False):
 
     return commandString
 
-def adjointRunCommand(baseDirectory=None):
-    if (baseDirectory is None):
-        bdir = '.'
-    else:
-        bdir = baseDirectory
+def adjointRunCommand(baseDirectory='x0'):
+    bdir = baseDirectory
 
     commandString = ''
     for k in range(Nsplit):
@@ -272,7 +263,7 @@ def adjointRunCommand(baseDirectory=None):
 
     commands = []
     for k in range(Nsplit):
-        matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
+        matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k],matchingAdjointFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
         % (matchingAdjointFile, matchingConditionWeight[k], diffFiles[k], matchingAdjointFile, globalInputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
@@ -281,7 +272,7 @@ def adjointRunCommand(baseDirectory=None):
     if (useLagrangian):
         commands = []
         for k in range(Nsplit):
-            matchingAdjointFile = '%s/%s'%(directories[k],matchingAdjointFiles[k])
+            matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k],matchingAdjointFiles[k])
             commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
             % (matchingAdjointFile, 1.0, lagrangianFiles[k], matchingAdjointFile, globalInputFile)]
         commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,

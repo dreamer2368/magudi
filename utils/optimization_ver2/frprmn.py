@@ -110,13 +110,13 @@ def afterLinmin(zeroBaseline):
 
     commandString = ''
     for k in range(NcontrolSpace):
-        commandString += 'cp b/%s ./ \n' % (globalControlSpaceFiles[k])
+        commandString += 'cp b/%s x0/ \n' % (globalControlSpaceFiles[k])
         commandString += 'mv %s %s \n' % (globalGradFiles[k],previousGradFiles[k])
         commandString += 'mv %s %s \n' % (globalConjugateGradientFiles[k],previousCGFiles[k])
     commandString += '\n'
     if( zeroBaseline ):
         for k in range(Nsplit):
-            commandString += 'cd %s \n' % (directories[k])
+            commandString += 'cd x0/%s \n' % (directories[k])
             commandString += setOptionCommand(inputFiles[k])
             commandString += 'setOption "controller_switch" true \n'
             commandString += 'cd .. \n'
@@ -129,7 +129,7 @@ def afterLinmin(zeroBaseline):
     commandString += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
 
     for k in range(Nsplit):
-        costSensitivityFile = '%s/%s.cost_sensitivity.txt'%(directories[k],prefixes[k])
+        costSensitivityFile = 'x0/%s/%s.cost_sensitivity.txt'%(directories[k],prefixes[k])
         commandString += 'cp %s linminLog/%d/\n'%(costSensitivityFile,numFiles)
 
     # Polak-Ribiere
