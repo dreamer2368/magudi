@@ -6,8 +6,9 @@ import subprocess
 import argparse
 
 from os import path
-if (path.exists(OUTDIR)):
-    subprocess.check_call('mkdir -p %s'%OUTDIR, shell=True)
+for dir in dirList:
+    if (not path.exists(dir)):
+        subprocess.check_call('mkdir -p %s'%dir, shell=True)
 
 descriptionString = 'Optimization script generator.\n\n'                                                          \
                     'Each time this produces a command shell file that will go through following loop:\n'       \

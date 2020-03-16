@@ -13,6 +13,7 @@ LGRNGDIR = '%s/lagrangian'%ROOTDIR
 TXTDIR = '%s/txt'%ROOTDIR
 CGDIR = '%s/cg'%ROOTDIR
 PREVDIR = '%s/previous'%ROOTDIR
+dirList = [OUTDIR,DIFFDIR,GRADDIR,LGRNGDIR,TXTDIR,CGDIR,PREVDIR]
 
 globalInputFile = 'magudi.inp'
 
