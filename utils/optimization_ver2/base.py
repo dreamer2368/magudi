@@ -316,17 +316,19 @@ def adjointRunCommand(baseDirectory='x0'):
 
     commands = []
     for k in range(Nsplit):
+        idx = NcontrolRegion + k
         icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-                     % (icGradientFiles[k], -matchingConditionWeight[k-1], diffFiles[k-1], icAdjointFile, globalInputFile)]
+                     % (globalGradFiles[idx], -matchingConditionWeight[k-1], diffFiles[k-1], icAdjointFile, globalInputFile)]
     commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                             'adjoint_run_ic')
 
     if (useLagrangian):
         commands = []
         for k in range(Nsplit):
+            idx = NcontrolRegion + k
             commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                     \
-                         % (icGradientFiles[k], -1.0, lagrangianFiles[k-1], icGradientFiles[k], globalInputFile)]
+                         % (globalGradFiles[idx], -1.0, lagrangianFiles[k-1], icGradientFiles[k], globalInputFile)]
         commandString += bashParallelLoopCommand(commands,NodesQfileZaxpy,NprocQfileZaxpy,
                                                 'adjoint_run_ic_lagrangian')
 
