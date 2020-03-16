@@ -856,7 +856,8 @@ function runAdjoint(this, region) result(costSensitivity)
   class(t_ReverseMigrator), pointer :: reverseMigrator => null()
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
-  logical :: adjointRestart, nonzeroAdjointInitialCondition, isFinalAdjointRestart, IS_FINAL_STEP
+  logical :: adjointRestart, nonzeroAdjointInitialCondition,                    &
+             isFinalAdjointRestart, IS_FINAL_STEP, noAdjointForcing
   integer :: accumulatedNTimesteps, intermediateEndTimestep
   integer :: procRank, ierror
   SCALAR_TYPE :: instantaneousCostSensitivity
@@ -1013,15 +1014,17 @@ function runAdjoint(this, region) result(costSensitivity)
         controller%runningTimeQuadrature = controller%runningTimeQuadrature +                &
              timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
 
-        ! Update adjoint forcing on cost target patches.
-        ! SeungWhan: Bug fix for final step
+        ! Check the switch for adjoint forcing.
         if( (timestep.eq.startTimestep+sign(this%nTimesteps,timemarchDirection)) .and.       &
             (i.eq.1) .and. (isFinalAdjointRestart) ) then
             IS_FINAL_STEP = .true.
         else
             IS_FINAL_STEP = .false.
         end if
-        call functional%updateAdjointForcing(region,IS_FINAL_STEP)
+        noAdjointForcing = (.not. region%simulationFlags%adjointForcingSwitch)               &
+                            .or. (IS_FINAL_STEP)
+        ! Update adjoint forcing on cost target patches.
+        call functional%updateAdjointForcing(region,noAdjointForcing)
 
         ! Take a single adjoint sub-step using the time integrator.
         call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep, i)

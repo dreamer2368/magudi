@@ -10,6 +10,7 @@ module SimulationFlags_mod
                 enableController      = .true.,  &
                 enableFunctional      = .true.,  &
                 enableAdjoint         = .true.,  &
+                adjointForcingSwitch  = .true.,  &
                 repeatFirstDerivative = .true.,  &
                 useTargetState        = .true.,  &
                 dissipationOn         = .false., &
