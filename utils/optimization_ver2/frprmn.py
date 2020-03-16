@@ -19,15 +19,18 @@ def beforeLinmin(initial, zeroBaseline):
         df = pd.DataFrame([np.nan],columns=['reduction'])
         df.to_csv(CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
-        fID = open(globalCommandFile,'w')
+        commands = []
         for k in range(NcontrolSpace):
-            command = 'cp %s %s \n' % (globalGradFiles[k], globalConjugateGradientFiles[k])
-            fID.write(command)
+            commands += ['cp %s %s' % (globalGradFiles[k], globalConjugateGradientFiles[k])]
+        commandString = bashParallelCopyCommand(commands,'initial-conjugate-gradient')
+        fID = open(globalCommandFile,'w')
+        fID.write(commandString)
         fID.close()
-        fID = open(decisionMakerCommandFile,'w')
+
         command = 'python3 '+decisionMaker+' 2'
         if(zeroBaseline):
             command += ' -zero_baseline'
+        fID = open(decisionMakerCommandFile,'w')
         fID.write(command+'\n')
         fID.close()
 
@@ -92,10 +95,6 @@ def beforeLinmin(initial, zeroBaseline):
 def afterLinmin(zeroBaseline):
     import pandas as pd
     import subprocess
-
-    J0, dummy = QoI()
-    J1, subJ1 = QoI('b')
-    reduction = abs(J1-J0)/abs(J0+eps)
 
     #copy line minimization log
     import os
