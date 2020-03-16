@@ -120,22 +120,3 @@ lagrangianOutputFiles = [TXTDIR + '/' + file for file in lagrangianOutputFiles]
 globalGradFiles = [GRADDIR + '/' + file for file in globalGradFiles]
 globalConjugateGradientFiles = [CGDIR + '/' + file for file in globalConjugateGradientFiles]
 globalSensitivityFiles = [TXTDIR + '/' + file for file in globalSensitivityFiles]
-
-# #####################              Newton method files              =========================
-#
-# newtonDecisionMaker = 'inexactNewton.py'
-#
-# RESDIR = '%s/residual'%ROOTDIR
-# CGDIR = '%s/conjugate_gradient'%ROOTDIR
-#
-# residualLog = globalPrefix + '.residual_log.txt'
-# residualLogColumns = ['total']
-# for k in range(Nsplit):
-#     residualLogColumns += ['residual-%d'%k]
-#
-# # Newton method files
-# residualFiles, newtonFiles, newtonAdjointFiles           = [], [], []
-# for k in range(Nsplit):
-#     residualFiles += ['%s-%01d.residual.q'%(globalPrefix,k)]
-#     newtonFiles += ['%s-%01d.newton.q'%(globalPrefix,k)]
-#     newtonAdjointFiles += ['%s-%01d.newton_adjoint.q'%(globalPrefix,k)]

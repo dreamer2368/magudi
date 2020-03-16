@@ -6,15 +6,16 @@ totalTimestep = (Nsplit-1) * NtimestepOffset + Nts       # number of timesteps f
 
 import numpy as np
 matchingConditionWeight = 1.0e-7 * np.ones(Nsplit)       # weight for matching condition penalty
-matchingConditionWeight[-1] = 0.0
 initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
-initialConditionControllability[0] = 0.0
+useLagrangian = False                                    # flag for augmented lagrangian
+periodicSolution = False
+if (not periodicSolution):
+    matchingConditionWeight[-1] = 0.0
+    initialConditionControllability[0] = 0.0
 
 NcontrolRegion = 1                                       # number of control region
 
 NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
-
-useLagrangian = False                                    # flag for augmented lagrangian
 
 enableParallelBash = True
 bashVerbose = False                                      # check only when serial bash loops
