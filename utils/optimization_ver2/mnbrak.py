@@ -18,7 +18,7 @@ def setupInitialSteps(zeroBaseline=True):
     steps[1] = initial_step
     Js[0] = J0
 
-    temp = globalControlSpaceFiles.copy()
+    temp = ['x0/'+file for file in globalControlSpaceFiles]
     if (zeroBaseline):
         for j in range(NcontrolRegion):
             temp[j] = ''
