@@ -76,7 +76,7 @@ def beforeLinmin(initial, zeroBaseline):
     elif (gamma < -gamma1):
         gamma = -gamma1
 
-    commandString = zaxpyCommand(globalConjugateGradientFiles,gamma,previousGradFiles,globalGradFiles)
+    commandString = zaxpyCommand(globalConjugateGradientFiles,gamma,previousCGFiles,globalGradFiles)
     commandString += '\n'
     commandFile = open(globalCommandFile,'w')
     commandFile.write(commandString)
