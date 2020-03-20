@@ -132,7 +132,7 @@ def bashParallelCopyCommand(commands,prefix='job'):
     nJobs = len(commands)
     for k in range(nJobs):
         command = ''
-        command += '%s &\n' % (commands[k],OUTDIR,prefix,k)
+        command += '%s &\n' % (commands[k])
         command += 'pids[%d]=$!\n\n' % k
         commandString += command
 
@@ -147,7 +147,7 @@ def bashParallelPurgeCommand(filenames,prefix='job'):
     idx = 0
     for k in range(nJobs):
         command = 'if [ -f "%s" ]; then \n' % filenames[k]
-        command += 'rm %s &\n' % (filenames[k],OUTDIR,prefix,k)
+        command += 'rm %s &\n' % (filenames[k])
         command += 'pids[%d]=$!\n' % idx
         command += 'fi\n\n'
         commandString += command
