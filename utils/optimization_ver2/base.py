@@ -15,16 +15,14 @@ magudiSetOptionCommand = 'function setOption() {\n'                             
                          '    fi\n'                                                         \
                          '}\n'
 
-def setOptionCommand(inputFilename):
-    commandString = 'function setOption() {\n'                                          \
-                     '    if grep -q "$1" ' + inputFilename + '\n'                      \
-                     '    then\n'                                                       \
-                     '    sed -i.bu "s/^.*$1.*$/$1 = $2/g" ' + inputFilename + '\n'     \
-                     '    else\n'                                                       \
-                     '    echo "$1 = $2" >> ' + inputFilename + '\n'                    \
-                     '    fi\n'                                                         \
-                     '}\n'
-    return commandString
+generalSetOptionCommand = 'function setOption() {\n'                                         \
+                          '    if grep -q "$2" $1 \n'                                        \
+                          '    then\n'                                                       \
+                          '    sed -i.bu "s/^.*$2.*$/$2 = $3/g" $1 \n'                       \
+                          '    else\n'                                                       \
+                          '    echo "$2 = $3" >> $1 \n'                                      \
+                          '    fi\n'                                                         \
+                          '}\n'
 
 def readScalar(scalarFilename):
     try:
@@ -242,19 +240,37 @@ def adjointRunCommand(baseDirectory='x0'):
     bdir = baseDirectory
 
     commandString = ''
+    commandString += generalSetOptionCommand
+
+    targetInputFiles = ['%s/%s/%s'%(bdir,dir,file) for dir, file in zip(directories,inputFiles)]
+
+    commands = []
     for k in range(Nsplit):
-        commandString += 'cd %s/%s \n' % (bdir,directories[k])
-        commandString += setOptionCommand(inputFiles[k])
-        commandString += 'setOption "enable_adjoint_restart" "true"\n'
-        commandString += 'setOption "number_of_timesteps" %d \n' % (Nts-NtimestepOffset)
-        commandString += 'setOption "adjoint_restart\/accumulated_timesteps" 0 \n'
-        commandString += 'setOption "adjoint_restart\/intermediate_end_timestep" %d \n' % (NtimestepOffset)
-        commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "false" \n'
-        if (bdir=='.'):
-            commandString += 'cd .. \n'
-        else:
-            commandString += 'cd ../../ \n'
-        commandString += '\n'
+        commands += ['setOption %s "enable_adjoint_restart" "true"' % targetInputFiles[k]]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_enable_adjoint_restart')
+
+    commands = []
+    for k in range(Nsplit):
+        commands += ['setOption %s "number_of_timesteps" %d'                                                \
+                    % (targetInputFiles[k], Nts-NtimestepOffset)]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_set_number_of_timesteps')
+
+    commands = []
+    for k in range(Nsplit):
+        commands += ['setOption %s "adjoint_restart\/accumulated_timesteps" 0' % targetInputFiles[k]]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_accumulated_timesteps')
+
+    commands = []
+    for k in range(Nsplit):
+        commands += ['setOption %s "adjoint_restart\/intermediate_end_timestep" %d'                         \
+                    % (targetInputFiles[k],NtimestepOffset)]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_intermediate_end_timestep')
+
+    commands = []
+    for k in range(Nsplit):
+        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "false"'                    \
+                    % targetInputFiles[k]]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_false')
 
     commands, commandDirs = [], []
     for k in range(Nsplit):
@@ -280,20 +296,30 @@ def adjointRunCommand(baseDirectory='x0'):
         commandString += bashParallelLoopCommand(commands,'qfile-zaxpy',
                                                 'adjoint_run_qfile_lagrangian')
 
+    commands = []
     for k in range(Nsplit):
-        commandString += 'cd %s/%s \n' % (bdir,directories[k])
-        commandString += setOptionCommand(inputFiles[k])
-        commandString += '\n'
-        commandString += 'setOption "number_of_timesteps" %d \n' % (NtimestepOffset)
-        commandString += 'setOption "adjoint_restart\/accumulated_timesteps" %d \n' % (Nts-NtimestepOffset)
-        commandString += 'setOption "adjoint_restart\/intermediate_end_timestep" 0 \n'
-        if (Nts==NtimestepOffset):
-            commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "true" \n'
-        if (bdir=='.'):
-            commandString += 'cd .. \n'
-        else:
-            commandString += 'cd ../../ \n'
-        commandString += '\n'
+        commands += ['setOption %s "number_of_timesteps" %d'                                                \
+                    % (targetInputFiles[k], NtimestepOffset)]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_set_number_of_timesteps')
+
+    commands = []
+    for k in range(Nsplit):
+        commands += ['setOption %s "adjoint_restart\/accumulated_timesteps" %d'                             \
+                     % (targetInputFiles[k],Nts-NtimestepOffset)]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_accumulated_timesteps')
+
+    commands = []
+    for k in range(Nsplit):
+        commands += ['setOption %s "adjoint_restart\/intermediate_end_timestep" 0'                          \
+                    % (targetInputFiles[k])]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_intermediate_end_timestep')
+
+    if (Nts==NtimestepOffset):
+        commands = []
+        for k in range(Nsplit):
+            commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
+                        % targetInputFiles[k]]
+        commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_true')
 
     commands, commandDirs = [], []
     for k in range(Nsplit):
@@ -303,18 +329,22 @@ def adjointRunCommand(baseDirectory='x0'):
                                             'adjoint2',directories=commandDirs)
 
     # TODO: Either check the last adjoint run, or complete the periodic optimization!!
-
+    commands = []
     for k in range(Nsplit):
-        commandString += 'cd %s/%s \n' % (bdir,directories[k])
-        commandString += setOptionCommand(inputFiles[k])
-        commandString += 'setOption "number_of_timesteps" %d \n' % (Nts)
-        commandString += 'setOption "enable_adjoint_restart" "false"\n'
-        commandString += 'setOption "adjoint_restart\/nonzero_initial_condition" "false" \n'
-        if (bdir=='.'):
-            commandString += 'cd .. \n'
-        else:
-            commandString += 'cd ../../ \n'
-        commandString += '\n'
+        commands += ['setOption %s "enable_adjoint_restart" "false"' % targetInputFiles[k]]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_disable_adjoint_restart')
+
+    commands = []
+    for k in range(Nsplit):
+        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
+                    % targetInputFiles[k]]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_false')
+
+    commands = []
+    for k in range(Nsplit):
+        commands += ['setOption %s "number_of_timesteps" %d'                                                \
+                    % (targetInputFiles[k], Nts)]
+    commandString += bashParallelCopyCommand(commands,'magudi_option_set_number_of_timesteps')
 
     commands = []
     for k in range(Nsplit):

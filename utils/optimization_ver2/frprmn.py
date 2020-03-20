@@ -114,11 +114,13 @@ def afterLinmin(zeroBaseline):
         commandString += 'mv %s %s \n' % (globalConjugateGradientFiles[k],previousCGFiles[k])
     commandString += '\n'
     if( zeroBaseline ):
+        commandString += generalSetOptionCommand
+        targetInputFiles = ['x0/%s/%s'%(dir,file) for dir, file in zip(directories,inputFiles)]
+        commands = []
         for k in range(Nsplit):
-            commandString += 'cd x0/%s \n' % (directories[k])
-            commandString += setOptionCommand(inputFiles[k])
-            commandString += 'setOption "controller_switch" true \n'
-            commandString += 'cd ../.. \n'
+            commands += ['setOption %s "controller_switch" true' % targetInputFiles[k]]
+        commandString += bashParallelCopyCommand(commands,'magudi_option_turn_on_controller')
+
     commandString += forwardRunCommand()
     commandString += '\n'
     commandString += adjointRunCommand()
