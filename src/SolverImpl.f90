@@ -1236,7 +1236,7 @@ function runLinearized(this, region) result(costFunctional)
 
         ! linearized step first
         call controller%cleanupDeltaForcing(region)
-        call controller%updateDeltaForcing(region)
+        if(controllerSwitch) call controller%updateDeltaForcing(region)
 
         call timeIntegrator%substepLinearized(region, time, timeStepSize, timestep, i)
 

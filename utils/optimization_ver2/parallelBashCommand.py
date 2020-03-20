@@ -53,14 +53,15 @@ def bashGetNodeListSliceCommand(index, numNodes):
 
     return commandString
 
-def bashSerialLoopCommand(commands,nodePerCommand,procsPerCommand,
-                            prefix='job',directories=None):
+def bashSerialLoopCommand(commands,procedure,prefix='job',directories=None):
     if (directories is None):
         moveDir = False
     else:
         moveDir = True
         if (len(commands)!=len(directories)):
             raise ValueError('Provide directories for all commands.')
+
+    nodePerCommand, procsPerCommand = procedureSwitcher.get(procedure)
 
     commandString = ''
     commandString += bashGetNodeListCommand()
@@ -77,14 +78,15 @@ def bashSerialLoopCommand(commands,nodePerCommand,procsPerCommand,
 
     return commandString
 
-def bashParallelLoopCommand(commands,nodePerCommand,procsPerCommand,
-                            prefix='job',directories=None):
+def bashParallelLoopCommand(commands,procedure,prefix='job',directories=None):
     if (directories is None):
         moveDir = False
     else:
         moveDir = True
         if (len(commands)!=len(directories)):
             raise ValueError('Provide directories for all commands.')
+
+    nodePerCommand, procsPerCommand = procedureSwitcher.get(procedure)
 
     maxJobsPerLoop = int(np.floor(maxNodes/nodePerCommand))
     if (maxJobsPerLoop<1):

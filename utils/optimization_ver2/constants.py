@@ -22,15 +22,16 @@ bashVerbose = False                                      # check only when seria
 pcc = 36
 maxNodes = 10
 
-NprocForward, NprocAdjoint = pcc*3, pcc*3                # number of processors for forward/adjoint run
-NprocZaxpy, NprocQfileZaxpy = 10, 10                     # number of processors for zaxpy works
-NprocZxdoty, NprocQfileZxdoty = 10, 10                   # number of processors for inner product works
-NprocPaste, NprocSlice = 10, 10                          # number of processors for paste/slice control forcing
-
-NodesForward, NodesAdjoint = 3, 3                        # number of nodes for forward/adjoint run
-NodesZaxpy, NodesQfileZaxpy = 1, 1                       # number of nodes for zaxpy works
-NodesZxdoty, NodesQfileZxdoty = 1, 1                     # number of nodes for inner product works
-NodesPaste, NodesSlice = 1, 1                            # number of nodes for paste/slice control forcing
+procedureSwitcher = { # number of nodes and processors for each procedure.
+    'forward':      3 * np.array([1,pcc]),
+    'adjoint':      3 * np.array([1,pcc]),
+    'zaxpy':        3 * np.array([1,pcc]),
+    'qfile-zaxpy':  3 * np.array([1,pcc]),
+    'zxdoty':       3 * np.array([1,pcc]),
+    'qfile-zxdoty': 3 * np.array([1,pcc]),
+    'paste':        3 * np.array([1,pcc]),
+    'slice':        3 * np.array([1,pcc]),
+}
 
 initial_step = 1.0e9
 golden_ratio = 1.618034
