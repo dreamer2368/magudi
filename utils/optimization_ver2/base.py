@@ -176,7 +176,7 @@ def gatherControlForcingGradientCommand():
             sliceGradFile = 'x0/%s/%s%s'%(directories[k],prefixes[k],gradientFiles[j])
             commands += ['./paste_control_forcing %s %s %d %d %d'                                                           \
                          % (globalGradFiles[j], sliceGradFile, totalTimestep, kOffset, Nts)]
-    commandString += bashSerialLoopCommand(commands,'paste','paste_control_forcing')
+    commandString += bashParallelLoopCommand(commands,'paste','paste_control_forcing')
 
     return commandString
 
