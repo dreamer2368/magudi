@@ -11,9 +11,11 @@ program paste_control_forcing
   implicit none
 
   character(len = STRING_LENGTH) :: ZFilename, XFilename, message,                                    &
-                                    startTimestepStr, durationStr, totalTimestepStr
+                                    startTimestepStr, durationStr, totalTimestepStr,                  &
+                                    overlapStr
   integer :: ierror
   integer :: startTimestep, duration, totalTimestep
+  logical :: overlapFile
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -24,6 +26,11 @@ program paste_control_forcing
      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
      call MPI_Finalize(ierror)
      stop -1
+  elseif (command_argument_count() > 6) then
+    write(message, '(A)') "Too many arguments!"
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+    call MPI_Finalize(ierror)
+    stop -1
   end if
 
   call startTiming("total")
@@ -41,8 +48,14 @@ program paste_control_forcing
   call get_command_argument(5, durationStr)
   read( durationStr, * ) duration
 
+  overlapFile = .false.
+  if (command_argument_count() == 6) then
+    call get_command_argument(6, overlapStr)
+    if (trim(overlapStr)=='--overlap') overlapFile = .true.
+  end if
+
   call pasteControlForcing(MPI_COMM_WORLD,trim(ZFilename),trim(XFilename),                    &
-                            totalTimestep,startTimestep,duration)
+                            totalTimestep,startTimestep,duration,overlapFile)
 
   call endTiming("total")
   call reportTimings()
@@ -53,7 +66,7 @@ program paste_control_forcing
 
 contains
 
-  subroutine pasteControlForcing(comm,ZFilename,XFilename,totalTimestep,startTimestep,duration)
+  subroutine pasteControlForcing(comm,ZFilename,XFilename,totalTimestep,startTimestep,duration,overlapFile)
 
     use MPI
     use, intrinsic :: iso_fortran_env, only : output_unit
@@ -67,6 +80,7 @@ contains
     ! <<< Arguments >>>
     integer, intent(in) :: comm, totalTimestep, startTimestep, duration
     character(len = *), intent(in) :: ZFilename, XFilename
+    logical, intent(in) :: overlapFile
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -126,12 +140,17 @@ contains
       globalOffset = globalOffset * SIZEOF_SCALAR
     end if
 
-    ! Create Z file if not exists.
-    if (procRank == 0) then
-       inquire(file = trim(ZFilename), exist = ZFileExists)
+    ! Check Z file if overlap file.
+    if (overlapFile) then
+      if (procRank == 0) then
+         inquire(file = trim(ZFilename), exist = ZFileExists)
+      end if
+      call MPI_Bcast(ZFileExists, 1, MPI_LOGICAL, 0, comm, ierror)
+      if (.not.ZFileExists) then
+         write(message, '(A)') "Z file does not exists!"
+         call gracefulExit(comm, message)
+      end if
     end if
-    call MPI_Bcast(ZFileExists, 1, MPI_LOGICAL, 0, comm, ierror)
-    if (.not.ZFileExists) call createZeroControlForcing(comm,trim(ZFilename),globalSize)
 
     call endTiming("File name and size check")
     call startTiming("Buffer setup")
@@ -164,14 +183,16 @@ contains
     call MPI_Barrier(comm, ierror)
 
     ! read global file
-    call MPI_File_open(comm, trim(ZFilename),                                 &
-                       MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
-                       mpiFileHandle, ierror)
-    call MPI_FILE_SET_VIEW(mpiFileHandle,offset+globalOffset,MPI_DOUBLE,MPI_DOUBLE,        &
-                           'native',MPI_INFO_NULL,ierror)
-    call MPI_File_read_all(mpiFileHandle, ZBuffer, int(sendcnt),                   &
-                           SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
-    call MPI_File_close(mpiFileHandle, ierror)
+    if (overlapFile) then
+      call MPI_File_open(comm, trim(ZFilename),                                 &
+                         MPI_MODE_RDONLY, MPI_INFO_NULL,                        &
+                         mpiFileHandle, ierror)
+      call MPI_FILE_SET_VIEW(mpiFileHandle,offset+globalOffset,MPI_DOUBLE,MPI_DOUBLE,        &
+                             'native',MPI_INFO_NULL,ierror)
+      call MPI_File_read_all(mpiFileHandle, ZBuffer, int(sendcnt),                   &
+                             SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+      call MPI_File_close(mpiFileHandle, ierror)
+    end if
 
     ! read slice file
     call MPI_File_open(comm, trim(XFilename),                                 &
@@ -195,8 +216,8 @@ contains
 
     call MPI_Barrier(comm, ierror)
 
-    call MPI_File_open(comm, trim(ZFilename), MPI_MODE_RDWR, MPI_INFO_NULL,     &
-                       mpiFileHandle, ierror)
+    call MPI_File_open(comm, trim(ZFilename), MPI_MODE_WRONLY + MPI_MODE_CREATE,             &
+                      MPI_INFO_NULL, mpiFileHandle, ierror)
     call MPI_FILE_SET_VIEW(mpiFileHandle,offset+globalOffset,MPI_DOUBLE,MPI_DOUBLE,          &
                            'native',MPI_INFO_NULL,ierror)
     call MPI_File_write_all(mpiFileHandle, ZBuffer, int(sendcnt),               &
