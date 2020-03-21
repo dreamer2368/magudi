@@ -101,17 +101,22 @@ def afterLinmin(zeroBaseline):
     numFiles = len(os.listdir('./linminLog/'))
     subprocess.check_call('mkdir -p linminLog/%d'%numFiles,shell=True)
     subprocess.check_call('cp %s linminLog/%d/'%(lineMinLog,numFiles), shell=True)
-    for k in range(Nsplit):
-        costFunctionalFile = 'b/%s/%s.cost_functional.txt'%(directories[k],prefixes[k])
-        subprocess.check_call('cp %s linminLog/%d/'%(costFunctionalFile,numFiles), shell=True)
-        if (k<Nsplit-1):
-            subprocess.check_call('cp %s linminLog/%d/'%(diffOutputFiles[k],numFiles), shell=True)
 
     commandString = ''
+
+    # copy result files
+    commands = []
+    for k in range(Nsplit):
+        costFunctionalFile = 'b/%s/%s.cost_functional.txt'%(directories[k],prefixes[k])
+        commands += ['cp %s linminLog/%d/'%(costFunctionalFile,numFiles)]
+        commands += ['cp %s linminLog/%d/'%(diffOutputFiles[k],numFiles)]
+
     for k in range(NcontrolSpace):
-        commandString += 'cp b/%s x0/ \n' % (globalControlSpaceFiles[k])
-        commandString += 'mv %s %s \n' % (globalGradFiles[k],previousGradFiles[k])
-        commandString += 'mv %s %s \n' % (globalConjugateGradientFiles[k],previousCGFiles[k])
+        commands += ['cp b/%s x0/ ' % (globalControlSpaceFiles[k])]
+        commands += ['mv %s %s' % (globalGradFiles[k],previousGradFiles[k])]
+        commands += ['mv %s %s' % (globalConjugateGradientFiles[k],previousCGFiles[k])]
+    commandString += bashParallelCopyCommand(commands,'saving_line_minimization_files')
+
     commandString += '\n'
     if( zeroBaseline ):
         commandString += generalSetOptionCommand
