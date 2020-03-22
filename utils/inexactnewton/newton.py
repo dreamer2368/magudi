@@ -1,4 +1,5 @@
 from base import *
+from filenames_newton import *
 
 import numpy as np
 import subprocess
@@ -27,18 +28,8 @@ def residual(zeroControl=False):
 
     dummy, subrr = QoI()
 
-    # Copy forward run files
-    numFiles = len(os.listdir('./linminLog/'))
-    subprocess.check_call('mkdir -p linminLog/%d'%numFiles,shell=True)
-    commands = []
-    for k in range(Nsplit):
-        costFunctionalFile = 'x0/%s/%s.cost_functional.txt'%(directories[k],prefixes[k])
-        commands += ['cp %s linminLog/%d/'%(costFunctionalFile,numFiles)]
-        commands += ['cp %s linminLog/%d/'%(diffOutputFiles[k],numFiles)]
-    commandString += bashParallelCopyCommand(commands,'saving_residual_files')
-
     # Update or create optimization log.
-    data = [[J0]+list(subJ0)]
+    data = [[dummy]+list(subrr)]
     J_new_df = pd.DataFrame(data,columns=forwardLogColumns)
     from os import path
     if (path.exists(forwardLog)):
@@ -48,7 +39,7 @@ def residual(zeroControl=False):
 
     # Check the residual.
     rr = np.zeros(Nsplit+1)
-    rr[1:] = 2.0 * subrr[Nsplit:2*Nsplit]
+    rr[1:] = np.roll( 2.0 * subrr[Nsplit:2*Nsplit], 1 )
     if (not periodicSolution):
         rr[1] = 0.0
     rr[0] = np.sum( rr[1:] )
@@ -64,11 +55,22 @@ def residual(zeroControl=False):
         return True
 
     # Create a new residual log.
-    res_new_df = pd.DataFrame(rr,columns=residualLogColumns)
+    res_new_df = pd.DataFrame([list(rr)],columns=residualLogColumns)
     res_new_df.to_csv(residualLog, float_format='%.16E', encoding='utf-8',
                                                 sep='\t', mode='w', index=False)
 
     commandString = ''
+
+    # Copy forward run files
+    import os
+    numFiles = len(os.listdir('./linminLog/'))
+    subprocess.check_call('mkdir -p linminLog/%d'%numFiles,shell=True)
+    commands = []
+    for k in range(Nsplit):
+        costFunctionalFile = 'x0/%s/%s.cost_functional.txt'%(directories[k],prefixes[k])
+        commands += ['cp %s linminLog/%d/'%(costFunctionalFile,numFiles)]
+        commands += ['cp %s linminLog/%d/'%(diffOutputFiles[k],numFiles)]
+    commandString += bashParallelCopyCommand(commands,'saving_residual_files')
 
     # move the residual files.
     # diffFiles[k] = Q_{k+1}^{-} - Q_{k+1}^{+}
@@ -82,7 +84,7 @@ def residual(zeroControl=False):
 
     if (not periodicSolution):
         commands = []
-        commands += ['./qfile_zaxpy %s %.16E %s' % (residualFiles[0],0.0,diffFiles[-1])]
+        commands += ['./qfile_zaxpy %s %.16E %s --zero' % (residualFiles[0],0.0,diffFiles[-1])]
         commandString += bashSerialLoopCommand(commands,'qfile-zaxpy',
                                                 prefix='zero_residual')
 
@@ -95,7 +97,7 @@ def residual(zeroControl=False):
 
     commands = []
     for k in range(Nsplit):
-        commands += ['./qfile_zaxpy %s %.16E %s'                                \
+        commands += ['./qfile_zaxpy %s %.16E %s --zero'                                \
                     % (newtonAdjointFiles[k],0.0,residualFiles[k])]
     commandString += bashParallelLoopCommand(commands,'qfile-zaxpy',
                                             'zero_newton_adjoint')
@@ -233,7 +235,7 @@ def linearized(zeroControl=False):
             amp = 0.0
             matchingLinearizedFile = '--zero'
         else:
-            amp = 1.0
+            amp = - 1.0
             matchingLinearizedFile = '%s/%s/%s'                                     \
             % (bdir,directories[k-1],matchingLinearizedFiles[k-1])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
@@ -323,7 +325,7 @@ def cgstep(zeroControl=False):
     rr1 = df.at[df.index[-1],'total']
     rr0 = df.at[df.index[0],'total']
 
-    res_new_df = pd.DataFrame(rr,columns=residualLogColumns)
+    res_new_df = pd.DataFrame([list(rr)],columns=residualLogColumns)
     df = df.append(res_new_df)
     df.to_csv(residualLog, float_format='%.16E', encoding='utf-8',
                                     sep='\t', mode='w', index=False)
@@ -341,6 +343,8 @@ def cgstep(zeroControl=False):
         return True
 
     be = rr[0] / rr1
+
+    commandString = ''
 
     commands = []
     for k in range(Nsplit):

@@ -80,4 +80,5 @@ for k in range(Nsplit):
 
 newtonFiles = [ NEWTONDIR + '/' + file for file in newtonFiles ]
 newtonAdjointFiles = [ NEWTONADJDIR + '/' + file for file in newtonAdjointFiles ]
+residualFiles = [ RESDIR + '/' + file for file in residualFiles ]
 diffResidualFiles = [ DIFFDIR + '/' + file for file in diffResidualFiles ]

@@ -1,4 +1,3 @@
-from base import *
 from newton import *
 import subprocess
 import argparse
@@ -24,7 +23,7 @@ descriptionString = 'Inexact Newton script generator.\n\n'                      
 parser = argparse.ArgumentParser(description = descriptionString,
                                  formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('procedure', metavar='string', choices=['forward','residual','adjoint',
-                                                            'linearized','cgstep','newtonstep'],
+                                                            'linearized','linmin','cgstep','newtonstep'],
                     help='choose the optimization action. Choices are:\n'
                          ' forward\n'
                          ' residual\n'
