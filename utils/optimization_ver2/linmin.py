@@ -90,7 +90,7 @@ def nextLinmin(zeroBaseline=True, initial=True, stop=False):
     commandString += zaxpyCommand(target, -xs, globalConjugateGradientFiles, temp)
     commandString += '\n'
     commandString += forwardRunCommand('x')
-    commandString += bashCheckResultCommand('intermediate forward runs')
+    commandString += purgeDirectoryCommand('x')
     fID = open(globalCommandFile,'w')
     fID.write(commandString)
     fID.close()

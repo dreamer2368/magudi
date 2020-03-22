@@ -164,26 +164,29 @@ def purgeDirectoryCommand(baseDirectory):
 
     commandString = 'shopt -s nullglob\n'
     commandString += 'idx=0\n'
-    for k in range(Nsplit):
-        command = 'for file in %s/%01d/*.q\n' % (bdir,k)
-        command += 'do\n'                                                       \
-                    '   rm ${file} &\n'                                         \
-                    '   pids[${idx}]=$!\n'                                      \
-                    '   let "idx+=1"\n'                                         \
-                    'done\n'
-        command += 'for file in %s/%01d/*.f\n' % (bdir,k)
-        command += 'do\n'                                                       \
-                    '   rm ${file} &\n'                                         \
-                    '   pids[${idx}]=$!\n'                                      \
-                    '   let "idx+=1"\n'                                         \
-                    'done\n'
-        command += 'for file in %s/%01d/*.dat\n' % (bdir,k)
-        command += 'do\n'                                                       \
-                    '   rm ${file} &\n'                                         \
-                    '   pids[${idx}]=$!\n'                                      \
-                    '   let "idx+=1"\n'                                         \
-                    'done\n'
-        commandString += command
+
+    command = 'for k in {0..%d}\n' % (Nsplit-1)
+    command += 'do\n'
+    command += '    for file in %s/${k}/*.q\n' % (bdir)
+    command += '    do\n'                                                       \
+                '       rm ${file} &\n'                                         \
+                '       pids[${idx}]=$!\n'                                      \
+                '       let "idx+=1"\n'                                         \
+                '   done\n'
+    command += '    for file in %s/${k}/*.f\n' % (bdir)
+    command += '    do\n'                                                       \
+                '       rm ${file} &\n'                                         \
+                '       pids[${idx}]=$!\n'                                      \
+                '       let "idx+=1"\n'                                         \
+                '   done\n'
+    command += '    for file in %s/${k}/*.dat\n' % (bdir)
+    command += '    do\n'                                                       \
+                '       rm ${file} &\n'                                         \
+                '       pids[${idx}]=$!\n'                                      \
+                '       let "idx+=1"\n'                                         \
+                '   done\n'
+    command += 'done\n'
+    commandString += command
 
     commandString += 'FAIL=0\n'
     commandString += 'k=0\n'

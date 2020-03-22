@@ -29,6 +29,7 @@ def setupInitialSteps(zeroBaseline=True):
     commandString += zaxpyCommand(target, -steps[1], globalConjugateGradientFiles, temp)
     commandString += '\n'
     commandString += forwardRunCommand('x')
+    commandString += purgeDirectoryCommand('x')
     fID = open(globalCommandFile,'w')
     fID.write(commandString)
     fID.close()
@@ -103,7 +104,7 @@ def NextMnbrak(zeroBaseline=True):
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
-            commandString += bashCheckResultCommand('intermediate forward runs')
+            commandString += purgeDirectoryCommand('x')
             fID = open(globalCommandFile,'w')
             fID.write(commandString)
             fID.close()
@@ -158,7 +159,7 @@ def NextMnbrak(zeroBaseline=True):
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
-            commandString += bashCheckResultCommand('intermediate forward runs')
+            commandString += purgeDirectoryCommand('x')
             fID = open(globalCommandFile,'w')
             fID.write(commandString)
             fID.close()
@@ -193,7 +194,7 @@ def NextMnbrak(zeroBaseline=True):
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
-            commandString += bashCheckResultCommand('intermediate forward runs')
+            commandString += purgeDirectoryCommand('x')
             fID = open(globalCommandFile,'w')
             fID.write(commandString)
             fID.close()
@@ -227,7 +228,7 @@ def NextMnbrak(zeroBaseline=True):
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
-            commandString += bashCheckResultCommand('intermediate forward runs')
+            commandString += purgeDirectoryCommand('x')
             fID = open(globalCommandFile,'w')
             fID.write(commandString)
             fID.close()

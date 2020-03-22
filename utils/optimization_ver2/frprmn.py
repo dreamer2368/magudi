@@ -133,6 +133,7 @@ def afterLinmin(zeroBaseline):
     commandString += gatherControlForcingGradientCommand()
     commandString += '\n'
     commandString += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
+    commandString += purgeDirectoryCommand('x0')
 
     commands = []
     for k in range(Nsplit):
