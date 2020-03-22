@@ -145,14 +145,61 @@ def bashParallelPurgeCommand(filenames,prefix='job'):
 
     nJobs = len(filenames)
     idx = 0
+    commandString += 'idx=0\n'
     for k in range(nJobs):
         command = 'if [ -f "%s" ]; then \n' % filenames[k]
         command += 'rm %s &\n' % (filenames[k])
-        command += 'pids[%d]=$!\n' % idx
+        command += 'pids[${idx}]=$!\n'
+        command += 'let "idx+=1"\n'
         command += 'fi\n\n'
         commandString += command
         idx += 1
 
     commandString += bashCheckResultCommand(prefix,idx)
+
+    return commandString
+
+def purgeDirectoryCommand(baseDirectory):
+    bdir = baseDirectory
+
+    commandString = 'shopt -s nullglob\n'
+    commandString += 'idx=0\n'
+    for k in range(Nsplit):
+        command = 'for file in %s/%01d/*.q\n' % (bdir,k)
+        command += 'do\n'                                                       \
+                    '   rm ${file} &\n'                                         \
+                    '   pids[${idx}]=$!\n'                                      \
+                    '   let "idx+=1"\n'                                         \
+                    'done\n'
+        command += 'for file in %s/%01d/*.f\n' % (bdir,k)
+        command += 'do\n'                                                       \
+                    '   rm ${file} &\n'                                         \
+                    '   pids[${idx}]=$!\n'                                      \
+                    '   let "idx+=1"\n'                                         \
+                    'done\n'
+        command += 'for file in %s/%01d/*.dat\n' % (bdir,k)
+        command += 'do\n'                                                       \
+                    '   rm ${file} &\n'                                         \
+                    '   pids[${idx}]=$!\n'                                      \
+                    '   let "idx+=1"\n'                                         \
+                    'done\n'
+        commandString += command
+
+    commandString += 'FAIL=0\n'
+    commandString += 'k=0\n'
+    commandString += 'while [[ $k -lt $idx ]]\n'
+    commandString += 'do\n'                                                             \
+                     '    wait ${pids[${k}]} || let "FAIL+=1"\n'                        \
+                     '    echo "${pids[${k}]}, FAIL: ${FAIL}"\n'                        \
+                     '    let "k+=1"\n'                                                 \
+                     'done\n\n'
+    commandString += 'echo "Number of failures: $FAIL"\n'                               \
+                     'if [ $FAIL -ne 0 ]; then\n'
+    commandString += '   echo "Purging %s failed."\n' % (bdir)
+    commandString += '   exit -1\n'                                                     \
+                     'else\n'
+    commandString += '   echo "Purging %s succeeded."\n' % (bdir)
+    commandString += '   FAIL=0\n'
+    commandString += 'fi\n\n'
 
     return commandString
