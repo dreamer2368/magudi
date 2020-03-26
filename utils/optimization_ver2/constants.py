@@ -8,6 +8,7 @@ import numpy as np
 matchingConditionWeight = 1.0e-7 * np.ones(Nsplit)       # weight for matching condition penalty
 initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
 useLagrangian = False                                    # flag for augmented lagrangian
+ignoreObjective = False
 periodicSolution = False
 if (not periodicSolution):
     matchingConditionWeight[-1] = 0.0

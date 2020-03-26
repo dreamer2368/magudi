@@ -42,7 +42,8 @@ def QoI(baseDirectory = 'x0'):
     J = 0.0
     for k in range(Nsplit):
         subJ[k] = readScalar(bdir + '/' + directories[k] + '/' + outputFiles[k])
-        J += subJ[k]
+        if (not ignoreObjective):
+            J += subJ[k]
 
         subJ[Nsplit+k] = 0.5 * readScalar(diffOutputFiles[k])
         J += matchingConditionWeight[k] * subJ[Nsplit+k]
@@ -244,6 +245,12 @@ def adjointRunCommand(baseDirectory='x0'):
 
     targetInputFiles = ['%s/%s/%s'%(bdir,dir,file) for dir, file in zip(directories,inputFiles)]
 
+    if (ignoreObjective):
+        commands = []
+        for k in range(Nsplit):
+            commands += ['setOption %s "adjoint_forcing_switch" "false"' % targetInputFiles[k]]
+        commandString += bashParallelCopyCommand(commands,'magudi_option_disable_adjoint_forcing')
+
     commands = []
     for k in range(Nsplit):
         commands += ['setOption %s "enable_adjoint_restart" "true"' % targetInputFiles[k]]
@@ -329,6 +336,12 @@ def adjointRunCommand(baseDirectory='x0'):
                                             'adjoint2',directories=commandDirs)
 
     # TODO: Either check the last adjoint run, or complete the periodic optimization!!
+    if (ignoreObjective):
+        commands = []
+        for k in range(Nsplit):
+            commands += ['setOption %s "adjoint_forcing_switch" "true"' % targetInputFiles[k]]
+        commandString += bashParallelCopyCommand(commands,'magudi_option_enable_adjoint_forcing')
+
     commands = []
     for k in range(Nsplit):
         commands += ['setOption %s "enable_adjoint_restart" "false"' % targetInputFiles[k]]
@@ -336,7 +349,7 @@ def adjointRunCommand(baseDirectory='x0'):
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
+        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "false"'                 \
                     % targetInputFiles[k]]
     commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_false')
 
