@@ -292,7 +292,7 @@ module Patch_mod
 
        class(t_Patch) :: this
        SCALAR_TYPE, intent(in) :: patchLocalArray(:)
-       SCALAR_TYPE, allocatable :: patchGlobalArray(:)
+       SCALAR_TYPE, intent(out) :: patchGlobalArray(:)
 
      end subroutine gatherScalarOnPatch
 
@@ -302,7 +302,7 @@ module Patch_mod
 
        class(t_Patch) :: this
        SCALAR_TYPE, intent(in) :: patchLocalArray(:,:)
-       SCALAR_TYPE, allocatable :: patchGlobalArray(:,:)
+       SCALAR_TYPE, intent(out) :: patchGlobalArray(:,:)
 
      end subroutine gatherVectorOnPatch
 
@@ -312,7 +312,7 @@ module Patch_mod
 
        class(t_Patch) :: this
        SCALAR_TYPE, intent(in) :: patchLocalArray(:,:,:)
-       SCALAR_TYPE, allocatable :: patchGlobalArray(:,:,:)
+       SCALAR_TYPE, intent(out) :: patchGlobalArray(:,:,:)
 
      end subroutine gatherTensorOnPatch
 
@@ -325,7 +325,7 @@ module Patch_mod
        import :: t_Patch
 
        class(t_Patch) :: this
-       SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:)
+       SCALAR_TYPE, intent(in) :: patchGlobalArray(:)
        SCALAR_TYPE, intent(out) :: patchLocalArray(:)
 
      end subroutine scatterScalarOnPatch
@@ -335,7 +335,7 @@ module Patch_mod
        import :: t_Patch
 
        class(t_Patch) :: this
-       SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:,:)
+       SCALAR_TYPE, intent(in) :: patchGlobalArray(:,:)
        SCALAR_TYPE, intent(out) :: patchLocalArray(:,:)
 
      end subroutine scatterVectorOnPatch
@@ -345,7 +345,7 @@ module Patch_mod
        import :: t_Patch
 
        class(t_Patch) :: this
-       SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:,:,:)
+       SCALAR_TYPE, intent(in) :: patchGlobalArray(:,:,:)
        SCALAR_TYPE, intent(out) :: patchLocalArray(:,:,:)
 
      end subroutine scatterTensorOnPatch

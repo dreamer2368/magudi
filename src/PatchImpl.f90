@@ -597,7 +597,7 @@ subroutine gatherScalarOnPatch(this, patchLocalArray, patchGlobalArray)
   ! <<< Arguments >>>
   class(t_Patch) :: this
   SCALAR_TYPE, intent(in) :: patchLocalArray(:)
-  SCALAR_TYPE, allocatable :: patchGlobalArray(:)
+  SCALAR_TYPE, intent(out) :: patchGlobalArray(:)
 
   ! <<< Local variables >>>
   integer :: i, mpiRequest, procRank, numProcs, ierror
@@ -612,7 +612,7 @@ subroutine gatherScalarOnPatch(this, patchLocalArray, patchGlobalArray)
 
 #ifdef DEBUG
   if (procRank == 0) then
-     assert(allocated(patchGlobalArray))
+     ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray) == product(this%globalSize))
   end if
 #endif
@@ -644,7 +644,7 @@ subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
   ! <<< Arguments >>>
   class(t_Patch) :: this
   SCALAR_TYPE, intent(in) :: patchLocalArray(:,:)
-  SCALAR_TYPE, allocatable :: patchGlobalArray(:,:)
+  SCALAR_TYPE, intent(out) :: patchGlobalArray(:,:)
 
   ! <<< Local variables >>>
   integer :: i, mpiRequest, procRank, numProcs, ierror
@@ -660,7 +660,7 @@ subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
 
 #ifdef DEBUG
   if (procRank == 0) then
-     assert(allocated(patchGlobalArray))
+     ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray, 1) == product(this%globalSize))
      assert(size(patchGlobalArray, 2) == size(patchLocalArray, 2))
   end if
@@ -693,7 +693,7 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
   ! <<< Arguments >>>
   class(t_Patch) :: this
   SCALAR_TYPE, intent(in) :: patchLocalArray(:,:,:)
-  SCALAR_TYPE, allocatable :: patchGlobalArray(:,:,:)
+  SCALAR_TYPE, intent(out) :: patchGlobalArray(:,:,:)
 
   ! <<< Local variables >>>
   integer :: i, nComponents, mpiRequest, procRank, numProcs, ierror
@@ -710,7 +710,7 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
 
 #ifdef DEBUG
   if (procRank == 0) then
-     assert(allocated(patchGlobalArray))
+     ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray, 1) == product(this%globalSize))
      assert(size(patchGlobalArray, 2) == size(patchLocalArray, 2))
      assert(size(patchGlobalArray, 3) == size(patchLocalArray, 3))
@@ -744,7 +744,7 @@ subroutine scatterScalarOnPatch(this, patchGlobalArray, patchLocalArray)
 
   ! <<< Arguments >>>
   class(t_Patch) :: this
-  SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:)
+  SCALAR_TYPE, intent(in) :: patchGlobalArray(:)
   SCALAR_TYPE, intent(out) :: patchLocalArray(:)
 
   ! <<< Local variables >>>
@@ -760,7 +760,7 @@ subroutine scatterScalarOnPatch(this, patchGlobalArray, patchLocalArray)
 
 #ifdef DEBUG
   if (procRank == 0) then
-     assert(allocated(patchGlobalArray))
+     ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray) == product(this%globalSize))
   end if
 #endif
@@ -791,7 +791,7 @@ subroutine scatterVectorOnPatch(this, patchGlobalArray, patchLocalArray)
 
   ! <<< Arguments >>>
   class(t_Patch) :: this
-  SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:,:)
+  SCALAR_TYPE, intent(in) :: patchGlobalArray(:,:)
   SCALAR_TYPE, intent(out) :: patchLocalArray(:,:)
 
   ! <<< Local variables >>>
@@ -808,7 +808,7 @@ subroutine scatterVectorOnPatch(this, patchGlobalArray, patchLocalArray)
 
 #ifdef DEBUG
   if (procRank == 0) then
-     assert(allocated(patchGlobalArray))
+     ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray, 1) == product(this%globalSize))
      assert(size(patchGlobalArray, 2) == size(patchLocalArray, 2))
   end if
@@ -840,7 +840,7 @@ subroutine scatterTensorOnPatch(this, patchGlobalArray, patchLocalArray)
 
   ! <<< Arguments >>>
   class(t_Patch) :: this
-  SCALAR_TYPE, intent(in), allocatable :: patchGlobalArray(:,:,:)
+  SCALAR_TYPE, intent(in) :: patchGlobalArray(:,:,:)
   SCALAR_TYPE, intent(out) :: patchLocalArray(:,:,:)
 
   ! <<< Local variables >>>
@@ -857,7 +857,7 @@ subroutine scatterTensorOnPatch(this, patchGlobalArray, patchLocalArray)
 
 #ifdef DEBUG
   if (procRank == 0) then
-     assert(allocated(patchGlobalArray))
+     ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray, 1) == product(this%globalSize))
      assert(size(patchGlobalArray, 2) == size(patchLocalArray, 2))
      assert(size(patchGlobalArray, 3) == size(patchLocalArray, 3))
