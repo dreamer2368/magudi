@@ -12,7 +12,7 @@ function(add_serial_test name)
 endfunction(add_serial_test)
 
 # Serial tests
-# add_serial_test(SAT_block_interface)
+add_serial_test(SAT_block_interface_linearized)
 # add_serial_test(control_functional)
 # add_serial_test(initial_condition)
 

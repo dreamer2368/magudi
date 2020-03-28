@@ -62,11 +62,7 @@ subroutine setupBlockInterfacePatch(this, index, comm, patchDescriptor,         
      end if
 
      !SeungWhan: unclear use of predictionOnly. revisit later.
-     if (simulationFlags%viscosityOn .or. simulationFlags%enableAdjoint) then
-       nExchangedVariables = 2*nUnknowns
-     else
-       nExchangedVariables = nUnknowns+1
-     end if
+     nExchangedVariables = 3 * nUnknowns
 
      call MPI_Comm_rank(this%comm, procRank, ierror)
      if (procRank == 0) then
@@ -129,7 +125,7 @@ subroutine cleanupBlockInterfacePatch(this)
 end subroutine cleanupBlockInterfacePatch
 
 subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, grid, state)
-
+! TODO: investigate proper exchange of fluxes.. Is current implementation really correct?
   ! <<< External modules >>>
   use MPI
 
@@ -141,7 +137,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -166,7 +162,7 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
        localRoeAverage(:), localStressTensor(:), localHeatFlux(:), localVelocity(:),         &
        localMetricsAlongNormalDirection(:), incomingJacobianOfInviscidFlux(:,:),             &
        localViscousFluxJacobian(:,:), deltaIncomingJacobianOfInviscidFlux(:,:,:),            &
-       deltaRoeAverage(:,:)
+       deltaRoeAverage(:,:), deltaConservedVariablesL(:,:), deltaConservedVariablesR(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT))
   assert(this%gridIndex == grid%index)
@@ -199,6 +195,10 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
   allocate(incomingJacobianOfInviscidFlux(nUnknowns, nUnknowns))
   allocate(deltaIncomingJacobianOfInviscidFlux(nUnknowns, nUnknowns, nUnknowns))
   allocate(deltaRoeAverage(nUnknowns, nUnknowns))
+  allocate(deltaConservedVariablesL(nUnknowns, nUnknowns))
+  allocate(deltaConservedVariablesR(nUnknowns, nUnknowns))
+  deltaConservedVariablesL = 0.0_wp
+  deltaConservedVariablesR = 0.0_wp
 
   if (simulationFlags%viscosityOn) then
      allocate(localVelocity(nDimensions))
@@ -229,231 +229,279 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
               localHeatFlux = state%heatFlux(gridIndex,:)
            end if
 
-           if (mode == FORWARD .or. simulationFlags%useContinuousAdjoint) then
+           select case(mode)
 
-              call computeRoeAverage(nDimensions, localConservedVariablesL,                  &
-                   localConservedVariablesR, solverOptions%ratioOfSpecificHeats,             &
-                   localRoeAverage)
+           case(FORWARD)
+             call computeRoeAverage(nDimensions, localConservedVariablesL,                  &
+                  localConservedVariablesR, solverOptions%ratioOfSpecificHeats,             &
+                  localRoeAverage)
 
-              select case (nDimensions)
-              case (1)
-                 call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,               &
-                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
-                      incomingDirection, incomingJacobianOfInviscidFlux)
-              case (2)
-                 call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,               &
-                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
-                      incomingDirection, incomingJacobianOfInviscidFlux)
-              case (3)
-                 call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,               &
-                      localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
-                      incomingDirection, incomingJacobianOfInviscidFlux)
-              end select !... nDimensions
+             select case (nDimensions)
+             case (1)
+               call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,               &
+                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                    incomingDirection, incomingJacobianOfInviscidFlux)
+             case (2)
+               call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,               &
+                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                    incomingDirection, incomingJacobianOfInviscidFlux)
+             case (3)
+               call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,               &
+                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                    incomingDirection, incomingJacobianOfInviscidFlux)
+             end select !... nDimensions
 
-           else
+             state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
+                  this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *                &
+                  matmul(incomingJacobianOfInviscidFlux,                                    &
+                  localConservedVariablesL - localConservedVariablesR)
 
-              call computeRoeAverage(nDimensions, localConservedVariablesL,                  &
-                   localConservedVariablesR, solverOptions%ratioOfSpecificHeats,             &
-                   localRoeAverage, deltaRoeAverage)
+             if (simulationFlags%viscosityOn) then
+                state%rightHandSide(gridIndex,2:nUnknowns) =                                &
+                     state%rightHandSide(gridIndex,2:nUnknowns) +                           &
+                     this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
+                     (this%viscousFluxesL(patchIndex,2:nUnknowns) -                         &
+                     this%viscousFluxesR(patchIndex,2:nUnknowns))
+             end if
 
-           end if
+           case(ADJOINT)
+             if (simulationFlags%useContinuousAdjoint) then !TODO: continuous adjoint is not verified. disabled for now.
+               ! call computeRoeAverage(nDimensions, localConservedVariablesL,                  &
+               !      localConservedVariablesR, solverOptions%ratioOfSpecificHeats,             &
+               !      localRoeAverage)
+               !
+               ! select case (nDimensions)
+               ! case (1)
+               !    call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,               &
+               !         localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+               !         incomingDirection, incomingJacobianOfInviscidFlux)
+               ! case (2)
+               !    call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,               &
+               !         localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+               !         incomingDirection, incomingJacobianOfInviscidFlux)
+               ! case (3)
+               !    call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,               &
+               !         localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+               !         incomingDirection, incomingJacobianOfInviscidFlux)
+               ! end select !... nDimensions
+               !
+               ! state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
+               !      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
+               !      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
+               !      this%adjointVariablesL(patchIndex,:) -                                 &
+               !      this%adjointVariablesR(patchIndex,:))
+               !
+               ! if (simulationFlags%viscosityOn) then
+               !
+               !     select case (nDimensions)
+               !     case (1)
+               !        call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
+               !             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+               !             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+               !             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+               !             localVelocity, state%temperature(gridIndex,1))
+               !     case (2)
+               !        call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
+               !             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+               !             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+               !             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+               !             localVelocity, state%temperature(gridIndex,1))
+               !     case (3)
+               !        call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
+               !             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+               !             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+               !             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+               !             localVelocity, state%temperature(gridIndex,1))
+               !     end select !... nDimensions
+               !
+               !    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
+               !         this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *           &
+               !         matmul(transpose(localViscousFluxJacobian),                         &
+               !         this%adjointVariablesL(patchIndex,:) -                              &
+               !         this%adjointVariablesR(patchIndex,:))
+               ! end if
+             else ! Discrete Adjoint
 
-           select case (mode)
+               call computeRoeAverage(nDimensions, localConservedVariablesL,                  &
+                    localConservedVariablesR, solverOptions%ratioOfSpecificHeats,             &
+                    localRoeAverage, deltaRoeAverage)
 
-           case (FORWARD)
+               localMetricsAlongNormalDirection =                                           &
+                    this%metricsAlongNormalDirectionL(patchIndex,:)
+               select case (nDimensions)
+               case (1)
+                  call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
+                       localMetricsAlongNormalDirection,                                   &
+                       solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
+                       incomingJacobianOfInviscidFlux,                                     &
+                       deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+               case (2)
+                  call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,            &
+                       localMetricsAlongNormalDirection,                                   &
+                       solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
+                       incomingJacobianOfInviscidFlux,                                     &
+                       deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+               case (3)
+                  call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,            &
+                       localMetricsAlongNormalDirection,                                   &
+                       solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
+                       incomingJacobianOfInviscidFlux,                                     &
+                       deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+               end select !... nDimensions
 
-              state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
-                   this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *                &
-                   matmul(incomingJacobianOfInviscidFlux,                                    &
-                   localConservedVariablesL - localConservedVariablesR)
+               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
+                    this%inviscidPenaltyAmountL * grid%jacobian(gridIndex, 1) *            &
+                    matmul(transpose(incomingJacobianOfInviscidFlux),                      &
+                    this%adjointVariablesL(patchIndex,:))
 
-              if (simulationFlags%viscosityOn) then
-                 state%rightHandSide(gridIndex,2:nUnknowns) =                                &
-                      state%rightHandSide(gridIndex,2:nUnknowns) +                           &
-                      this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
-                      (this%viscousFluxesL(patchIndex,2:nUnknowns) -                         &
-                      this%viscousFluxesR(patchIndex,2:nUnknowns))
-              end if
+               do l = 1, nUnknowns
+                  state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
+                       this%inviscidPenaltyAmountL * grid%jacobian(gridIndex, 1) *         &
+                       sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
+                       localConservedVariablesL - localConservedVariablesR) *              &
+                       this%adjointVariablesL(patchIndex,:))
+               end do
 
-           case (ADJOINT)
+               if (simulationFlags%viscosityOn) then
 
-              if (simulationFlags%useContinuousAdjoint) then ! This part is not tested!!
+                  select case (nDimensions)
+                  case (1)
+                     call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
+                          localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                          solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                          localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                          localVelocity, state%temperature(gridIndex,1))
+                  case (2)
+                     call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
+                          localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                          solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                          localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                          localVelocity, state%temperature(gridIndex,1))
+                  case (3)
+                     call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
+                          localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                          solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                          localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                          localVelocity, state%temperature(gridIndex,1))
+                  end select !... nDimensions
 
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
-                      this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *             &
-                      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
-                      this%adjointVariablesL(patchIndex,:) -                                 &
-                      this%adjointVariablesR(patchIndex,:))
+                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -    &
+                       this%viscousPenaltyAmountL * grid%jacobian(gridIndex, 1) *          &
+                       matmul(transpose(localViscousFluxJacobian),                         &
+                       this%adjointVariablesL(patchIndex,:) )
 
-                 if (simulationFlags%viscosityOn) then
+               end if
 
-                     select case (nDimensions)
-                     case (1)
-                        call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
-                             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                             localVelocity, state%temperature(gridIndex,1))
-                     case (2)
-                        call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
-                             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                             localVelocity, state%temperature(gridIndex,1))
-                     case (3)
-                        call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
-                             localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                             solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                             localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                             localVelocity, state%temperature(gridIndex,1))
-                     end select !... nDimensions
+               localMetricsAlongNormalDirection =                                           &
+                     this%metricsAlongNormalDirectionR(patchIndex,:)
+               select case (nDimensions)
+               case (1)
+                  call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
+                       localMetricsAlongNormalDirection,                                   &
+                       solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
+                       incomingJacobianOfInviscidFlux,                                     &
+                       deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+               case (2)
+                  call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,            &
+                       localMetricsAlongNormalDirection,                                   &
+                       solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
+                       incomingJacobianOfInviscidFlux,                                     &
+                       deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+               case (3)
+                  call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,            &
+                       localMetricsAlongNormalDirection,                                   &
+                       solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
+                       incomingJacobianOfInviscidFlux,                                     &
+                       deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+               end select !... nDimensions
 
-                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
-                         this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *           &
-                         matmul(transpose(localViscousFluxJacobian),                         &
-                         this%adjointVariablesL(patchIndex,:) -                              &
-                         this%adjointVariablesR(patchIndex,:))
-                 end if
+               ! Note sign change is included in inviscidPenaltyAmount
+               state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
+                    this%inviscidPenaltyAmountR * grid%jacobian(gridIndex, 1) *            &
+                    matmul(transpose(incomingJacobianOfInviscidFlux),                      &
+                    this%adjointVariablesR(patchIndex,:))
 
-              else ! Discrete adjoint
+               ! Note sign change is included in inviscidPenaltyAmount
+               do l = 1, nUnknowns
+                  state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) -    &
+                       this%inviscidPenaltyAmountR * grid%jacobian(gridIndex, 1) *         &
+                       sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
+                       localConservedVariablesL - localConservedVariablesR) *              &
+                       this%adjointVariablesR(patchIndex,:))
+               end do
 
-                localMetricsAlongNormalDirection =                                           &
-                      this%metricsAlongNormalDirectionL(patchIndex,:)
-                 select case (nDimensions)
-                 case (1)
-                    call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
-                         localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
-                         incomingJacobianOfInviscidFlux,                                     &
-                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
-                 case (2)
-                    call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,            &
-                         localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
-                         incomingJacobianOfInviscidFlux,                                     &
-                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
-                 case (3)
-                    call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,            &
-                         localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirectionL,             &
-                         incomingJacobianOfInviscidFlux,                                     &
-                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
-                 end select !... nDimensions
+               if (simulationFlags%viscosityOn) then
 
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +       &
-                      this%inviscidPenaltyAmountL * grid%jacobian(gridIndex, 1) *            &
-                      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
-                      this%adjointVariablesL(patchIndex,:))
+                  select case (nDimensions)
+                  case (1)
+                     call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
+                          localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                          solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                          localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                          localVelocity, state%temperature(gridIndex,1))
+                  case (2)
+                     call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
+                          localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                          solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                          localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                          localVelocity, state%temperature(gridIndex,1))
+                  case (3)
+                     call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
+                          localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
+                          solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
+                          localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
+                          localVelocity, state%temperature(gridIndex,1))
+                  end select !... nDimensions
 
-                 do l = 1, nUnknowns
-                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) +    &
-                         this%inviscidPenaltyAmountL * grid%jacobian(gridIndex, 1) *         &
-                         sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
-                         localConservedVariablesL - localConservedVariablesR) *              &
-                         this%adjointVariablesL(patchIndex,:))
-                 end do
+                  state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
+                       this%viscousPenaltyAmountR * grid%jacobian(gridIndex, 1) *          &
+                       matmul(transpose(localViscousFluxJacobian),                         &
+                       this%adjointVariablesR(patchIndex,:) )
 
-                 if (simulationFlags%viscosityOn) then
+               end if
+             end if
 
-                    select case (nDimensions)
-                    case (1)
-                       call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
-                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                            localVelocity, state%temperature(gridIndex,1))
-                    case (2)
-                       call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
-                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                            localVelocity, state%temperature(gridIndex,1))
-                    case (3)
-                       call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
-                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                            localVelocity, state%temperature(gridIndex,1))
-                    end select !... nDimensions
+           case(LINEARIZED)
 
-                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -    &
-                         this%viscousPenaltyAmountL * grid%jacobian(gridIndex, 1) *          &
-                         matmul(transpose(localViscousFluxJacobian),                         &
-                         this%adjointVariablesL(patchIndex,:) )
+             do l = 1, nUnknowns
+               deltaConservedVariablesL(l,l) = this%adjointVariablesL(patchIndex,l)
+               deltaConservedVariablesR(l,l) = this%adjointVariablesR(patchIndex,l)
+             end do
 
-                 end if
+             call computeRoeAverage(nDimensions, localConservedVariablesL,                  &
+                  localConservedVariablesR, solverOptions%ratioOfSpecificHeats,             &
+                  localRoeAverage, deltaRoeAverage,                                         &
+                  deltaConservedVariablesL, deltaConservedVariablesR)
 
-                 localMetricsAlongNormalDirection =                                           &
-                       this%metricsAlongNormalDirectionR(patchIndex,:)
-                 select case (nDimensions)
-                 case (1)
-                    call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,            &
-                         localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
-                         incomingJacobianOfInviscidFlux,                                     &
-                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
-                 case (2)
-                    call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,            &
-                         localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
-                         incomingJacobianOfInviscidFlux,                                     &
-                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
-                 case (3)
-                    call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,            &
-                         localMetricsAlongNormalDirection,                                   &
-                         solverOptions%ratioOfSpecificHeats, incomingDirectionR,             &
-                         incomingJacobianOfInviscidFlux,                                     &
-                         deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
-                 end select !... nDimensions
+             select case(nDimensions)
+             case (1)
+               call computeIncomingJacobianOfInviscidFlux1D(localRoeAverage,               &
+                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                    incomingDirection, incomingJacobianOfInviscidFlux,                     &
+                    deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+             case (2)
+               call computeIncomingJacobianOfInviscidFlux2D(localRoeAverage,               &
+                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                    incomingDirection, incomingJacobianOfInviscidFlux,                     &
+                    deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+             case (3)
+               call computeIncomingJacobianOfInviscidFlux3D(localRoeAverage,               &
+                    localMetricsAlongNormalDirection, solverOptions%ratioOfSpecificHeats,  &
+                    incomingDirection, incomingJacobianOfInviscidFlux,                     &
+                    deltaIncomingJacobianOfInviscidFlux, deltaRoeAverage)
+             end select !... nDimensions
 
-                 ! Note sign change is included in inviscidPenaltyAmount
-                 state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -       &
-                      this%inviscidPenaltyAmountR * grid%jacobian(gridIndex, 1) *            &
-                      matmul(transpose(incomingJacobianOfInviscidFlux),                      &
-                      this%adjointVariablesR(patchIndex,:))
+             state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
+                  this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *                &
+                  matmul(incomingJacobianOfInviscidFlux,                                    &
+                  this%adjointVariablesL(patchIndex,:) - this%adjointVariablesR(patchIndex,:))
 
-                 ! Note sign change is included in inviscidPenaltyAmount
-                 do l = 1, nUnknowns
-                    state%rightHandSide(gridIndex,l) = state%rightHandSide(gridIndex,l) -    &
-                         this%inviscidPenaltyAmountR * grid%jacobian(gridIndex, 1) *         &
-                         sum(matmul(deltaIncomingJacobianOfInviscidFlux(:,:,l),              &
-                         localConservedVariablesL - localConservedVariablesR) *              &
-                         this%adjointVariablesR(patchIndex,:))
-                 end do
+             state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) -          &
+                  this%inviscidPenaltyAmount * grid%jacobian(gridIndex, 1) *                &
+                  matmul(sum(deltaIncomingJacobianOfInviscidFlux, dim=3),                   &
+                  localConservedVariablesL - localConservedVariablesR)
 
-                 if (simulationFlags%viscosityOn) then
-
-                    select case (nDimensions)
-                    case (1)
-                       call computeFirstPartialViscousJacobian1D(localConservedVariablesL,      &
-                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                            localVelocity, state%temperature(gridIndex,1))
-                    case (2)
-                       call computeFirstPartialViscousJacobian2D(localConservedVariablesL,      &
-                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                            localVelocity, state%temperature(gridIndex,1))
-                    case (3)
-                       call computeFirstPartialViscousJacobian3D(localConservedVariablesL,      &
-                            localMetricsAlongNormalDirection, localStressTensor, localHeatFlux, &
-                            solverOptions%powerLawExponent, solverOptions%ratioOfSpecificHeats, &
-                            localViscousFluxJacobian, state%specificVolume(gridIndex,1),        &
-                            localVelocity, state%temperature(gridIndex,1))
-                    end select !... nDimensions
-
-                    state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:) +    &
-                         this%viscousPenaltyAmountR * grid%jacobian(gridIndex, 1) *          &
-                         matmul(transpose(localViscousFluxJacobian),                         &
-                         this%adjointVariablesR(patchIndex,:) )
-
-                 end if
-
-              end if
-
-           end select !... mode
+           end select
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
      end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
@@ -540,7 +588,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
   use BlockInterfacePatch_enum, only : METRICS
 
   implicit none
@@ -555,7 +603,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions, nUnknowns, direction
+  integer :: i, j, nDimensions, nUnknowns, direction, nExchangedVariables
   SCALAR_TYPE, dimension(:,:), allocatable :: dataToBeSent
 
   if (this%comm == MPI_COMM_NULL) return
@@ -602,6 +650,28 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   case(ADJOINT)
     call this%collect(state%conservedVariables, this%conservedVariablesL)
     call this%collect(state%adjointVariables, this%adjointVariablesL)
+  case(LINEARIZED)
+    call this%collect(state%conservedVariables, this%conservedVariablesL)
+    call this%collect(state%adjointVariables, this%adjointVariablesL)
+
+    if (simulationFlags%viscosityOn) then
+       this%viscousFluxesL = 0.0_wp
+       do j = 1, nDimensions
+          do i = 2, nUnknowns
+             this%viscousFluxesL(:,i) = this%viscousFluxesL(:,i) +                             &
+                  this%cartesianViscousFluxesL(:,i,j) * this%metricsAlongNormalDirectionL(:,j)
+          end do
+       end do
+
+       ! For viscous fluxes, metrics on the other side must be reflected on exchanging fluxes.
+       this%viscousFluxesR = 0.0_wp
+       do j = 1, nDimensions
+          do i = 2, nUnknowns
+             this%viscousFluxesR(:,i) = this%viscousFluxesR(:,i) +                             &
+                  this%cartesianViscousFluxesL(:,i,j) * this%metricsAlongNormalDirectionR(:,j)
+          end do
+       end do
+    end if
   case(METRICS)
     call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
                       this%metricsAlongNormalDirectionL)
@@ -610,7 +680,20 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
     this%normalDirectionL = this%normalDirection
   end select
 
-  allocate(dataToBeSent(this%nPatchPoints, 2 * nUnknowns))
+  select case(mode)
+  case(FORWARD)
+    nExchangedVariables = nUnknowns
+    if (simulationFlags%viscosityOn) nExchangedVariables = 2 * nUnknowns
+  case(ADJOINT)
+    nExchangedVariables = 2 * nUnknowns
+  case(LINEARIZED)
+    nExchangedVariables = 2 * nUnknowns
+    if (simulationFlags%viscosityOn) nExchangedVariables = 3 * nUnknowns
+  case(METRICS)
+    nExchangedVariables = nUnknowns + 1
+  end select
+
+  allocate(dataToBeSent(this%nPatchPoints, nExchangedVariables))
   select case(mode)
   case(FORWARD)
     dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
@@ -618,6 +701,10 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   case(ADJOINT)
     dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
     dataToBeSent(:,nUnknowns+1:) = this%adjointVariablesL
+  case(LINEARIZED)
+    dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
+    dataToBeSent(:,nUnknowns+1:2*nUnknowns) = this%adjointVariablesL
+    if (simulationFlags%viscosityOn) dataToBeSent(:,2*nUnknowns+1:) = this%viscousFluxesR
   case(METRICS)
     dataToBeSent(:,1:nDimensions) = this%metricsAlongNormalDirectionL
     dataToBeSent(:,nDimensions+1) = this%inviscidPenaltyAmountL
@@ -625,7 +712,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
     dataToBeSent(:,nDimensions+3) = real(this%normalDirectionL,wp)
   end select
 
-  call this%gatherData(dataToBeSent, this%sendBuffer)
+  call this%gatherData(dataToBeSent, this%sendBuffer(:,1:nExchangedVariables))
 
   SAFE_DEALLOCATE(dataToBeSent)
 
@@ -642,7 +729,7 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
   use BlockInterfacePatch_enum, only : METRICS
 
   implicit none
@@ -668,13 +755,20 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
     nExchangedVariables = nUnknowns
     if (simulationFlags%viscosityOn .or. simulationFlags%enableAdjoint)                 &
          nExchangedVariables = nExchangedVariables + nUnknowns
+  case(ADJOINT)
+    nExchangedVariables = 2 * nUnknowns
+  case(LINEARIZED)
+    nExchangedVariables = 2 * nUnknowns
+    if (simulationFlags%viscosityOn) nExchangedVariables = 3 * nUnknowns
+  case(METRICS)
+    nExchangedVariables = nUnknowns + 1
   case default
-    nExchangedVariables = 2*nUnknowns
+    nExchangedVariables = 2 * nUnknowns
   end select
 
   allocate(receivedData(this%nPatchPoints, nExchangedVariables))
 
-  call this%scatterData(this%receiveBuffer, receivedData)
+  call this%scatterData(this%receiveBuffer(:,1:nExchangedVariables), receivedData)
 
   select case(mode)
   case(FORWARD)
@@ -683,6 +777,10 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
   case(ADJOINT)
     this%conservedVariablesR = receivedData(:,1:nUnknowns)
     this%adjointVariablesR = receivedData(:,nUnknowns+1:)
+  case(LINEARIZED)
+    this%conservedVariablesR = receivedData(:,1:nUnknowns)
+    this%adjointVariablesR = receivedData(:,nUnknowns+1:2*nUnknowns)
+    if (simulationFlags%viscosityOn) this%viscousFluxesR = receivedData(:,2*nUnknowns+1:)
   case(METRICS)
     this%metricsAlongNormalDirectionR = receivedData(:,1:nUnknowns-2)
     this%inviscidPenaltyAmountR = receivedData(1,nUnknowns-1)
