@@ -205,4 +205,30 @@ def purgeDirectoryCommand(baseDirectory):
     commandString += '   FAIL=0\n'
     commandString += 'fi\n\n'
 
+    # commandString += 'idx=0\n'
+    # command = 'for file in %s/* \n' % (DIFFDIR)
+    # command += 'do\n'                                                                   \
+    #             '   rm ${file} &\n'                                                     \
+    #             '   pids[${idx}]=$!\n'                                                  \
+    #             '   let "idx+=1"\n'                                                     \
+    #             'done\n'
+    # commandString += command
+    #
+    # commandString += 'FAIL=0\n'
+    # commandString += 'k=0\n'
+    # commandString += 'while [[ $k -lt $idx ]]\n'
+    # commandString += 'do\n'                                                             \
+    #                  '    wait ${pids[${k}]} || let "FAIL+=1"\n'                        \
+    #                  '    echo "${pids[${k}]}, FAIL: ${FAIL}"\n'                        \
+    #                  '    let "k+=1"\n'                                                 \
+    #                  'done\n\n'
+    # commandString += 'echo "Number of failures: $FAIL"\n'                               \
+    #                  'if [ $FAIL -ne 0 ]; then\n'
+    # commandString += '   echo "Purging diff dir failed."\n'
+    # commandString += '   exit -1\n'                                                     \
+    #                  'else\n'
+    # commandString += '   echo "Purging diff dir succeeded."\n'
+    # commandString += '   FAIL=0\n'
+    # commandString += 'fi\n\n'
+
     return commandString
