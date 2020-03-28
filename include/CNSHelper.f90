@@ -53,7 +53,7 @@ module CNSHelper
 
      pure subroutine computeRoeAverage(nDimensions, conservedVariablesL,                     &
           conservedVariablesR, ratioOfSpecificHeats, roeAverage, deltaRoeAverage,            &
-          deltaConservedVariablesL)
+          deltaConservedVariablesL, deltaConservedVariablesR)
 
        integer, intent(in) :: nDimensions
        SCALAR_TYPE, intent(in) :: conservedVariablesL(:), conservedVariablesR(:)
@@ -62,6 +62,7 @@ module CNSHelper
 
        SCALAR_TYPE, intent(out), optional :: deltaRoeAverage(:,:)
        SCALAR_TYPE, intent(in), optional :: deltaConservedVariablesL(:,:)
+       SCALAR_TYPE, intent(in), optional :: deltaConservedVariablesR(:,:)
 
      end subroutine computeRoeAverage
 

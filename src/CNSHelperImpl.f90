@@ -178,7 +178,7 @@ end subroutine computeTransportVariables
 
 PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,                          &
      conservedVariablesR, ratioOfSpecificHeats, roeAverage, deltaRoeAverage,                 &
-     deltaConservedVariablesL)
+     deltaConservedVariablesL, deltaConservedVariablesR)
 
   implicit none
 
@@ -189,6 +189,7 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
   SCALAR_TYPE, intent(out) :: roeAverage(:)
   SCALAR_TYPE, intent(out), optional :: deltaRoeAverage(:,:)
   SCALAR_TYPE, intent(in), optional :: deltaConservedVariablesL(:,:)
+  SCALAR_TYPE, intent(in), optional :: deltaConservedVariablesR(:,:)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -196,7 +197,7 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
   SCALAR_TYPE :: sqrtDensityL, sqrtDensityR, specificVolumeL, specificVolumeR,               &
        enthalpyL, enthalpyR
   SCALAR_TYPE, allocatable :: deltaConservedVariablesL_(:,:), deltaSqrtDensity(:),           &
-       deltaSpecificVolume(:), deltaEnthalpy(:)
+       deltaSpecificVolume(:), deltaEnthalpy(:), deltaRoeAverageR(:,:)
 
   assert_key(nDimensions, (1, 2, 3))
 
@@ -225,6 +226,12 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
         do i = 1, nUnknowns
            deltaConservedVariablesL_(i,i) = 1.0_wp
         end do
+     end if
+
+     if (present(deltaConservedVariablesR)) then
+        assert(size(deltaConservedVariablesR, 1) == nUnknowns)
+        assert(size(deltaConservedVariablesR, 2) == nUnknowns)
+        allocate(deltaRoeAverageR(nUnknowns,nUnknowns))
      end if
 
   end if
@@ -279,6 +286,29 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
 
   end if
 
+  if (present(deltaConservedVariablesR)) then
+    deltaSqrtDensity = 0.5_wp / sqrtDensityR * deltaConservedVariablesR(1,:)
+    deltaSpecificVolume = -specificVolumeR ** 2 * deltaConservedVariablesR(1,:)
+    deltaEnthalpy = ratioOfSpecificHeats * deltaConservedVariablesR(nDimensions+2,:) -     &
+         0.5_wp * (ratioOfSpecificHeats - 1.0_wp) * deltaSpecificVolume *                   &
+         sum(conservedVariablesR(2:nDimensions+1) ** 2)
+    do i = 1, nDimensions
+       deltaEnthalpy = deltaEnthalpy - (ratioOfSpecificHeats - 1.0_wp) * specificVolumeR *  &
+            conservedVariablesR(i+1) * deltaConservedVariablesR(i+1,:)
+    end do
+
+    deltaRoeAverageR(1,:) = deltaSqrtDensity * sqrtDensityL
+    do i = 1, nDimensions
+       deltaRoeAverageR(i+1,:) = (sqrtDensityL * deltaConservedVariablesR(i+1,:) +          &
+            deltaSqrtDensity * (conservedVariablesL(i+1) - roeAverage(i+1))) /              &
+            (sqrtDensityL + sqrtDensityR)
+    end do
+
+    deltaRoeAverageR(nDimensions+2,:) = (sqrtDensityL * deltaEnthalpy +                      &
+         deltaSqrtDensity * (enthalpyL - roeAverage(nDimensions+2))) /                      &
+         (sqrtDensityL + sqrtDensityR)
+  end if
+
   roeAverage(nDimensions+2) = (roeAverage(nDimensions+2) +                                   &
        0.5_wp * (ratioOfSpecificHeats - 1.0_wp) / roeAverage(1) *                            &
        sum(roeAverage(2:nDimensions+1) ** 2)) / ratioOfSpecificHeats
@@ -296,6 +326,21 @@ PURE_SUBROUTINE computeRoeAverage(nDimensions, conservedVariablesL,             
      deltaRoeAverage(nDimensions+2,:) = deltaRoeAverage(nDimensions+2,:) /                   &
           ratioOfSpecificHeats
 
+  end if
+
+  if (present(deltaConservedVariablesR)) then
+    deltaRoeAverageR(nDimensions+2,:) = deltaRoeAverageR(nDimensions+2,:) -                   &
+         0.5_wp * (ratioOfSpecificHeats - 1.0_wp) / roeAverage(1) ** 2 *                    &
+         deltaRoeAverageR(1,:) * sum(roeAverage(2:nDimensions+1) ** 2)
+    do i = 1, nDimensions
+       deltaRoeAverageR(nDimensions+2,:) = deltaRoeAverageR(nDimensions+2,:) +                &
+            (ratioOfSpecificHeats - 1.0_wp) / roeAverage(1) * roeAverage(i+1) *             &
+            deltaRoeAverageR(i+1,:)
+    end do
+    deltaRoeAverageR(nDimensions+2,:) = deltaRoeAverageR(nDimensions+2,:) /                   &
+         ratioOfSpecificHeats
+
+    deltaRoeAverage = deltaRoeAverage + deltaRoeAverageR
   end if
 
   SAFE_DEALLOCATE(deltaEnthalpy)
