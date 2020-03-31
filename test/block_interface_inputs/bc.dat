@@ -5,5 +5,11 @@
 
 # Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
 # ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
-  interface1   	       SAT_BLOCK_INTERFACE	    1      -1   -1	 -1    1   -1	 1   -1
-  interface2  	       SAT_BLOCK_INTERFACE	    2       1    1	  1    1   -1	 1   -1
+  interface.W1         SAT_BLOCK_INTERFACE      1       1    1    1    1   -1    1   -1
+  interface.E1         SAT_BLOCK_INTERFACE      1      -1   -1   -1    1   -1    1   -1
+  interface.S1         SAT_BLOCK_INTERFACE      1       2    1   -1    1    1    1   -1
+  interface.N1         SAT_BLOCK_INTERFACE      1      -2    1   -1   -1   -1    1   -1
+  interface.W3         SAT_BLOCK_INTERFACE      3       1    1    1    1   -1    1   -1
+  interface.E5         SAT_BLOCK_INTERFACE      5       1    1    1    1   -1    1   -1
+  interface.S4         SAT_BLOCK_INTERFACE      4       1    1    1    1   -1    1   -1
+  interface.N2         SAT_BLOCK_INTERFACE      2       1    1    1    1   -1    1   -1

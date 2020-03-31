@@ -2,10 +2,19 @@
 # Written by Ramanathan Vishnampet
 
 # Filenames, etc.
+output_prefix = "FiveBlockMesh"
+grid_file = "FiveBlockMesh.xyz"
 boundary_condition_file = "bc.dat"
 
 # Interface specifications
-patches/interface1/conforms_with = 'interface2'
-patches/interface2/conforms_with = 'interface1'
+patches/interface.W1/conforms_with = 'interface.W3'
+patches/interface.E1/conforms_with = 'interface.E5'
+patches/interface.S1/conforms_with = 'interface.S4'
+patches/interface.N1/conforms_with = 'interface.N2'
 
 # Interface index reorderings
+patches/interface.N1/interface_index1 =  2
+patches/interface.N1/interface_index2 = -1
+patches/interface.W1/interface_index2 = -2
+patches/interface.S1/interface_index1 =  2
+patches/interface.S1/interface_index2 =  1

@@ -3,102 +3,180 @@
 program block_interface_sign
 
   use MPI
+  use, intrinsic :: iso_fortran_env, only : output_unit
 
-  use CNSHelper
-  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
-  use RandomNumber, only : initializeRandomNumberGenerator, random
+  use Region_mod, only : t_Region
+
+  use Grid_enum
+  use State_enum
+
+  use InputHelper, only : parseInputFile, getFreeUnit, getOption, getRequiredOption
+  use InputHelperImpl, only: dict, find
+  use ErrorHandler
+  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
+  use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
+
+  use Patch_mod, only : t_Patch
+  use Patch_factory, only : updatePatchFactories
+  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
+  use BlockInterfacePatch_enum, only : METRICS
 
   implicit none
 
-  logical :: success, success_, isPeriodic
-  integer :: i, j, k, nDimensions, direction, ierror
-  integer :: procRank
-  character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
-       (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, stat, fileUnit, dictIndex, procRank, numProcs, ierror, STATUS
+  character(len = STRING_LENGTH) :: filename, resultFilename, outputPrefix, message
+  logical :: success
+  integer, dimension(:,:), allocatable :: globalGridSizes
+  type(t_Region) :: region
+  class(t_Patch), pointer :: patch => null()
 
   interface
 
-     real(SCALAR_KIND) function meanTrimmed(a)
-       real(SCALAR_KIND), intent(inout) :: a(:)
-     end function meanTrimmed
+     subroutine testInterfaceRelation(region,success,tolerance)
+       use Region_mod, only : t_Region
 
-     subroutine sort(a)
-       real(SCALAR_KIND), intent(inout) :: a(:)
-     end subroutine sort
-
-     subroutine testInterfaceRelation(identifier, nDimensions, success, direction, tolerance)
-
-       character(len = *), intent(in) :: identifier
-       integer, intent(in) :: nDimensions
+       class(t_Region) :: region
        logical, intent(out) :: success
 
-       integer, intent(in) :: direction
        real(SCALAR_KIND), intent(in), optional :: tolerance
 
      end subroutine testInterfaceRelation
 
   end interface
 
+  ! << output variables >>
+  integer :: inputNumber, simulationNumber
+  SCALAR_TYPE :: dummyValue = 0.0_wp
+
+  ! Initialize MPI.
   call MPI_Init(ierror)
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
-
-  success = .true.
+  call MPI_Comm_size(MPI_COMM_WORLD, numProcs, ierror)
 
   call initializeErrorHandler()
-  call initializeRandomNumberGenerator()
 
-  do nDimensions = 3,3
-    do j = 2, 2!... for each discretizationTypes
-      success = .true.
-      do i = 1, 1 !... test multiple times
-        ! Didn't test periodic grid yet!!
-        ! isPeriodic = .true.
-        ! do direction = 1, nDimensions
-        !   call testInterfaceRelation(discretizationTypes(j), nDimensions,           &
-        !                            success_, isPeriodic, direction)
-        !   success = success .and. success_
-        ! end do
-        ! if( .not. success_) then
-        !   if( procRank == 0 ) then
-        !     print *, 'Failed, ', trim(discretizationTypes(j))
-        !     print *, 'dimension: ', nDimensions
-        !     print *, 'periodicity: ', isPeriodic
-        !     print *, 'direction: ', direction
-        !   end if
-        !   exit
-        ! end if
+  if (command_argument_count() .ge. 1) then
+     write(message, '(A)') "Usage: magudi [FILE]"
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     write(message, '(A)')                                                                   &
+          "magudi.inp, bc.dat, and grid file are required for this test."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     write(message, '(A)') "High-performance Fortran-based adjoint optimization tool."
+     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+     call cleanupErrorHandler()
+     call MPI_Finalize(ierror)
+     stop -1
+  end if
 
-        isPeriodic = .false.
-        do direction = 1,1
-          call testInterfaceRelation(discretizationTypes(j), nDimensions,           &
-                                   success_, direction)
-          success = success .and. success_
-        end do
-        if( .not. success_) then
-          if( procRank == 0 ) then
-            print *, 'Failed, ', trim(discretizationTypes(j))
-            print *, 'dimension: ', nDimensions
-            print *, 'periodicity: ', isPeriodic
-            print *, 'direction: ', direction
-          end if
-          exit
-        end if
-      end do
-      if( procRank == 0 .and. success ) then
-        print *, 'Success, ', trim(discretizationTypes(j))
-        print *, 'dimension: ', nDimensions
-      end if
-    end do
+  call startTiming("total")
+
+  ! Parse options from the input file.
+  filename = PROJECT_NAME // ".inp"
+  call parseInputFile(filename)
+
+  outputPrefix = getOption("output_prefix", PROJECT_NAME)
+
+  ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
+  ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
+  call getRequiredOption("grid_file", filename)
+  call plot3dDetectFormat(MPI_COMM_WORLD, filename, success,                                 &
+       globalGridSizes = globalGridSizes)
+  if (.not. success) call gracefulExit(MPI_COMM_WORLD, plot3dErrorMessage)
+
+  ! Setup the region.
+  call region%setup(MPI_COMM_WORLD, globalGridSizes)
+
+  ! Read the grid file.
+  call getRequiredOption("grid_file", filename)
+  call region%loadData(QOI_GRID, filename)
+
+  ! Update the grids by computing the Jacobian, metrics, and norm.
+  do i = 1, size(region%grids)
+     call region%grids(i)%update()
+  end do
+  call MPI_Barrier(region%comm, ierror)
+
+  ! Write out some useful information.
+  call region%reportGridDiagnostics()
+
+  ! Save the Jacobian and normalized metrics.
+  write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
+  call region%saveData(QOI_JACOBIAN, filename)
+  write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
+  call region%saveData(QOI_METRICS, filename)
+
+  ! Setup boundary conditions.
+  call getRequiredOption("boundary_condition_file", filename)
+  call region%setupBoundaryConditions(filename)
+
+  ! Update patches.
+  do i = 1, size(region%grids)
+     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
+          region%solverOptions, region%grids(i), region%states(i))
   end do
 
-  call cleanupErrorHandler()
+  ! Exchange metrics data at block interfaces.
+  if (allocated(region%patchFactories)) then
+     do i = 1, size(region%patchFactories)
+        call region%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(region%states)
+           if (patch%gridIndex /= region%grids(j)%index) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              call patch%collectInterfaceData(METRICS, region%simulationFlags,                    &
+                   region%solverOptions, region%grids(j), region%states(j))
+           end select
+        end do
+     end do
+  end if
 
-  call MPI_Allreduce(MPI_IN_PLACE, success, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierror)
+  call exchangeInterfaceData(region)
+
+  ! Disperse received metrics data at block interfaces.
+  if (allocated(region%patchFactories)) then
+     do i = 1, size(region%patchFactories)
+        call region%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(region%states)
+           if (patch%gridIndex /= region%grids(j)%index) cycle
+           select type (patch)
+           class is (t_BlockInterfacePatch)
+              call patch%disperseInterfaceData(METRICS, region%simulationFlags,                   &
+                   region%solverOptions)
+           end select
+        end do
+     end do
+  end if
+
+  ! Main code logic.
+  success = .true.
+  call testInterfaceRelation(region,success)
+
+  if ( success ) then
+    write(message, '(A)') "Full RHS adjoint test is passed."
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  else
+    write(message, '(A)') "Full RHS adjoint test failed."
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+    stop -1
+  end if
+
+  call region%cleanup()
+
+  call endTiming("total")
+  call reportTimings()
+  call cleanupTimers()
+
+  ! Finalize MPI.
+  call cleanupErrorHandler()
   call MPI_Finalize(ierror)
-  if (.not. success) stop -1
-  stop 0
 
 end program block_interface_sign
+
 
 subroutine sort(a)
 
@@ -181,42 +259,29 @@ real(SCALAR_KIND) function meanTrimmed(a)
 
 end function meanTrimmed
 
-subroutine testInterfaceRelation(identifier, nDimensions, success, direction, tolerance)
+subroutine testInterfaceRelation(region,success,tolerance)
 
   ! <<< External modules >>>
   use MPI
 
   ! <<< Derived types >>>
-  use StencilOperator_mod, only : t_StencilOperator
   use Region_mod, only : t_Region
-  use Grid_mod, only : t_Grid
   use State_mod, only : t_State
-  use SolverOptions_mod, only : t_SolverOptions
-  use SimulationFlags_mod, only : t_SimulationFlags
-
-  use PatchDescriptor_mod, only : t_PatchDescriptor
-  use Patch_factory, only : t_PatchFactory
   use Patch_mod, only : t_Patch
-  use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
 
   use Region_enum, only : FORWARD, ADJOINT
-  use BlockInterfacePatch_enum, only : METRICS
-
-  use CNSHelper
-  use RhsHelper, only : addInterfaceAdjointPenalty
+  use State_enum
 
   ! <<< Internal modules >>>
-  use MPIHelper, only : pigeonhole
   use RandomNumber, only : random
-  use InputHelper, only : parseInputFile, getOption, getRequiredOption
-  use Patch_factory, only : updatePatchFactories
-  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces, exchangeInterfaceData
+  use PLOT3DHelper
+  use InputHelper, only : getOption, getRequiredOption
+  use RegionImpl, only : computeRegionIntegral
+  use CNSHelper
 
   ! <<< Arguments >>>
-  character(len = *), intent(in) :: identifier
-  integer, intent(in) :: nDimensions
+  class(t_Region) :: region
   logical, intent(out) :: success
-  integer, intent(in) :: direction
   real(SCALAR_KIND), intent(in), optional :: tolerance
 
   ! <<< interface >>>
@@ -231,150 +296,43 @@ subroutine testInterfaceRelation(identifier, nDimensions, success, direction, to
   end interface
 
   ! <<< Local derived type variables >>>
-  type(t_SimulationFlags) :: simulationFlags
-  type(t_SolverOptions) :: solverOptions
-  type(t_Region) :: region
-  type(t_Grid) :: grid(2)
-  type(t_State) :: state0(2), state1(2), deltaState(2)
-  type(t_PatchDescriptor) :: patchDescriptor
-  type(t_PatchFactory), allocatable :: patchFactories(:)
+  ! type(t_SimulationFlags) :: simulationFlags
+  ! type(t_SolverOptions) :: solverOptions
+  ! type(t_Grid) :: grid
   class(t_Patch), pointer :: patch => null()
-  ! type(t_FarFieldPatch) :: patch
+  type(t_State) :: state0(size(region%grids)), state1(size(region%grids)),            &
+                    deltaState(size(region%grids))
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  real(wp) :: scalar1, scalar2, tolerance_, hx,                                        &
+  integer(kind = MPI_OFFSET_KIND) :: offset
+  real(wp) :: scalar1, scalar2, tolerance_, randomArray(10),                         &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
-  integer :: i, j, k, gridSize(nDimensions, 2), gridIndex,                            &
-             nUnknowns, direction_, errorCode, extent(6), ierror,                     &
-             patchIndex, idx(3)
-  real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),            &
-                                    deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
-                                    targetViscousFluxes(:,:,:)
-  SCALAR_TYPE :: inviscidPenaltyAmount, viscousPenaltyAmount
-  SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation, localMetricsAlongNormalDirection
-  character(len = STRING_LENGTH) :: errorMessage
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message, resultFilename
+  integer :: i, j, k, l, ierror, procRank
+  integer :: nDimensions, nUnknowns, stage, direction, gridIndex
+  logical :: success_
+  character(len=STRING_LENGTH) :: filename, grid0Patch, outputPrefix
+  real(SCALAR_KIND), allocatable :: F(:,:), deltaPrimitiveVariables(:,:),             &
+                                    localMetricsAlongNormalDirection(:),              &
+                                    fluxes2(:,:,:)
+  integer, allocatable :: patch0Index(:)
+  real(wp), parameter :: PI = 4.0_wp * ATAN(1.0_wp)
 
-  tolerance_ = 1.0E-11
-  if( present(tolerance) ) tolerance_ = tolerance
+  ! character(len = STRING_LENGTH) :: errorMessage
 
   success = .true.
 
-  ! set up simulation flags
-  call simulationFlags%initialize()
-  simulationFlags%enableController = .false.
-  simulationFlags%enableFunctional = .false.
-  simulationFlags%enableAdjoint = .true.
-  simulationFlags%isDomainCurvilinear = .true.
-  simulationFlags%viscosityOn = .false.
-  simulationFlags%repeatFirstDerivative = .true. ! this is default value.
-  simulationFlags%useTargetState = .true.
+  call MPI_Comm_rank(region%comm, procRank, ierror)
 
-  ! randomize grid size
-  ! Note that too small grid size will yield null matrix for stencil operators.
-  gridSize(:,:) = 1
-  do i = 1, nDimensions
-     gridSize(i,1) = random(20, 40)
-     gridSize(i,2) = gridSize(i,1)
-     if (i==direction) gridSize(i,2) = random(20, 40)
-  end do
+  nDimensions = size(region%globalGridSizes,1)
 
-  ! initialize solver option, grid, and states
-  call solverOptions%initialize(nDimensions, simulationFlags)
-  solverOptions%discretizationType = trim(identifier)
-  solverOptions%reynoldsNumberInverse = 1.0_wp / random(5.0_wp,100.0_wp)
-  solverOptions%prandtlNumberInverse = 1.0_wp / random(0.1_wp,5.0_wp)
-  solverOptions%powerLawExponent = random(0.1_wp, 1.0_wp)
-  solverOptions%bulkViscosityRatio = random(0.1_wp, 1.0_wp)
-
-  call region%setup(MPI_COMM_WORLD, gridSize, simulationFlags, solverOptions)
-
-  ! randomize grid 1 coordinates (!!!This is not parallelized.)
-  hx = 1.0E0
-  region%grids(1)%coordinates(:,direction) = region%grids(1)%coordinates(:,direction)*hx
-  h = 1.0_wp
-  h(direction) = hx
-  h = h / real(region%grids(1)%globalSize(1:nDimensions)-1,wp)
-  do k = 1, region%grids(1)%globalSize(3)
-    do j = 1, region%grids(1)%globalSize(2)
-      do i = 1, region%grids(1)%globalSize(1)
-        call random_number(gridPerturbation)
-        gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.13_wp * h
-
-        gridIndex = i + region%grids(1)%globalSize(1)*( j-1 + region%grids(1)%globalSize(2)*( k-1 ) )
-        region%grids(1)%coordinates(gridIndex,:) = region%grids(1)%coordinates(gridIndex,:) + gridPerturbation
-
-        select case(direction)
-        case(1)
-          if (i==region%grids(1)%globalSize(1)) then
-            gridIndex = 1 + region%grids(2)%globalSize(1)*( j-1 + region%grids(2)%globalSize(2)*( k-1 ) )
-            region%grids(2)%coordinates(gridIndex,:) = region%grids(2)%coordinates(gridIndex,:) + gridPerturbation
-          end if
-        case(2)
-          if (j==region%grids(1)%globalSize(2)) then
-            gridIndex = i + region%grids(2)%globalSize(1)*( 0 + region%grids(2)%globalSize(2)*( k-1 ) )
-            region%grids(2)%coordinates(gridIndex,:) = region%grids(2)%coordinates(gridIndex,:) + gridPerturbation
-          end if
-        case(3)
-          if (k==region%grids(1)%globalSize(3)) then
-            gridIndex = i + region%grids(2)%globalSize(1)*( j-1 + region%grids(2)%globalSize(2)*( 0 ) )
-            region%grids(2)%coordinates(gridIndex,:) = region%grids(2)%coordinates(gridIndex,:) + gridPerturbation
-          end if
-        end select
-      end do
-    end do
-  end do
-  ! randomize grid 2 coordinates (!!!This is not parallelized.)
-  h = 1.0_wp / real(region%grids(2)%globalSize(1:nDimensions)-1,wp)
-  do k = 1, region%grids(2)%globalSize(3)
-    do j = 1, region%grids(2)%globalSize(2)
-      do i = 1, region%grids(2)%globalSize(1)
-        select case(direction)
-        case(1)
-          if (i==1) cycle
-        case(2)
-          if (j==1) cycle
-        case(3)
-          if (k==1) cycle
-        end select
-
-        call random_number(gridPerturbation)
-        gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.13_wp * h
-
-        gridIndex = i + region%grids(2)%globalSize(1)*( j-1 + region%grids(2)%globalSize(2)*( k-1 ) )
-        region%grids(2)%coordinates(gridIndex,:) = region%grids(2)%coordinates(gridIndex,:) + gridPerturbation
-      end do
-    end do
-  end do
-  ! shift grid 1 coordinates (!!!This is not parallelized.)
-  region%grids(2)%coordinates(:,direction) = region%grids(2)%coordinates(:,direction) + hx
-
-  do i = 1, size(region%grids)
-     call region%grids(i)%update()
-  end do
-
-  do k = 1, nDimensions
-    idx(k) = random(1,region%grids(1)%globalSize(k))
-  end do
-  do i = 1, size(region%grids)
-    select case (i)
-    case (1)
-      idx(direction) = region%grids(i)%globalSize(direction)
-    case (2)
-      idx(direction) = 1
-    end select
-
-    gridIndex = idx(1) + region%grids(i)%globalSize(1)                                &
-                        * ( idx(2)-1 + region%grids(i)%globalSize(2)*( idx(3)-1 ) )
-    localMetricsAlongNormalDirection =                                                &
-         region%grids(i)%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
-    print *, 'grid ', i
-    print *, 'coordinates'
-    print *, region%grids(i)%coordinates(gridIndex,:)
-    print *, 'metrics along normal direction'
-    print *, localMetricsAlongNormalDirection
-  end do
+  region%simulationFlags%isDomainCurvilinear = .true.
+  region%simulationFlags%viscosityOn = .true.
+  region%simulationFlags%repeatFirstDerivative = .true. ! this is default value.
+  region%solverOptions%reynoldsNumberInverse = random(5.0_wp,100.0_wp)
+  region%solverOptions%prandtlNumberInverse = 1.0_wp / random(0.1_wp,5.0_wp)
+  region%solverOptions%powerLawExponent = random(0.1_wp, 1.0_wp)
+  region%solverOptions%bulkViscosityRatio = random(0.1_wp, 1.0_wp)
 
   ! initialize states
   do i = 1, size(state0)
@@ -385,207 +343,212 @@ subroutine testInterfaceRelation(identifier, nDimensions, success, direction, to
   call MPI_Barrier(region%comm, ierror)
 
   ! Randomize conserved variables.
+  call random_number(randomArray)
   do k = 1, size(state0)
     do i = 1, region%grids(k)%nGridPoints
-       state0(k)%conservedVariables(i,1) = random(0.01_wp, 10.0_wp)
-       state0(k)%targetState(i,1) = random(0.01_wp, 10.0_wp)
+       state0(k)%conservedVariables(i,1) = 1.0_wp + (0.25_wp+randomArray(1)*0.5_wp)              &
+         * sin( 2.0_wp*PI * (region%grids(k)%coordinates(i,1)/5.0_wp+randomArray(2)) )
        do j = 1, nDimensions
-          state0(k)%conservedVariables(i,j+1) =                                              &
-               state0(k)%conservedVariables(i,1) * random(-10.0_wp, 10.0_wp)
-          state0(k)%targetState(i,j+1) =                                              &
-                state0(k)%targetState(i,1) * random(-10.0_wp, 10.0_wp)
+         l = MOD(j+1,nDimensions) + 1
+          state0(k)%conservedVariables(i,j+1) = (-5.0_wp+randomArray(2*j+1)*10.0_wp)                 &
+          * sin( 2.0_wp*PI * (region%grids(k)%coordinates(i,l)/5.0_wp+randomArray(2*j+2)) )
        end do
        state0(k)%conservedVariables(i, nDimensions + 2) = state0(k)%conservedVariables(i,1) *    &
-            random(0.01_wp, 10.0_wp) / region%solverOptions%ratioOfSpecificHeats +              &
+            (4.0_wp+randomArray(2*(nDimensions+1)+1) *                                     &
+            sin( 2.0_wp*PI * (region%grids(k)%coordinates(i,nDimensions)/5.0_wp+randomArray(2*nDimensions+4)) ))&
+            / region%solverOptions%ratioOfSpecificHeats +                                     &
             0.5_wp / state0(k)%conservedVariables(i,1) *                                     &
             sum(state0(k)%conservedVariables(i,2:nDimensions+1) ** 2)
-       state0(k)%targetState(i, nDimensions + 2) = state0(k)%targetState(i,1) *   &
-             random(0.01_wp, 10.0_wp) / solverOptions%ratioOfSpecificHeats +               &
-             0.5_wp / state0(k)%targetState(i,1) *                                     &
-             sum(state0(k)%targetState(i,2:nDimensions+1) ** 2)
     end do
   end do
   do i = 1, size(state0)
     assert(all(state0(i)%conservedVariables(:,1) > 0.0_wp))
-    assert(all(state0(i)%targetState(:,1) > 0.0_wp))
-  end do
-
-  ! Compute dependent variables.
-  do i = 1, size(state0)
-    call state0(i)%update(region%grids(i),region%simulationFlags,region%solverOptions)
   end do
 
   ! Set region to state0
   do i = 1, size(state0)
     region%states(i)%conservedVariables = state0(i)%conservedVariables
-    region%states(i)%targetState = state0(i)%targetState
     call region%states(i)%update(region%grids(i), region%simulationFlags, region%solverOptions)
   end do
 
-  ! Parse options from the input file.
-  filename = PROJECT_NAME // ".inp"
-  call parseInputFile(filename)
+  ! Save conserved variable as next target state.
+  outputPrefix = getOption("output_prefix", PROJECT_NAME)
+  write(filename,'(2A)') trim(outputPrefix),'.target.q'
+  call region%saveData(QOI_FORWARD_STATE, filename)
 
-  ! Write out some useful information.
-  ! call region%reportGridDiagnostics()
+  allocate(patch0Index(nDimensions))
+  allocate(localMetricsAlongNormalDirection(nDimensions))
 
-  ! Setup boundary conditions.
-  call getRequiredOption("boundary_condition_file", filename)
-  call region%setupBoundaryConditions(filename)
+  do l = 1, size(region%patchData)
+    do k = 1, nDimensions
+      write(grid0Patch,'(A,I1)') "patches/" // trim(region%patchData(l)%name) // "/test_index_", k
+      call getRequiredOption(trim(grid0Patch),patch0Index(k))
+    end do
+    print *, 'patch ',trim(region%patchData(l)%name),': ', patch0Index
 
-  ! Check continuity at block interfaces.
-  ! call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
+    do k = 1, size(region%patchFactories)
+      call region%patchFactories(k)%connect(patch)
+      if (patch%index /= l) cycle
+      direction = abs(patch%normalDirection)
+      print *, 'direction: ', direction
 
-  inviscidPenaltyAmount = random(0.01_wp,10.0_wp)
-  viscousPenaltyAmount = random(0.01_wp,10.0_wp)
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     do j = 1, size(region%states)
-       if (patch%gridIndex /= region%grids(j)%index) cycle
-       select type (patch)
-       class is (t_BlockInterfacePatch)
-         patch%inviscidPenaltyAmount = sign(inviscidPenaltyAmount,                              &
-                                        real(patch%normalDirection, wp))                        &
-                                        /region%grids(j)%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
-         patch%viscousPenaltyAmount = sign(viscousPenaltyAmount,                             &
-                                        real(patch%normalDirection, wp))                      &
-                                        /region%grids(j)%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
-       end select
-     end do
-  end do
-
-  ! Update patches.
-  do i = 1, size(region%grids)
-     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
-          region%solverOptions, region%grids(i), region%states(i))
-  end do
-
-  ! Exchange jacobian at block interfaces.
-   do i = 1, size(region%patchFactories)
-      call region%patchFactories(i)%connect(patch)
-      if (.not. associated(patch)) cycle
-      do j = 1, size(region%states)
-         if (patch%gridIndex /= region%grids(j)%index) cycle
-         select type (patch)
-         class is (t_BlockInterfacePatch)
-            call patch%collectInterfaceData(METRICS, simulationFlags,                    &
-                 solverOptions, region%grids(j), region%states(j))
-         end select
-      end do
-   end do
-  call exchangeInterfaceData(region)
-  ! (4) Disperse received data at block interfaces.
-  do i = 1, size(region%patchFactories)
-     call region%patchFactories(i)%connect(patch)
-     if (.not. associated(patch)) cycle
-     do j = 1, size(region%states)
+      do j = 1, size(region%grids)
         if (patch%gridIndex /= region%grids(j)%index) cycle
-        select type (patch)
-        class is (t_BlockInterfacePatch)
-           call patch%disperseInterfaceData(METRICS, region%simulationFlags,                   &
-                region%solverOptions)
-        end select
-     end do
-   end do
+        print *, 'grid index: ', patch%gridIndex
 
-   do i = 1, size(region%patchFactories)
-      call region%patchFactories(i)%connect(patch)
-      if (.not. associated(patch)) cycle
-      do j = 1, size(region%states)
-         if (patch%gridIndex /= region%grids(j)%index) cycle
-         select type (patch)
-         class is (t_BlockInterfacePatch)
-           do k = 1, 3
-             idx(k) = random(patch%offset(k)+1,patch%localSize(k))
-           end do
-           gridIndex = idx(1) - patch%gridOffset(1) + patch%gridLocalSize(1) *                      &
-                (idx(2) - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                        &
-                (idx(3) - 1 - patch%gridOffset(3)))
-           if (region%grids(j)%iblank(gridIndex) == 0) cycle
-           patchIndex = idx(1) - patch%offset(1) + patch%localSize(1) *                             &
-                (idx(2) - 1 - patch%offset(2) + patch%localSize(2) *                                &
-                (idx(3) - 1 - patch%offset(3)))
-         end select
+        gridIndex = patch0Index(1) + region%grids(j)%globalSize(1)              &
+                        * ( patch0Index(2) - 1 + region%grids(j)%globalSize(2)  &
+                                                      * ( patch0Index(3) - 1 ) )
+        print *, 'grid coordinates: ', region%grids(j)%coordinates(gridIndex,:)
+
+        localMetricsAlongNormalDirection =                                                &
+             region%grids(j)%metrics(gridIndex,1+nDimensions*(direction-1):nDimensions*direction)
+        print *, 'grid metrics: ', localMetricsAlongNormalDirection
+
+        allocate(fluxes2(region%grids(j)%nGridPoints, nDimensions+2, nDimensions))
+        call computeCartesianViscousFluxes(nDimensions, region%states(j)%velocity,                         &
+             region%states(j)%stressTensor, region%states(j)%heatFlux, fluxes2)
+        print *, 'viscous flux along normal direction'
+        ! print *, region%solverOptions%reynoldsNumberInverse
+        ! print *, fluxes2(gridIndex,:,:)
+        print *, matmul(fluxes2(gridIndex,:,:),localMetricsAlongNormalDirection)
+        SAFE_DEALLOCATE(fluxes2)
+
       end do
-   end do
+    end do
+  end do
 
-  ! ! Compute baseline SAT block interface
-  ! do k = 1, 2
-  !   ! (1) Cartesian form
-  !   allocate(fluxes2(region%grids(k)%nGridPoints, solverOptions%nUnknowns, nDimensions))
-  !   if (simulationFlags%viscosityOn .and. simulationFlags%repeatFirstDerivative) then
-  !      call computeCartesianViscousFluxes(nDimensions, region%states(k)%velocity,                         &
-  !           region%states(k)%stressTensor, region%states(k)%heatFlux, fluxes2)
-  !   end if
-  !   ! (2) Send viscous fluxes to patch
-  !   if (simulationFlags%viscosityOn) then
-  !     do i = 1, size(region%patchFactories)
-  !       call region%patchFactories(i)%connect(patch)
-  !       if (.not. associated(patch)) cycle
-  !       if (patch%gridIndex /= region%grids(k)%index) cycle
-  !       select type (patch)
-  !       class is (t_BlockInterfacePatch)
-  !          call patch%collect(fluxes2, patch%cartesianViscousFluxesL)
-  !       end select
-  !     end do
-  !   end if
-  !   SAFE_DEALLOCATE(fluxes2)
-  ! end do
-  ! ! (3) Exchange data at block interfaces.
-  !  do i = 1, size(region%patchFactories)
-  !     call region%patchFactories(i)%connect(patch)
-  !     if (.not. associated(patch)) cycle
-  !     do j = 1, size(region%states)
-  !        if (patch%gridIndex /= region%grids(j)%index) cycle
-  !        select type (patch)
-  !        class is (t_BlockInterfacePatch)
-  !           call patch%collectInterfaceData(FORWARD, simulationFlags,                    &
-  !                solverOptions, region%grids(j), region%states(j))
-  !        end select
-  !     end do
-  !  end do
-  ! call exchangeInterfaceData(region)
-  ! ! (4) Disperse received data at block interfaces.
-  !  do i = 1, size(region%patchFactories)
-  !     call region%patchFactories(i)%connect(patch)
-  !     if (.not. associated(patch)) cycle
-  !     do j = 1, size(region%states)
-  !        if (patch%gridIndex /= region%grids(j)%index) cycle
-  !        select type (patch)
-  !        class is (t_BlockInterfacePatch)
-  !           call patch%disperseInterfaceData(FORWARD, region%simulationFlags,                   &
-  !                region%solverOptions)
-  !        end select
-  !     end do
-  !  end do
-  ! ! (5) Add patch penalty
-  ! do i = 1, size(region%states)
-  !   region%states(i)%rightHandSide = 0.0_wp
-  ! end do
-  ! do i = 1, size(region%patchFactories)
-  !    call region%patchFactories(i)%connect(patch)
-  !    if (.not. associated(patch)) cycle
-  !    do j = 1, size(region%states)
-  !       if (patch%gridIndex /= region%grids(j)%index) cycle
-  !       call patch%updateRhs(FORWARD, simulationFlags, solverOptions,              &
-  !            region%grids(j), region%states(j))
-  !    end do
+  SAFE_DEALLOCATE(patch0Index)
+  SAFE_DEALLOCATE(localMetricsAlongNormalDirection)
+
+  ! ! Randomize adjoint variables.
+  ! do i = 1, size(state0)
+  !   allocate(F(region%grids(i)%nGridPoints, region%solverOptions%nUnknowns))
+  !   call random_number(F)
+  !   state0(i)%adjointVariables = F
+  !   SAFE_DEALLOCATE(F)
   ! end do
   !
+  ! ! Randomize delta conserved variables.
+  ! do k = 1, size(state0)
+  !   allocate(deltaPrimitiveVariables(region%grids(k)%nGridPoints, region%solverOptions%nUnknowns))
+  !   do i = 1, region%grids(k)%nGridPoints
+  !     do j = 1, nDimensions + 2
+  !        deltaPrimitiveVariables(i,j) = random(-1.0_wp, 1.0_wp)
+  !     end do
+  !   end do
+  !   deltaState(k)%conservedVariables(:,1) = deltaPrimitiveVariables(:,1)
+  !   do j = 1, nDimensions
+  !      deltaState(k)%conservedVariables(:,j+1) = state0(k)%conservedVariables(:,j+1) /                     &
+  !           state0(k)%conservedVariables(:,1) * deltaPrimitiveVariables(:,1) +                    &
+  !           state0(k)%conservedVariables(:,1) * deltaPrimitiveVariables(:,j+1)
+  !   end do
+  !   deltaState(k)%conservedVariables(:,nDimensions+2) = state0(k)%conservedVariables(:,nDimensions+2) /    &
+  !        state0(k)%conservedVariables(:,1) * deltaPrimitiveVariables(:,1) +                       &
+  !        sum(state0(k)%conservedVariables(:,2:nDimensions+1) *                                    &
+  !        deltaPrimitiveVariables(:,2:nDimensions+1), dim = 2) +                          &
+  !        state0(k)%conservedVariables(:,1) / region%solverOptions%ratioOfSpecificHeats *                               &
+  !        deltaPrimitiveVariables(:,nDimensions+2)
+  !   SAFE_DEALLOCATE(deltaPrimitiveVariables)
+  ! end do
+
+  ! stage = random(1,4)
+  ! if (region%simulationFlags%enableBodyForce) then
+  !   region%oneOverVolume = computeRegionIntegral(region)
+  !   call random_number(region%initialXmomentum)
+  !   region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+  !   if (stage==1) then
+  !     region%momentumLossPerVolume = 0.0_wp
+  !   else
+  !     call random_number(region%momentumLossPerVolume)
+  !   end if
+  !   region%oneOverVolume = 1.0_wp / region%oneOverVolume
+  !
+  !   region%adjointMomentumLossPerVolume = 0.0_wp
+  ! end if
+  !
+  ! ! Compute baseline rhs
+  ! call region%computeRhs(FORWARD,1,stage)
   ! do i = 1, size(state0)
   !   state0(i)%rightHandSide = region%states(i)%rightHandSide
   ! end do
+  !
+  ! ! Compute adjoint rhs for inviscid flux
+  ! call region%computeRhs(ADJOINT,1,stage)
+  !
+  ! ! <R^{\dagger}u, \delta v>
+  ! scalar1 = 0.0_wp
+  ! do i = 1, size(state0)
+  !   scalar1 = scalar1 + region%grids(i)%computeInnerProduct(region%states(i)%rightHandSide,         &
+  !                                                           deltaState(i)%conservedVariables)
+  ! end do
+  ! if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+  !      call MPI_Allreduce(MPI_IN_PLACE, scalar1, 1,                          &
+  !      SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  !
+  ! do i = 1, size(region%grids)
+  !    call MPI_Bcast(scalar1, 1, SCALAR_TYPE_MPI,                             &
+  !         0, region%grids(i)%comm, ierror)
+  ! end do
+  !
+  ! ! <u, \delta R(v)>
+  ! ! Prepare step sizes
+  ! stepSizes(1) = 0.001_wp
+  ! do k = 2, size(stepSizes)
+  !    stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
+  ! end do
+  ! errorHistory = 0.0_wp
+  ! do k = 1, size(stepSizes)
+  !   !(1) finite difference on conserved variables
+  !   do i = 1, size(state0)
+  !     region%states(i)%conservedVariables = state0(i)%conservedVariables + stepSizes(k) * deltaState(i)%conservedVariables
+  !     assert(all(region%states(i)%conservedVariables(:,1) > 0.0_wp))
+  !
+  !     ! Compute dependent variables.
+  !     call region%states(i)%update(region%grids(i),region%simulationFlags,region%solverOptions)
+  !     assert(all(region%states(i)%specificVolume(:,1) > 0.0_wp))
+  !     assert(all(region%states(i)%temperature(:,1) > 0.0_wp))
+  !   end do
+  !
+  !   ! (2)Compute baseline rhs
+  !   call region%computeRhs(FORWARD,1,stage)
+  !
+  !   ! (3) <u, \delta R(v)>
+  !   scalar2 = 0.0_wp
+  !   do i = 1, size(state0)
+  !     scalar2 = scalar2 + region%grids(i)%computeInnerProduct(state0(i)%adjointVariables,                             &
+  !                                                   region%states(i)%rightHandSide - state0(i)%rightHandSide)
+  !   end do
+  !   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+  !        call MPI_Allreduce(MPI_IN_PLACE, scalar2, 1,                          &
+  !        SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+  !
+  !   do i = 1, size(region%grids)
+  !      call MPI_Bcast(scalar2, 1, SCALAR_TYPE_MPI,                             &
+  !           0, region%grids(i)%comm, ierror)
+  !   end do
+  !
+  !   errorHistory(k) = abs( (scalar2/stepSizes(k) + scalar1)/scalar1 )
+  !   if (procRank==0)                                          &
+  !     print *, stepSizes(k), -scalar1, scalar2/stepSizes(k), errorHistory(k)
+  !
+  !   if (k > 1) then
+  !      convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
+  !           log(stepSizes(k) / stepSizes(k-1))
+  !      if (k > 5) then
+  !          if (sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
+  !      end if
+  !   end if
+  ! end do
+  !
+  ! if (k > 2) then
+  !    call sort(convergenceHistory(:k-2))
+  !    success = success .and. nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
+  ! else
+  !    success = .false.
+  !    if (procRank==0)                                          &
+  !      print *, convergenceHistory
+  ! end if
 
-  ! call patch%cleanup()
-  ! call patchFactories(1)%cleanup()
-  ! SAFE_DEALLOCATE(patchFactories)
-  do i = 1, 2
-    call state0(i)%cleanup()
-    call state1(i)%cleanup()
-    call deltaState(i)%cleanup()
-    call grid(i)%cleanup()
-  end do
-  call region%cleanup()
 
 end subroutine testInterfaceRelation
