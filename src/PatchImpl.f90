@@ -647,13 +647,14 @@ subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
   SCALAR_TYPE, intent(out) :: patchGlobalArray(:,:)
 
   ! <<< Local variables >>>
-  integer :: i, mpiRequest, procRank, numProcs, ierror
+  integer :: i, mpiRequest, procRank, numProcs, ierror, localSize(2)
 
   if (this%comm == MPI_COMM_NULL) return
 
   assert(this%nPatchPoints > 0)
   assert(size(patchLocalArray, 1) == this%nPatchPoints)
   assert(size(patchLocalArray, 2) > 0)
+  localSize = shape(patchLocalArray)
 
   call MPI_Comm_rank(this%comm, procRank, ierror)
   call MPI_Comm_size(this%comm, numProcs, ierror)
@@ -662,7 +663,7 @@ subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
   if (procRank == 0) then
      ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray, 1) == product(this%globalSize))
-     assert(size(patchGlobalArray, 2) == size(patchLocalArray, 2))
+     assert(size(patchGlobalArray, 2) .ge. size(patchLocalArray, 2))
   end if
 #endif
 
@@ -671,7 +672,7 @@ subroutine gatherVectorOnPatch(this, patchLocalArray, patchGlobalArray)
 
   if (procRank == 0) then
      do i = 0, numProcs - 1
-        call MPI_Recv(patchGlobalArray, size(patchGlobalArray, 2),                           &
+        call MPI_Recv(patchGlobalArray(:,1:localSize(2)), localSize(2),                      &
              this%mpiAllScalarSubarrayTypes(i+1), i, i, this%comm, MPI_STATUS_IGNORE, ierror)
      end do
   end if
@@ -696,7 +697,7 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
   SCALAR_TYPE, intent(out) :: patchGlobalArray(:,:,:)
 
   ! <<< Local variables >>>
-  integer :: i, nComponents, mpiRequest, procRank, numProcs, ierror
+  integer :: i, nComponents, mpiRequest, procRank, numProcs, ierror, localSize(3)
 
   if (this%comm == MPI_COMM_NULL) return
 
@@ -704,6 +705,7 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
   assert(size(patchLocalArray, 1) == this%nPatchPoints)
   assert(size(patchLocalArray, 2) > 0)
   assert(size(patchLocalArray, 3) > 0)
+  localSize = shape(patchLocalArray)
 
   call MPI_Comm_rank(this%comm, procRank, ierror)
   call MPI_Comm_size(this%comm, numProcs, ierror)
@@ -712,8 +714,8 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
   if (procRank == 0) then
      ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray, 1) == product(this%globalSize))
-     assert(size(patchGlobalArray, 2) == size(patchLocalArray, 2))
-     assert(size(patchGlobalArray, 3) == size(patchLocalArray, 3))
+     assert(size(patchGlobalArray, 2) .ge. size(patchLocalArray, 2))
+     assert(size(patchGlobalArray, 3) .ge. size(patchLocalArray, 3))
   end if
 #endif
 
@@ -721,9 +723,10 @@ subroutine gatherTensorOnPatch(this, patchLocalArray, patchGlobalArray)
        0, procRank, this%comm, mpiRequest, ierror)
 
   if (procRank == 0) then
-     nComponents = size(patchGlobalArray, 2) * size(patchGlobalArray, 3)
+     nComponents = localSize(2) * localSize(3)
      do i = 0, numProcs - 1
-        call MPI_Recv(patchGlobalArray, nComponents, this%mpiAllScalarSubarrayTypes(i+1),    &
+        call MPI_Recv(patchGlobalArray(:,1:localSize(2),1:localSize(3)),                     &
+             nComponents, this%mpiAllScalarSubarrayTypes(i+1),                               &
              i, i, this%comm, MPI_STATUS_IGNORE, ierror)
      end do
   end if
@@ -795,13 +798,14 @@ subroutine scatterVectorOnPatch(this, patchGlobalArray, patchLocalArray)
   SCALAR_TYPE, intent(out) :: patchLocalArray(:,:)
 
   ! <<< Local variables >>>
-  integer :: i, mpiRequest, procRank, numProcs, ierror
+  integer :: i, mpiRequest, procRank, numProcs, ierror, localSize(2)
 
   if (this%comm == MPI_COMM_NULL) return
 
   assert(this%nPatchPoints > 0)
   assert(size(patchLocalArray, 1) == this%nPatchPoints)
   assert(size(patchLocalArray, 2) > 0)
+  localSize = shape(patchLocalArray)
 
   call MPI_Comm_rank(this%comm, procRank, ierror)
   call MPI_Comm_size(this%comm, numProcs, ierror)
@@ -810,7 +814,7 @@ subroutine scatterVectorOnPatch(this, patchGlobalArray, patchLocalArray)
   if (procRank == 0) then
      ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray, 1) == product(this%globalSize))
-     assert(size(patchGlobalArray, 2) == size(patchLocalArray, 2))
+     assert(size(patchGlobalArray, 2) .ge. size(patchLocalArray, 2))
   end if
 #endif
 
@@ -819,7 +823,7 @@ subroutine scatterVectorOnPatch(this, patchGlobalArray, patchLocalArray)
 
   if (procRank == 0) then
      do i = 0, numProcs - 1
-        call MPI_Send(patchGlobalArray, size(patchGlobalArray, 2),                          &
+        call MPI_Send(patchGlobalArray(:,1:localSize(2)), localSize(2),                      &
              this%mpiAllScalarSubarrayTypes(i+1), i, i, this%comm, ierror)
      end do
   end if
@@ -844,13 +848,14 @@ subroutine scatterTensorOnPatch(this, patchGlobalArray, patchLocalArray)
   SCALAR_TYPE, intent(out) :: patchLocalArray(:,:,:)
 
   ! <<< Local variables >>>
-  integer :: i, nComponents, mpiRequest, procRank, numProcs, ierror
+  integer :: i, nComponents, mpiRequest, procRank, numProcs, ierror, localSize(3)
 
   if (this%comm == MPI_COMM_NULL) return
 
   assert(this%nPatchPoints > 0)
   assert(size(patchLocalArray, 1) == this%nPatchPoints)
   assert(size(patchLocalArray, 2) > 0)
+  localSize = shape(patchLocalArray)
 
   call MPI_Comm_rank(this%comm, procRank, ierror)
   call MPI_Comm_size(this%comm, numProcs, ierror)
@@ -859,8 +864,8 @@ subroutine scatterTensorOnPatch(this, patchGlobalArray, patchLocalArray)
   if (procRank == 0) then
      ! assert(allocated(patchGlobalArray))
      assert(size(patchGlobalArray, 1) == product(this%globalSize))
-     assert(size(patchGlobalArray, 2) == size(patchLocalArray, 2))
-     assert(size(patchGlobalArray, 3) == size(patchLocalArray, 3))
+     assert(size(patchGlobalArray, 2) .ge. size(patchLocalArray, 2))
+     assert(size(patchGlobalArray, 3) .ge. size(patchLocalArray, 3))
   end if
 #endif
 
@@ -868,9 +873,10 @@ subroutine scatterTensorOnPatch(this, patchGlobalArray, patchLocalArray)
        0, procRank, this%comm, mpiRequest, ierror)
 
   if (procRank == 0) then
-     nComponents = size(patchGlobalArray, 2) * size(patchGlobalArray, 3)
+     nComponents = localSize(2) * localSize(3)
      do i = 0, numProcs - 1
-        call MPI_Send(patchGlobalArray, nComponents, this%mpiAllScalarSubarrayTypes(i+1),   &
+        call MPI_Send(patchGlobalArray(:,1:localSize(2),1:localSize(3)),                     &
+             nComponents, this%mpiAllScalarSubarrayTypes(i+1),                               &
              i, i, this%comm, ierror)
      end do
   end if

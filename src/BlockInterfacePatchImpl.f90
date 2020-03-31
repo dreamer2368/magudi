@@ -729,7 +729,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
     dataToBeSent(:,nDimensions+3) = real(this%normalDirectionL,wp)
   end select
 
-  call this%gatherData(dataToBeSent, this%sendBuffer(:,1:nExchangedVariables))
+  call this%gatherData(dataToBeSent, this%sendBuffer)
 
   SAFE_DEALLOCATE(dataToBeSent)
 
@@ -785,7 +785,7 @@ subroutine disperseInterfaceData(this, mode, simulationFlags, solverOptions)
 
   allocate(receivedData(this%nPatchPoints, nExchangedVariables))
 
-  call this%scatterData(this%receiveBuffer(:,1:nExchangedVariables), receivedData)
+  call this%scatterData(this%receiveBuffer, receivedData)
 
   select case(mode)
   case(FORWARD)
