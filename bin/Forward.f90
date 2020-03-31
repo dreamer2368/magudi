@@ -22,7 +22,8 @@ program forward
   integer :: i, stat, fileUnit, procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., lookForOutput = .false., lookForRestart = .false.,                   &
-              inputFlag = .false., outputFlag = .false., restartFlag = .false.
+              inputFlag = .false., outputFlag = .false., restartFlag = .false.,                           &
+              saveMetricsFlag = .false.
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, restartFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: fileExists, success
@@ -51,6 +52,8 @@ program forward
       lookForOutput = .true.
     case("--restart")
       lookForRestart = .true.
+    case("--save_metrics")
+      saveMetricsFlag = .true.
     case default
       if (lookForInput) then
         inputFilename = trim(adjustl(argument))
@@ -125,10 +128,12 @@ program forward
   call region%reportGridDiagnostics()
 
   ! Save the Jacobian and normalized metrics.
-  write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
-  call region%saveData(QOI_JACOBIAN, filename)
-  write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
-  call region%saveData(QOI_METRICS, filename)
+  if (saveMetricsFlag) then
+    write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
+    call region%saveData(QOI_JACOBIAN, filename)
+    write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
+    call region%saveData(QOI_METRICS, filename)
+  end if
 
   ! Initialize the solver.
   call solver%setup(region, outputPrefix = outputPrefix)

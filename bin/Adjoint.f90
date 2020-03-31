@@ -23,7 +23,7 @@ program adjoint
   integer :: i, stat, fileUnit, dictIndex, procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., lookForOutput = .false.,                                 &
-              inputFlag = .false., outputFlag = .false.
+              inputFlag = .false., outputFlag = .false., saveMetricsFlag = .false.
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: adjointRestart, fileExists, success
@@ -51,6 +51,8 @@ program adjoint
       lookForInput = .true.
     case("--output")
       lookForOutput = .true.
+    case("--save_metrics")
+      saveMetricsFlag = .true.
     case default
       if (lookForInput) then
         inputFilename = trim(adjustl(argument))
@@ -115,10 +117,12 @@ program adjoint
   call region%reportGridDiagnostics()
 
   ! Save the Jacobian and normalized metrics.
-  write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
-  call region%saveData(QOI_JACOBIAN, filename)
-  write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
-  call region%saveData(QOI_METRICS, filename)
+  if (saveMetricsFlag) then
+    write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
+    call region%saveData(QOI_JACOBIAN, filename)
+    write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
+    call region%saveData(QOI_METRICS, filename)
+  end if
 
   ! Initialize the solver.
   call solver%setup(region, outputPrefix = outputPrefix)
