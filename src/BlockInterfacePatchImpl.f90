@@ -510,9 +510,9 @@ subroutine addBlockInterfacePenalty(this, mode, simulationFlags, solverOptions, 
              if (simulationFlags%viscosityOn) then
                 state%rightHandSide(gridIndex,2:nUnknowns) =                                &
                      state%rightHandSide(gridIndex,2:nUnknowns) +                           &
-                     this%viscousPenaltyAmount * grid%jacobian(gridIndex, 1) *              &
-                     (this%viscousFluxesL(patchIndex,2:nUnknowns) -                         &
-                     this%viscousFluxesR(patchIndex,2:nUnknowns))
+                     grid%jacobian(gridIndex, 1) *                                          &
+                     (viscousPenaltyAmountL * this%viscousFluxesL(patchIndex,2:nUnknowns) + &
+                     viscousPenaltyAmountR * this%viscousFluxesR(patchIndex,2:nUnknowns))
              end if
 
            end select
@@ -668,26 +668,26 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
     call this%collect(state%conservedVariables, this%conservedVariablesL)
     call this%collect(state%adjointVariables, this%adjointVariablesL)
 
-    if (simulationFlags%viscosityOn) then
-       this%viscousFluxesL = 0.0_wp
-       do j = 1, nDimensions
-          do i = 2, nUnknowns
-             this%viscousFluxesL(:,i) = this%viscousFluxesL(:,i) +                             &
-                  ! this%cartesianViscousFluxesL(:,i,j) * this%metricsAlongNormalDirectionL(:,j)
-                  this%cartesianViscousFluxesL(:,i,direction)
-          end do
-       end do
-
-       ! For viscous fluxes, metrics on the other side must be reflected on exchanging fluxes.
-       this%viscousFluxesR = 0.0_wp
-       do j = 1, nDimensions
-          do i = 2, nUnknowns
-             this%viscousFluxesR(:,i) = this%viscousFluxesR(:,i) +                             &
-                  ! this%cartesianViscousFluxesL(:,i,j) * this%metricsAlongNormalDirectionR(:,j)
-                  this%cartesianViscousFluxesL(:,i,direction)
-          end do
-       end do
-    end if
+    ! if (simulationFlags%viscosityOn) then
+    !    this%viscousFluxesL = 0.0_wp
+    !    do j = 1, nDimensions
+    !       do i = 2, nUnknowns
+    !          this%viscousFluxesL(:,i) = this%viscousFluxesL(:,i) +                             &
+    !               ! this%cartesianViscousFluxesL(:,i,j) * this%metricsAlongNormalDirectionL(:,j)
+    !               this%cartesianViscousFluxesL(:,i,direction)
+    !       end do
+    !    end do
+    !
+    !    ! For viscous fluxes, metrics on the other side must be reflected on exchanging fluxes.
+    !    this%viscousFluxesR = 0.0_wp
+    !    do j = 1, nDimensions
+    !       do i = 2, nUnknowns
+    !          this%viscousFluxesR(:,i) = this%viscousFluxesR(:,i) +                             &
+    !               ! this%cartesianViscousFluxesL(:,i,j) * this%metricsAlongNormalDirectionR(:,j)
+    !               this%cartesianViscousFluxesL(:,i,direction)
+    !       end do
+    !    end do
+    ! end if
   case(METRICS)
     call this%collect(grid%metrics(:,1+nDimensions*(direction-1):nDimensions*direction),    &
                       this%metricsAlongNormalDirectionL)
@@ -721,7 +721,7 @@ subroutine collectInterfaceData(this, mode, simulationFlags, solverOptions, grid
   case(LINEARIZED)
     dataToBeSent(:,1:nUnknowns) = this%conservedVariablesL
     dataToBeSent(:,nUnknowns+1:2*nUnknowns) = this%adjointVariablesL
-    if (simulationFlags%viscosityOn) dataToBeSent(:,2*nUnknowns+1:) = this%viscousFluxesR
+    if (simulationFlags%viscosityOn) dataToBeSent(:,2*nUnknowns+1:) = this%viscousFluxesL
   case(METRICS)
     dataToBeSent(:,1:nDimensions) = this%metricsAlongNormalDirectionL
     dataToBeSent(:,nDimensions+1) = this%inviscidPenaltyAmountL

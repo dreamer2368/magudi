@@ -319,10 +319,9 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
        grid, simulationFlags, solverOptions)
   select type(patch)
     class is (t_FarFieldPatch)
-      ! patch%inviscidPenaltyAmount = sign(random(0.01_wp,10.0_wp),                       &
-      !                                 real(patch%normalDirection,wp))                   &
-      !                                 /grid%firstDerivative(abs(direction_))%normBoundary(1)
-      patch%inviscidPenaltyAmount = 0.0_wp
+      patch%inviscidPenaltyAmount = sign(random(0.01_wp,10.0_wp),                       &
+                                      real(patch%normalDirection,wp))                   &
+                                      /grid%firstDerivative(abs(direction_))%normBoundary(1)
       if (simulationFlags%viscosityOn)                                                  &
         patch%viscousPenaltyAmount = sign(random(0.01_wp,10.0_wp),                      &
                                      real(patch%normalDirection,wp))                    &
@@ -617,19 +616,21 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     ! assert(all(state1%conservedVariables(:,1) > 0.0_wp))
     ! Compute dependent variables.
     call state1%update(grid, simulationFlags, solverOptions)
+
+    ! ! Update state for only first partial Jacobian.
     ! call computeDependentVariables(nDimensions, state1%conservedVariables,                    &
     !      solverOptions%ratioOfSpecificHeats, state1%specificVolume(:,1), state1%velocity,       &
     !      state1%pressure(:,1), state1%temperature(:,1))
-    ! call computeTransportVariables(state0%temperature(:,1), solverOptions%powerLawExponent,   &
+    ! call computeTransportVariables(state1%temperature(:,1), solverOptions%powerLawExponent,   &
     !      solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
     !      solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
     !      state1%dynamicViscosity(:,1), state1%secondCoefficientOfViscosity(:,1),                &
     !      state1%thermalDiffusivity(:,1))
-    ! call grid%computeGradient(state1%velocity, state1%stressTensor)
+    ! call grid%computeGradient(state0%velocity, state1%stressTensor)
     ! call computeStressTensor(nDimensions, state1%stressTensor, state1%dynamicViscosity(:,1), &
     !      state1%secondCoefficientOfViscosity(:,1))
     !
-    ! call grid%computeGradient(state1%temperature(:,1), state1%heatFlux)
+    ! call grid%computeGradient(state0%temperature(:,1), state1%heatFlux)
     ! do i = 1, nDimensions
     !    state1%heatFlux(:,i) = - state1%thermalDiffusivity(:,1) * state1%heatFlux(:,i)
     ! end do

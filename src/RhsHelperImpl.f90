@@ -624,7 +624,7 @@ subroutine computeRhsLinearized(simulationFlags, solverOptions, grid, state, pat
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns
+  integer :: i, j, k, nDimensions, nUnknowns, normalDirection
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:),                   &
               localFluxJacobian1(:,:), localConservedVariables(:),              &
               localVelocity(:), localMetricsAlongDirection1(:),                 &
@@ -793,7 +793,8 @@ subroutine computeRhsLinearized(simulationFlags, solverOptions, grid, state, pat
         class is (t_FarFieldPatch)
            call patch%collect(fluxes2, patch%viscousFluxes)
         class is (t_BlockInterfacePatch)
-           call patch%collect(fluxes2, patch%cartesianViscousFluxesL)
+          normalDirection = abs(patch%normalDirection)
+           call patch%collect(fluxes2(:,:,normalDirection), patch%viscousFluxesL)
         end select
 
      end do
