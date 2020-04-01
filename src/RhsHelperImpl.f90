@@ -37,7 +37,7 @@ contains
 
     call startTiming("addDissipation")
 
-    assert_key(mode, (FORWARD, ADJOINT))
+    assert_key(mode, (FORWARD, ADJOINT, LINEARIZED))
 
     nDimensions = grid%nDimensions
     assert_key(nDimensions, (1, 2, 3))
