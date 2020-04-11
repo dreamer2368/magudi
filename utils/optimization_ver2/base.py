@@ -9,7 +9,7 @@ import pandas as pd
 magudiSetOptionCommand = 'function setOption() {\n'                                         \
                          '    if grep -q "$1" magudi.inp\n'                                 \
                          '    then\n'                                                       \
-                         '	sed -i "s/^.*$1.*$/$1 = $2/g" magudi.inp\n'                     \
+                         '	sed -i "s+^.*$1.*$+$1 = $2+g" magudi.inp\n'                     \
                          '    else\n'                                                       \
                          '	echo "$1 = $2" >> magudi.inp\n'                                 \
                          '    fi\n'                                                         \
@@ -18,7 +18,7 @@ magudiSetOptionCommand = 'function setOption() {\n'                             
 generalSetOptionCommand = 'function setOption() {\n'                                         \
                           '    if grep -q "$2" $1 \n'                                        \
                           '    then\n'                                                       \
-                          '    sed -i.bu "s/^.*$2.*$/$2 = $3/g" $1 \n'                       \
+                          '    sed -i.bu "s+^.*$2.*$+$2 = $3+g" $1 \n'                       \
                           '    else\n'                                                       \
                           '    echo "$2 = $3" >> $1 \n'                                      \
                           '    fi\n'                                                         \
@@ -153,11 +153,11 @@ def distributeCommand(baseDirectory,zeroControlForcing):
                              % (sliceControlForcingFile, globalControlForcingFile, totalTimestep, kOffset, Nts)]
         commandString += bashParallelLoopCommand(commands,'slice','slice_control_forcing')
 
-    commands = []
-    for k in range(Nsplit):
-        commands += ['cp ' + '%s/%s'%(bdir,icFiles[k]) + ' ' + '%s/%s/%s'       \
-                    %(bdir,directories[k],icFiles[k])]
-    commandString += bashParallelCopyCommand(commands,'copy_initial_condition')
+#    commands = []
+#    for k in range(Nsplit):
+#        commands += ['cp ' + '%s/%s'%(bdir,icFiles[k]) + ' ' + '%s/%s/%s'       \
+#                    %(bdir,directories[k],icFiles[k])]
+#    commandString += bashParallelCopyCommand(commands,'copy_initial_condition')
 
     return commandString
 
@@ -214,7 +214,7 @@ def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
     for k in range(Nsplit):
         nextK = k+1 if (k<Nsplit-1) else 0
         matchingFile = '%s/%s/%s'%(bdir,directories[k],matchingForwardFiles[k])
-        icFile = '%s/%s/%s'%(bdir,directories[nextK],icFiles[nextK])
+        icFile = '%s/%s'%(bdir,icFiles[nextK])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                              \
                     % (diffFiles[k],-1.0,icFile,matchingFile,globalInputFile)]
     commandString += bashParallelLoopCommand(commands,'qfile-zaxpy',
@@ -349,7 +349,7 @@ def adjointRunCommand(baseDirectory='x0'):
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "false"'                 \
+        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
                     % targetInputFiles[k]]
     commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_false')
 

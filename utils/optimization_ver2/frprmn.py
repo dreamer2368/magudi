@@ -78,6 +78,7 @@ def beforeLinmin(initial, zeroBaseline):
 
     commandString = zaxpyCommand(globalConjugateGradientFiles,gamma,previousCGFiles,globalGradFiles)
     commandString += '\n'
+    commandString += bashParallelPurgeCommand(previousCGFiles,'purge_prev_cg')
     commandFile = open(globalCommandFile,'w')
     commandFile.write(commandString)
     commandFile.close()
@@ -126,6 +127,13 @@ def afterLinmin(zeroBaseline):
             commands += ['setOption %s "controller_switch" true' % targetInputFiles[k]]
         commandString += bashParallelCopyCommand(commands,'magudi_option_turn_on_controller')
 
+    target = ['a/'+file for file in globalControlSpaceFiles]
+    commandString += bashParallelPurgeCommand(target,'purge_a')
+    target = ['c/'+file for file in globalControlSpaceFiles]
+    commandString += bashParallelPurgeCommand(target,'purge_c')
+    target = ['x/'+file for file in globalControlSpaceFiles]
+    commandString += bashParallelPurgeCommand(target,'purge_x')
+
     commandString += forwardRunCommand()
     commandString += '\n'
     commandString += adjointRunCommand()
@@ -143,6 +151,7 @@ def afterLinmin(zeroBaseline):
 
     # Polak-Ribiere
     commandString += dggCommand()
+    commandString += bashParallelPurgeCommand(previousGradFiles,'purge_prev_grad')
     fID = open(globalCommandFile,'w')
     fID.write(commandString)
     fID.close()

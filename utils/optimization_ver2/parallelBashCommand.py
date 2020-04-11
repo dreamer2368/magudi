@@ -11,7 +11,7 @@ def bashCheckResultCommand(procedureName, countFails=0):
         commandString += 'for k in {0..%d}\n'%(countFails-1)
         commandString += 'do\n'                                                             \
                          '    wait ${pids[${k}]} || let "FAIL+=1"\n'                        \
-                         '    echo "${pids[${k}]}, FAIL: ${FAIL}"\n'                        \
+                         '    echo "${k}, FAIL: ${FAIL}"\n'                                 \
                          'done\n\n'
         commandString += 'echo "Number of failures: $FAIL"\n'                               \
                          'if [ $FAIL -ne 0 ]; then\n'
@@ -165,27 +165,24 @@ def purgeDirectoryCommand(baseDirectory):
     commandString = 'shopt -s nullglob\n'
     commandString += 'idx=0\n'
 
-    command = 'for k in {0..%d}\n' % (Nsplit-1)
-    command += 'do\n'
-    command += '    for file in %s/${k}/*.q\n' % (bdir)
-    command += '    do\n'                                                       \
-                '       rm ${file} &\n'                                         \
-                '       pids[${idx}]=$!\n'                                      \
-                '       let "idx+=1"\n'                                         \
-                '   done\n'
-    command += '    for file in %s/${k}/*.f\n' % (bdir)
-    command += '    do\n'                                                       \
-                '       rm ${file} &\n'                                         \
-                '       pids[${idx}]=$!\n'                                      \
-                '       let "idx+=1"\n'                                         \
-                '   done\n'
-    command += '    for file in %s/${k}/*.dat\n' % (bdir)
-    command += '    do\n'                                                       \
-                '       rm ${file} &\n'                                         \
-                '       pids[${idx}]=$!\n'                                      \
-                '       let "idx+=1"\n'                                         \
-                '   done\n'
-    command += 'done\n'
+    command = 'for file in %s/**/*.q\n' % (bdir)
+    command += 'do\n'                                                       \
+               '   rm ${file} &\n'                                         \
+               '   pids[${idx}]=$!\n'                                      \
+               '   let "idx+=1"\n'                                         \
+               'done\n'
+    command += 'for file in %s/**/*.f\n' % (bdir)
+    command += 'do\n'                                                       \
+               '    rm ${file} &\n'                                         \
+               '    pids[${idx}]=$!\n'                                      \
+               '    let "idx+=1"\n'                                         \
+               'done\n'
+    command += 'for file in %s/**/*.dat\n' % (bdir)
+    command += 'do\n'                                                       \
+               '    rm ${file} &\n'                                         \
+               '    pids[${idx}]=$!\n'                                      \
+               '    let "idx+=1"\n'                                         \
+               'done\n'
     commandString += command
 
     commandString += 'FAIL=0\n'
@@ -197,12 +194,22 @@ def purgeDirectoryCommand(baseDirectory):
                      '    let "k+=1"\n'                                                 \
                      'done\n\n'
     commandString += 'echo "Number of failures: $FAIL"\n'                               \
-                     'if [ $FAIL -ne 0 ]; then\n'
-    commandString += '   echo "Purging %s failed."\n' % (bdir)
-    commandString += '   exit -1\n'                                                     \
-                     'else\n'
+                     'shopt -u nullglob\n'                                              \
+                     'if [ $FAIL -eq 0 ]; then\n'
     commandString += '   echo "Purging %s succeeded."\n' % (bdir)
-    commandString += '   FAIL=0\n'
+    commandString += '   FAIL=0\n'                                                      \
+                     'else\n'
+    commandString += '   numFiles=0\n'                                                  \
+                     '   let "numFiles+=$(ls %s/**/*.q | wc -l)"\n' % (bdir)
+    commandString += '   let "numFiles+=$(ls %s/**/*.f | wc -l)"\n' % (bdir)
+    commandString += '   let "numFiles+=$(ls %s/**/*.dat | wc -l)"\n' % (bdir)
+    commandString += '   if [ $numFiles -eq 0 ]; then\n'
+    commandString += '      echo "No file remains in subdirectories. Purging %s succeeded."\n' % (bdir)
+    commandString += '      FAIL=0\n'                                                   \
+                     '   else\n'                                                        \
+                     '      echo "Purging %s failed."\n' % (bdir)
+    commandString += '      exit -1\n'                                                  \
+                     '   fi\n'
     commandString += 'fi\n\n'
 
     # commandString += 'idx=0\n'
