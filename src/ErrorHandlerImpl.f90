@@ -15,18 +15,20 @@ subroutine initializeErrorHandler()
 
   ! <<< External modules >>>
   use MPI
+  use, intrinsic :: iso_fortran_env, only : output_unit
 
   ! <<< Private members >>>
   use ErrorHandlerImpl, only : mpiWindowBase, mpiWindow
 
   ! <<< Public members >>>
-  use ErrorHandler, only : cleanupErrorHandler
+  use ErrorHandler, only : cleanupErrorHandler, writeAndFlush
 
   implicit none
 
   ! <<< Local variables >>>
   logical :: flag
   integer :: procRank, ierror
+  character(len=STRING_LENGTH) :: message
 
   ! If MPI has not yet been initialized, initialize it.
   call MPI_Initialized(flag, ierror)
@@ -34,7 +36,13 @@ subroutine initializeErrorHandler()
      call MPI_Init(ierror)
   end if
 
+  write(message,'(A)') 'Initialized MPI. Cleaning up error handler ... '
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message, advance='no')
+
   call cleanupErrorHandler()
+
+  write(message,'(A)') 'done! Creating MPI windows ... '
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message, advance='no')
 
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
 
@@ -45,6 +53,9 @@ subroutine initializeErrorHandler()
      call MPI_Win_create(0, int(0, MPI_ADDRESS_KIND), 1, MPI_INFO_NULL,                      &
           MPI_COMM_WORLD, mpiWindow, ierror)
   end if
+
+  write(message,'(A)') 'done!'
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
 end subroutine initializeErrorHandler
 
