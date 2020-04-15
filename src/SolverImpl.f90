@@ -308,6 +308,7 @@ contains
     real(wp) :: timeStepSize
     class(t_Functional), pointer :: functional => null()
     class(t_Patch), pointer :: patch => null()
+    logical :: noAdjointForcing
 
     select case (mode)
 
@@ -353,7 +354,8 @@ contains
           ! Connect to the previously allocated functional.
           call this%functionalFactory%connect(functional)
           assert(associated(functional))
-          call functional%updateAdjointForcing(region,.false.) !...SeungWhan:obviously not final step
+          noAdjointForcing = region%simulationFlags%adjointForcingSwitch
+          call functional%updateAdjointForcing(region,noAdjointForcing) !...SeungWhan:obviously not final step
 
           do i = 1, size(region%states)
              region%states(i)%rightHandSide = 0.0_wp
