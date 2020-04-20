@@ -354,7 +354,7 @@ contains
           ! Connect to the previously allocated functional.
           call this%functionalFactory%connect(functional)
           assert(associated(functional))
-          noAdjointForcing = region%simulationFlags%adjointForcingSwitch
+          noAdjointForcing = .not. region%simulationFlags%adjointForcingSwitch
           call functional%updateAdjointForcing(region,noAdjointForcing) !...SeungWhan:obviously not final step
 
           do i = 1, size(region%states)
