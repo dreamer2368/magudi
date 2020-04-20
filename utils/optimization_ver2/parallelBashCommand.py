@@ -190,7 +190,7 @@ def purgeDirectoryCommand(baseDirectory):
     commandString += 'while [[ $k -lt $idx ]]\n'
     commandString += 'do\n'                                                             \
                      '    wait ${pids[${k}]} || let "FAIL+=1"\n'                        \
-                     '    echo "${pids[${k}]}, FAIL: ${FAIL}"\n'                        \
+                     '    echo "${k}, FAIL: ${FAIL}"\n'                                 \
                      '    let "k+=1"\n'                                                 \
                      'done\n\n'
     commandString += 'echo "Number of failures: $FAIL"\n'                               \
