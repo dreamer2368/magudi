@@ -29,12 +29,14 @@ program control_mollifier_factor
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
+  SCALAR_TYPE, dimension(:,:), allocatable :: F
+  logical, dimension(:), allocatable :: mask
   type(t_Region) :: region
   type(t_Solver) :: solver
 
   ! << output variables >>
-  integer :: inputNumber, simulationNumber
-  SCALAR_TYPE :: dummyValue = 0.0_wp
+  integer :: inputNumber, simulationNumber, intValue = 0
+  SCALAR_TYPE :: dummyValue = 0.0_wp, maxValue = 0.0_wp
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -115,22 +117,22 @@ program control_mollifier_factor
   call region%loadData(QOI_CONTROL_MOLLIFIER, filename)
 
   ! Get maximum value of control mollifier before normalization
-  dummyValue = 0.0_wp
+  maxValue = 0.0_wp
   do i = 1, size(region%grids)
-    dummyValue = MAX(dummyValue, MAXVAL(region%grids(i)%controlMollifier))
+    maxValue = MAX(maxValue, MAXVAL(region%grids(i)%controlMollifier))
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-       call MPI_Allreduce(MPI_IN_PLACE, dummyValue, 1, REAL_TYPE_MPI,                        &
+       call MPI_Allreduce(MPI_IN_PLACE, maxValue, 1, REAL_TYPE_MPI,                        &
        MPI_MAX, region%commGridMasters, ierror)
 
   do i = 1, size(region%grids)
-     call MPI_Bcast(dummyValue, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+     call MPI_Bcast(maxValue, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
   end do
 
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
-  write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Before normalization: Maximum control mollifier value=', dummyValue
+  write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Before normalization: Maximum control mollifier value=', maxValue
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
   dummyValue = computeRegionIntegral(region)
@@ -148,34 +150,77 @@ program control_mollifier_factor
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
   ! Get maximum value of control mollifier.
-  dummyValue = 0.0_wp
+  maxValue = 0.0_wp
   do i = 1, size(region%grids)
-    dummyValue = MAX(dummyValue, MAXVAL(region%grids(i)%controlMollifier))
+    maxValue = MAX(maxValue, MAXVAL(region%grids(i)%controlMollifier))
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-       call MPI_Allreduce(MPI_IN_PLACE, dummyValue, 1, REAL_TYPE_MPI,                        &
+       call MPI_Allreduce(MPI_IN_PLACE, maxValue, 1, REAL_TYPE_MPI,                        &
        MPI_MAX, region%commGridMasters, ierror)
 
   do i = 1, size(region%grids)
-     call MPI_Bcast(dummyValue, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+     call MPI_Bcast(maxValue, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
   end do
 
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
-  write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Maximum control mollifier value=', dummyValue
+  write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Maximum control mollifier value=', maxValue
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
   if ( outputFlag ) then
     if (procRank == 0) then
       open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',          &
            iostat = stat, status = 'replace')
-      write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
+      write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') maxValue
       close(fileUnit)
     end if
   end if
 
+  dummyValue = 0.0_wp
+  do i = 1, size(region%grids)
+    assert(region%grids(i)%nGridPoints > 0)
+    allocate(F(region%grids(i)%nGridPoints, 2))
+    F(:,2) = 1.0_wp
+    F(:,1) = region%grids(i)%controlMollifier(:,1)
+
+    dummyValue = dummyValue + region%grids(i)%computeInnerProduct(F(:,1),F(:,2))
+    SAFE_DEALLOCATE(F)
+  end do
+
+  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+       call MPI_Allreduce(MPI_IN_PLACE, dummyValue, 1, SCALAR_TYPE_MPI,                      &
+       MPI_SUM, region%commGridMasters, ierror)
+
+  do i = 1, size(region%grids)
+     call MPI_Bcast(dummyValue, 1, SCALAR_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+  end do
+
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
+  write(message,'(A,1X,SP,' // SCALAR_FORMAT // ')') 'Control mollifier volume=', dummyValue/maxValue
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+
+  intValue = 0
+  do i = 1, size(region%grids)
+    allocate(mask(region%grids(i)%nGridPoints))
+    mask = region%grids(i)%controlMollifier(:,1) > 0.0_wp
+    intValue = intValue + count(mask)
+    SAFE_DEALLOCATE(mask)
+  end do
+
+  if (region%commGridMasters /= MPI_COMM_NULL)                                               &
+       call MPI_Allreduce(MPI_IN_PLACE, intValue, 1, MPI_INTEGER,                      &
+       MPI_SUM, region%commGridMasters, ierror)
+
+  do i = 1, size(region%grids)
+     call MPI_Bcast(intValue, 1, MPI_INTEGER, 0, region%grids(i)%comm, ierror)
+  end do
+
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
+  write(message,'(A,1X,SP,I10.5)') 'Control mollifier degree of freedom=', intValue
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
   call solver%cleanup()
   call region%cleanup()
