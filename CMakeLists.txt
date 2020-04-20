@@ -189,6 +189,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ThermalActuatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/MomentumActuator.f90
   ${PROJECT_SOURCE_DIR}/src/MomentumActuatorImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/GenericActuator.f90
+  ${PROJECT_SOURCE_DIR}/src/GenericActuatorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/AcousticNoise.f90
   ${PROJECT_SOURCE_DIR}/src/AcousticNoiseImpl.f90
   ${PROJECT_SOURCE_DIR}/include/PressureDrag.f90

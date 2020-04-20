@@ -7,6 +7,7 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
   use Controller_factory, only : t_ControllerFactory
   use ThermalActuator_mod, only : t_ThermalActuator
   use MomentumActuator_mod, only : t_MomentumActuator
+  use GenericActuator_mod, only : t_GenericActuator
 
   implicit none
 
@@ -37,6 +38,9 @@ subroutine connectController(this, controllerTarget, controllerType, createNew)
 
      case ('MOMENTUM_ACTUATOR')
         allocate(t_MomentumActuator :: this%controller)
+
+     case ('GENERIC_ACTUATOR')
+        allocate(t_GenericActuator :: this%controller)
 
      case default
         this%controllerType = ""
