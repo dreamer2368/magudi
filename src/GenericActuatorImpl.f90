@@ -29,7 +29,7 @@ subroutine setupGenericActuator(this, region)
   call this%setupBase(region%simulationFlags, region%solverOptions)
 
   nDimensions = size(region%globalGridSizes, 1)
-  nActuatorComponents = nDimensions + 1
+  nActuatorComponents = nDimensions + 2
   assert_key(nDimensions, (1, 2, 3))
 
   this%controllerBufferSize = getOption("controller_buffer_size", 1)
@@ -109,7 +109,7 @@ function computeGenericActuatorSensitivity(this, region) result(instantaneousSen
   do i = 1, size(region%grids)
 
      nDimensions = region%grids(i)%nDimensions
-     nActuatorComponents = nDimensions + 1
+     nActuatorComponents = nDimensions + 2
      assert_key(nDimensions, (1, 2, 3))
 
 #ifdef DEBUG
@@ -129,7 +129,7 @@ function computeGenericActuatorSensitivity(this, region) result(instantaneousSen
      allocate(F(region%grids(i)%nGridPoints, nActuatorComponents))
 
      do j = 1, nActuatorComponents
-       F(:,j) = region%states(i)%adjointVariables(:,j+1) *                                   &
+       F(:,j) = region%states(i)%adjointVariables(:,j) *                                     &
                 region%grids(i)%controlMollifier(:,1)
      end do
 
@@ -179,7 +179,6 @@ subroutine updateGenericActuatorForcing(this, region)
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
-  nActuatorComponents = nDimensions + 1
   assert_key(nDimensions, (1, 2, 3))
 
   do i = 1, size(region%patchFactories)
@@ -198,8 +197,7 @@ subroutine updateGenericActuatorForcing(this, region)
            if (patch%iControlForcingBuffer == size(patch%controlForcingBuffer, 3))                       &
                 call patch%loadForcing()
 
-           patch%controlForcing(:,1) = 0.0_wp
-           patch%controlForcing(:,2:nDimensions+2) =                                      &
+           patch%controlForcing =                                                         &
                    patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
 
            if (patch%iControlForcingBuffer == 1)                                                   &
@@ -236,7 +234,6 @@ subroutine updateGenericActuatorDeltaForcing(this, region)
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
-  nActuatorComponents = nDimensions + 1
   assert_key(nDimensions, (1, 2, 3))
 
   do i = 1, size(region%patchFactories)
@@ -255,8 +252,7 @@ subroutine updateGenericActuatorDeltaForcing(this, region)
           if (patch%iGradientBuffer == size(patch%gradientBuffer, 3))                       &
                call patch%loadDeltaForcing()
 
-          patch%deltaControlForcing(:,1) = 0.0_wp
-          patch%deltaControlForcing(:,2:nDimensions+2) =                                    &
+          patch%deltaControlForcing =                                                       &
                                  patch%gradientBuffer(:,:,patch%iGradientBuffer)
 
           if (patch%iGradientBuffer == 1)                                                   &
@@ -317,8 +313,7 @@ subroutine migrateToGenericActuatorForcing(this, region, startTimeStep, endTimeS
            if (patch%bufferOffsetIndex .ne. bufferOffsetIndex)                               &
                 call patch%pinpointForcing(bufferOffsetIndex)
 
-           patch%controlForcing(:,1) = 0.0_wp
-           patch%controlForcing(:,2:nDimensions+2) =                                         &
+           patch%controlForcing =                                                             &
                      patch%controlForcingBuffer(:,:,patch%iControlForcingBuffer)
 
         end select
@@ -350,7 +345,7 @@ subroutine updateGenericActuatorGradient(this, region)
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
-  nActuatorComponents = nDimensions + 1
+  nActuatorComponents = nDimensions + 2
   assert_key(nDimensions, (1, 2, 3))
 
   do i = 1, size(region%patchFactories)
@@ -369,7 +364,7 @@ subroutine updateGenericActuatorGradient(this, region)
 
            call patch%collect(region%grids(j)%controlMollifier(:,1), F(:,1))
            do k = 1, nActuatorComponents
-              call patch%collect(region%states(j)%adjointVariables(:,k+1), F(:,2))
+              call patch%collect(region%states(j)%adjointVariables(:,k), F(:,2))
               patch%gradientBuffer(:,k,patch%iGradientBuffer) = product(F, dim = 2)
            end do
 
@@ -642,7 +637,7 @@ subroutine collectGenericActuatorNorm(this, region, timeIntegrationNorm)
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
-  nActuatorComponents = nDimensions + 1
+  nActuatorComponents = nDimensions + 2
   assert_key(nDimensions, (1, 2, 3))
 
   do i = 1, size(region%patchFactories)
