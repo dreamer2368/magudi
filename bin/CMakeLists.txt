@@ -6,3 +6,8 @@ add_executable(gradient_accuracy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DI
 add_executable(zaxpy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/ZAXPY.f90)
 add_executable(zwxmwy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/zwxmwy.f90)
 add_executable(zxdoty $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/zXdotY.f90)
+add_executable(control_space_norm $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/control_space_norm.f90)
+add_executable(slice_control_forcing $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/slice_control_forcing.f90)
+add_executable(paste_control_forcing $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/paste_control_forcing.f90)
+add_executable(spatial_inner_product $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/spatial_inner_product.f90)
+add_executable(qfile_zaxpy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/qfile_zaxpy.f90)
