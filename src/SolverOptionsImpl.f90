@@ -107,9 +107,11 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      end if
 
      this%controllerNorm = getOption("controller_norm", "L1")
+     this%controllerFactor = getOption("controller_factor", 12.0_wp)
   else
      this%controllerType = ""
      this%controllerNorm = ""
+     this%controllerFactor = 0.0_wp
   end if
 
   if (simulationFlags%enableFunctional) then
