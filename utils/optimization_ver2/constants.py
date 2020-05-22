@@ -18,6 +18,7 @@ NcontrolRegion = 1                                       # number of control reg
 
 NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
 
+scriptorType = 'flux'                                    # either 'bash' or 'flux'
 enableParallelBash = True
 bashVerbose = False                                      # check only when serial bash loops
 pcc = 36

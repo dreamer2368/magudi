@@ -6,7 +6,7 @@ import numpy as np
 import subprocess
 import pandas as pd
 
-scriptor = bashCommandScriptor()
+scriptor = scriptorSwitcher.get(scriptorType)
 
 magudiSetOptionCommand = 'function setOption() {\n'                                         \
                          '    if grep -q "$1" magudi.inp\n'                                 \

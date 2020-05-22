@@ -5,11 +5,22 @@ import numpy as np
 import subprocess
 import pandas as pd
 
+__all__ = ['commandScriptor','bashCommandScriptor','fluxCommandScriptor','scriptorSwitcher']
+
 class commandScriptor:
     def singleJobCommand(self,commands,procedure,prefix='job',directories=None):
         pass
 
     def parallelLoopCommand(self,commands,procedure,prefix='job',directories=None):
+        pass
+
+    def nonMPILoopCommand(self,commands,prefix='job'):
+        pass
+
+    def parallelPurgeCommand(self,filenames,prefix='job'):
+        pass
+
+    def purgeDirectoryCommand(self,baseDirectory):
         pass
 
     def checkResultCommand(self,procedureName,countFails=0):
@@ -31,94 +42,6 @@ class commandScriptor:
                          '   echo "'+procedureName+' succeeded."\n'
         if(countFails>0):
             commandString += '   FAIL=0\n'
-        commandString += 'fi\n\n'
-
-        return commandString
-
-    def nonMPILoopCommand(self,commands,prefix='job'):
-        commandString = ''
-
-        nJobs = len(commands)
-        for k in range(nJobs):
-            command = ''
-            command += '%s &\n' % (commands[k])
-            command += 'pids[%d]=$!\n\n' % k
-            commandString += command
-
-        commandString += self.checkResultCommand(prefix,nJobs)
-
-        return commandString
-
-    def parallelPurgeCommand(self,filenames,prefix='job'):
-        commandString = ''
-
-        nJobs = len(filenames)
-        idx = 0
-        commandString += 'idx=0\n'
-        for k in range(nJobs):
-            command = 'if [ -f "%s" ]; then \n' % filenames[k]
-            command += 'rm %s &\n' % (filenames[k])
-            command += 'pids[${idx}]=$!\n'
-            command += 'let "idx+=1"\n'
-            command += 'fi\n\n'
-            commandString += command
-            idx += 1
-
-        commandString += self.checkResultCommand(prefix,idx)
-
-        return commandString
-
-    def purgeDirectoryCommand(self,baseDirectory):
-        bdir = baseDirectory
-
-        commandString = 'shopt -s nullglob\n'
-        commandString += 'idx=0\n'
-
-        command = 'for file in %s/**/*.q\n' % (bdir)
-        command += 'do\n'                                                       \
-                   '   rm ${file} &\n'                                         \
-                   '   pids[${idx}]=$!\n'                                      \
-                   '   let "idx+=1"\n'                                         \
-                   'done\n'
-        command += 'for file in %s/**/*.f\n' % (bdir)
-        command += 'do\n'                                                       \
-                   '    rm ${file} &\n'                                         \
-                   '    pids[${idx}]=$!\n'                                      \
-                   '    let "idx+=1"\n'                                         \
-                   'done\n'
-        command += 'for file in %s/**/*.dat\n' % (bdir)
-        command += 'do\n'                                                       \
-                   '    rm ${file} &\n'                                         \
-                   '    pids[${idx}]=$!\n'                                      \
-                   '    let "idx+=1"\n'                                         \
-                   'done\n'
-        commandString += command
-
-        commandString += 'FAIL=0\n'
-        commandString += 'k=0\n'
-        commandString += 'while [[ $k -lt $idx ]]\n'
-        commandString += 'do\n'                                                             \
-                         '    wait ${pids[${k}]} || let "FAIL+=1"\n'                        \
-                         '    echo "${k}, FAIL: ${FAIL}"\n'                                 \
-                         '    let "k+=1"\n'                                                 \
-                         'done\n\n'
-        commandString += 'echo "Number of failures: $FAIL"\n'                               \
-                         'shopt -u nullglob\n'                                              \
-                         'if [ $FAIL -eq 0 ]; then\n'
-        commandString += '   echo "Purging %s succeeded."\n' % (bdir)
-        commandString += '   FAIL=0\n'                                                      \
-                         'else\n'
-        commandString += '   numFiles=0\n'                                                  \
-                         '   let "numFiles+=$(ls %s/**/*.q | wc -l)"\n' % (bdir)
-        commandString += '   let "numFiles+=$(ls %s/**/*.f | wc -l)"\n' % (bdir)
-        commandString += '   let "numFiles+=$(ls %s/**/*.dat | wc -l)"\n' % (bdir)
-        commandString += '   if [ $numFiles -eq 0 ]; then\n'
-        commandString += '      echo "No file remains in subdirectories. Purging %s succeeded."\n' % (bdir)
-        commandString += '      FAIL=0\n'                                                   \
-                         '   else\n'                                                        \
-                         '      echo "Purging %s failed."\n' % (bdir)
-        commandString += '      exit -1\n'                                                  \
-                         '   fi\n'
         commandString += 'fi\n\n'
 
         return commandString
@@ -221,3 +144,269 @@ class bashCommandScriptor(commandScriptor):
             loop += 1
 
         return commandString
+
+    def nonMPILoopCommand(self,commands,prefix='job'):
+        commandString = ''
+
+        nJobs = len(commands)
+        for k in range(nJobs):
+            command = ''
+            command += '%s &\n' % (commands[k])
+            command += 'pids[%d]=$!\n\n' % k
+            commandString += command
+
+        commandString += self.checkResultCommand(prefix,nJobs)
+
+        return commandString
+
+    def parallelPurgeCommand(self,filenames,prefix='job'):
+        commandString = ''
+
+        nJobs = len(filenames)
+        idx = 0
+        commandString += 'idx=0\n'
+        for k in range(nJobs):
+            command = 'if [ -f "%s" ]; then \n' % filenames[k]
+            command += 'rm %s &\n' % (filenames[k])
+            command += 'pids[${idx}]=$!\n'
+            command += 'let "idx+=1"\n'
+            command += 'fi\n\n'
+            commandString += command
+            idx += 1
+
+        commandString += self.checkResultCommand(prefix,idx)
+
+        return commandString
+
+    def purgeDirectoryCommand(self,baseDirectory):
+        bdir = baseDirectory
+
+        commandString = 'shopt -s nullglob\n'
+        commandString += 'idx=0\n'
+
+        command = 'for file in %s/**/*.q\n' % (bdir)
+        command += 'do\n'                                                       \
+                   '   rm ${file} &\n'                                         \
+                   '   pids[${idx}]=$!\n'                                      \
+                   '   let "idx+=1"\n'                                         \
+                   'done\n'
+        command += 'for file in %s/**/*.f\n' % (bdir)
+        command += 'do\n'                                                       \
+                   '    rm ${file} &\n'                                         \
+                   '    pids[${idx}]=$!\n'                                      \
+                   '    let "idx+=1"\n'                                         \
+                   'done\n'
+        command += 'for file in %s/**/*.dat\n' % (bdir)
+        command += 'do\n'                                                       \
+                   '    rm ${file} &\n'                                         \
+                   '    pids[${idx}]=$!\n'                                      \
+                   '    let "idx+=1"\n'                                         \
+                   'done\n'
+        commandString += command
+
+        commandString += 'FAIL=0\n'
+        commandString += 'k=0\n'
+        commandString += 'while [[ $k -lt $idx ]]\n'
+        commandString += 'do\n'                                                             \
+                         '    wait ${pids[${k}]} || let "FAIL+=1"\n'                        \
+                         '    echo "${k}, FAIL: ${FAIL}"\n'                                 \
+                         '    let "k+=1"\n'                                                 \
+                         'done\n\n'
+        commandString += 'echo "Number of failures: $FAIL"\n'                               \
+                         'shopt -u nullglob\n'                                              \
+                         'if [ $FAIL -eq 0 ]; then\n'
+        commandString += '   echo "Purging %s succeeded."\n' % (bdir)
+        commandString += '   FAIL=0\n'                                                      \
+                         'else\n'
+        commandString += '   numFiles=0\n'                                                  \
+                         '   let "numFiles+=$(ls %s/**/*.q | wc -l)"\n' % (bdir)
+        commandString += '   let "numFiles+=$(ls %s/**/*.f | wc -l)"\n' % (bdir)
+        commandString += '   let "numFiles+=$(ls %s/**/*.dat | wc -l)"\n' % (bdir)
+        commandString += '   if [ $numFiles -eq 0 ]; then\n'
+        commandString += '      echo "No file remains in subdirectories. Purging %s succeeded."\n' % (bdir)
+        commandString += '      FAIL=0\n'                                                   \
+                         '   else\n'                                                        \
+                         '      echo "Purging %s failed."\n' % (bdir)
+        commandString += '      exit -1\n'                                                  \
+                         '   fi\n'
+        commandString += 'fi\n\n'
+
+        return commandString
+
+class fluxCommandScriptor(commandScriptor):
+    def waitallCommand(self):
+        commandString = 'waitall() {\n'                                                     \
+                        'local rc=0\n'                                                      \
+                        'local rcsum=0\n'                                                   \
+                        # Drain the queue of the Flux instance so that
+                        # no other job will be allowed to be submitted.
+                        # This script will block until all jobs complete.
+                        'flux queue drain\n'                                                \
+                        # Once all of the submitted jobs complete, gather
+                        # stdout/stderr and detect the highest exit code
+                        # from these jobs to return.
+                        'local k=0\n'                                                       \
+                        'for job in $@\n'                                                   \
+                        'do\n'                                                              \
+                            # Gather the status of the job into rc
+                            # Note that if the job failed before its runtime, report 255
+                            # You can also count the number of failed run here (like your FAIL variable)
+                        '    flux job status ${job} || rc=$?\n'                             \
+                        '    echo "${k}-th job id: ${job}, FAIL: ${rc}"\n'                  \
+                            # print stdout/stderr from the target job
+                            # You can redirect this to a specifically named
+                        '    if [ $rc -ne 0 ]; then\n'                                      \
+                        '        flux job attach ${job}\n'                                  \
+                        '        flux job info ${job} R\n'                                  \
+                        '        let "rcsum+=1"\n'                                          \
+                        '    fi\n'                                                          \
+                        '    let "k+=1"; rc=0\n'                                            \
+                        'done\n'                                                            \
+                        'if [ $rcsum -gt 0 ]; then\n'                                       \
+                        '    exit -1\n'                                                     \
+                        'else\n'                                                            \
+                        '    exit 0\n'                                                      \
+                        'fi\n'                                                              \
+                        '}\n\n'
+        return commandString
+
+    def singleJobCommand(self,commands,procedure,prefix='job',directories=None):
+        if (directories is None):
+            moveDir = False
+        else:
+            moveDir = True
+            if (len(commands)!=len(directories)):
+                raise ValueError('Provide directories for all commands.')
+
+        nodePerCommand, procsPerCommand = procedureSwitcher.get(procedure)
+
+        commandString = self.waitallCommand()
+        commandString += 'JOBIDS=""\n'
+
+        for k, command in enumerate(commands):
+            if (moveDir): commandString += 'cd %s \n'%(directories[k])
+            commandString += 'JOBIDS="$JOBIDS $(flux mini submit -n %d --output=%s/%s_result_%d.out '                         \
+                             % (procsPerCommand,OUTDIR,prefix,k)
+            commandString += command
+            commandString += ')"\n\nwaitall ${JOBIDS}\n'
+            commandString += self.checkResultCommand('%s-serial-%d'%(prefix,k))
+            if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+
+        return commandString
+
+    def parallelLoopCommand(self,commands,procedure,prefix='job',directories=None):
+        if (directories is None):
+            moveDir = False
+        else:
+            moveDir = True
+            if (len(commands)!=len(directories)):
+                raise ValueError('Provide directories for all commands.')
+
+        nodePerCommand, procsPerCommand = procedureSwitcher.get(procedure)
+
+        maxJobsPerLoop = int(np.floor(maxNodes/nodePerCommand))
+        if (maxJobsPerLoop<1):
+            raise ValueError('The job %s requires at least %d number of nodes. '                \
+                                %(prefix,nodePerCommand) +                                      \
+                             'Only %d nodes are assigned.'%(maxNodes))
+
+        commandString = self.waitallCommand()
+        commandString += 'JOBIDS=""\n'
+
+        idx, nJobs = 0, len(commands)
+        loop = 0
+        while (nJobs>0):
+            jobsPerLoop = maxJobsPerLoop if (nJobs>maxJobsPerLoop) else nJobs
+            for k in range(jobsPerLoop):
+                if (moveDir): commandString += 'cd %s \n'%(directories[idx+k])
+
+                command = ''
+                command += 'JOBIDS="$JOBIDS $(flux mini submit -n %d --output=%s/%s_result_%d.out '                         \
+                             % (procsPerCommand,OUTDIR,prefix,idx+k)
+                command += commands[idx+k]
+                command += ')"\n'
+                commandString += command
+
+                if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+            commandString += 'waitall ${JOBIDS}\n'
+            commandString += self.checkResultCommand('%s-iteration%d'%(prefix,loop))
+            nJobs -= jobsPerLoop
+            idx += jobsPerLoop
+            loop += 1
+
+        return commandString
+
+    def nonMPILoopCommand(self,commands,prefix='job'):
+        commandString = self.waitallCommand()
+        commandString += 'JOBIDS=""\n'
+
+        nJobs = len(commands)
+        for k in range(nJobs):
+            commandString += 'JOBIDS="$JOBIDS $(flux mini submit -n 1 %s)"\n' % (commands[k])
+
+        commandString += 'waitall ${JOBIDS}\n'
+        commandString += self.checkResultCommand(prefix)
+
+        return commandString
+
+    def parallelPurgeCommand(self,filenames,prefix='job'):
+        commandString = self.waitallCommand()
+        commandString += 'JOBIDS=""\n'
+
+        for file in filenames:
+            command = 'if [ -f "%s" ]; then \n' % file
+            command += '    JOBIDS="$JOBIDS $(flux mini submit -n 1 rm %s)"\n' % (file)
+            command += 'fi\n\n'
+            commandString += command
+
+        commandString += 'waitall ${JOBIDS}\n'
+        commandString += self.checkResultCommand(prefix)
+
+        return commandString
+
+    def purgeDirectoryCommand(self,baseDirectory):
+        bdir = baseDirectory
+
+        commandString = self.waitallCommand()
+        commandString += 'shopt -s nullglob\n'
+        commandString += 'JOBIDS=""\n'
+
+        command = 'for file in %s/**/*.q\n' % (bdir)
+        command += 'do\n'                                                       \
+                   '    JOBIDS="$JOBIDS $(flux mini submit -n 1 rm ${file})"\n' \
+                   'done\n'
+        command += 'for file in %s/**/*.f\n' % (bdir)
+        command += 'do\n'                                                       \
+                   '    JOBIDS="$JOBIDS $(flux mini submit -n 1 rm ${file})"\n' \
+                   'done\n'
+        command += 'for file in %s/**/*.dat\n' % (bdir)
+        command += 'do\n'                                                       \
+                   '    JOBIDS="$JOBIDS $(flux mini submit -n 1 rm ${file})"\n' \
+                   'done\n'
+        commandString += command
+
+        commandString += 'waitall ${JOBIDS}\n'
+        commandString += 'if [ $? -eq 0 ]; then\n'
+        commandString += '   echo "Purging %s succeeded."\n' % (bdir)
+        commandString += '   FAIL=0\n'                                                      \
+                         'else\n'
+        commandString += '   shopt -u nullglob\n'                                           \
+                         '   numFiles=0\n'                                                  \
+                         '   let "numFiles+=$(ls %s/**/*.q | wc -l)"\n' % (bdir)
+        commandString += '   let "numFiles+=$(ls %s/**/*.f | wc -l)"\n' % (bdir)
+        commandString += '   let "numFiles+=$(ls %s/**/*.dat | wc -l)"\n' % (bdir)
+        commandString += '   if [ $numFiles -eq 0 ]; then\n'
+        commandString += '      echo "No file remains in subdirectories. Purging %s succeeded."\n' % (bdir)
+        commandString += '      FAIL=0\n'                                                   \
+                         '   else\n'                                                        \
+                         '      echo "Purging %s failed."\n' % (bdir)
+        commandString += '      exit -1\n'                                                  \
+                         '   fi\n'
+        commandString += 'fi\n\n'
+
+        return commandString
+
+scriptorSwitcher = {
+    'bash': bashCommandScriptor(),
+    'flux': fluxCommandScriptor()
+}
