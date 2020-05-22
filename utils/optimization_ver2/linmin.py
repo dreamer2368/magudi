@@ -86,11 +86,11 @@ def nextLinmin(zeroBaseline=True, initial=True, stop=False):
         for j in range(NcontrolRegion):
             temp[j] = ''
     target = ['x/'+file for file in globalControlSpaceFiles]
-    commandString += bashParallelPurgeCommand(target,'purge_target')
+    commandString += scriptor.parallelPurgeCommand(target,'purge_target')
     commandString += zaxpyCommand(target, -xs, globalConjugateGradientFiles, temp)
     commandString += '\n'
     commandString += forwardRunCommand('x')
-    commandString += purgeDirectoryCommand('x')
+    commandString += scriptor.purgeDirectoryCommand('x')
     fID = open(globalCommandFile,'w')
     fID.write(commandString)
     fID.close()

@@ -22,7 +22,7 @@ def beforeLinmin(initial, zeroBaseline):
         commands = []
         for k in range(NcontrolSpace):
             commands += ['cp %s %s' % (globalGradFiles[k], globalConjugateGradientFiles[k])]
-        commandString = bashParallelCopyCommand(commands,'initial-conjugate-gradient')
+        commandString = scriptor.nonMPILoopCommand(commands,'initial-conjugate-gradient')
         fID = open(globalCommandFile,'w')
         fID.write(commandString)
         fID.close()
@@ -78,7 +78,7 @@ def beforeLinmin(initial, zeroBaseline):
 
     commandString = zaxpyCommand(globalConjugateGradientFiles,gamma,previousCGFiles,globalGradFiles)
     commandString += '\n'
-    commandString += bashParallelPurgeCommand(previousCGFiles,'purge_prev_cg')
+    commandString += scriptor.parallelPurgeCommand(previousCGFiles,'purge_prev_cg')
     commandFile = open(globalCommandFile,'w')
     commandFile.write(commandString)
     commandFile.close()
@@ -116,7 +116,7 @@ def afterLinmin(zeroBaseline):
         commands += ['cp b/%s x0/ ' % (globalControlSpaceFiles[k])]
         commands += ['mv %s %s' % (globalGradFiles[k],previousGradFiles[k])]
         commands += ['mv %s %s' % (globalConjugateGradientFiles[k],previousCGFiles[k])]
-    commandString += bashParallelCopyCommand(commands,'saving_line_minimization_files')
+    commandString += scriptor.nonMPILoopCommand(commands,'saving_line_minimization_files')
 
     commandString += '\n'
     if( zeroBaseline ):
@@ -125,14 +125,14 @@ def afterLinmin(zeroBaseline):
         commands = []
         for k in range(Nsplit):
             commands += ['setOption %s "controller_switch" true' % targetInputFiles[k]]
-        commandString += bashParallelCopyCommand(commands,'magudi_option_turn_on_controller')
+        commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_turn_on_controller')
 
     target = ['a/'+file for file in globalControlSpaceFiles]
-    commandString += bashParallelPurgeCommand(target,'purge_a')
+    commandString += scriptor.parallelPurgeCommand(target,'purge_a')
     target = ['c/'+file for file in globalControlSpaceFiles]
-    commandString += bashParallelPurgeCommand(target,'purge_c')
+    commandString += scriptor.parallelPurgeCommand(target,'purge_c')
     target = ['x/'+file for file in globalControlSpaceFiles]
-    commandString += bashParallelPurgeCommand(target,'purge_x')
+    commandString += scriptor.parallelPurgeCommand(target,'purge_x')
 
     commandString += forwardRunCommand()
     commandString += '\n'
@@ -141,17 +141,17 @@ def afterLinmin(zeroBaseline):
     commandString += gatherControlForcingGradientCommand()
     commandString += '\n'
     commandString += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
-    commandString += purgeDirectoryCommand('x0')
+    commandString += scriptor.purgeDirectoryCommand('x0')
 
     commands = []
     for k in range(Nsplit):
         costSensitivityFile = 'x0/%s/%s.cost_sensitivity.txt'%(directories[k],prefixes[k])
         commands += ['cp %s linminLog/%d/ '%(costSensitivityFile,numFiles)]
-    commandString += bashParallelCopyCommand(commands,'copy_gradient_history')
+    commandString += scriptor.nonMPILoopCommand(commands,'copy_gradient_history')
 
     # Polak-Ribiere
     commandString += dggCommand()
-    commandString += bashParallelPurgeCommand(previousGradFiles,'purge_prev_grad')
+    commandString += scriptor.parallelPurgeCommand(previousGradFiles,'purge_prev_grad')
     fID = open(globalCommandFile,'w')
     fID.write(commandString)
     fID.close()

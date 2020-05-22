@@ -29,7 +29,7 @@ def setupInitialSteps(zeroBaseline=True):
     commandString += zaxpyCommand(target, -steps[1], globalConjugateGradientFiles, temp)
     commandString += '\n'
     commandString += forwardRunCommand('x')
-    commandString += purgeDirectoryCommand('x')
+    commandString += scriptor.purgeDirectoryCommand('x')
     fID = open(globalCommandFile,'w')
     fID.write(commandString)
     fID.close()
@@ -100,11 +100,11 @@ def NextMnbrak(zeroBaseline=True):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
             target = ['x/'+file for file in globalControlSpaceFiles]
-            commandString += bashParallelPurgeCommand(target,'purge_target')
+            commandString += scriptor.parallelPurgeCommand(target,'purge_target')
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
-            commandString += purgeDirectoryCommand('x')
+            commandString += scriptor.purgeDirectoryCommand('x')
             fID = open(globalCommandFile,'w')
             fID.write(commandString)
             fID.close()
@@ -155,11 +155,11 @@ def NextMnbrak(zeroBaseline=True):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
             target = ['x/'+file for file in globalControlSpaceFiles]
-            commandString += bashParallelPurgeCommand(target,'purge_target')
+            commandString += scriptor.parallelPurgeCommand(target,'purge_target')
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
-            commandString += purgeDirectoryCommand('x')
+            commandString += scriptor.purgeDirectoryCommand('x')
             fID = open(globalCommandFile,'w')
             fID.write(commandString)
             fID.close()
@@ -190,11 +190,11 @@ def NextMnbrak(zeroBaseline=True):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
             target = ['x/'+file for file in globalControlSpaceFiles]
-            commandString += bashParallelPurgeCommand(target,'purge_target')
+            commandString += scriptor.parallelPurgeCommand(target,'purge_target')
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
-            commandString += purgeDirectoryCommand('x')
+            commandString += scriptor.purgeDirectoryCommand('x')
             fID = open(globalCommandFile,'w')
             fID.write(commandString)
             fID.close()
@@ -224,11 +224,11 @@ def NextMnbrak(zeroBaseline=True):
                 for j in range(NcontrolRegion):
                     temp[j] = ''
             target = ['x/'+file for file in globalControlSpaceFiles]
-            commandString += bashParallelPurgeCommand(target,'purge_target')
+            commandString += scriptor.parallelPurgeCommand(target,'purge_target')
             commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
             commandString += '\n'
             commandString += forwardRunCommand('x')
-            commandString += purgeDirectoryCommand('x')
+            commandString += scriptor.purgeDirectoryCommand('x')
             fID = open(globalCommandFile,'w')
             fID.write(commandString)
             fID.close()
