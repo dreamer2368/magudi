@@ -112,12 +112,6 @@ function computeGenericActuatorSensitivity(this, region) result(instantaneousSen
      nActuatorComponents = nDimensions + 2
      assert_key(nDimensions, (1, 2, 3))
 
-#ifdef DEBUG
-     if (this%direction /= 0) then
-        assert(this%direction >= 1 .and. this%direction <= nDimensions)
-     end if
-#endif
-
      assert(region%grids(i)%nGridPoints > 0)
      assert(allocated(region%grids(i)%controlMollifier))
      assert(size(region%grids(i)%controlMollifier, 1) == region%grids(i)%nGridPoints)
