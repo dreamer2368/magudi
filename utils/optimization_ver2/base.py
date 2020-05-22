@@ -1,10 +1,12 @@
 from constants import *
 from filenames import *
-from command_scriptor import scriptor
+from command_scriptor import *
 
 import numpy as np
 import subprocess
 import pandas as pd
+
+scriptor = bashCommandScriptor()
 
 magudiSetOptionCommand = 'function setOption() {\n'                                         \
                          '    if grep -q "$1" magudi.inp\n'                                 \

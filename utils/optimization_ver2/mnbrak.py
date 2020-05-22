@@ -13,7 +13,7 @@ def setupInitialSteps(zeroBaseline=True):
     if (not zeroBaseline):
         for j in range(NcontrolRegion):
             commands += ['cp x0/%s ./a/ ' % globalControlSpaceFiles[j]]
-    commandString += bashParallelCopyCommand(commands,'copy_control_params')
+    commandString += scriptor.nonMPILoopCommand(commands,'copy_control_params')
 
     steps, Js = np.zeros(2), np.zeros(2)
     steps[1] = initial_step

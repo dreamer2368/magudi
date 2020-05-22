@@ -5,8 +5,6 @@ import numpy as np
 import subprocess
 import pandas as pd
 
-scriptor = bashCommandScriptor()
-
 class commandScriptor:
     def singleJobCommand(self,commands,procedure,prefix='job',directories=None):
         pass
@@ -126,7 +124,7 @@ class commandScriptor:
         return commandString
 
 class bashCommandScriptor(commandScriptor):
-    def getNodeListCommand():
+    def getNodeListCommand(self):
         commandString =  'if [ ${SLURM_JOB_NUM_NODES} -ne %d ]; then\n' % maxNodes
         commandString += '   echo "${SLURM_JOB_NUM_NODES} number of nodes are assigned."\n'     \
                          '   echo "max nodes in python: %d."\n' % maxNodes
@@ -138,7 +136,7 @@ class bashCommandScriptor(commandScriptor):
                          'done < <( scontrol show hostnames ${SLURM_JOB_NODELIST} )\n\n'
         return commandString
 
-    def getNodeListSliceCommand(index, numNodes):
+    def getNodeListSliceCommand(self,index, numNodes):
         nodeIndex = numNodes * index
         commandString = 'let "nodeIndex=%d"\n' % nodeIndex
         commandString += 'nodeListString="${nodeList[${nodeIndex}]}"\n'
