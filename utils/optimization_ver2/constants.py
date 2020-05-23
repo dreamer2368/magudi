@@ -1,8 +1,7 @@
 Nsplit = 3                                               # number of split time segments
 Nts = 6                                                  # number of timesteps of each time segment
-NtimestepOffset = 4                                      # timestep offset between time segments
 startTimestep = 12                                       # initial timestep of the first time segment
-totalTimestep = (Nsplit-1) * NtimestepOffset + Nts       # number of timesteps for the entire time span
+totalTimestep = Nsplit * Nts                             # number of timesteps for the entire time span
 
 import numpy as np
 matchingConditionWeight = 1.0e-7 * np.ones(Nsplit)       # weight for matching condition penalty

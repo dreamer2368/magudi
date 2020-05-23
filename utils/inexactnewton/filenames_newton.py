@@ -75,7 +75,7 @@ for k in range(Nsplit):
     icLinearizedFiles += ['%s-%01d.ic.linearized.q'%(globalPrefix,k)]
     diffResidualFiles += ['%s-%01d.diff.residual.q'%(globalPrefix,k)]
 
-    kOffset = startTimestep + NtimestepOffset * (k+1)
+    kOffset = startTimestep + Nts * (k+1)
     matchingLinearizedFiles += ['%s-%01d-%08d.linearized.q'%(globalPrefix,k,kOffset)]
 
 newtonFiles = [ NEWTONDIR + '/' + file for file in newtonFiles ]

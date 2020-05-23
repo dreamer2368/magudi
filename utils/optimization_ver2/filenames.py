@@ -65,7 +65,7 @@ for k in range(Nsplit):
     commandFiles += ['%s-%01d.command.sh'%(globalPrefix,k)]
     icFiles += ['%s-%01d.ic.q'%(globalPrefix,k)]
 
-    kOffset = startTimestep + NtimestepOffset * (k+1)
+    kOffset = startTimestep + Nts * (k+1)
     diffFiles += ['%s-%01d.diff.q'%(globalPrefix,k)]                             #use only 0, ... , Nsplit-2
     diffOutputFiles += ['%s-%01d.diff.txt'%(globalPrefix,k)]                     #use only 0, ... , Nsplit-2
     matchingForwardFiles += ['%s-%01d-%08d.q'%(globalPrefix,k,kOffset)]          #use only 0, ... , Nsplit-2
@@ -73,7 +73,7 @@ for k in range(Nsplit):
     lagrangianFiles += ['%s-%01d.lagrangian_multiplier.q'%(globalPrefix,k)]      #use only 0, ... , Nsplit-2
     lagrangianOutputFiles += ['%s-%01d.lagrangian.txt'%(globalPrefix,k)]         #use only 0, ... , Nsplit-2
 
-    kOffset = startTimestep + NtimestepOffset * k
+    kOffset = startTimestep + Nts * k
     icAdjointFiles += ['%s-%01d-%08d.adjoint.q'%(globalPrefix,k,kOffset)]        #use only 1, ... , Nsplit-1
     icGradientFiles += ['%s-%01d.ic.adjoint.q'%(globalPrefix,k)]                 #use only 1, ... , Nsplit-1
     directories += ['%01d'%k]
