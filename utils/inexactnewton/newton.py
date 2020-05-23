@@ -139,7 +139,7 @@ def adjoint(zeroControl=False):
     for k in range(Nsplit):
         if ((k==Nsplit-1) and (not periodicSolution)):
             continue
-        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
+        commands += ['setOption %s "adjoint_nonzero_initial_condition" "true"'                 \
                     % targetInputFiles[k]]
     commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_true')
 
@@ -166,7 +166,7 @@ def adjoint(zeroControl=False):
     for k in range(Nsplit):
         if ((k==Nsplit-1) and (not periodicSolution)):
             continue
-        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "false"'                 \
+        commands += ['setOption %s "adjoint_nonzero_initial_condition" "false"'                 \
                     % targetInputFiles[k]]
     commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_false')
 
@@ -396,7 +396,7 @@ def newtonstep(zeroControl=False):
     for k in range(Nsplit):
         if ((k==Nsplit-1) and (not periodicSolution)):
             continue
-        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
+        commands += ['setOption %s "adjoint_nonzero_initial_condition" "true"'                 \
                     % targetInputFiles[k]]
     commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_true')
 
@@ -423,7 +423,7 @@ def newtonstep(zeroControl=False):
     for k in range(Nsplit):
         if ((k==Nsplit-1) and (not periodicSolution)):
             continue
-        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "false"'                 \
+        commands += ['setOption %s "adjoint_nonzero_initial_condition" "false"'                 \
                     % targetInputFiles[k]]
     commandString += bashParallelCopyCommand(commands,'magudi_option_nonzero_initial_condition_false')
 

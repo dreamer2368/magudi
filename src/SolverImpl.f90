@@ -337,7 +337,6 @@ contains
 
       if (present(restartFilename)) then
         call region%loadData(QOI_ADJOINT_STATE, restartFilename)
-        return                                                !SeungWhan:to continue adjointrun
       else
         do i = 1, size(region%states)
            region%states(i)%adjointVariables = 0.0_wp
@@ -374,8 +373,14 @@ contains
              end select
           end do
 
+          ! The last step of adjoint run will not include adjoint forcing term.
+          ! If the adjoint continues from the previous adjoint run,
+          ! then the corresponding adjoint forcing term is included here.
+          ! If this is the initial adjoint step,
+          ! then the corresponding adjoint forcing term is the initial condition.
           do i = 1, size(region%states)
-             region%states(i)%adjointVariables = region%states(i)%rightHandSide
+             region%states(i)%adjointVariables = region%states(i)%adjointVariables            &
+                                                + region%states(i)%rightHandSide
           end do
           region%states(:)%adjointForcingFactor = 1.0_wp !... restore
 
@@ -859,7 +864,7 @@ function runAdjoint(this, region) result(costSensitivity)
   integer :: i, j, timestep, startTimestep, timemarchDirection
   real(SCALAR_KIND) :: time, startTime, timeStepSize
   logical :: adjointRestart, nonzeroAdjointInitialCondition,                    &
-             isFinalAdjointRestart, IS_FINAL_STEP, noAdjointForcing
+             IS_FINAL_STEP, noAdjointForcing
   integer :: accumulatedNTimesteps, intermediateEndTimestep
   integer :: procRank, ierror
   SCALAR_TYPE :: instantaneousCostSensitivity
@@ -890,11 +895,10 @@ function runAdjoint(this, region) result(costSensitivity)
 
   ! Adjoint initial condition option.
   nonzeroAdjointInitialCondition =                                                           &
-                  getOption("adjoint_restart/nonzero_initial_condition",.false.)
+                  getOption("adjoint_nonzero_initial_condition",.false.)
 
   ! Load adjoint restart options.
   adjointRestart = getOption("enable_adjoint_restart", .false.)
-  isFinalAdjointRestart = .true.
   accumulatedNTimesteps = -1
   intermediateEndTimestep = -1
   if (adjointRestart) then ! This is relative timesteps: timestep at initial condition must be added.
@@ -910,7 +914,6 @@ function runAdjoint(this, region) result(costSensitivity)
   call loadInitialCondition(this, region, FORWARD) !... for control horizon end timestep.
   controller%onsetTime = region%states(1)%time
   controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-  if (intermediateEndTimestep>0) isFinalAdjointRestart = .false.
 
   if (region%simulationFlags%enableBodyForce) then
     call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
@@ -1017,8 +1020,8 @@ function runAdjoint(this, region) result(costSensitivity)
              timeIntegrator%norm(i) * timeStepSize * instantaneousCostSensitivity
 
         ! Check the switch for adjoint forcing.
-        if( (timestep.eq.startTimestep+sign(this%nTimesteps,timemarchDirection)) .and.       &
-            (i.eq.1) .and. (isFinalAdjointRestart) ) then
+        if( (timestep.eq.startTimestep+sign(this%nTimesteps,timemarchDirection))             &
+            .and. (i.eq.1) ) then
             IS_FINAL_STEP = .true.
         else
             IS_FINAL_STEP = .false.
@@ -1069,7 +1072,8 @@ function runAdjoint(this, region) result(costSensitivity)
   ! Call controller hooks after time marching ends.
   if (controller%controllerSwitch) call controller%hookAfterTimemarch(region, FORWARD)
   call controller%hookAfterTimemarch(region, ADJOINT)
-print *, procRank, 'gradient is saved.'
+
+  call MPI_Barrier(region%comm,ierror)
 
   call this%residualManager%cleanup()
   call reverseMigratorFactory%cleanup()
