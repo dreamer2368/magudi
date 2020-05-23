@@ -124,7 +124,7 @@ def afterLinmin(zeroBaseline):
         targetInputFiles = ['x0/%s/%s'%(dir,file) for dir, file in zip(directories,inputFiles)]
         commands = []
         for k in range(Nsplit):
-            commands += ['setOption %s "controller_switch" true' % targetInputFiles[k]]
+            commands += ['./setOption.sh %s "controller_switch" true' % targetInputFiles[k]]
         commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_turn_on_controller')
 
     target = ['a/'+file for file in globalControlSpaceFiles]

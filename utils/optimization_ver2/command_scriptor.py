@@ -238,23 +238,12 @@ class fluxCommandScriptor(commandScriptor):
         commandString = 'waitall() {\n'                                                     \
                         'local rc=0\n'                                                      \
                         'local rcsum=0\n'                                                   \
-                        # Drain the queue of the Flux instance so that
-                        # no other job will be allowed to be submitted.
-                        # This script will block until all jobs complete.
                         'flux queue drain\n'                                                \
-                        # Once all of the submitted jobs complete, gather
-                        # stdout/stderr and detect the highest exit code
-                        # from these jobs to return.
                         'local k=0\n'                                                       \
                         'for job in $@\n'                                                   \
                         'do\n'                                                              \
-                            # Gather the status of the job into rc
-                            # Note that if the job failed before its runtime, report 255
-                            # You can also count the number of failed run here (like your FAIL variable)
                         '    flux job status ${job} || rc=$?\n'                             \
                         '    echo "${k}-th job id: ${job}, FAIL: ${rc}"\n'                  \
-                            # print stdout/stderr from the target job
-                            # You can redirect this to a specifically named
                         '    if [ $rc -ne 0 ]; then\n'                                      \
                         '        flux job attach ${job}\n'                                  \
                         '        flux job info ${job} R\n'                                  \
@@ -263,9 +252,9 @@ class fluxCommandScriptor(commandScriptor):
                         '    let "k+=1"; rc=0\n'                                            \
                         'done\n'                                                            \
                         'if [ $rcsum -gt 0 ]; then\n'                                       \
-                        '    exit -1\n'                                                     \
+                        '    return 1\n'                                                    \
                         'else\n'                                                            \
-                        '    exit 0\n'                                                      \
+                        '    return 0\n'                                                    \
                         'fi\n'                                                              \
                         '}\n\n'
         return commandString
@@ -311,11 +300,11 @@ class fluxCommandScriptor(commandScriptor):
                              'Only %d nodes are assigned.'%(maxNodes))
 
         commandString = self.waitallCommand()
-        commandString += 'JOBIDS=""\n'
 
         idx, nJobs = 0, len(commands)
         loop = 0
         while (nJobs>0):
+            commandString += 'JOBIDS=""\n'
             jobsPerLoop = maxJobsPerLoop if (nJobs>maxJobsPerLoop) else nJobs
             for k in range(jobsPerLoop):
                 if (moveDir): commandString += 'cd %s \n'%(directories[idx+k])

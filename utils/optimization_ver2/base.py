@@ -17,14 +17,16 @@ magudiSetOptionCommand = 'function setOption() {\n'                             
                          '    fi\n'                                                         \
                          '}\n'
 
-generalSetOptionCommand = 'function setOption() {\n'                                         \
-                          '    if grep -q "$2" $1 \n'                                        \
-                          '    then\n'                                                       \
-                          '    sed -i.bu "s+^.*$2.*$+$2 = $3+g" $1 \n'                       \
-                          '    else\n'                                                       \
-                          '    echo "$2 = $3" >> $1 \n'                                      \
-                          '    fi\n'                                                         \
-                          '}\n'
+generalSetOptionCommand = 'cat <<EOF > setOption.sh\n'                                   \
+                          '#!/bin/bash\n'                                                \
+                          'if grep -q "\$2" \$1 \n'                                      \
+                          'then\n'                                                       \
+                          'sed -i.bu "s+^.*\$2.*\$+\$2 = \$3+g" \$1 \n'                  \
+                          'else\n'                                                       \
+                          'echo "\$2 = \$3" >> \$1 \n'                                   \
+                          'fi\n'                                                         \
+                          'EOF\n'                                                        \
+                          'chmod u+x setOption.sh\n'
 
 def readScalar(scalarFilename):
     try:
@@ -243,34 +245,34 @@ def adjointRunCommand(baseDirectory='x0'):
     if (ignoreObjective):
         commands = []
         for k in range(Nsplit):
-            commands += ['setOption %s "adjoint_forcing_switch" "false"' % targetInputFiles[k]]
+            commands += ['./setOption.sh %s "adjoint_forcing_switch" "false"' % targetInputFiles[k]]
         commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_disable_adjoint_forcing')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "enable_adjoint_restart" "true"' % targetInputFiles[k]]
+        commands += ['./setOption.sh %s "enable_adjoint_restart" "true"' % targetInputFiles[k]]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_enable_adjoint_restart')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "number_of_timesteps" %d'                                                \
+        commands += ['./setOption.sh %s "number_of_timesteps" %d'                                                \
                     % (targetInputFiles[k], Nts-NtimestepOffset)]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_set_number_of_timesteps')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "adjoint_restart\/accumulated_timesteps" 0' % targetInputFiles[k]]
+        commands += ['./setOption.sh %s "adjoint_restart\/accumulated_timesteps" 0' % targetInputFiles[k]]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_accumulated_timesteps')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "adjoint_restart\/intermediate_end_timestep" %d'                         \
+        commands += ['./setOption.sh %s "adjoint_restart\/intermediate_end_timestep" %d'                         \
                     % (targetInputFiles[k],NtimestepOffset)]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_intermediate_end_timestep')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "false"'                    \
+        commands += ['./setOption.sh %s "adjoint_restart\/nonzero_initial_condition" "false"'                    \
                     % targetInputFiles[k]]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_nonzero_initial_condition_false')
 
@@ -300,26 +302,26 @@ def adjointRunCommand(baseDirectory='x0'):
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "number_of_timesteps" %d'                                                \
+        commands += ['./setOption.sh %s "number_of_timesteps" %d'                                                \
                     % (targetInputFiles[k], NtimestepOffset)]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_set_number_of_timesteps')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "adjoint_restart\/accumulated_timesteps" %d'                             \
+        commands += ['./setOption.sh %s "adjoint_restart\/accumulated_timesteps" %d'                             \
                      % (targetInputFiles[k],Nts-NtimestepOffset)]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_accumulated_timesteps')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "adjoint_restart\/intermediate_end_timestep" 0'                          \
+        commands += ['./setOption.sh %s "adjoint_restart\/intermediate_end_timestep" 0'                          \
                     % (targetInputFiles[k])]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_intermediate_end_timestep')
 
     if (Nts==NtimestepOffset):
         commands = []
         for k in range(Nsplit):
-            commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
+            commands += ['./setOption.sh %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
                         % targetInputFiles[k]]
         commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_nonzero_initial_condition_true')
 
@@ -334,23 +336,23 @@ def adjointRunCommand(baseDirectory='x0'):
     if (ignoreObjective):
         commands = []
         for k in range(Nsplit):
-            commands += ['setOption %s "adjoint_forcing_switch" "true"' % targetInputFiles[k]]
+            commands += ['./setOption.sh %s "adjoint_forcing_switch" "true"' % targetInputFiles[k]]
         commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_enable_adjoint_forcing')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "enable_adjoint_restart" "false"' % targetInputFiles[k]]
+        commands += ['./setOption.sh %s "enable_adjoint_restart" "false"' % targetInputFiles[k]]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_disable_adjoint_restart')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
+        commands += ['./setOption.sh %s "adjoint_restart\/nonzero_initial_condition" "true"'                 \
                     % targetInputFiles[k]]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_nonzero_initial_condition_false')
 
     commands = []
     for k in range(Nsplit):
-        commands += ['setOption %s "number_of_timesteps" %d'                                                \
+        commands += ['./setOption.sh %s "number_of_timesteps" %d'                                                \
                     % (targetInputFiles[k], Nts)]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_set_number_of_timesteps')
 
