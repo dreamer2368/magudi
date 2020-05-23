@@ -157,6 +157,8 @@ def afterLinmin(zeroBaseline):
     fID.close()
     commandFile = open(decisionMakerCommandFile,'w')
     commandFile.write('python3 '+decisionMaker+' 1 \n')
+    if(numFiles>Nlinmin):
+        commandFile.write('exit -1 \n')
     commandFile.close()
 
     print ('FRPRMN - after linmin: postprocessing is finished. Run new forward/adjoint simulations.')

@@ -11,7 +11,7 @@ useLagrangian = False                                    # flag for augmented la
 ignoreObjective = False
 periodicSolution = False
 if (not periodicSolution):
-    matchingConditionWeight[-1] = 0.0
+    matchingConditionWeight[0] = 0.0
     initialConditionControllability[0] = 0.0
 
 NcontrolRegion = 1                                       # number of control region
@@ -38,4 +38,4 @@ procedureSwitcher = { # number of nodes and processors for each procedure.
 initial_step = 1.0e9
 golden_ratio = 1.618034
 tol, eps = 1.0e-2,  1.0e-15
-linminTol = 1.0e-1
+linminTol, Nlinmin = 1.0e-1, 50

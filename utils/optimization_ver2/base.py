@@ -54,7 +54,8 @@ def QoI(baseDirectory = 'x0'):
 
         if (useLagrangian):
             subJ[2*Nsplit+k] = readScalar(lagrangianOutputFiles[k])
-            J += subJ[2*Nsplit+k]
+            # followed the convention of Portryagin's minimum principle
+            J -= subJ[2*Nsplit+k]
     return J, subJ
 
 def collectQoI(logFilename):
@@ -209,11 +210,10 @@ def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
 
     commands = []
     for k in range(Nsplit):
-        nextK = k+1 if (k<Nsplit-1) else 0
-        matchingFile = '%s/%s/%s'%(bdir,directories[k],matchingForwardFiles[k])
-        icFile = '%s/%s'%(bdir,icFiles[nextK])
+        matchingFile = '%s/%s/%s'%(bdir,directories[k-1],matchingForwardFiles[k-1])
+        icFile = '%s/%s'%(bdir,icFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                              \
-                    % (diffFiles[k],-1.0,icFile,matchingFile,globalInputFile)]
+                    % (diffFiles[k],-1.0,matchingFile,icFile,globalInputFile)]
     commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
                                                   'forward_qfile_zaxpy')
 
@@ -285,16 +285,16 @@ def adjointRunCommand(baseDirectory='x0'):
 
     commands = []
     for k in range(Nsplit):
-        matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k],matchingAdjointFiles[k])
+        matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k-1],matchingAdjointFiles[k-1])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-        % (matchingAdjointFile, matchingConditionWeight[k], diffFiles[k], matchingAdjointFile, globalInputFile)]
+        % (matchingAdjointFile, -matchingConditionWeight[k], diffFiles[k], matchingAdjointFile, globalInputFile)]
     commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
                                             'adjoint_run_qfile_zaxpy')
 
     if (useLagrangian):
         commands = []
         for k in range(Nsplit):
-            matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k],matchingAdjointFiles[k])
+            matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k-1],matchingAdjointFiles[k-1])
             commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
             % (matchingAdjointFile, 1.0, lagrangianFiles[k], matchingAdjointFile, globalInputFile)]
         commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
@@ -361,7 +361,7 @@ def adjointRunCommand(baseDirectory='x0'):
         idx = NcontrolRegion + k
         icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-                     % (globalGradFiles[idx], -matchingConditionWeight[k-1], diffFiles[k-1], icAdjointFile, globalInputFile)]
+                     % (globalGradFiles[idx], matchingConditionWeight[k], diffFiles[k], icAdjointFile, globalInputFile)]
     commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
                                             'adjoint_run_ic')
 
@@ -370,7 +370,7 @@ def adjointRunCommand(baseDirectory='x0'):
         for k in range(Nsplit):
             idx = NcontrolRegion + k
             commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                     \
-                         % (globalGradFiles[idx], -1.0, lagrangianFiles[k-1], icGradientFiles[k], globalInputFile)]
+                         % (globalGradFiles[idx], -1.0, lagrangianFiles[k], globalGradFiles[idx], globalInputFile)]
         commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
                                                 'adjoint_run_ic_lagrangian')
 
@@ -405,5 +405,22 @@ def dggCommand():
                             % (diffFile, globalGradFiles[idx], dggFiles[idx], globalInputFile)]
     commandString += scriptor.parallelLoopCommand(commands,'qfile-zxdoty',
                                             'dgg_qfile_zxdoty')
+
+    return commandString
+
+def updateLagrangian(weight,initial=False):
+    commandString = ''
+
+    commands = []
+    for k in range(Nsplit):
+        a = weight[k]
+        command = './qfile_zaxpy ' + lagrangianFiles[k] + ' ' + "{:.16E}".format(-a) + ' ' + diffFiles[k]
+        if (initial):
+            command += ' --zero'
+        else:
+            command += ' '+lagrangianFiles[k]
+        commands += [command]
+    commandString += bashParallelLoopCommand(commands,'qfile-zaxpy',
+                                            'update_lagrangian')
 
     return commandString
