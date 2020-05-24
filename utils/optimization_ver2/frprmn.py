@@ -119,7 +119,7 @@ def afterLinmin(zeroBaseline):
     commandString += scriptor.nonMPILoopCommand(commands,'saving_line_minimization_files')
 
     commandString += '\n'
-    if( zeroBaseline ):
+    if( zeroBaseline and (not ignoreController) ):
         commandString += generalSetOptionCommand
         targetInputFiles = ['x0/%s/%s'%(dir,file) for dir, file in zip(directories,inputFiles)]
         commands = []
@@ -157,7 +157,7 @@ def afterLinmin(zeroBaseline):
     fID.close()
     commandFile = open(decisionMakerCommandFile,'w')
     commandFile.write('python3 '+decisionMaker+' 1 \n')
-    if(numFiles>Nlinmin):
+    if(useLagrangian and (numFiles>Nlinmin)):
         commandFile.write('exit -1 \n')
     commandFile.close()
 
