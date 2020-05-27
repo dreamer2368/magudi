@@ -611,7 +611,8 @@ contains
     use Region_mod, only : t_Region
 
     ! <<< Enumerations >>>
-    use State_enum, only : QOI_ADJOINT_STATE, QOI_FORWARD_STATE, QOI_DUMMY_FUNCTION
+    use State_enum, only : QOI_ADJOINT_STATE, QOI_FORWARD_STATE,                &
+                           QOI_RIGHT_HAND_SIDE, QOI_DUMMY_FUNCTION
 
     ! <<< Arguments >>>
     class(t_Region), intent(in) :: region
@@ -657,6 +658,12 @@ contains
          assert(size(region%states(i)%adjointVariables, 2) > 2)
 
          F(:,1) = region%states(i)%adjointVariables(:,index_)
+       case(QOI_RIGHT_HAND_SIDE)
+         assert(allocated(region%states(i)%rightHandSide))
+         assert(size(region%states(i)%rightHandSide, 1) == region%grids(i)%nGridPoints)
+         assert(size(region%states(i)%rightHandSide, 2) > 2)
+
+         F(:,1) = region%states(i)%rightHandSide(:,index_)
        case(QOI_DUMMY_FUNCTION)
          F(:,1) = 1.0_wp
        end select
@@ -739,7 +746,8 @@ contains
 
     ! <<< Enumerations >>>
     use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
-    use State_enum, only : QOI_ADJOINT_STATE, QOI_FORWARD_STATE, QOI_DUMMY_FUNCTION
+    use State_enum, only : QOI_ADJOINT_STATE, QOI_FORWARD_STATE,                &
+                           QOI_RIGHT_HAND_SIDE, QOI_DUMMY_FUNCTION
 
     ! <<< Internal modules >>>
     use MPITimingsHelper, only : startTiming, endTiming
@@ -754,7 +762,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, nDimensions
-    SCALAR_TYPE :: currentXmomentum, adjointForcingFactor
+    SCALAR_TYPE :: currentXmomentum, adjointForcingFactor, xMomentumChange
     SCALAR_TYPE, allocatable :: temp(:)
 
     character(len=STRING_LENGTH) :: message
@@ -766,83 +774,93 @@ contains
     nDimensions = region%grids(1)%nDimensions
     assert_key(nDimensions, (1, 2, 3))
 
-    if (stage==1) then
-      currentXmomentum = computeRegionIntegral(region,QOI_FORWARD_STATE,2)
-      region%momentumLossPerVolume =                                                  &
-                    region%oneOverVolume / region%getTimeStepSize() *                 &
-                      ( region%initialXmomentum - currentXmomentum )
-
-      if (region%momentumLossPerVolume<0) then
-        write(message,'(A,E13.6)') 'Negative body force detected: ', region%momentumLossPerVolume
-        call writeAndFlush(region%comm,output_unit,message)
-      end if
-
-      if (mode==LINEARIZED) then
-        region%adjointMomentumLossPerVolume =                                           &
-                  - region%oneOverVolume / region%getTimeStepSize() *                   &
-                    computeRegionIntegral(region,QOI_ADJOINT_STATE,2)
-      end if
-    end if
+    ! if (stage==1) then
+    !   currentXmomentum = computeRegionIntegral(region,QOI_FORWARD_STATE,2)
+    !   region%momentumLossPerVolume =                                                  &
+    !                 region%oneOverVolume / region%getTimeStepSize() *                 &
+    !                   ( region%initialXmomentum - currentXmomentum )
+    !
+    !   if (region%momentumLossPerVolume<0) then
+    !     write(message,'(A,E13.6)') 'Negative body force detected: ', region%momentumLossPerVolume
+    !     call writeAndFlush(region%comm,output_unit,message)
+    !   end if
+    !
+    !   if (mode==LINEARIZED) then
+    !     region%adjointMomentumLossPerVolume =                                           &
+    !               - region%oneOverVolume / region%getTimeStepSize() *                   &
+    !                 computeRegionIntegral(region,QOI_ADJOINT_STATE,2)
+    !   end if
+    ! end if
 
     select case(mode)
     case(FORWARD)
+      xMomentumChange = computeRegionIntegral(region,QOI_RIGHT_HAND_SIDE,2)
+      xMomentumChange = xMomentumChange * region%oneOverVolume
       do i = 1, size(region%states)
-        region%states(i)%rightHandSide(:,2) =                                           &
-                region%states(i)%rightHandSide(:,2) + region%momentumLossPerVolume
+        region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2)       &
+                                                                - xMomentumChange
 
         region%states(i)%rightHandSide(:,nDimensions+2) =                               &
-                             region%states(i)%rightHandSide(:,nDimensions+2) +          &
-                     region%momentumLossPerVolume * region%states(i)%velocity(:,1)
+                             region%states(i)%rightHandSide(:,nDimensions+2) -          &
+                                 xMomentumChange * region%states(i)%velocity(:,1)
       end do
+      ! do i = 1, size(region%states)
+      !   region%states(i)%rightHandSide(:,2) =                                           &
+      !           region%states(i)%rightHandSide(:,2) + region%momentumLossPerVolume
+      !
+      !   region%states(i)%rightHandSide(:,nDimensions+2) =                               &
+      !                        region%states(i)%rightHandSide(:,nDimensions+2) +          &
+      !                region%momentumLossPerVolume * region%states(i)%velocity(:,1)
+      ! end do
 
     case(ADJOINT)
-      if ( (stage.eq.2) .or. (stage.eq.3) ) then
-        adjointForcingFactor = 2.0_wp
-      else
-        adjointForcingFactor = 1.0_wp
-      end if
-      region%adjointMomentumLossPerVolume = region%adjointMomentumLossPerVolume           &
-        - adjointForcingFactor * ( computeRegionIntegral(region,QOI_ADJOINT_STATE,2)      &
-                                    + computeAdjointXmomentum(region) )
-
-      do i = 1, size(region%states)
-        allocate(temp(region%grids(i)%nGridPoints))
-        temp = region%momentumLossPerVolume * region%states(i)%specificVolume(:,1)                &
-                                            * region%states(i)%adjointVariables(:,nDimensions+2)
-
-        !Here the sign is minus (or plus), because magudi adjoint RK4 takes negative time step unnecessarily.
-        region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2) - temp
-        region%states(i)%rightHandSide(:,1) = region%states(i)%rightHandSide(:,1) + temp          &
-                                                                * region%states(i)%velocity(:,1)
-        SAFE_DEALLOCATE(temp)
-      end do
-
-      if (stage.eq.1) then
-        do i = 1, size(region%states)
-          !Here the sign is minus, because magudi adjoint RK4 takes negative time step unnecessarily.
-          region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2)       &
-           - region%adjointMomentumLossPerVolume * region%oneOverVolume / region%getTimeStepSize()
-        end do
-        region%adjointMomentumLossPerVolume = 0.0_wp
-      end if
+      ! if ( (stage.eq.2) .or. (stage.eq.3) ) then
+      !   adjointForcingFactor = 2.0_wp
+      ! else
+      !   adjointForcingFactor = 1.0_wp
+      ! end if
+      ! region%adjointMomentumLossPerVolume = region%adjointMomentumLossPerVolume           &
+      !   - adjointForcingFactor * ( computeRegionIntegral(region,QOI_ADJOINT_STATE,2)      &
+      !                               + computeAdjointXmomentum(region) )
+      !
+      ! do i = 1, size(region%states)
+      !   allocate(temp(region%grids(i)%nGridPoints))
+      !   temp = region%momentumLossPerVolume * region%states(i)%specificVolume(:,1)                &
+      !                                       * region%states(i)%adjointVariables(:,nDimensions+2)
+      !
+      !   !Here the sign is minus (or plus), because magudi adjoint RK4 takes negative time step unnecessarily.
+      !   region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2) - temp
+      !   region%states(i)%rightHandSide(:,1) = region%states(i)%rightHandSide(:,1) + temp          &
+      !                                                           * region%states(i)%velocity(:,1)
+      !   SAFE_DEALLOCATE(temp)
+      ! end do
+      !
+      ! if (stage.eq.1) then
+      !   do i = 1, size(region%states)
+      !     !Here the sign is minus, because magudi adjoint RK4 takes negative time step unnecessarily.
+      !     region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2)       &
+      !      - region%adjointMomentumLossPerVolume * region%oneOverVolume / region%getTimeStepSize()
+      !   end do
+      !   region%adjointMomentumLossPerVolume = 0.0_wp
+      ! end if
 
     case(LINEARIZED)
-      do i = 1, size(region%states)
-        allocate(temp(region%grids(i)%nGridPoints))
-        temp = - region%states(i)%velocity(:,1) * region%states(i)%adjointVariables(:,1)&
-               + region%states(i)%adjointVariables(:,2)
-        temp = temp * region%states(i)%specificVolume(:,1)
-
-        region%states(i)%rightHandSide(:,2) =                                           &
-            region%states(i)%rightHandSide(:,2) + region%adjointMomentumLossPerVolume
-
-        region%states(i)%rightHandSide(:,nDimensions+2) =                               &
-            region%states(i)%rightHandSide(:,nDimensions+2)                             &
-            + region%adjointMomentumLossPerVolume * region%states(i)%velocity(:,1)      &
-            + region%momentumLossPerVolume * temp
-
-        SAFE_DEALLOCATE(temp)
-      end do
+      ! do i = 1, size(region%states)
+      !   allocate(temp(region%grids(i)%nGridPoints))
+      !   temp = - region%states(i)%velocity(:,1) * region%states(i)%adjointVariables(:,1)&
+      !          + region%states(i)%adjointVariables(:,2)
+      !   temp = temp * region%states(i)%specificVolume(:,1)
+      !
+      !   region%states(i)%rightHandSide(:,2) =                                           &
+      !       region%states(i)%rightHandSide(:,2) + region%adjointMomentumLossPerVolume
+      !
+      !   region%states(i)%rightHandSide(:,nDimensions+2) =                               &
+      !       region%states(i)%rightHandSide(:,nDimensions+2)                             &
+      !       + region%adjointMomentumLossPerVolume * region%states(i)%velocity(:,1)      &
+      !       + region%momentumLossPerVolume * temp
+      !
+      !   SAFE_DEALLOCATE(temp)
+      ! end do
 
     end select
 
