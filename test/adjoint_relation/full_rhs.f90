@@ -238,7 +238,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   use RandomNumber, only : random
   use PLOT3DHelper
   use InputHelper, only : getOption
-  use RegionImpl, only : computeRegionIntegral
+  use RegionImpl, only : computeRegionIntegral, computeAdjointXmomentum, addBodyForce
 
   ! <<< Arguments >>>
   class(t_Solver) :: solver
@@ -267,13 +267,13 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer(kind = MPI_OFFSET_KIND) :: offset
-  real(wp) :: scalar1, scalar2, tolerance_,&
+  real(wp) :: scalar1, scalar2, tolerance_, xMomentumChange,adjointXmomentum,   &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, ierror, procRank
   integer :: nDimensions, nUnknowns, stage
   logical :: success_
   character(len=STRING_LENGTH) :: filename
-  real(SCALAR_KIND), allocatable :: F(:,:), deltaPrimitiveVariables(:,:)
+  real(SCALAR_KIND), allocatable :: F(:,:), deltaPrimitiveVariables(:,:), temp(:)
 
   ! character(len = STRING_LENGTH) :: errorMessage
 

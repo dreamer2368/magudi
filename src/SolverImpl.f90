@@ -678,9 +678,9 @@ function runForward(this, region, restartFilename) result(costFunctional)
   end if
 
   if (region%simulationFlags%enableBodyForce) then
-    call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
+    ! call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
     region%oneOverVolume = computeRegionIntegral(region)
-    region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+    ! region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
     region%oneOverVolume = 1.0_wp / region%oneOverVolume
     region%momentumLossPerVolume = 0.0_wp
   end if

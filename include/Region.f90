@@ -25,6 +25,10 @@ module Region_mod
 
   implicit none
 
+  type, private :: t_InternalStorage
+     SCALAR_TYPE, allocatable :: buffer(:,:)
+  end type t_InternalStorage
+
   type, public :: t_Region
 
      type(t_Grid), allocatable :: grids(:)
@@ -33,6 +37,7 @@ module Region_mod
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)
+     type(t_InternalStorage), allocatable :: data_(:)
      integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL, timestep = 0
      integer, allocatable :: globalGridSizes(:,:), processDistributions(:,:),                &
           gridCommunicators(:), patchCommunicators(:), patchInterfaces(:),                   &

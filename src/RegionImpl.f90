@@ -762,7 +762,7 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, nDimensions
-    SCALAR_TYPE :: currentXmomentum, adjointForcingFactor, xMomentumChange
+    SCALAR_TYPE :: adjointForcingFactor, xMomentumChange, adjointXmomentum
     SCALAR_TYPE, allocatable :: temp(:)
 
     character(len=STRING_LENGTH) :: message
@@ -774,6 +774,7 @@ contains
     nDimensions = region%grids(1)%nDimensions
     assert_key(nDimensions, (1, 2, 3))
 
+    if (mode.ne.ADJOINT) xMomentumChange = computeRegionIntegral(region,QOI_RIGHT_HAND_SIDE,2)
     ! if (stage==1) then
     !   currentXmomentum = computeRegionIntegral(region,QOI_FORWARD_STATE,2)
     !   region%momentumLossPerVolume =                                                  &
@@ -794,15 +795,14 @@ contains
 
     select case(mode)
     case(FORWARD)
-      xMomentumChange = computeRegionIntegral(region,QOI_RIGHT_HAND_SIDE,2)
-      xMomentumChange = xMomentumChange * region%oneOverVolume
+      region%momentumLossPerVolume = xMomentumChange * region%oneOverVolume
       do i = 1, size(region%states)
         region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2)       &
-                                                                - xMomentumChange
+                                                   - region%momentumLossPerVolume
 
         region%states(i)%rightHandSide(:,nDimensions+2) =                               &
                              region%states(i)%rightHandSide(:,nDimensions+2) -          &
-                                 xMomentumChange * region%states(i)%velocity(:,1)
+                   region%momentumLossPerVolume * region%states(i)%velocity(:,1)
       end do
       ! do i = 1, size(region%states)
       !   region%states(i)%rightHandSide(:,2) =                                           &
@@ -814,6 +814,36 @@ contains
       ! end do
 
     case(ADJOINT)
+      select case(stage)
+      case(1)
+        do i = 1, size(region%states)
+          region%data_(i)%buffer = region%states(i)%adjointVariables
+        end do
+
+        xMomentumChange = region%oneOverVolume * computeRegionIntegral(region,QOI_ADJOINT_STATE,2)
+        adjointXmomentum = region%oneOverVolume * computeAdjointXmomentum(region)
+        do i = 1, size(region%states)
+          region%states(i)%adjointVariables(:,2) = region%states(i)%adjointVariables(:,2)                     &
+                    - xMomentumChange - adjointXmomentum
+        end do
+      case(2)
+        do i = 1, size(region%states)
+          region%states(i)%adjointVariables = region%data_(i)%buffer
+        end do
+
+        !NOTE: assumed momentumLossPerVolume of previous forward state is saved.
+        !this is not implemented in checkpointor.
+        do i = 1, size(region%states)
+          allocate(temp(region%grids(i)%nGridPoints))
+          temp = region%states(i)%specificVolume(:,1) * region%momentumLossPerVolume
+          region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2)                     &
+                                    + temp * region%states(i)%adjointVariables(:,nDimensions+2)
+          region%states(i)%rightHandSide(:,1) = region%states(i)%rightHandSide(:,1)                     &
+                                            - temp * region%states(i)%velocity(:,1)                     &
+                                           * region%states(i)%adjointVariables(:,nDimensions+2)
+          SAFE_DEALLOCATE(temp)
+        end do
+      end select
       ! if ( (stage.eq.2) .or. (stage.eq.3) ) then
       !   adjointForcingFactor = 2.0_wp
       ! else
@@ -845,6 +875,29 @@ contains
       ! end if
 
     case(LINEARIZED)
+      xMomentumChange = xMomentumChange * region%oneOverVolume
+      do i = 1, size(region%states)
+        region%states(i)%rightHandSide(:,2) = region%states(i)%rightHandSide(:,2)       &
+                                                                - xMomentumChange
+
+        region%states(i)%rightHandSide(:,nDimensions+2) =                               &
+                             region%states(i)%rightHandSide(:,nDimensions+2) -          &
+                                 xMomentumChange * region%states(i)%velocity(:,1)
+      end do
+      do i = 1, size(region%states)
+        allocate(temp(region%grids(i)%nGridPoints))
+        temp = - region%states(i)%velocity(:,1) * region%states(i)%adjointVariables(:,1)&
+               + region%states(i)%adjointVariables(:,2)
+        temp = temp * region%states(i)%specificVolume(:,1)
+
+        !NOTE: assumed momentumLossPerVolume of previous forward state is saved.
+        !this is not implemented in checkpointor.
+        region%states(i)%rightHandSide(:,nDimensions+2) =                               &
+                             region%states(i)%rightHandSide(:,nDimensions+2) -          &
+                                              region%momentumLossPerVolume * temp
+
+        SAFE_DEALLOCATE(temp)
+      end do
       ! do i = 1, size(region%states)
       !   allocate(temp(region%grids(i)%nGridPoints))
       !   temp = - region%states(i)%velocity(:,1) * region%states(i)%adjointVariables(:,1)&
@@ -949,7 +1002,7 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   use RegionImpl, only : readDecompositionMap, distributeGrids
 
   ! <<< Internal modules >>>
-  use InputHelper, only : getRequiredOption
+  use InputHelper, only : getRequiredOption, getOption
   use MPITimingsHelper, only : startTiming, endTiming
 
   implicit none
@@ -1047,6 +1100,14 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   call MPI_Comm_rank(this%comm, procRank, ierror)
   call MPI_Comm_split(this%comm, color, procRank, this%commGridMasters, ierror)
 
+  ! if (this%simulationFlags%enableBodyForce .and. this%simulationFlags%enableAdjoint) then
+  if (this%simulationFlags%enableAdjoint) then
+    allocate(this%data_(size(this%grids)))
+    do i = 1, size(this%data_)
+      allocate(this%data_(i)%buffer,MOLD=this%states(i)%conservedVariables)
+    end do
+  end if
+
   call endTiming("setupRegion")
 
 end subroutine setupRegion
@@ -1100,6 +1161,13 @@ subroutine cleanupRegion(this)
   SAFE_DEALLOCATE(this%patchInterfaces)
   SAFE_DEALLOCATE(this%interfaceIndexReorderings)
   SAFE_DEALLOCATE(this%patchMasterRanks)
+
+  if (allocated(this%data_)) then
+    do i = 1, size(this%data_)
+      SAFE_DEALLOCATE(this%data_(i)%buffer)
+    end do
+  end if
+  SAFE_DEALLOCATE(this%data_)
 
   if (this%comm /= MPI_COMM_NULL .and. this%comm /= MPI_COMM_WORLD)                          &
        call MPI_Comm_free(this%comm, ierror)
@@ -1611,6 +1679,10 @@ subroutine computeRhs(this, mode, timeStep, stage)
 
   call startTiming("computeRhs")
 
+  ! x-momentum conserving body force. ONLY FOR right-hand side computation
+  if (mode==ADJOINT .and. this%simulationFlags%enableBodyForce)                              &
+    call addBodyForce(this,mode,1)
+
   ! Semi-discrete right-hand-side operator.
   do i = 1, size(this%states)
      select case (mode)
@@ -1694,9 +1766,9 @@ subroutine computeRhs(this, mode, timeStep, stage)
      call this%states(i)%addSources(mode, this%grids(i))
   end do
 
-  ! x-momentum conserving body force. ONLY FOR RK4
+  ! x-momentum conserving body force. ONLY FOR right-hand side computation
   if (this%simulationFlags%enableBodyForce)                                                  &
-    call addBodyForce(this,mode,stage)
+    call addBodyForce(this,mode,2)
 
   ! Zero out right-hand-side in holes.
   do i = 1, size(this%states)
