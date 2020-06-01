@@ -24,7 +24,7 @@ contains
     use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
     ! <<< Internal modules >>>
-    use RegionImpl, only : computeBulkQuantities
+    use RegionImpl, only : computeSpatialAverages
     use ErrorHandler, only : writeAndFlush
     use InputHelper, only : getOption, getRequiredOption
 
@@ -38,7 +38,7 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: nDimensions
     real(SCALAR_KIND) :: timeStepSize, cfl, residuals(3)
-    real(SCALAR_KIND), allocatable :: bulkConservedVariables(:)
+    real(SCALAR_KIND), allocatable :: spatialAverages(:)
     character(len = STRING_LENGTH) :: str, str_, filename, strFormat
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
@@ -82,12 +82,17 @@ contains
        call writeAndFlush(region%comm, output_unit, str)
 
        if (region%simulationFlags%checkConservation) then
-         allocate(bulkConservedVariables(nDimensions+2))
-         call computeBulkQuantities(region,bulkConservedVariables)
+         allocate(spatialAverages(nDimensions+2))
+         call computeSpatialAverages(region,spatialAverages)
          write(strFormat,'(A,I1,A)') "(A,", nDimensions+2, "(X,E13.6),A)"
-         write(str, strFormat) "Conservation status: (", bulkConservedVariables, ")"
+         write(str, strFormat) "Conservation status: (", spatialAverages, ")"
          call writeAndFlush(region%comm, output_unit, str)
-         SAFE_DEALLOCATE(bulkConservedVariables)
+         SAFE_DEALLOCATE(spatialAverages)
+       end if
+
+       if (region%simulationFlags%enableBodyForce) then
+         write(str, '(A,E13.6)') "Body force magnitude: ", region%momentumLossPerVolume
+         call writeAndFlush(region%comm, output_unit, str)
        end if
 
        if (region%outputOn) then
@@ -677,7 +682,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
      call loadInitialCondition(this, region, FORWARD)
   end if
 
-  if (region%simulationFlags%enableBodyForce) then
+  if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
     ! call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
     region%oneOverVolume = computeRegionIntegral(region)
     ! region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
@@ -915,10 +920,10 @@ function runAdjoint(this, region) result(costSensitivity)
   controller%onsetTime = region%states(1)%time
   controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
 
-  if (region%simulationFlags%enableBodyForce) then
-    call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
+  if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
+    ! call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
     region%oneOverVolume = computeRegionIntegral(region)
-    region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+    ! region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
     region%oneOverVolume = 1.0_wp / region%oneOverVolume
 
     region%momentumLossPerVolume = 0.0_wp
@@ -1170,10 +1175,10 @@ function runLinearized(this, region) result(costFunctional)
   write(filename, '(2A)') trim(this%outputPrefix), ".ic.linearized.q"
   call loadInitialCondition(this, region, LINEARIZED, trim(filename))           ! for linearized simulation.
 
-  if (region%simulationFlags%enableBodyForce) then
-    call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
+  if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
+    ! call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
     region%oneOverVolume = computeRegionIntegral(region)
-    region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+    ! region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
     region%oneOverVolume = 1.0_wp / region%oneOverVolume
 
     region%momentumLossPerVolume = 0.0_wp

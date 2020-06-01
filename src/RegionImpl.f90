@@ -921,7 +921,7 @@ contains
 
   end subroutine addBodyForce
 
-  subroutine computeBulkQuantities(region, bulkConservedVariables)
+  subroutine computeSpatialAverages(region, spatialAverages)
 
     ! <<< External modules >>>
     use MPI
@@ -937,7 +937,7 @@ contains
     class(t_Region), intent(in) :: region
 
     ! <<< Result >>>
-    SCALAR_TYPE, intent(out) :: bulkConservedVariables(:)
+    SCALAR_TYPE, intent(out) :: spatialAverages(:)
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -954,9 +954,9 @@ contains
 
     nDimensions = size(region%globalGridSizes, 1)
     assert_key(nDimensions, (1, 2, 3))
-    assert(size(bulkConservedVariables)==nDimensions+2)
+    assert(size(spatialAverages)==nDimensions+2)
 
-    bulkConservedVariables = 0.0_wp
+    spatialAverages = 0.0_wp
 
     do i = 1, size(region%grids)
 
@@ -969,22 +969,24 @@ contains
        F(:,1:nDimensions+2) = region%states(i)%conservedVariables
        F(:,nDimensions+3) = 1.0_wp
        do j = 1, nDimensions+2
-         bulkConservedVariables(j) = bulkConservedVariables(j)                                 &
+         spatialAverages(j) = spatialAverages(j)                                 &
                             + region%grids(i)%computeInnerProduct(F(:,j),F(:,nDimensions+3))
        end do
        SAFE_DEALLOCATE(F)
     end do
 
+    spatialAverages = spatialAverages * region%oneOverVolume
+
     if (region%commGridMasters /= MPI_COMM_NULL)                                               &
-         call MPI_Allreduce(MPI_IN_PLACE, bulkConservedVariables, nDimensions+2,               &
+         call MPI_Allreduce(MPI_IN_PLACE, spatialAverages, nDimensions+2,               &
          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
 
     do i = 1, size(region%grids)
-       call MPI_Bcast(bulkConservedVariables, nDimensions+2, SCALAR_TYPE_MPI,                  &
+       call MPI_Bcast(spatialAverages, nDimensions+2, SCALAR_TYPE_MPI,                  &
             0, region%grids(i)%comm, ierror)
     end do
 
-  end subroutine computeBulkQuantities
+  end subroutine computeSpatialAverages
 
 end module RegionImpl
 
