@@ -10,6 +10,7 @@ module Functional_mod
           runningTimeQuadrature = real(0.0, SCALAR_KIND)
      real(SCALAR_KIND) :: onsetTime = real(0.0, SCALAR_KIND),                                &
           duration = real(0.0, SCALAR_KIND)
+     real(SCALAR_KIND), allocatable :: params(:)
 
    contains
 

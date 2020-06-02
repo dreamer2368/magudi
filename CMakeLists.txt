@@ -108,6 +108,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/InterfaceHelperImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ControlSpaceAdvancer.f90
   ${PROJECT_SOURCE_DIR}/src/ControlSpaceAdvancerImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/Optimizer.f90
+  ${PROJECT_SOURCE_DIR}/src/OptimizerImpl.f90
 
   # Factories.
   ${PROJECT_SOURCE_DIR}/include/PatchFactory.f90
@@ -148,6 +150,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/JetExcitationPatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ResidualManager.f90
   ${PROJECT_SOURCE_DIR}/src/ResidualManagerImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/RegionVector.f90
+  ${PROJECT_SOURCE_DIR}/src/RegionVectorImpl.f90
 
   # Abstract types.
   ${PROJECT_SOURCE_DIR}/include/Patch.f90

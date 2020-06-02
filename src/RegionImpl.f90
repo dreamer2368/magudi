@@ -1102,13 +1102,14 @@ subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptio
   call MPI_Comm_rank(this%comm, procRank, ierror)
   call MPI_Comm_split(this%comm, color, procRank, this%commGridMasters, ierror)
 
+  !TODO: buffer setup for time-varying and body-force-enabled flow.
   ! if (this%simulationFlags%enableBodyForce .and. this%simulationFlags%enableAdjoint) then
-  if (this%simulationFlags%enableAdjoint) then
-    allocate(this%data_(size(this%grids)))
-    do i = 1, size(this%data_)
-      allocate(this%data_(i)%buffer,MOLD=this%states(i)%conservedVariables)
-    end do
-  end if
+  ! if (this%simulationFlags%enableAdjoint) then
+  !   allocate(this%data_(size(this%grids)))
+  !   do i = 1, size(this%data_)
+  !     allocate(this%data_(i)%buffer,MOLD=this%states(i)%conservedVariables)
+  !   end do
+  ! end if
 
   call endTiming("setupRegion")
 
