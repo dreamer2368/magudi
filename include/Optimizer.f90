@@ -17,6 +17,7 @@ module Optimizer_mod
 
      procedure, pass :: setup => setupOptimizer
      procedure, pass :: cleanup => cleanupOptimizer
+     procedure, pass :: verifyNLCG
      procedure, pass :: mnbrak => mnbrakConjugateGradient
      ! procedure, pass :: linmin => linminConjugateGradient
      ! procedure, pass :: frprmn => frprmnConjugateGradient
@@ -25,14 +26,14 @@ module Optimizer_mod
 
   interface
 
-     subroutine setupOptimizer(this, solver, region)
+     subroutine setupOptimizer(this, region)
 
-       use Solver_mod, only : t_Solver
        use Region_mod, only : t_Region
        import :: t_Optimizer
 
+       implicit none
+
        class(t_Optimizer) :: this
-       class(t_Solver) :: solver
        class(t_Region) :: region
 
      end subroutine setupOptimizer
@@ -48,6 +49,22 @@ module Optimizer_mod
        class(t_Optimizer) :: this
 
      end subroutine cleanupOptimizer
+
+  end interface
+
+  interface
+     subroutine verifyNLCG(this, region, solver)
+
+       use Region_mod, only : t_Region
+       use Solver_mod, only : t_Solver
+
+       import :: t_Optimizer
+
+       class(t_Optimizer) :: this
+       class(t_Region) :: region
+       class(t_Solver) :: solver
+
+     end subroutine verifyNLCG
 
   end interface
 
