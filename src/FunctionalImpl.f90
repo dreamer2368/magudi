@@ -31,7 +31,6 @@ subroutine cleanupFunctional(this)
 
   this%cachedValue = 0.0_wp
   this%runningTimeQuadrature = 0.0_wp
-  SAFE_DEALLOCATE(this%params)
 
 end subroutine cleanupFunctional
 

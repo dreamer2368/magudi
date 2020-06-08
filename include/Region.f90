@@ -37,6 +37,7 @@ module Region_mod
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)
+     type(t_InternalStorage) :: params
      type(t_InternalStorage), allocatable :: data_(:)
      integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL, timestep = 0
      integer, allocatable :: globalGridSizes(:,:), processDistributions(:,:),                &
