@@ -23,6 +23,94 @@ subroutine cleanupRegionVector(this)
 
 end subroutine cleanupRegionVector
 
+subroutine saveRegionVector(this, region, mode)
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+  use RegionVector_mod, only : t_RegionVector
+
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_RegionVector) :: this
+  class(t_Region) :: region
+  integer, intent(in) :: mode
+
+  ! <<< Local variables >>>
+  integer :: i
+
+  assert_key(mode,(QOI_FORWARD_STATE,QOI_ADJOINT_STATE))
+  assert(size(this%states)==size(region%states))
+  assert(size(this%params)==size(region%params%buffer,1))
+
+  this%params = region%params%buffer(:,1)
+
+  select case(mode)
+  case(QOI_FORWARD_STATE)
+    do i = 1, size(this%states)
+      assert(size(this%states(i)%conservedVariables,1)==size(region%states(i)%conservedVariables,1))
+      assert(size(this%states(i)%conservedVariables,2)==size(region%states(i)%conservedVariables,2))
+
+      this%states(i)%conservedVariables = region%states(i)%conservedVariables
+    end do
+  case(QOI_ADJOINT_STATE)
+    do i = 1, size(this%states)
+      assert(size(this%states(i)%conservedVariables,1)==size(region%states(i)%adjointVariables,1))
+      assert(size(this%states(i)%conservedVariables,2)==size(region%states(i)%adjointVariables,2))
+
+      this%states(i)%conservedVariables = region%states(i)%adjointVariables
+    end do
+  end select
+
+end subroutine saveRegionVector
+
+subroutine loadRegionVector(this, region, mode)
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+  use RegionVector_mod, only : t_RegionVector
+
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_RegionVector) :: this
+  class(t_Region) :: region
+  integer, intent(in) :: mode
+
+  ! <<< Local variables >>>
+  integer :: i
+
+  assert_key(mode,(QOI_FORWARD_STATE,QOI_ADJOINT_STATE))
+  assert(size(this%states)==size(region%states))
+  assert(size(this%params)==size(region%params%buffer,1))
+
+  region%params%buffer(:,1) = this%params
+
+  select case(mode)
+  case(QOI_FORWARD_STATE)
+    do i = 1, size(this%states)
+      assert(size(this%states(i)%conservedVariables,1)==size(region%states(i)%conservedVariables,1))
+      assert(size(this%states(i)%conservedVariables,2)==size(region%states(i)%conservedVariables,2))
+
+      region%states(i)%conservedVariables = this%states(i)%conservedVariables
+    end do
+  case(QOI_ADJOINT_STATE)
+    do i = 1, size(this%states)
+      assert(size(this%states(i)%conservedVariables,1)==size(region%states(i)%adjointVariables,1))
+      assert(size(this%states(i)%conservedVariables,2)==size(region%states(i)%adjointVariables,2))
+
+      region%states(i)%adjointVariables = this%states(i)%conservedVariables
+    end do
+  end select
+
+end subroutine loadRegionVector
+
 function addRegionVector(a,b) result(r)
 
   ! <<< Derived types >>>

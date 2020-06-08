@@ -16,6 +16,8 @@ module RegionVector_mod
   contains
 
     procedure, pass :: cleanup => cleanupRegionVector
+    procedure, pass :: save => saveRegionVector
+    procedure, pass :: load => loadRegionVector
 
   end type t_RegionVector
 
@@ -28,6 +30,36 @@ module RegionVector_mod
        class(t_RegionVector) :: this
 
      end subroutine cleanupRegionVector
+
+  end interface
+
+  interface
+
+     subroutine saveRegionVector(this, region, mode)
+
+       use Region_mod, only : t_Region
+       import :: t_RegionVector
+
+       class(t_RegionVector) :: this
+       class(t_Region) :: region
+       integer, intent(in) :: mode
+
+     end subroutine saveRegionVector
+
+  end interface
+
+  interface
+
+     subroutine loadRegionVector(this, region, mode)
+
+       use Region_mod, only : t_Region
+       import :: t_RegionVector
+
+       class(t_RegionVector) :: this
+       class(t_Region) :: region
+       integer, intent(in) :: mode
+
+     end subroutine loadRegionVector
 
   end interface
 
