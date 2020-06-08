@@ -360,8 +360,8 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   stage = random(1,4)
   if (region%simulationFlags%enableBodyForce) then
     region%oneOverVolume = computeRegionIntegral(region)
-    call random_number(region%initialXmomentum)
-    region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
+    ! call random_number(region%initialXmomentum)
+    ! region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
     if (stage==1) then
       region%momentumLossPerVolume = 0.0_wp
     else
@@ -369,7 +369,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
     end if
     region%oneOverVolume = 1.0_wp / region%oneOverVolume
 
-    region%adjointMomentumLossPerVolume = 0.0_wp
+    ! region%adjointMomentumLossPerVolume = 0.0_wp
   end if
 
   ! Compute baseline rhs

@@ -921,13 +921,10 @@ function runAdjoint(this, region) result(costSensitivity)
   controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
 
   if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
-    ! call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
     region%oneOverVolume = computeRegionIntegral(region)
-    ! region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
     region%oneOverVolume = 1.0_wp / region%oneOverVolume
 
     region%momentumLossPerVolume = 0.0_wp
-    region%adjointMomentumLossPerVolume = 0.0_wp
   end if
 
   ! Load the adjoint coefficients corresponding to the end of the control time horizon.
@@ -1176,13 +1173,10 @@ function runLinearized(this, region) result(costFunctional)
   call loadInitialCondition(this, region, LINEARIZED, trim(filename))           ! for linearized simulation.
 
   if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
-    ! call getRequiredOption("body_force/initial_momentum", region%initialXmomentum)
     region%oneOverVolume = computeRegionIntegral(region)
-    ! region%initialXmomentum = region%initialXmomentum * region%oneOverVolume
     region%oneOverVolume = 1.0_wp / region%oneOverVolume
 
     region%momentumLossPerVolume = 0.0_wp
-    region%adjointMomentumLossPerVolume = 0.0_wp
   end if
 
   startTimestep = region%timestep
