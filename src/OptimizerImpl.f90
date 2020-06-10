@@ -151,10 +151,6 @@ subroutine verifyNLCG(this, region, solver)
           region%solverOptions)
   end do
 
-  do i = 1, size(region%states)
-    call random_number(region%states(i)%adjointVariables)
-  end do
-
   call region%computeRhs(FORWARD,1,1)
   costFunctional0 = functional%compute(region)
   write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
@@ -162,8 +158,14 @@ subroutine verifyNLCG(this, region, solver)
   call writeAndFlush(region%comm, output_unit, message)
 
   call saveRegionVector(this%base,region,QOI_FORWARD_STATE)
-  ! call saveRegionVector(this%prevGrad,region,QOI_RIGHT_HAND_SIDE)
-  ! call loadRegionVector(region,this%prevGrad,QOI_ADJOINT_STATE)
+  call saveRegionVector(this%prevGrad,region,QOI_RIGHT_HAND_SIDE)
+  call loadRegionVector(region,this%prevGrad,QOI_ADJOINT_STATE)
+  do i = 1, size(region%states)
+    do j = 1, region%solverOptions%nUnknowns
+      region%states(i)%adjointVariables(:,j) = region%states(i)%adjointVariables(:,j) *      &
+                                                    region%grids(i)%targetMollifier(:,1)
+    end do
+  end do
 
   call functional%updateAdjointForcing(region,.true.)
   call region%computeRhs(ADJOINT,1,1)
@@ -173,7 +175,7 @@ subroutine verifyNLCG(this, region, solver)
                              'Adjoint run: cost sensitivity = ', costSensitivity
   call writeAndFlush(region%comm, output_unit, message)
 
-  stepSizes(1) = 0.001_wp
+  stepSizes(1) = 0.00001_wp
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
