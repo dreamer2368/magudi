@@ -32,7 +32,7 @@ subroutine setupTravelingWave(this, region)
 
   SAFE_DEALLOCATE(region%params%buffer)
   allocate(region%params%buffer(1,1))
-  region%params%buffer = getOption("traveling_wave/initial_speed",1.0_wp)
+  region%params%buffer = getOption("traveling_wave/initial_speed",0.0_wp)
 
 end subroutine setupTravelingWave
 
@@ -155,10 +155,13 @@ function computeTravelingWave(this, region) result(instantaneousFunctional)
 
      allocate(F(region%grids(i)%nGridPoints, region%solverOptions%nUnknowns))
      call this%computeSpatialDistribution(region%grids(i),region%states(i),F)
-     instantaneousFunctional = instantaneousFunctional + 0.5_wp *                            &
+     instantaneousFunctional = instantaneousFunctional + 1.0_wp *                            &
+       ! computeQuadratureOnPatches( region%patchFactories, 'COST_TARGET', region%grids(i),    &
+       !   sum(( - region%params%buffer(1,1)*F - region%states(i)%rightHandSide)**2, dim=2) *  &
+       !                                                 region%grids(i)%targetMollifier(:,1) )
        computeQuadratureOnPatches( region%patchFactories, 'COST_TARGET', region%grids(i),    &
-         sum(( - region%params%buffer(1,1)*F - region%states(i)%rightHandSide)**2, dim=2) *  &
-                                                       region%grids(i)%targetMollifier(:,1) )
+         ! sum(region%states(i)%rightHandSide**2, dim=2) * region%grids(i)%targetMollifier(:,1) )
+         sum(region%states(i)%rightHandSide * region%states(i)%adjointVariables, dim=2) )
      SAFE_DEALLOCATE(F)
   end do
 

@@ -4,6 +4,8 @@ module RegionVector_mod
 
   implicit none
 
+  public :: operator(*), operator(+), operator(-)
+
   type, private :: t_InternalState
     SCALAR_TYPE, allocatable :: conservedVariables(:,:)
   end type
@@ -16,8 +18,8 @@ module RegionVector_mod
   contains
 
     procedure, pass :: cleanup => cleanupRegionVector
-    procedure, pass :: save => saveRegionVector
-    procedure, pass :: load => loadRegionVector
+    procedure, pass, private :: setFromRegion, setFromRegionVector
+    generic, public :: set => setFromRegion, setFromRegionVector
 
   end type t_RegionVector
 
@@ -35,35 +37,45 @@ module RegionVector_mod
 
   interface
 
-     subroutine saveRegionVector(this, region, mode)
+    subroutine setFromRegionVector(this,x)
 
-       use Region_mod, only : t_Region
-       import :: t_RegionVector
+      import :: t_RegionVector
 
-       class(t_RegionVector) :: this
-       class(t_Region) :: region
-       integer, intent(in) :: mode
+      class(t_RegionVector), intent(inout) :: this
+      class(t_RegionVector), intent(in) :: x
 
-     end subroutine saveRegionVector
+    end subroutine setFromRegionVector
 
   end interface
 
   interface
 
-     subroutine loadRegionVector(this, region, mode)
+    subroutine setFromRegion(this,x)
 
-       use Region_mod, only : t_Region
-       import :: t_RegionVector
+      use Region_mod, only : t_Region
+      import :: t_RegionVector
 
-       class(t_RegionVector) :: this
-       class(t_Region) :: region
-       integer, intent(in) :: mode
+      class(t_RegionVector), intent(inout) :: this
+      class(t_Region), intent(in) :: x
 
-     end subroutine loadRegionVector
+    end subroutine setFromRegion
 
   end interface
 
-  interface
+  interface assignment (=)
+
+     subroutine copyRegionVector(b, a)
+
+       import :: t_RegionVector
+
+       class(t_RegionVector), intent(inout) :: b
+       class(t_RegionVector), intent(in) :: a
+
+     end subroutine copyRegionVector
+
+  end interface
+
+  interface operator (+)
 
      function addRegionVector(a,b) result(r)
 
@@ -76,7 +88,7 @@ module RegionVector_mod
 
   end interface
 
-  interface
+  interface operator (-)
 
      function subtractRegionVector(a,b) result(r)
 
@@ -89,32 +101,17 @@ module RegionVector_mod
 
   end interface
 
-  interface
+  interface operator(*)
 
     function multiplyRegionVector(a,b) result(r)
 
       import :: t_RegionVector
 
-      SCALAR_TYPE, intent(in) :: a
-      class(t_RegionVector), intent(in) :: b
+      class(t_RegionVector), intent(in) :: a
+      SCALAR_TYPE, intent(in) :: b
       type(t_RegionVector) :: r
 
     end function multiplyRegionVector
-
-  end interface
-
-  interface
-
-    function innerProduct(a,b,region) result(r)
-
-      use Region_mod, only : t_Region
-      import :: t_RegionVector
-
-      class(t_RegionVector), intent(in) :: a, b
-      class(t_Region), intent(in) :: region
-      SCALAR_TYPE :: r
-
-    end function innerProduct
 
   end interface
 

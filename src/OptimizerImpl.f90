@@ -86,12 +86,14 @@ subroutine verifyNLCG(this, region, solver)
   use ActuatorPatch_mod, only : t_ActuatorPatch
 
   ! <<< Enumerations >>>
-  use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_TIME_AVERAGED_STATE
-  use Region_enum, only : FORWARD, LINEARIZED
+  use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   ! <<< Private members >>>
   use SolverImpl, only : showProgress, checkSolutionLimits, loadInitialCondition
   use RegionImpl, only : computeRegionIntegral
+  use RegionVector_mod
+  use RegionVectorImpl
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -114,9 +116,10 @@ subroutine verifyNLCG(this, region, solver)
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename, message
   class(t_Functional), pointer :: functional => null()
-  integer :: i, j
-  SCALAR_TYPE :: instantaneousCostFunctional, costFunctional
-  logical :: solutionCrashes = .false.
+  integer :: i, j, k, nDimensions, nUnknowns
+  SCALAR_TYPE :: costFunctional0, costFunctional1, costSensitivity
+  SCALAR_TYPE :: stepSizes(32), errorHistory(32), convergenceHistory(31)
+  logical :: solutionCrashes = .false., success_
 
   call startTiming("verifyNLCG")
 
@@ -148,12 +151,55 @@ subroutine verifyNLCG(this, region, solver)
           region%solverOptions)
   end do
 
+  do i = 1, size(region%states)
+    call random_number(region%states(i)%adjointVariables)
+  end do
+
   call region%computeRhs(FORWARD,1,1)
+  costFunctional0 = functional%compute(region)
+  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
+                              'Forward run: cost functional = ', costFunctional0
+  call writeAndFlush(region%comm, output_unit, message)
 
-  !TODO: Update the delta functional.
-  instantaneousCostFunctional = functional%compute(region)
-  functional%runningTimeQuadrature = instantaneousCostFunctional
+  call saveRegionVector(this%base,region,QOI_FORWARD_STATE)
+  ! call saveRegionVector(this%prevGrad,region,QOI_RIGHT_HAND_SIDE)
+  ! call loadRegionVector(region,this%prevGrad,QOI_ADJOINT_STATE)
 
+  call functional%updateAdjointForcing(region,.true.)
+  call region%computeRhs(ADJOINT,1,1)
+  call saveRegionVector(this%grad,region,QOI_RIGHT_HAND_SIDE)
+  costSensitivity = regionInnerProduct(this%grad,this%grad,region)
+  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
+                             'Adjoint run: cost sensitivity = ', costSensitivity
+  call writeAndFlush(region%comm, output_unit, message)
+
+  stepSizes(1) = 0.001_wp
+  do k = 2, size(stepSizes)
+     stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
+  end do
+  errorHistory = 0.0_wp
+  do k = 1, size(stepSizes)
+    call loadRegionVector(region,this%base + this%grad*stepSizes(k),QOI_FORWARD_STATE)
+    do i = 1, size(region%states) !... update state
+       call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
+            region%solverOptions)
+    end do
+    call region%computeRhs(FORWARD,1,1)
+    costFunctional1 = functional%compute(region)
+
+    errorHistory(k) = abs( ((costFunctional1-costFunctional0)/stepSizes(k) + costSensitivity)/costSensitivity )
+    write(message, '(4(' // SCALAR_FORMAT // ',1X))') stepSizes(k), -costSensitivity,                   &
+                  (costFunctional1-costFunctional0)/stepSizes(k), errorHistory(k)
+    call writeAndFlush(region%comm, output_unit, message)
+
+    if (k > 1) then
+       convergenceHistory(k-1) = log(errorHistory(k) / errorHistory(k-1)) /              &
+            log(stepSizes(k) / stepSizes(k-1))
+       if (k > 5) then
+           if (sum(convergenceHistory(k-3:k-1))/3.0_wp < 0.0_wp) exit
+       end if
+    end if
+  end do
   ! ! Report simulation progess.
   ! call showProgress(solver, region, LINEARIZED, startTimestep, timestep,                       &
   !     time, instantaneousCostFunctional)
@@ -170,11 +216,6 @@ subroutine verifyNLCG(this, region, solver)
 
   ! Finish writing remaining data gathered on probes.
   if (solver%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
-
-  costFunctional = functional%runningTimeQuadrature
-  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Forward run: cost functional = ', &
-                                                           costFunctional
-  call writeAndFlush(region%comm, output_unit, message)
 
   call endTiming("verifyNLCG")
 
