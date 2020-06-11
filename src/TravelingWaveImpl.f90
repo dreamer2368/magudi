@@ -80,10 +80,9 @@ subroutine computeTravelingWaveSpatialDistribution(this, grid, state, F)
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  assert(allocated(F))
-  assert(size(F,1)==grids%nGridPoints)
+  assert(size(F,1)==grid%nGridPoints)
   assert(size(F,2)==nDimensions+2)
-  assert(size(state%conservedVariables,1)==grids%nGridPoints)
+  assert(size(state%conservedVariables,1)==grid%nGridPoints)
   assert(size(state%conservedVariables,2)==nDimensions+2)
 
   allocate(fluxes1(grid%nGridPoints, nDimensions+2, nDimensions))
