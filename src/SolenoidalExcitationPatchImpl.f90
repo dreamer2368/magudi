@@ -73,7 +73,11 @@ subroutine setupSolenoidalExcitationPatch(this, index, comm, patchDescriptor,   
      do i = 1, 3
         call random_number(this%phases(:,i))
      end do
-     call random_number(this%angularFrequencies)
+     if (getOption(trim(key) // "randomize_frequency", .true.)) then
+       call random_number(this%angularFrequencies)
+     else
+       this%angularFrequencies = 0.5_real64
+     end if
      this%phases = 2.0_real64 * pi * this%phases
 
      do i = 1, this%nModes

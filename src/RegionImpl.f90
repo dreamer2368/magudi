@@ -2001,6 +2001,8 @@ subroutine saveProbeData(this, mode, finish)
   finish_ = .false.
   if (present(finish)) finish_ = finish
 
+  if (.not. allocated(this%patchFactories)) return
+
   do i = 1, size(this%patchFactories)
      call this%patchFactories(i)%connect(patch)
      if (.not. associated(patch)) cycle

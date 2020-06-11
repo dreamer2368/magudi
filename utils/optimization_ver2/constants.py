@@ -8,12 +8,15 @@ matchingConditionWeight = 1.0e-7 * np.ones(Nsplit)       # weight for matching c
 initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
 useLagrangian = False                                    # flag for augmented lagrangian
 ignoreObjective = False
+ignoreController = False
 periodicSolution = False
 if (not periodicSolution):
     matchingConditionWeight[0] = 0.0
     initialConditionControllability[0] = 0.0
 
 NcontrolRegion = 1                                       # number of control region
+if (ignoreController):
+    NcontrolRegion = 0
 
 NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
 
