@@ -12,7 +12,6 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
   use LighthillSource_mod, only : t_LighthillSource
   use LighthillTensorComponent_mod, only : t_LighthillTensorComponent
   use DensityGradient_mod, only: t_DensityGradient
-  use TravelingWave_mod, only: t_TravelingWave
 
   implicit none
 
@@ -58,9 +57,6 @@ subroutine connectFunctional(this, functionalTarget, functionalType, createNew)
 
      case ('DENSITY_GRADIENT')
         allocate(t_DensityGradient :: this%functional)
-
-     case ('TRAVELING_WAVE')
-        allocate(t_TravelingWave :: this%functional)
 
      case default
         this%functionalType = ""

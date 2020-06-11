@@ -1,12 +1,11 @@
 #include "config.h"
 
-program nlcg
+program traveling_wave
 
   use MPI
   use, intrinsic :: iso_fortran_env, only : output_unit
 
   use Region_mod, only : t_Region
-  use Solver_mod, only : t_Solver
   use Optimizer_mod, only : t_Optimizer
 
   use Grid_enum
@@ -16,6 +15,7 @@ program nlcg
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
+  use TravelingWaveImpl, only : setupTravelingWave
 
   implicit none
 
@@ -29,7 +29,6 @@ program nlcg
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
-  type(t_Solver) :: solver
   type(t_Optimizer) :: optimizer
 
   ! << output variables >>
@@ -126,8 +125,7 @@ program nlcg
     call region%saveData(QOI_METRICS, filename)
   end if
 
-  ! Initialize the solver.
-  call solver%setup(region, outputPrefix = outputPrefix)
+  call setupTravelingWave(region)
 
   ! Initialize the optimizer.
   call optimizer%setup(region)
@@ -140,7 +138,7 @@ program nlcg
 
   ! Main code logic.
   if (verifyFlag) then
-     call optimizer%verifyNLCG(region, solver)
+     call optimizer%verifyNLCG(region)
   else
 
   end if
@@ -156,7 +154,6 @@ program nlcg
 
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
-  call solver%cleanup()
   call region%cleanup()
   call optimizer%cleanup()
 
@@ -168,4 +165,4 @@ program nlcg
   call cleanupErrorHandler()
   call MPI_Finalize(ierror)
 
-end program nlcg
+end program traveling_wave

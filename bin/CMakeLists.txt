@@ -11,4 +11,4 @@ add_executable(slice_control_forcing $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURC
 add_executable(paste_control_forcing $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/paste_control_forcing.f90)
 add_executable(spatial_inner_product $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/spatial_inner_product.f90)
 add_executable(qfile_zaxpy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/qfile_zaxpy.f90)
-add_executable(nlcg $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/NLCG.f90)
+add_executable(traveling_wave $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/traveling_wave.f90)

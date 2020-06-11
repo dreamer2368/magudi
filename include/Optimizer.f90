@@ -9,7 +9,7 @@ module Optimizer_mod
   type, public :: t_Optimizer
 
      integer :: numGrids, numParams
-     type(t_RegionVector) :: base, grad, conjGrad, prevGrad, prevCG
+     type(t_RegionVector) :: residual, base, grad, conjGrad, prevGrad, prevCG
      SCALAR_TYPE :: initialStep, goldenRatio, linminTol, cgTol
      SCALAR_TYPE :: bracket(3), step
 
@@ -53,16 +53,14 @@ module Optimizer_mod
   end interface
 
   interface
-     subroutine verifyNLCG(this, region, solver)
+     subroutine verifyNLCG(this, region)
 
        use Region_mod, only : t_Region
-       use Solver_mod, only : t_Solver
 
        import :: t_Optimizer
 
        class(t_Optimizer) :: this
        class(t_Region) :: region
-       class(t_Solver) :: solver
 
      end subroutine verifyNLCG
 

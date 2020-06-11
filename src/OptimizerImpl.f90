@@ -29,27 +29,15 @@ subroutine setupOptimizer(this, region)
   this%cgTol = getOption("optimization/cg_tolerance",(1.0_wp)**(-5))
 
   this%numGrids = size(region%grids)
-  assert(region%simulationFlags%enableFunctional)
   this%numParams = 0
   if (allocated(region%params%buffer)) this%numParams = size(region%params%buffer,1)
 
-  allocate(this%base%states(this%numGrids))
-  allocate(this%grad%states(this%numGrids))
-  allocate(this%conjGrad%states(this%numGrids))
-  allocate(this%prevGrad%states(this%numGrids))
-  allocate(this%prevCG%states(this%numGrids))
-  do i = 1, this%numGrids
-    allocate(this%base%states(i)%conservedVariables,MOLD=region%states(i)%conservedVariables)
-    allocate(this%grad%states(i)%conservedVariables,MOLD=region%states(i)%conservedVariables)
-    allocate(this%conjGrad%states(i)%conservedVariables,MOLD=region%states(i)%conservedVariables)
-    allocate(this%prevGrad%states(i)%conservedVariables,MOLD=region%states(i)%conservedVariables)
-    allocate(this%prevCG%states(i)%conservedVariables,MOLD=region%states(i)%conservedVariables)
-  end do
-  allocate(this%base%params(this%numParams))
-  allocate(this%grad%params(this%numParams))
-  allocate(this%conjGrad%params(this%numParams))
-  allocate(this%prevGrad%params(this%numParams))
-  allocate(this%prevCG%params(this%numParams))
+  call this%residual%set(region)
+  call this%base%set(region)
+  call this%grad%set(region)
+  call this%conjGrad%set(region)
+  call this%prevGrad%set(region)
+  call this%prevCG%set(region)
 
 end subroutine setupOptimizer
 
@@ -64,6 +52,7 @@ subroutine cleanupOptimizer(this)
   ! <<< Arguments >>>
   class(t_Optimizer) :: this
 
+  call this%residual%cleanup()
   call this%base%cleanup()
   call this%grad%cleanup()
   call this%conjGrad%cleanup()
@@ -72,7 +61,7 @@ subroutine cleanupOptimizer(this)
 
 end subroutine cleanupOptimizer
 
-subroutine verifyNLCG(this, region, solver)
+subroutine verifyNLCG(this, region)
 
   ! <<< External modules >>>
   use iso_fortran_env, only : output_unit
@@ -80,10 +69,9 @@ subroutine verifyNLCG(this, region, solver)
   ! <<< Derived types >>>
   use Patch_mod, only : t_Patch
   use Region_mod, only : t_Region
-  use Solver_mod, only : t_Solver
   use Optimizer_mod, only : t_Optimizer
-  use Functional_mod, only : t_Functional
   use ActuatorPatch_mod, only : t_ActuatorPatch
+  use RegionVector_mod
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE
@@ -92,30 +80,23 @@ subroutine verifyNLCG(this, region, solver)
   ! <<< Private members >>>
   use SolverImpl, only : showProgress, checkSolutionLimits, loadInitialCondition
   use RegionImpl, only : computeRegionIntegral
-  use RegionVector_mod
   use RegionVectorImpl
+  use TravelingWaveImpl
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
   use ErrorHandler, only : writeAndFlush
   use InputHelper, only : getOption, getRequiredOption
 
-  ! <<< SeungWhan: debug >>>
-  use InputHelper, only : getOption
-  use, intrinsic :: iso_fortran_env, only : output_unit
-  use ErrorHandler, only : writeAndFlush
-
   implicit none
 
   ! <<< Arguments >>>
   class(t_Optimizer) :: this
-  class(t_Solver) :: solver
   class(t_Region) :: region
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename, message
-  class(t_Functional), pointer :: functional => null()
   integer :: i, j, k, nDimensions, nUnknowns
   SCALAR_TYPE :: costFunctional0, costFunctional1, costSensitivity
   SCALAR_TYPE :: stepSizes(32), errorHistory(32), convergenceHistory(31)
@@ -123,14 +104,9 @@ subroutine verifyNLCG(this, region, solver)
 
   call startTiming("verifyNLCG")
 
-  ! Connect to the previously allocated functional.
-  assert(region%simulationFlags%enableFunctional)
-  call solver%functionalFactory%connect(functional)
-  assert(associated(functional))
-  functional%runningTimeQuadrature = 0.0_wp
-
   ! Load the initial condition.
-  call loadInitialCondition(solver, region, FORWARD)                              ! for baseline simulation.
+  call getRequiredOption("initial_condition_file", filename, region%comm)
+  call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
 
   if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
     region%oneOverVolume = computeRegionIntegral(region)
@@ -139,20 +115,14 @@ subroutine verifyNLCG(this, region, solver)
     region%momentumLossPerVolume = 0.0_wp
   end if
 
-  ! ! Save the initial condition if it was not specified as a restart file.
-  ! write(filename, '(2A,I8.8,A)') trim(solver%outputPrefix), "-", startTimestep, ".q"
-  ! call region%saveData(QOI_FORWARD_STATE, filename)
-
-  ! Reset probes.
-  if (solver%probeInterval > 0) call region%resetProbes()
-
   do i = 1, size(region%states) !... update state
      call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
           region%solverOptions)
   end do
 
   call region%computeRhs(FORWARD,1,1)
-  costFunctional0 = functional%compute(region)
+  call computeTravelingWaveResidual(region,this%residual)
+  costFunctional0 = 0.5_wp * regionInnerProduct(this%residual,this%residual,region)
   write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
                               'Forward run: cost functional = ', costFunctional0
   call writeAndFlush(region%comm, output_unit, message)
@@ -160,14 +130,8 @@ subroutine verifyNLCG(this, region, solver)
   call saveRegionVector(this%base,region,QOI_FORWARD_STATE)
   call saveRegionVector(this%prevGrad,region,QOI_RIGHT_HAND_SIDE)
   call loadRegionVector(region,this%prevGrad,QOI_ADJOINT_STATE)
-  do i = 1, size(region%states)
-    do j = 1, region%solverOptions%nUnknowns
-      region%states(i)%adjointVariables(:,j) = region%states(i)%adjointVariables(:,j) *      &
-                                                    region%grids(i)%targetMollifier(:,1)
-    end do
-  end do
 
-  call functional%updateAdjointForcing(region,.true.)
+  ! call functional%updateAdjointForcing(region,.true.)
   call region%computeRhs(ADJOINT,1,1)
   call saveRegionVector(this%grad,region,QOI_RIGHT_HAND_SIDE)
   costSensitivity = regionInnerProduct(this%grad,this%grad,region)
@@ -187,7 +151,8 @@ subroutine verifyNLCG(this, region, solver)
             region%solverOptions)
     end do
     call region%computeRhs(FORWARD,1,1)
-    costFunctional1 = functional%compute(region)
+    call computeTravelingWaveResidual(region,this%residual)
+    costFunctional1 = 0.5_wp * regionInnerProduct(this%residual,this%residual,region)
 
     errorHistory(k) = abs( ((costFunctional1-costFunctional0)/stepSizes(k) + costSensitivity)/costSensitivity )
     write(message, '(4(' // SCALAR_FORMAT // ',1X))') stepSizes(k), -costSensitivity,                   &
@@ -205,9 +170,6 @@ subroutine verifyNLCG(this, region, solver)
   ! ! Report simulation progess.
   ! call showProgress(solver, region, LINEARIZED, startTimestep, timestep,                       &
   !     time, instantaneousCostFunctional)
-
-  ! Save solution on probe patches.
-  if (solver%probeInterval > 0) call region%saveProbeData(FORWARD)
   !
   ! ! Filter solution if required.
   ! if (region%simulationFlags%filterOn) then
@@ -215,9 +177,6 @@ subroutine verifyNLCG(this, region, solver)
   !      call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
   !   end do
   ! end if
-
-  ! Finish writing remaining data gathered on probes.
-  if (solver%probeInterval > 0) call region%saveProbeData(FORWARD, finish = .true.)
 
   call endTiming("verifyNLCG")
 

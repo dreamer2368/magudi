@@ -213,7 +213,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ProbePatch.f90
   ${PROJECT_SOURCE_DIR}/src/ProbePatchImpl.f90
-  ${PROJECT_SOURCE_DIR}/include/TravelingWave.f90
+
+  
   ${PROJECT_SOURCE_DIR}/src/TravelingWaveImpl.f90
 
   # C source files.
