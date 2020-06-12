@@ -225,7 +225,7 @@ subroutine setFromRegion(this,x)
 
   allocate(this%states(size(x%states)))
   nParams = 0
-  if (.not. allocated(x%params%buffer)) nParams = size(x%params%buffer,1)
+  if (allocated(x%params%buffer)) nParams = size(x%params%buffer,1)
   allocate(this%params(nParams))
 
   do i = 1, size(x%states)
