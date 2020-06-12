@@ -119,6 +119,7 @@ subroutine verifyNLCG(this, region)
      call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
           region%solverOptions)
   end do
+  call saveRegionVector(this%base,region,QOI_FORWARD_STATE)
 
   call region%computeRhs(FORWARD,1,1)
   call computeTravelingWaveResidual(region,this%residual)
@@ -127,13 +128,9 @@ subroutine verifyNLCG(this, region)
                               'Forward run: cost functional = ', costFunctional0
   call writeAndFlush(region%comm, output_unit, message)
 
-  call saveRegionVector(this%base,region,QOI_FORWARD_STATE)
-  call saveRegionVector(this%prevGrad,region,QOI_RIGHT_HAND_SIDE)
-  call loadRegionVector(region,this%prevGrad,QOI_ADJOINT_STATE)
-
-  ! call functional%updateAdjointForcing(region,.true.)
+  call setTravelingWaveAdjoint(this%residual,region)
   call region%computeRhs(ADJOINT,1,1)
-  call saveRegionVector(this%grad,region,QOI_RIGHT_HAND_SIDE)
+  call computeTravelingWaveGradient(region,this%grad)
   costSensitivity = regionInnerProduct(this%grad,this%grad,region)
   write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
                              'Adjoint run: cost sensitivity = ', costSensitivity
@@ -154,8 +151,8 @@ subroutine verifyNLCG(this, region)
     call computeTravelingWaveResidual(region,this%residual)
     costFunctional1 = 0.5_wp * regionInnerProduct(this%residual,this%residual,region)
 
-    errorHistory(k) = abs( ((costFunctional1-costFunctional0)/stepSizes(k) + costSensitivity)/costSensitivity )
-    write(message, '(4(' // SCALAR_FORMAT // ',1X))') stepSizes(k), -costSensitivity,                   &
+    errorHistory(k) = abs( ((costFunctional1-costFunctional0)/stepSizes(k) - costSensitivity)/costSensitivity )
+    write(message, '(4(' // SCALAR_FORMAT // ',1X))') stepSizes(k), costSensitivity,                   &
                   (costFunctional1-costFunctional0)/stepSizes(k), errorHistory(k)
     call writeAndFlush(region%comm, output_unit, message)
 

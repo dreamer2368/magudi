@@ -98,4 +98,74 @@ contains
 
   end subroutine computeTravelingWaveResidual
 
+  subroutine setTravelingWaveAdjoint(residual, region)
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+    use RegionVector_mod, only : t_RegionVector
+
+    ! <<< Internal modules >>>
+    use CNSHelper, only: transformFluxes
+
+    implicit none
+
+    ! <<< Arguments >>>
+    class(t_RegionVector), intent(in) :: residual
+    class(t_Region) :: region
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, nDimensions, nUnknowns
+    SCALAR_TYPE, allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:)
+
+    nUnknowns = region%solverOptions%nUnknowns
+    nDimensions = nUnknowns - 2
+    assert_key(nDimensions, (1, 2, 3))
+
+    do i = 1, size(region%states)
+      assert(size(region%states(i)%adjointVariables,1)==region%grids(i)%nGridPoints)
+      assert(size(region%states(i)%adjointVariables,2)==nUnknowns)
+
+      region%states(i)%adjointVariables = residual%states(i)%conservedVariables
+    end do
+
+  end subroutine setTravelingWaveAdjoint
+
+  subroutine computeTravelingWaveGradient(region, grad)
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+    use RegionVector_mod, only : t_RegionVector
+
+    ! <<< Internal modules >>>
+    use CNSHelper, only: transformFluxes
+
+    implicit none
+
+    ! <<< Arguments >>>
+    class(t_Region) :: region
+    class(t_RegionVector) :: grad
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, j, nDimensions, nUnknowns
+    SCALAR_TYPE, allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:)
+
+    nUnknowns = region%solverOptions%nUnknowns
+    nDimensions = nUnknowns - 2
+    assert_key(nDimensions, (1, 2, 3))
+
+    do i = 1, size(region%states)
+      assert(size(region%states(i)%rightHandSide,1)==region%grids(i)%nGridPoints)
+      assert(size(region%states(i)%rightHandSide,2)==nUnknowns)
+
+      !NOTE: on the formulation it should be (-RHS).
+      ! However current adjoint rhs includes the negative sign.
+      grad%states(i)%conservedVariables = region%states(i)%rightHandSide
+    end do
+
+    grad%params = 0.0_wp
+
+  end subroutine computeTravelingWaveGradient
+
 end module TravelingWaveImpl
