@@ -235,4 +235,63 @@ contains
 
   end subroutine computeTravelingWaveGradient
 
+  subroutine saveTravelingWave(region,filename)
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! <<< Enumerations >>>
+    use State_enum, only : QOI_FORWARD_STATE
+
+    ! <<< Internal modules >>>
+    use PLOT3DHelper
+
+    implicit none
+
+    ! <<< Arguments >>>
+    class(t_Region) :: region
+    character(len = *), intent(in) :: filename
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i
+
+    do i = 1, size(region%states)
+      region%states(i)%plot3dAuxiliaryData(2) = region%params%buffer(1,1)
+    end do
+
+    call region%saveData(QOI_FORWARD_STATE,filename)
+
+  end subroutine saveTravelingWave
+
+  subroutine loadTravelingWave(region,filename)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! <<< Enumerations >>>
+    use State_enum, only : QOI_FORWARD_STATE
+
+    ! <<< Internal modules >>>
+    use PLOT3DHelper
+
+    implicit none
+
+    ! <<< Arguments >>>
+    class(t_Region) :: region
+    character(len = *), intent(in) :: filename
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i
+
+    call region%loadData(QOI_FORWARD_STATE,filename)
+
+    region%params%buffer(1,1) = region%states(1)%plot3dAuxiliaryData(2)
+
+  end subroutine loadTravelingWave
+
 end module TravelingWaveImpl

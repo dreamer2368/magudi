@@ -4,7 +4,7 @@ module RegionVector_mod
 
   implicit none
 
-  public :: operator(*), operator(+), operator(-)
+  public :: assignment(=), operator(*), operator(+), operator(-)
 
   type, private :: t_InternalState
     SCALAR_TYPE, allocatable :: conservedVariables(:,:)

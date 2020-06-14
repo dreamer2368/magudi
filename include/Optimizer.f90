@@ -1,5 +1,17 @@
 #include "config.h"
 
+module Optimier_enum
+
+  implicit none
+  public
+
+  integer, parameter ::                                                                      &
+       VERIFY = 301,                                                                         &
+       NLCG   = 302,                                                                         &
+       NEWTON = 303
+
+end module Optimier_enum
+
 module Optimizer_mod
 
   use RegionVector_mod, only : t_RegionVector
@@ -8,17 +20,21 @@ module Optimizer_mod
 
   type, public :: t_Optimizer
 
-     integer :: numGrids, numParams
+     integer :: numGrids, numParams, saveInterval, reportInterval, nTimesteps
      type(t_RegionVector) :: residual, base, grad, conjGrad, prevGrad, prevCG
      SCALAR_TYPE :: initialStep, goldenRatio, linminTol, cgTol
-     SCALAR_TYPE :: bracket(3), step
+     SCALAR_TYPE :: bracket(3,2), gg1
+     character(len=STRING_LENGTH) :: outputPrefix
+     logical :: verbose
 
    contains
 
      procedure, pass :: setup => setupOptimizer
      procedure, pass :: cleanup => cleanupOptimizer
-     procedure, pass :: verifyNLCG
-     procedure, pass :: mnbrak => mnbrakConjugateGradient
+     procedure, pass :: verifyAdjoint
+     procedure, pass :: runNLCG
+     procedure, pass :: printBracket
+     procedure, pass :: showProgress => showProgressOptimizer
      ! procedure, pass :: linmin => linminConjugateGradient
      ! procedure, pass :: frprmn => frprmnConjugateGradient
 
@@ -53,7 +69,7 @@ module Optimizer_mod
   end interface
 
   interface
-     subroutine verifyNLCG(this, region)
+     subroutine verifyAdjoint(this, region)
 
        use Region_mod, only : t_Region
 
@@ -62,56 +78,57 @@ module Optimizer_mod
        class(t_Optimizer) :: this
        class(t_Region) :: region
 
-     end subroutine verifyNLCG
+     end subroutine verifyAdjoint
 
   end interface
 
   interface
 
-     subroutine mnbrakConjugateGradient(this, solver, region)
+     subroutine runNLCG(this, region, restartFilename)
 
-       use Solver_mod, only : t_Solver
        use Region_mod, only : t_Region
        import :: t_Optimizer
 
        class(t_Optimizer) :: this
-       class(t_Solver) :: solver
        class(t_Region) :: region
+       character(len = *), intent(in), optional :: restartFilename
 
-     end subroutine mnbrakConjugateGradient
+     end subroutine runNLCG
 
   end interface
 
-  ! interface
-  !
-  !    subroutine linminConjugateGradient(this, solver, region)
-  !
-  !      import :: t_Optimizer
-  !      use Solver_mod, only : t_Solver
-  !      use Region_mod, only : t_Region
-  !
-  !      class(t_Optimizer) :: this
-  !      class(t_Solver) :: solver
-  !      class(t_Region) :: region
-  !
-  !    end subroutine linminConjugateGradient
-  !
-  ! end interface
-  !
-  ! interface
-  !
-  !    subroutine frprmnConjugateGradient(this, solver, region)
-  !
-  !      import :: t_Optimizer
-  !      use Solver_mod, only : t_Solver
-  !      use Region_mod, only : t_Region
-  !
-  !      class(t_Optimizer) :: this
-  !      class(t_Solver) :: solver
-  !      class(t_Region) :: region
-  !
-  !    end subroutine frprmnConjugateGradient
-  !
-  ! end interface
+  interface
+
+     subroutine printBracket(this)
+
+       import :: t_Optimizer
+
+       implicit none
+
+       class(t_Optimizer) :: this
+
+     end subroutine printBracket
+
+  end interface
+
+  interface
+
+     subroutine showProgressOptimizer(this, region, costFunctional,             &
+                                     costSensitivity, outputFilename, append)
+
+       use Region_mod, only : t_Region
+       import :: t_Optimizer
+
+       implicit none
+
+       class(t_Optimizer) :: this
+       class(t_Region) :: region
+       real(SCALAR_KIND), intent(in) :: costFunctional, costSensitivity
+       character(len=*), intent(in) :: outputFilename
+       logical, intent(in) :: append
+
+     end subroutine showProgressOptimizer
+
+  end interface
 
 end module Optimizer_mod

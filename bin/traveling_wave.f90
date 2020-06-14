@@ -10,6 +10,7 @@ program traveling_wave
 
   use Grid_enum
   use State_enum
+  use Optimier_enum
 
   use InputHelper, only : parseInputFile, getFreeUnit, getOption, getRequiredOption
   use ErrorHandler
@@ -21,9 +22,9 @@ program traveling_wave
 
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, stat, fileUnit, procRank, numProcs, ierror
-  integer :: kthArgument, numberOfArguments
-  logical :: lookForInput = .false., lookForOutput = .false., verifyFlag = .false.,                   &
-              inputFlag = .false., outputFlag = .false., saveMetricsFlag = .false.
+  integer :: kthArgument, numberOfArguments, mode = -1
+  logical :: lookForInput = .false., lookForOutput = .false., lookForRestart = .false.,      &
+            inputFlag = .false., outputFlag = .false., restartFlag = .false., saveMetricsFlag = .false.
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, restartFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: fileExists, success
@@ -50,8 +51,12 @@ program traveling_wave
       lookForInput = .true.
     case("--output")
       lookForOutput = .true.
+    case("--restart")
+      lookForRestart = .true.
     case("--verify")
-      verifyFlag = .true.
+      mode = VERIFY
+    case("--nlcg")
+      mode = NLCG
     case("--save_metrics")
       saveMetricsFlag = .true.
     case default
@@ -69,6 +74,16 @@ program traveling_wave
         outputFilename = trim(adjustl(argument))
         lookForOutput = .false.
         outputFlag = .true.
+      elseif (lookForRestart) then
+        restartFilename = trim(adjustl(argument))
+        if (procRank==0) inquire(file=restartFilename,exist=fileExists)
+        call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+        if (.not.fileExists) then
+           write(message, '(3A)') "restart file ", trim(restartFilename), " does not exists!"
+           call gracefulExit(MPI_COMM_WORLD, message)
+        end if
+        lookForRestart = .false.
+        restartFlag = .true.
       else
         write(message, '(3A)') "option ", trim(argument), " unknown!"
         call gracefulExit(MPI_COMM_WORLD, message)
@@ -89,10 +104,6 @@ program traveling_wave
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
   write(message, '(2A)') "Output file: ", trim(outputFilename)
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-  if (verifyFlag) then
-    write(message, '(A)') "Running on the verification mode."
-    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-  end if
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions:
   ! `globalGridSizes(i,j)` is the number of grid points on grid `j` along dimension `i`.
@@ -137,11 +148,21 @@ program traveling_wave
        trim(outputPrefix) // ".target_mollifier.f")
 
   ! Main code logic.
-  if (verifyFlag) then
-     call optimizer%verifyNLCG(region)
-  else
-
-  end if
+  select case (mode)
+  case(VERIFY)
+    write(message, '(A)') "Running on the verification mode."
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+    call optimizer%verifyAdjoint(region)
+  case(NLCG)
+    if (restartFlag) then
+      call optimizer%runNLCG(region, trim(restartFilename))
+    else
+      call optimizer%runNLCG(region)
+    end if
+  case default
+    write(message, '(A)') 'Mode is not specified correctly!: --verify, --nlcg, --newton'
+    call gracefulExit(MPI_COMM_WORLD, message)
+  end select
 
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
