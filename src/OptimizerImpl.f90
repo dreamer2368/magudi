@@ -66,7 +66,6 @@ contains
         end if
       end if
 
-      call region%computeRhs(FORWARD,1,1)
       call computeTravelingWaveResidual(region,this%residual)
       stepEvaluation = 0.5_wp * regionInnerProduct(this%residual,this%residual,region)
 
@@ -102,7 +101,6 @@ contains
          call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
               region%solverOptions)
       end do
-      call region%computeRhs(FORWARD,1,1)
       call computeTravelingWaveResidual(region,this%residual)
       stepEvaluation = 0.5_wp * regionInnerProduct(this%residual,this%residual,region)
 
@@ -211,7 +209,6 @@ contains
          call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
               region%solverOptions)
       end do
-      call region%computeRhs(FORWARD,1,1)
       call computeTravelingWaveResidual(region,this%residual)
       stepEvaluation = 0.5_wp * regionInnerProduct(this%residual,this%residual,region)
 
@@ -534,7 +531,7 @@ subroutine verifyAdjoint(this, region)
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename, message
   integer :: i, j, k, nDimensions, nUnknowns
-  SCALAR_TYPE :: costFunctional0, costFunctional1, costSensitivity
+  SCALAR_TYPE :: costFunctional0, costFunctional1, costSensitivity, ATxy, xAy
   SCALAR_TYPE :: stepSizes(32), errorHistory(32), convergenceHistory(31)
   logical :: solutionCrashes = .false., success_
 
@@ -557,19 +554,29 @@ subroutine verifyAdjoint(this, region)
   end do
   call saveRegionVector(this%base,region,QOI_FORWARD_STATE)
 
-  call region%computeRhs(FORWARD,1,1)
   call computeTravelingWaveResidual(region,this%residual)
   costFunctional0 = 0.5_wp * regionInnerProduct(this%residual,this%residual,region)
   write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
                               'Forward run: cost functional = ', costFunctional0
   call writeAndFlush(region%comm, output_unit, message)
 
-  call setTravelingWaveAdjoint(this%residual,region)
-  call region%computeRhs(ADJOINT,1,1)
-  call computeTravelingWaveGradient(region,this%grad)
+  this%grad = computeTravelingWaveJacobian(region,this%residual,ADJOINT)
   costSensitivity = regionInnerProduct(this%grad,this%grad,region)
   write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
                              'Adjoint run: cost sensitivity = ', costSensitivity
+  call writeAndFlush(region%comm, output_unit, message)
+
+  call random_number(this%prevGrad%params)
+  do i = 1, size(region%states)
+    call random_number(this%prevGrad%states(i)%conservedVariables)
+  end do
+
+  ATxy = regionInnerProduct(this%grad,this%prevGrad,region)
+  xAy = regionInnerProduct(this%residual,                                       &
+           computeTravelingWaveJacobian(region,this%prevGrad,LINEARIZED),region)
+  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') '< AT * x, y > = ', ATxy
+  call writeAndFlush(region%comm, output_unit, message)
+  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') '< x, A * y > = ', xAy
   call writeAndFlush(region%comm, output_unit, message)
 
   stepSizes(1) = 0.00001_wp
@@ -600,16 +607,6 @@ subroutine verifyAdjoint(this, region)
        end if
     end if
   end do
-  ! ! Report simulation progess.
-  ! call showProgress(solver, region, LINEARIZED, startTimestep, timestep,                       &
-  !     time, instantaneousCostFunctional)
-  !
-  ! ! Filter solution if required.
-  ! if (region%simulationFlags%filterOn) then
-  !   do j = 1, size(region%grids)
-  !      call region%grids(j)%applyFilter(region%states(j)%conservedVariables, timestep)
-  !   end do
-  ! end if
 
   call endTiming("verifyAdjoint")
 
@@ -689,7 +686,6 @@ subroutine runNLCG(this, region, restartFilename)
       end if
     end if
 
-    call region%computeRhs(FORWARD,1,1)
     call computeTravelingWaveResidual(region,this%residual)
     costFunctional0 = 0.5_wp * regionInnerProduct(this%residual,this%residual,region)
     if (this%verbose) then
@@ -698,9 +694,7 @@ subroutine runNLCG(this, region, restartFilename)
       call writeAndFlush(region%comm, output_unit, message)
     end if
 
-    call setTravelingWaveAdjoint(this%residual,region)
-    call region%computeRhs(ADJOINT,1,1)
-    call computeTravelingWaveGradient(region,this%grad)
+    this%grad = computeTravelingWaveJacobian(region,this%residual,ADJOINT)
     costSensitivity = regionInnerProduct(this%grad,this%grad,region)
     if (this%verbose) then
       write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                    &

@@ -43,6 +43,9 @@ contains
     use Region_mod, only : t_Region
     use RegionVector_mod, only : t_RegionVector
 
+    ! <<< Enumerations >>>
+    use Region_enum, only : FORWARD
+
     ! <<< Internal modules >>>
     use CNSHelper, only: transformFluxes
 
@@ -58,6 +61,8 @@ contains
     SCALAR_TYPE, allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:)
 
     ! call residual%set(region) !... seems redundant
+
+    call region%computeRhs(FORWARD,1,1)
 
     residual%params = 0.0_wp
 
@@ -98,57 +103,30 @@ contains
 
   end subroutine computeTravelingWaveResidual
 
-  subroutine setTravelingWaveAdjoint(residual, region)
-
-    ! <<< Derived types >>>
-    use Region_mod, only : t_Region
-    use RegionVector_mod, only : t_RegionVector
-
-    ! <<< Internal modules >>>
-    use CNSHelper, only: transformFluxes
-
-    implicit none
-
-    ! <<< Arguments >>>
-    class(t_RegionVector), intent(in) :: residual
-    class(t_Region) :: region
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, j, nDimensions, nUnknowns
-    SCALAR_TYPE, allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:)
-
-    nUnknowns = region%solverOptions%nUnknowns
-    nDimensions = nUnknowns - 2
-    assert_key(nDimensions, (1, 2, 3))
-
-    do i = 1, size(region%states)
-      assert(size(region%states(i)%adjointVariables,1)==region%grids(i)%nGridPoints)
-      assert(size(region%states(i)%adjointVariables,2)==nUnknowns)
-
-      region%states(i)%adjointVariables = residual%states(i)%conservedVariables
-    end do
-
-  end subroutine setTravelingWaveAdjoint
-
-  subroutine computeTravelingWaveGradient(region, grad)
+  function computeTravelingWaveJacobian(region, input, mode) result(output)
 
     ! <<< External modules >>>
     use MPI
 
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
-    use RegionVector_mod, only : t_RegionVector
+    use RegionVector_mod
+
+    ! <<< Enumerations >>>
+    use State_enum, only : QOI_ADJOINT_STATE
+    use Region_enum, only : ADJOINT, LINEARIZED
 
     ! <<< Internal modules >>>
     use CNSHelper, only: transformFluxes
-    use RegionVectorImpl, only: regionInnerProduct
+    use RegionVectorImpl, only: loadRegionVector
 
     implicit none
 
     ! <<< Arguments >>>
     class(t_Region) :: region
-    class(t_RegionVector) :: grad
+    class(t_RegionVector), intent(in) :: input
+    integer, intent(in) :: mode
+    type(t_RegionVector) :: output
 
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
@@ -162,41 +140,70 @@ contains
 
     direction = 1
 
+    call output%set(input)
+
+    call loadRegionVector(region,input,QOI_ADJOINT_STATE)
+    call region%computeRhs(mode,1,1)
+    !NOTE: current adjoint rhs includes additional negative sign.
+    if (mode==ADJOINT) then
+      do i = 1, size(region%states)
+        region%states(i)%rightHandSide = - region%states(i)%rightHandSide
+      end do
+    end if
+
     do i = 1, size(region%states)
       assert(size(region%states(i)%rightHandSide,1)==region%grids(i)%nGridPoints)
       assert(size(region%states(i)%rightHandSide,2)==nUnknowns)
-
       allocate(fluxes1(region%grids(i)%nGridPoints, nUnknowns, nDimensions))
-      do j = 1, nDimensions
-        fluxes1(:,:,j) = region%states(i)%adjointVariables
-        call region%grids(i)%adjointFirstDerivative(j)%apply(fluxes1(:,:,j),    &
-                                                      region%grids(i)%localSize)
-      end do
 
-      grad%states(i)%conservedVariables = 0.0_wp
-      do k = 1, nUnknowns
+      select case(mode)
+      case(ADJOINT)
         do j = 1, nDimensions
-        ! do j = 1, 1
-          index = direction + (j-1) * nDimensions
-          grad%states(i)%conservedVariables(:,k) =                              &
-                                          grad%states(i)%conservedVariables(:,k)&
-                             + region%grids(i)%metrics(:,index) * fluxes1(:,k,j)
+          fluxes1(:,:,j) = region%states(i)%adjointVariables
+          call region%grids(i)%adjointFirstDerivative(j)%apply(fluxes1(:,:,j),    &
+                                                        region%grids(i)%localSize)
         end do
-        grad%states(i)%conservedVariables(:,k) =                                &
-          grad%states(i)%conservedVariables(:,k) * region%grids(i)%jacobian(:,1)
-      end do
-      !NOTE: on the formulation it should be (-RHS).
-      ! However current adjoint rhs already includes the negative sign.
-      grad%states(i)%conservedVariables = - region%params%buffer(1,1)           &
-                                            * grad%states(i)%conservedVariables &
-                                          + region%states(i)%rightHandSide
+
+        output%states(i)%conservedVariables = 0.0_wp
+        do k = 1, nUnknowns
+          do j = 1, nDimensions
+            index = direction + (j-1) * nDimensions
+            output%states(i)%conservedVariables(:,k) =                            &
+                                          output%states(i)%conservedVariables(:,k)&
+                               + region%grids(i)%metrics(:,index) * fluxes1(:,k,j)
+          end do
+          output%states(i)%conservedVariables(:,k) =                              &
+          output%states(i)%conservedVariables(:,k) * region%grids(i)%jacobian(:,1)
+        end do
+      case(LINEARIZED)
+        fluxes1 = 0.0_wp
+        fluxes1(:,:,1) = region%states(i)%adjointVariables
+
+        allocate(fluxes2(region%grids(i)%nGridPoints, nUnknowns, nDimensions))
+        call transformFluxes(nDimensions, fluxes1, region%grids(i)%metrics,       &
+                             fluxes2, region%grids(i)%isCurvilinear)
+        do j = 1, nDimensions
+          call region%grids(i)%firstDerivative(j)%apply(fluxes2(:,:,j),          &
+                                                        region%grids(i)%localSize)
+        end do
+        output%states(i)%conservedVariables = sum(fluxes2, dim = 3)
+        SAFE_DEALLOCATE(fluxes2)
+
+        do j = 1, nUnknowns
+          output%states(i)%conservedVariables(:,j) =                                &
+            output%states(i)%conservedVariables(:,j) * region%grids(i)%jacobian(:,1)
+        end do
+      end select
+      output%states(i)%conservedVariables =                                     &
+              - region%params%buffer(1,1) * output%states(i)%conservedVariables &
+              - region%states(i)%rightHandSide
       SAFE_DEALLOCATE(fluxes1)
     end do
 
     call temp%set(region)
     temp%params = 0.0_wp
 
-    grad%params = 0.0_wp
+    output%params = 0.0_wp
     do i = 1, size(region%states)
       allocate(fluxes1(region%grids(i)%nGridPoints, nUnknowns, nDimensions))
       allocate(fluxes2(region%grids(i)%nGridPoints, nUnknowns, nDimensions))
@@ -218,22 +225,25 @@ contains
           temp%states(i)%conservedVariables(:,j) * region%grids(i)%jacobian(:,1)
       end do
 
-      grad%params = grad%params                                                 &
+      output%states(i)%conservedVariables = output%states(i)%conservedVariables &
+                          - input%params(1) * temp%states(i)%conservedVariables
+
+      output%params = output%params                                             &
         - region%grids(i)%computeInnerProduct(region%states(i)%adjointVariables,&
                                               temp%states(i)%conservedVariables)
     end do
 
     if (region%commGridMasters /= MPI_COMM_NULL)                                  &
-         call MPI_Allreduce(MPI_IN_PLACE, grad%params, 1,                         &
+         call MPI_Allreduce(MPI_IN_PLACE, output%params, 1,                       &
          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
 
     do i = 1, size(region%grids)
-       call MPI_Bcast(grad%params, 1, SCALAR_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+       call MPI_Bcast(output%params, 1, SCALAR_TYPE_MPI, 0, region%grids(i)%comm, ierror)
     end do
 
     call temp%cleanup()
 
-  end subroutine computeTravelingWaveGradient
+  end function computeTravelingWaveJacobian
 
   subroutine saveTravelingWave(region,filename)
 

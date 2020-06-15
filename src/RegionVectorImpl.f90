@@ -77,7 +77,7 @@ contains
     assert(size(this%states)==size(region%states))
     assert((size(this%params)==0) .or. (size(this%params)==size(region%params%buffer,1)))
 
-    if (size(this%params)>0) region%params%buffer(:,1) = this%params
+    if (size(this%params)>0 .and. mode==QOI_FORWARD_STATE) region%params%buffer(:,1) = this%params
 
     do i = 1, size(this%states)
       select case (mode)
