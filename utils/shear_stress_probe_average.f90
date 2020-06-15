@@ -128,8 +128,8 @@ subroutine saveShearStressOnProbe(region)
   integer, parameter :: wp = SCALAR_KIND
   class(t_Patch), pointer :: patch => null()
   integer, save :: nDimensions = 0
-  integer :: i, j, k, l, m, ierror
-  SCALAR_TYPE, allocatable :: mask(:), F(:,:)
+  integer :: i, j, k, l, m, ierror, index_, direction
+  SCALAR_TYPE, allocatable :: mask(:), F(:,:), localStressTensor(:)
   SCALAR_TYPE :: volume, density, shearStress
   character(len=STRING_LENGTH) :: message
 
@@ -144,6 +144,8 @@ subroutine saveShearStressOnProbe(region)
   assert((component(1)>=1).and.(component(1)<=nDimensions))
   assert((component(2)>=1).and.(component(2)<=nDimensions))
 
+  allocate(localStressTensor(nDimensions))
+
   do i = 1, size(region%states)
     call region%states(i)%update(region%grids(i), region%simulationFlags,       &
                                  region%solverOptions)
@@ -152,46 +154,53 @@ subroutine saveShearStressOnProbe(region)
   volume = 0.0_wp
   shearStress = 0.0_wp
   density = 0.0_wp
-  do l = 1, size(region%patchFactories)
-     call region%patchFactories(l)%connect(patch)
-     if (.not. associated(patch)) cycle
-     do m = 1, size(region%states)
+  do m = 1, size(region%states)
+    allocate(mask(region%grids(m)%nGridPoints))
+    allocate(F(region%grids(m)%nGridPoints,nDimensions))
+    mask = 0.0_wp
+    F = 0.0_wp
+    if (allocated(region%patchFactories)) then
+      do l = 1, size(region%patchFactories)
+        call region%patchFactories(l)%connect(patch)
+        if (.not. associated(patch)) cycle
         if (patch%gridIndex /= region%grids(m)%index .or. patch%nPatchPoints <= 0) cycle
         select type (patch)
         class is (t_ProbePatch)
-          allocate(mask(region%grids(m)%nGridPoints))
-          allocate(F(region%grids(m)%nGridPoints,nDimensions))
-          mask = 0.0_wp
-          F = 0.0_wp
-
           assert(all(patch%gridLocalSize == region%grids(m)%localSize))
           assert(all(patch%gridOffset == region%grids(m)%offset))
+
+          direction = abs(patch%normalDirection)
+          assert(direction>0.and.direction<=nDimensions)
 
           do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
              do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
                 do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
-                   mask(i - region%grids(m)%offset(1) + region%grids(m)%localSize(1) * (j - 1 - region%grids(m)%offset(2) +     &
-                        region%grids(m)%localSize(2) * (k - 1 - region%grids(m)%offset(3)))) = 1.0_wp
+                  index_ = i - region%grids(m)%offset(1) + region%grids(m)%localSize(1) * &
+                      (j - 1 - region%grids(m)%offset(2) + region%grids(m)%localSize(2) * &
+                      (k - 1 - region%grids(m)%offset(3)) )
+                  mask(index_) = 1.0_wp
+                  localStressTensor = region%states(m)%stressTensor(index_,               &
+                              1+(direction-1)*nDimensions:direction*nDimensions)
+                  localStressTensor(direction) = 0.0_wp
+                  F(index_,:) = F(index_,:) + localStressTensor
                 end do
              end do
           end do
 
-          where (region%grids(m)%iblank == 0)
-             mask = 0.0_wp
-          end where
-
-          F = region%states(m)%stressTensor(:,                                        &
-          1+(patch%normalDirection-1)*nDimensions:patch%normalDirection*nDimensions)
-          F(:,patch%normalDirection) = 0.0_wp
-
-          volume = volume + region%grids(m)%computeInnerProduct(mask,mask)
-          shearStress = shearStress + region%grids(m)%computeInnerProduct(mask,sqrt(sum(F**2,dim=2)))
-          density = density + region%grids(m)%computeInnerProduct(mask,region%states(m)%conservedVariables(:,1))
-
-          SAFE_DEALLOCATE(mask)
-          SAFE_DEALLOCATE(F)
         end select
-     end do
+      end do
+    end if
+
+    where (region%grids(m)%iblank == 0)
+       mask = 0.0_wp
+    end where
+
+    volume = volume + region%grids(m)%computeInnerProduct(mask,mask)
+    shearStress = shearStress + region%grids(m)%computeInnerProduct(mask,sqrt(sum(F**2,dim=2)))
+    density = density + region%grids(m)%computeInnerProduct(mask,region%states(m)%conservedVariables(:,1))
+
+    SAFE_DEALLOCATE(mask)
+    SAFE_DEALLOCATE(F)
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL) then
@@ -215,5 +224,7 @@ subroutine saveShearStressOnProbe(region)
   call writeAndFlush(region%comm, output_unit, message)
   write(message,'(A,1X,'// SCALAR_FORMAT //')') 'density: ', density
   call writeAndFlush(region%comm, output_unit, message)
+
+  SAFE_DEALLOCATE(localStressTensor)
 
 end subroutine saveShearStressOnProbe
