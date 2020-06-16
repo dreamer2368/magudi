@@ -26,11 +26,12 @@ program shear_stress_probe_average
 
   interface
 
-     subroutine saveShearStressOnProbe(region)
+     subroutine saveShearStressOnProbe(region,filename)
 
        use Region_mod, only : t_Region
 
        class(t_Region) :: region
+       character(len=STRING_LENGTH), intent(in) :: filename
 
      end subroutine saveShearStressOnProbe
 
@@ -91,7 +92,14 @@ program shear_stress_probe_average
   call get_command_argument(1, filename)
   call region%loadData(QOI_FORWARD_STATE, filename)
 
-  call saveShearStressOnProbe(region)
+  i = len_trim(filename)
+  if (filename(i-1:i) == ".q") then
+     filename = filename(:i-2) // ".velocity_gradient.f"
+  else
+     filename = PROJECT_NAME // ".velocity_gradient.f"
+  end if
+
+  call saveShearStressOnProbe(region, filename)
 
   ! Cleanup.
   call region%cleanup()
@@ -101,7 +109,7 @@ program shear_stress_probe_average
 
 end program shear_stress_probe_average
 
-subroutine saveShearStressOnProbe(region)
+subroutine saveShearStressOnProbe(region, filename)
 
   ! <<< External modules >>>
   use MPI
@@ -123,8 +131,13 @@ subroutine saveShearStressOnProbe(region)
 
   ! <<< Arguments >>>
   class(t_Region) :: region
+  character(len = *), intent(in) :: filename
 
   ! <<< Local variables >>>
+  type :: t_ShearStressInternal
+     SCALAR_TYPE, pointer :: buffer(:,:) => null()
+  end type t_ShearStressInternal
+  type(t_ShearStressInternal), allocatable, save :: data_(:)
   integer, parameter :: wp = SCALAR_KIND
   class(t_Patch), pointer :: patch => null()
   integer, save :: nDimensions = 0
@@ -141,8 +154,12 @@ subroutine saveShearStressOnProbe(region)
 
   nDimensions = size(region%globalGridSizes, 1)
   assert_key(nDimensions, (1, 2, 3))
-  assert((component(1)>=1).and.(component(1)<=nDimensions))
-  assert((component(2)>=1).and.(component(2)<=nDimensions))
+  if (.not. allocated(data_)) then
+     allocate(data_(size(region%grids)))
+     do i = 1, size(data_)
+        allocate(data_(i)%buffer(region%grids(i)%nGridPoints, 1))
+     end do
+  end if
 
   allocate(localStressTensor(nDimensions))
 
@@ -224,6 +241,15 @@ subroutine saveShearStressOnProbe(region)
   call writeAndFlush(region%comm, output_unit, message)
   write(message,'(A,1X,'// SCALAR_FORMAT //')') 'density: ', density
   call writeAndFlush(region%comm, output_unit, message)
+
+  do i = 1, size(region%states)
+    call region%grids(i)%computeGradient(region%states(i)%velocity,             &
+         region%states(i)%velocityGradient)
+    data_(i)%buffer(:,1) = region%states(i)%velocityGradient(:,4)
+    region%states(i)%dummyFunction => data_(i)%buffer
+  end do
+
+  call region%saveData(QOI_DUMMY_FUNCTION, filename)
 
   SAFE_DEALLOCATE(localStressTensor)
 
