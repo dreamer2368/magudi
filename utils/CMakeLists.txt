@@ -12,4 +12,4 @@ add_executable(extend_control_forcing $<TARGET_OBJECTS:magudiObj> extend_control
 add_executable(cost_spatial_distribution $<TARGET_OBJECTS:magudiObj> cost_spatial_distribution.f90)
 add_executable(control_mollifier_factor $<TARGET_OBJECTS:magudiObj> control_mollifier_factor.f90)
 add_executable(zxdoty_in_time $<TARGET_OBJECTS:magudiObj> zxdoty_in_time.f90)
-add_executable(shear_stress_probe_average $<TARGET_OBJECTS:magudiObj> shear_stress_probe_average.f90)
+add_executable(velocity_gradient $<TARGET_OBJECTS:magudiObj> velocity_gradient.f90)
