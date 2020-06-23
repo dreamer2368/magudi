@@ -10,7 +10,7 @@ program traveling_wave
 
   use Grid_enum
   use State_enum
-  use Optimier_enum
+  use Optimizer_enum
 
   use InputHelper, only : parseInputFile, getFreeUnit, getOption, getRequiredOption
   use ErrorHandler
@@ -57,6 +57,10 @@ program traveling_wave
       mode = VERIFY
     case("--nlcg")
       mode = NLCG
+    case("--gmres")
+      mode = GMRES
+    case("--bicgstab")
+      mode = BICGSTAB
     case("--save_metrics")
       saveMetricsFlag = .true.
     case default
@@ -138,40 +142,40 @@ program traveling_wave
 
   call setupTravelingWave(region)
 
-  ! Initialize the optimizer.
-  call optimizer%setup(region)
-
-  ! Save the control and target mollifier if using code-generated values.
-  assert(region%simulationFlags%enableFunctional)
-  filename = getOption("target_mollifier_file", "")
-  if (len_trim(filename) == 0) call region%saveData(QOI_TARGET_MOLLIFIER,                 &
-       trim(outputPrefix) // ".target_mollifier.f")
-
   ! Main code logic.
   select case (mode)
   case(VERIFY)
     write(message, '(A)') "Running on the verification mode."
     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+    call optimizer%setup(region,mode)
     call optimizer%verifyAdjoint(region)
   case(NLCG)
+    call optimizer%setup(region,mode)
     if (restartFlag) then
       call optimizer%runNLCG(region, trim(restartFilename))
     else
       call optimizer%runNLCG(region)
     end if
+  case(GMRES)
+    call optimizer%setup(region,mode)
+    if (.not. restartFlag) then
+      write(message,'(A)') "Linear Newton solver requires a restart filename!"
+      call gracefulExit(MPI_COMM_WORLD, message)
+    else
+      call optimizer%runGMRES(region, trim(restartFilename))
+    end if
+  case(BICGSTAB)
+    call optimizer%setup(region,mode)
+    if (.not. restartFlag) then
+      write(message,'(A)') "Linear Newton solver requires a restart filename!"
+      call gracefulExit(MPI_COMM_WORLD, message)
+    else
+      call optimizer%runBICGSTAB(region, trim(restartFilename))
+    end if
   case default
-    write(message, '(A)') 'Mode is not specified correctly!: --verify, --nlcg, --newton'
+    write(message, '(A)') 'Mode is not specified correctly!: --verify, --nlcg, --newton, --gmres'
     call gracefulExit(MPI_COMM_WORLD, message)
   end select
-
-  call MPI_Barrier(MPI_COMM_WORLD, ierror)
-
-  ! if (procRank == 0) then
-  !   open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',          &
-  !        iostat = stat, status = 'replace')
-  !   write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
-  !   close(fileUnit)
-  ! end if
 
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
