@@ -40,7 +40,7 @@ module Optimizer_mod
      procedure, pass :: cleanup => cleanupOptimizer
      procedure, pass :: verifyAdjoint
      procedure, pass :: runNLCG
-     procedure, pass :: runCGS
+     ! procedure, pass :: runCGS
      procedure, pass :: runGMRES
      procedure, pass :: runBICGSTAB
      procedure, pass :: printBracket
@@ -152,8 +152,8 @@ module Optimizer_mod
 
   interface
 
-     subroutine showProgressOptimizer(this, region, costFunctional,             &
-                                     costSensitivity, outputFilename, append)
+     subroutine showProgressOptimizer(this, region, mode, step,                 &
+                                      scalars, outputFilename, append)
 
        use Region_mod, only : t_Region
        import :: t_Optimizer
@@ -162,9 +162,10 @@ module Optimizer_mod
 
        class(t_Optimizer) :: this
        class(t_Region) :: region
-       real(SCALAR_KIND), intent(in) :: costFunctional, costSensitivity
+       integer, intent(in) :: mode, step
+       real(SCALAR_KIND), intent(in) :: scalars(:)
        character(len=*), intent(in) :: outputFilename
-       logical, intent(in) :: append
+       logical, intent(in), optional :: append
 
      end subroutine showProgressOptimizer
 

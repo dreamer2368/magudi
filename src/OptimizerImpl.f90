@@ -577,7 +577,7 @@ subroutine printBracket(this)
 
 end subroutine printBracket
 
-subroutine showProgressOptimizer(this, region, costFunctional, costSensitivity, &
+subroutine showProgressOptimizer(this, region, mode, step, scalars,             &
                                  outputFilename, append)
 
   ! <<< External modules >>>
@@ -588,6 +588,9 @@ subroutine showProgressOptimizer(this, region, costFunctional, costSensitivity, 
   use Region_mod, only : t_Region
   use Optimizer_mod, only : t_Optimizer
 
+  ! <<< Enumerations >>>
+  use Optimizer_enum
+
   ! <<< Internal modules >>>
   use TravelingWaveImpl
   use InputHelper, only : getOption, getFreeUnit
@@ -597,7 +600,8 @@ subroutine showProgressOptimizer(this, region, costFunctional, costSensitivity, 
 
   class(t_Optimizer) :: this
   class(t_Region) :: region
-  real(SCALAR_KIND), intent(in) :: costFunctional, costSensitivity
+  integer, intent(in) :: mode, step
+  real(SCALAR_KIND), intent(in) :: scalars(:)
   character(len=*), intent(in) :: outputFilename
   logical, intent(in), optional :: append
 
@@ -610,10 +614,22 @@ subroutine showProgressOptimizer(this, region, costFunctional, costSensitivity, 
   append_ = .false.
   if (present(append)) append_ = append
 
-  if (this%reportInterval > 0 .and. mod(region%timestep, max(1, this%reportInterval)) == 0) then
-    write(str, '(2A,I8,3(A,E13.6))') PROJECT_NAME, ": timestep = ", region%timestep,          &
-         ", convection speed = ", region%params%buffer(1,1),                                  &
-         ", cost functional = ", costFunctional, ", cost sensitivity = ", costSensitivity
+  if (this%reportInterval > 0 .and. mod(step, max(1, this%reportInterval)) == 0) then
+    select case(mode)
+    case (VERIFY, NLCG)
+      assert(size(scalars)==2)
+      write(str, '(2A,I8,3(A,E13.6))') PROJECT_NAME, ": timestep = ", step,                     &
+           ", convection speed = ", region%params%buffer(1,1),                                  &
+           ", cost functional = ", scalars(1), ", cost sensitivity = ", scalars(2)
+    case (NEWTON, GMRES, BICGSTAB)
+      assert(size(scalars)>=1)
+      write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", step,                     &
+           ", convection speed = ", region%params%buffer(1,1),                                  &
+           ", residual = ", scalars(1)
+    case default
+      write(str, '(A)') 'The mode cannot be identified!'
+      call gracefulExit(region%comm, str)
+    end select
     call writeAndFlush(region%comm, output_unit, str)
 
     call MPI_Comm_rank(region%comm, procRank, ierror)
@@ -634,8 +650,14 @@ subroutine showProgressOptimizer(this, region, costFunctional, costSensitivity, 
     end if
 
     if (procRank == 0) then
-       write(fileUnit, '(I8,3(1X,SP,' // SCALAR_FORMAT // '))')                       &
-          region%timestep, region%params%buffer(1,1), costFunctional, costSensitivity
+      select case(mode)
+      case (VERIFY, NLCG)
+        write(fileUnit, '(I8,3(1X,SP,' // SCALAR_FORMAT // '))')                       &
+              step, region%params%buffer(1,1), scalars(1), scalars(2)
+      case (NEWTON, GMRES, BICGSTAB)
+        write(fileUnit, '(I8,2(1X,SP,' // SCALAR_FORMAT // '))')                       &
+              step, region%params%buffer(1,1), scalars(1)
+      end select
     end if
 
     call MPI_Bcast(ostat, 1, MPI_INTEGER, 0, region%comm, ierror)
@@ -652,10 +674,13 @@ subroutine showProgressOptimizer(this, region, costFunctional, costSensitivity, 
     call MPI_Barrier(region%comm, ierror)
   end if
 
-  if (this%saveInterval > 0 .and. mod(region%timestep, max(1, this%saveInterval)) == 0) then
-    write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".q"
-    call saveTravelingWave(region, filename)
-  end if
+  select case(mode)
+  case (VERIFY, NLCG, NEWTON)
+    if (this%saveInterval > 0 .and. mod(step, max(1, this%saveInterval)) == 0) then
+      write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", step, ".q"
+      call saveTravelingWave(region, filename)
+    end if
+  end select
 
 end subroutine showProgressOptimizer
 
@@ -791,6 +816,7 @@ subroutine runNLCG(this, region, restartFilename)
   ! <<< Enumerations >>>
   use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE
   use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
+  use Optimizer_enum, only : NLCG
 
   ! <<< Internal modules >>>
   use OptimizerImpl, only : mnbrakNLCG, linminNLCG, frprmnNLCG
@@ -867,7 +893,7 @@ subroutine runNLCG(this, region, restartFilename)
       call writeAndFlush(region%comm, output_unit, message)
     end if
 
-    call this%showProgress(region, costFunctional0, costSensitivity,                           &
+    call this%showProgress(region, NLCG, timestep, (/ costFunctional0, costSensitivity /),     &
                            outputFilename, timestep - startTimestep > this%reportInterval)
     if ( costSensitivity < this%cgTol ) then
       write(message, '(A)') 'Gradient is below tolerance. Finishing the optimization.'
@@ -901,8 +927,9 @@ subroutine runGMRES(this, region, restartFilename)
   use RegionVector_mod
 
   ! <<< Enumerations >>>
-  ! use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE
+  use State_enum, only : QOI_FORWARD_STATE
   use Region_enum, only : FORWARD, LINEARIZED
+  use Optimizer_enum, only : NEWTON, GMRES
 
   ! <<< Internal modules >>>
   use OptimizerImpl, only : arnoldi, givensRotation, backwardSubstitution
@@ -924,18 +951,22 @@ subroutine runGMRES(this, region, restartFilename)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, m, n, fileUnit, ostat, procRank, ierror,                        &
-             startTimestep, timestep, substep, numSteps, restart, Ns, index, nUnknowns, nGridPoints, offset, offset1
-  SCALAR_TYPE :: residualNorm, rNorm, error
+             startTimestep, timestep, substep, numSteps, restart,                        &
+             totalSubsteps
+             ! Ns, index, nUnknowns, nGridPoints, offset, offset1
+  SCALAR_TYPE :: residualNorm, residualNorm1, rNorm, error
   character(len = STRING_LENGTH) :: strFormat, filename, outputFilename, message
   SCALAR_TYPE, allocatable :: y(:), A(:,:)
 
   call startTiming("runGMRES")
 
   write(outputFilename, '(2A)') trim(this%outputPrefix), ".traveling_wave.gmres.txt"
+  write(filename, '(2A)') trim(this%outputPrefix), ".traveling_wave.newton.txt"
 
   ! Load the initial condition.
   call loadTravelingWave(region,trim(restartFilename))
   startTimestep = region%timestep
+  totalSubsteps = 0
 
   if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
     region%oneOverVolume = computeRegionIntegral(region)
@@ -952,137 +983,173 @@ subroutine runGMRES(this, region, restartFilename)
   ! Check if physical quantities are within allowed limits.
   if (region%simulationFlags%enableSolutionLimits) then
     if ( checkSolutionLimits(region, FORWARD, this%outputPrefix) ) then
-      write(message,'(A)') 'Optimization failed.'
+      write(message,'(A)') 'Newton iteration reached an infeasible solution!'
       call gracefulExit(region%comm, message)
     end if
   end if
 
   call computeTravelingWaveResidual(region,this%residual)
   residualNorm = sqrt(regionInnerProduct(this%residual,this%residual,region))
-  error = 1.0_wp
-  this%x%params = 0.0_wp
-  do i = 1, size(region%states)
-    this%x%states(i)%conservedVariables = 0.0_wp
-  end do
 
-  Ns = 1
-  do i = 1, size(region%states)
-    Ns = Ns + size(region%states(i)%conservedVariables,1)*size(region%states(i)%conservedVariables,2)
-  end do
-  allocate(A(Ns,Ns))
-  offset = 0
-  do i = 1, size(region%states)
-    nGridPoints = size(region%states(i)%conservedVariables,1)
-    nUnknowns = size(region%states(i)%conservedVariables,2)
-    do j = 1, nGridPoints
-      do k = 1, nUnknowns
-        this%x%params = 0.0_wp
-        do l = 1, size(region%states)
-          this%x%states(l)%conservedVariables = 0.0_wp
-        end do
-        this%x%states(i)%conservedVariables(j,k) = 1.0_wp
-        index = k + (j-1)*nUnknowns + offset
+  do timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
-        this%r = computeTravelingWaveJacobian(region,this%x,LINEARIZED)
-        offset1 = 0
-        do l = 1, size(region%states)
-          do m = 1, size(region%states(l)%conservedVariables,1)
-            A(offset1+1:offset1+nUnknowns,index) = this%r%states(l)%conservedVariables(m,:)
-            offset1 = offset1 + nUnknowns
-          end do
-        end do
-        A(Ns,index) = this%r%params(1)
+    region%timestep = timestep
+
+    call saveRegionVector(this%base,region,QOI_FORWARD_STATE)
+    error = residualNorm
+    this%x%params = 0.0_wp
+    do i = 1, size(region%states)
+      this%x%states(i)%conservedVariables = 0.0_wp
+    end do
+
+    ! Ns = 1
+    ! do i = 1, size(region%states)
+    !   Ns = Ns + size(region%states(i)%conservedVariables,1)*size(region%states(i)%conservedVariables,2)
+    ! end do
+    ! allocate(A(Ns,Ns))
+    ! offset = 0
+    ! do i = 1, size(region%states)
+    !   nGridPoints = size(region%states(i)%conservedVariables,1)
+    !   nUnknowns = size(region%states(i)%conservedVariables,2)
+    !   do j = 1, nGridPoints
+    !     do k = 1, nUnknowns
+    !       this%x%params = 0.0_wp
+    !       do l = 1, size(region%states)
+    !         this%x%states(l)%conservedVariables = 0.0_wp
+    !       end do
+    !       this%x%states(i)%conservedVariables(j,k) = 1.0_wp
+    !       index = k + (j-1)*nUnknowns + offset
+    !
+    !       this%r = computeTravelingWaveJacobian(region,this%x,LINEARIZED)
+    !       offset1 = 0
+    !       do l = 1, size(region%states)
+    !         do m = 1, size(region%states(l)%conservedVariables,1)
+    !           A(offset1+1:offset1+nUnknowns,index) = this%r%states(l)%conservedVariables(m,:)
+    !           offset1 = offset1 + nUnknowns
+    !         end do
+    !       end do
+    !       A(Ns,index) = this%r%params(1)
+    !     end do
+    !   end do
+    !   offset = offset + nGridPoints*nUnknowns
+    ! end do
+    ! this%x%params = 1.0_wp
+    ! do l = 1, size(region%states)
+    !   this%x%states(l)%conservedVariables = 0.0_wp
+    ! end do
+    ! this%r = computeTravelingWaveJacobian(region,this%x,LINEARIZED)
+    ! offset1 = 0
+    ! do l = 1, size(region%states)
+    !   do m = 1, size(region%states(l)%conservedVariables,1)
+    !     A(offset1+1:offset1+nUnknowns,Ns) = this%r%states(l)%conservedVariables(m,:)
+    !     offset1 = offset1 + nUnknowns
+    !   end do
+    ! end do
+    ! A(Ns,Ns) = this%r%params(1)
+    ! print *, Ns
+    ! print *, size(A)
+    ! open(unit=getFreeUnit(fileUnit),file='Jacobian.bin',status='replace',form='unformatted',access='stream')
+    ! do i = 1,Ns
+    !   ! print *, i,'-th column'
+    !   ! print *, A(:,i)
+    !   write(fileUnit) A(:,i)
+    ! end do
+    ! close(fileUnit)
+    ! SAFE_DEALLOCATE(A)
+    ! open(unit=getFreeUnit(fileUnit),file='RightHandSide.bin',status='replace',form='unformatted',access='stream')
+    ! do i = 1,size(region%states)
+    !   do j = 1, size(region%states(i)%conservedVariables,1)
+    !     write(fileUnit) this%residual%states(i)%conservedVariables(j,:)
+    !   end do
+    ! end do
+    ! write(fileUnit) this%residual%params(1)
+    ! close(fileUnit)
+    !
+    ! this%x%params = 0.0_wp
+    ! do i = 1, size(region%states)
+    !   this%x%states(i)%conservedVariables = 0.0_wp
+    ! end do
+
+    do restart = 1, this%maxRestart
+      this%r = this%residual * (-1.0_wp)                                  &
+                         - computeTravelingWaveJacobian(region,this%x,LINEARIZED)
+      rNorm = sqrt(regionInnerProduct(this%r,this%r,region))
+
+      this%H = 0.0_wp
+      this%sn = 0.0_wp
+      this%cs = 0.0_wp
+      this%beta = 0.0_wp
+      this%Q(1) = this%r * (1.0_wp/rNorm)
+      this%beta(1) = rNorm
+      do substep = 1, this%maxGMRES
+        this%H(1:substep+1,substep) = arnoldi(this,region,substep)
+
+        call givensRotation(this%H(1:substep+1,substep),this%cs(1:substep),this%sn(1:substep),substep)
+
+        ! update the residual vector
+        this%beta(substep+1) = - this%sn(substep) * this%beta(substep)
+        this%beta(substep) = this%cs(substep) * this%beta(substep)
+
+        error = abs(this%beta(substep+1))
+        numSteps = substep
+
+        call this%showProgress(region, GMRES, totalSubsteps + substep, (/ error /), &
+                 outputFilename, totalSubsteps + substep - 1 > this%reportInterval)
+
+        if (error<this%linminTol*residualNorm) then
+          exit
+        end if
+
       end do
-    end do
-    offset = offset + nGridPoints*nUnknowns
-  end do
-  this%x%params = 1.0_wp
-  do l = 1, size(region%states)
-    this%x%states(l)%conservedVariables = 0.0_wp
-  end do
-  this%r = computeTravelingWaveJacobian(region,this%x,LINEARIZED)
-  offset1 = 0
-  do l = 1, size(region%states)
-    do m = 1, size(region%states(l)%conservedVariables,1)
-      A(offset1+1:offset1+nUnknowns,Ns) = this%r%states(l)%conservedVariables(m,:)
-      offset1 = offset1 + nUnknowns
-    end do
-  end do
-  A(Ns,Ns) = this%r%params(1)
-  print *, Ns
-  print *, size(A)
-  open(unit=getFreeUnit(fileUnit),file='Jacobian.bin',status='replace',form='unformatted',access='stream')
-  do i = 1,Ns
-    ! print *, i,'-th column'
-    ! print *, A(:,i)
-    write(fileUnit) A(:,i)
-  end do
-  close(fileUnit)
-  SAFE_DEALLOCATE(A)
-  open(unit=getFreeUnit(fileUnit),file='RightHandSide.bin',status='replace',form='unformatted',access='stream')
-  do i = 1,size(region%states)
-    do j = 1, size(region%states(i)%conservedVariables,1)
-      write(fileUnit) this%residual%states(i)%conservedVariables(j,:)
-    end do
-  end do
-  write(fileUnit) this%residual%params(1)
-  close(fileUnit)
 
-  this%x%params = 0.0_wp
-  do i = 1, size(region%states)
-    this%x%states(i)%conservedVariables = 0.0_wp
-  end do
+      totalSubsteps = totalSubsteps + numSteps
 
-  do restart = 1, this%maxRestart
-    this%r = this%residual * (-1.0_wp)                                  &
-                       - computeTravelingWaveJacobian(region,this%x,LINEARIZED)
-    rNorm = sqrt(regionInnerProduct(this%r,this%r,region))
+      allocate(y(numSteps))
+      y = backwardSubstitution(this%H(1:numSteps,1:numSteps),this%beta(1:numSteps))
+      do i = 1, numSteps
+        ! .. newton equation solve for (-residual)
+        this%x = this%x + this%Q(i) * y(i)
+      end do
+      SAFE_DEALLOCATE(y)
 
-    this%H = 0.0_wp
-    this%sn = 0.0_wp
-    this%cs = 0.0_wp
-    this%beta = 0.0_wp
-    this%Q(1) = this%r * (1.0_wp/rNorm)
-    this%beta(1) = rNorm
-    do substep = 1, this%maxGMRES
-      this%H(1:substep+1,substep) = arnoldi(this,region,substep)
-
-      call givensRotation(this%H(1:substep+1,substep),this%cs(1:substep),this%sn(1:substep),substep)
-
-      ! update the residual vector
-      this%beta(substep+1) = - this%sn(substep) * this%beta(substep)
-      this%beta(substep) = this%cs(substep) * this%beta(substep)
-
-      error = abs(this%beta(substep+1)) / residualNorm
-      numSteps = substep
-
-      if (error<this%linminTol) then
+      if (error<this%linminTol*residualNorm) then
         exit
       end if
-
-      ! write(message,'(A,2(1X,'// SCALAR_FORMAT //'))')                          &
-      !                           '(cs, sn): ', this%cs(substep), this%sn(substep)
-      ! call writeAndFlush(region%comm, output_unit, message)
-      write(message,'(2(I8.8,1X),A,1X,'// SCALAR_FORMAT //')')                    &
-                                              restart, substep, ' error: ', error
-      call writeAndFlush(region%comm, output_unit, message)
-
-      call this%showProgress(region, error, residualNorm,                       &
-                             outputFilename, substep - 1 > this%reportInterval)
-
     end do
 
-    allocate(y(numSteps))
-    y = backwardSubstitution(this%H(1:numSteps,1:numSteps),this%beta(1:numSteps))
-    do i = 1, numSteps
-      ! .. newton equation solve for (-residual)
-      this%x = this%x + this%Q(i) * y(i)
-    end do
-    SAFE_DEALLOCATE(y)
-
-    if (error<this%linminTol) then
-      exit
+    if (error>=this%linminTol*residualNorm) then
+      write(message,'(A)') 'GMRES iteration failed.'
+      call gracefulExit(region%comm, message)
     end if
+
+    call loadRegionVector(region,this%base + this%x,QOI_FORWARD_STATE)
+
+    do i = 1, size(region%states) !... update state
+       call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
+            region%solverOptions)
+    end do
+
+    ! Check if physical quantities are within allowed limits.
+    if (region%simulationFlags%enableSolutionLimits) then
+      if ( checkSolutionLimits(region, FORWARD, this%outputPrefix) ) then
+        write(message,'(A)') 'Newton iteration reached an infeasible solution!'
+        call gracefulExit(region%comm, message)
+      end if
+    end if
+
+    call computeTravelingWaveResidual(region,this%residual)
+    residualNorm1 = residualNorm
+    residualNorm = sqrt(regionInnerProduct(this%residual,this%residual,region))
+
+    call this%showProgress(region, NEWTON, timestep, (/ error /),                              &
+                           filename, timestep - startTimestep - 1 > this%reportInterval)
+
+    if (residualNorm > residualNorm1) then
+      write(message,'(2(A,ES13.6))') 'Newton iteration failed! Previous: ', residualNorm1,     &
+                                     ', Current: ', residualNorm
+      call gracefulExit(region%comm, message)
+    end if
+
   end do
 
   call endTiming("runGMRES")
