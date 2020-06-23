@@ -16,6 +16,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use JetExcitationPatch_mod, only : t_JetExcitationPatch
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
+  use KolmogorovForcingPatch_mod, only : t_KolmogorovForcingPatch
 
   implicit none
 
@@ -73,6 +74,9 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
      case ('PROBE')
         allocate(t_ProbePatch :: this%patch)
 
+     case ('KOLMOGOROV_FORCING')
+        allocate(t_KolmogorovForcingPatch :: this%patch)
+        
      case default
         this%patchType = ""
 

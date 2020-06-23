@@ -209,6 +209,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/UniformMapImpl.f90
   ${PROJECT_SOURCE_DIR}/include/ProbePatch.f90
   ${PROJECT_SOURCE_DIR}/src/ProbePatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/KolmogorovForcingPatch.f90
+  ${PROJECT_SOURCE_DIR}/src/KolmogorovForcingPatchImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c
