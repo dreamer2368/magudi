@@ -57,6 +57,8 @@ program traveling_wave
       mode = VERIFY
     case("--nlcg")
       mode = NLCG
+    case("--cgs")
+      mode = CGS
     case("--gmres")
       mode = GMRES
     case("--bicgstab")
@@ -155,6 +157,14 @@ program traveling_wave
       call optimizer%runNLCG(region, trim(restartFilename))
     else
       call optimizer%runNLCG(region)
+    end if
+  case(CGS)
+    call optimizer%setup(region,mode)
+    if (.not. restartFlag) then
+      write(message,'(A)') "Linear Newton solver requires a restart filename!"
+      call gracefulExit(MPI_COMM_WORLD, message)
+    else
+      call optimizer%runCGS(region, trim(restartFilename))
     end if
   case(GMRES)
     call optimizer%setup(region,mode)

@@ -341,7 +341,7 @@ contains
 
     call startTiming("arnoldi")
 
-    assert((substep>=1) .and. (substep<=this%maxGMRES))
+    assert((substep>=1) .and. (substep<=this%maxSubsteps))
 
     this%Q(substep+1) = computeTravelingWaveJacobian(region,this%Q(substep),LINEARIZED)
 
@@ -452,7 +452,7 @@ subroutine setupOptimizer(this, region, mode)
   this%initialStep = getOption("optimization/initial_step",0.1_wp)
   this%linminTol = getOption("optimization/linmin_tolerance",(0.1_wp)**3)
   this%cgTol = getOption("optimization/cg_tolerance",(0.1_wp)**5)
-  this%maxGMRES = getOption("optimization/max_gmres_iteration",30)
+  this%maxSubsteps = getOption("optimization/max_substeps",30)
   this%maxRestart = getOption("optimization/max_gmres_restart",100)
   this%saveInterval = getOption("save_interval",-1)
   this%reportInterval = getOption("report_interval",-1)
@@ -478,19 +478,26 @@ subroutine setupOptimizer(this, region, mode)
     call this%conjGrad%set(region)
     call this%prevGrad%set(region)
     call this%prevCG%set(region)
+  case(CGS)
+    call this%residual%set(region)
+    call this%base%set(region)
+    call this%x%set(region)
+    call this%grad%set(region)
+    call this%conjGrad%set(region)
+    call this%Ap%set(region)
   case(GMRES)
     call this%residual%set(region)
     call this%base%set(region)
     call this%x%set(region)
     call this%r%set(region)
 
-    assert(this%maxGMRES>0)
-    allocate(this%H(this%maxGMRES+1,this%maxGMRES))
-    allocate(this%sn(this%maxGMRES))
-    allocate(this%cs(this%maxGMRES))
-    allocate(this%beta(this%maxGMRES+1))
-    allocate(this%Q(this%maxGMRES+1))
-    do i = 1, this%maxGMRES+1
+    assert(this%maxSubsteps>0)
+    allocate(this%H(this%maxSubsteps+1,this%maxSubsteps))
+    allocate(this%sn(this%maxSubsteps))
+    allocate(this%cs(this%maxSubsteps))
+    allocate(this%beta(this%maxSubsteps+1))
+    allocate(this%Q(this%maxSubsteps+1))
+    do i = 1, this%maxSubsteps+1
       call this%Q(i)%set(region)
     end do
   case(BICGSTAB)
@@ -540,7 +547,7 @@ subroutine cleanupOptimizer(this)
   SAFE_DEALLOCATE(this%cs)
   SAFE_DEALLOCATE(this%beta)
   if (allocated(this%Q)) then
-    do i = 1, this%maxGMRES+1
+    do i = 1, this%maxSubsteps+1
       call this%Q(i)%cleanup()
     end do
     SAFE_DEALLOCATE(this%Q)
@@ -621,7 +628,7 @@ subroutine showProgressOptimizer(this, region, mode, step, scalars,             
       write(str, '(2A,I8,3(A,E13.6))') PROJECT_NAME, ": timestep = ", step,                     &
            ", convection speed = ", region%params%buffer(1,1),                                  &
            ", cost functional = ", scalars(1), ", cost sensitivity = ", scalars(2)
-    case (NEWTON, GMRES, BICGSTAB)
+    case (NEWTON, CGS, GMRES, BICGSTAB)
       assert(size(scalars)>=1)
       write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", step,                     &
            ", convection speed = ", region%params%buffer(1,1),                                  &
@@ -654,7 +661,7 @@ subroutine showProgressOptimizer(this, region, mode, step, scalars,             
       case (VERIFY, NLCG)
         write(fileUnit, '(I8,3(1X,SP,' // SCALAR_FORMAT // '))')                       &
               step, region%params%buffer(1,1), scalars(1), scalars(2)
-      case (NEWTON, GMRES, BICGSTAB)
+      case (NEWTON, GMRES, BICGSTAB, CGS)
         write(fileUnit, '(I8,2(1X,SP,' // SCALAR_FORMAT // '))')                       &
               step, region%params%buffer(1,1), scalars(1)
       end select
@@ -915,6 +922,154 @@ subroutine runNLCG(this, region, restartFilename)
 
 end subroutine
 
+subroutine runCGS(this, region, restartFilename)
+
+  ! <<< External modules >>>
+  use MPI
+  use iso_fortran_env, only : output_unit
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+  use Optimizer_mod, only : t_Optimizer
+  use RegionVector_mod
+
+  ! <<< Enumerations >>>
+  use State_enum, only : QOI_FORWARD_STATE
+  use Region_enum, only : FORWARD, LINEARIZED, ADJOINT
+  use Optimizer_enum, only : NEWTON, CGS
+
+  ! <<< Internal modules >>>
+  use RegionVectorImpl
+  use TravelingWaveImpl
+  use SolverImpl, only : checkSolutionLimits
+  use RegionImpl, only : computeRegionIntegral
+  use MPITimingsHelper, only : startTiming, endTiming
+  use ErrorHandler, only : writeAndFlush, gracefulExit
+  use InputHelper, only : getFreeUnit
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Optimizer) :: this
+  class(t_Region) :: region
+  character(len = *), intent(in) :: restartFilename
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, k, l, m, n, fileUnit, ostat, procRank, ierror,                        &
+             startTimestep, timestep, substep, numSteps, restart,                        &
+             totalSubsteps
+  SCALAR_TYPE :: residualNorm, residualNorm1, rr, rr1, rr0, alpha, beta
+  character(len = STRING_LENGTH) :: strFormat, filename, outputFilename, message
+
+  call startTiming("runCGS")
+
+  write(outputFilename, '(2A)') trim(this%outputPrefix), ".traveling_wave.cgs.txt"
+  write(filename, '(2A)') trim(this%outputPrefix), ".traveling_wave.newton.txt"
+
+  ! Load the initial condition.
+  call loadTravelingWave(region,trim(restartFilename))
+  startTimestep = region%timestep
+  totalSubsteps = 0
+
+  if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
+    region%oneOverVolume = computeRegionIntegral(region)
+    region%oneOverVolume = 1.0_wp / region%oneOverVolume
+
+    region%momentumLossPerVolume = 0.0_wp
+  end if
+
+  do i = 1, size(region%states) !... update state
+     call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
+          region%solverOptions)
+  end do
+
+  ! Check if physical quantities are within allowed limits.
+  if (region%simulationFlags%enableSolutionLimits) then
+    if ( checkSolutionLimits(region, FORWARD, this%outputPrefix) ) then
+      write(message,'(A)') 'Newton iteration reached an infeasible solution!'
+      call gracefulExit(region%comm, message)
+    end if
+  end if
+
+  call computeTravelingWaveResidual(region,this%residual)
+  residualNorm = sqrt(regionInnerProduct(this%residual,this%residual,region))
+
+  do timestep = startTimestep + 1, startTimestep + this%nTimesteps
+
+    region%timestep = timestep
+
+    call saveRegionVector(this%base,region,QOI_FORWARD_STATE)
+    this%x%params = 0.0_wp
+    do i = 1, size(region%states)
+      this%x%states(i)%conservedVariables = 0.0_wp
+    end do
+    this%grad = computeTravelingWaveJacobian(region,this%residual * (-1.0_wp),ADJOINT)
+    this%conjGrad = this%grad
+    rr = regionInnerProduct(this%grad,this%grad,region)
+    rr0 = rr
+
+    do substep = 1, this%maxSubsteps
+      rr1 = rr
+
+      this%Ap = computeTravelingWaveJacobian(region,this%conjGrad,LINEARIZED)
+      this%Ap = computeTravelingWaveJacobian(region,this%Ap,ADJOINT)
+      alpha = rr1 / regionInnerProduct(this%conjGrad,this%Ap,region)
+
+      this%x = this%x + this%conjGrad * alpha
+      this%grad = this%grad - this%Ap * alpha
+
+      rr = regionInnerProduct(this%grad,this%grad,region)
+      beta = rr / rr1
+      this%conjGrad = this%grad + this%conjGrad * beta
+
+      call this%showProgress(region, CGS, totalSubsteps + substep, (/ sqrt(rr) /), &
+               outputFilename, totalSubsteps + substep - 1 > this%reportInterval)
+      if (sqrt(rr)<this%linminTol*sqrt(rr0)) then
+        exit
+      end if
+    end do
+    totalSubsteps = totalSubsteps + substep
+
+    if (sqrt(rr)>=this%linminTol*sqrt(rr0)) then
+      write(message,'(A)') 'CGS iteration failed.'
+      call gracefulExit(region%comm, message)
+    end if
+
+    call loadRegionVector(region,this%base + this%x,QOI_FORWARD_STATE)
+
+    do i = 1, size(region%states) !... update state
+       call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
+            region%solverOptions)
+    end do
+
+    ! Check if physical quantities are within allowed limits.
+    if (region%simulationFlags%enableSolutionLimits) then
+      if ( checkSolutionLimits(region, FORWARD, this%outputPrefix) ) then
+        write(message,'(A)') 'Newton iteration reached an infeasible solution!'
+        call gracefulExit(region%comm, message)
+      end if
+    end if
+
+    call computeTravelingWaveResidual(region,this%residual)
+    residualNorm1 = residualNorm
+    residualNorm = sqrt(regionInnerProduct(this%residual,this%residual,region))
+
+    call this%showProgress(region, NEWTON, timestep, (/ residualNorm /),                       &
+                           filename, timestep - startTimestep - 1 > this%reportInterval)
+
+    if (residualNorm > residualNorm1) then
+      write(message,'(2(A,ES13.6))') 'Newton iteration failed! Previous: ', residualNorm1,     &
+                                     ', Current: ', residualNorm
+      call gracefulExit(region%comm, message)
+    end if
+
+  end do
+
+  call endTiming("runCGS")
+
+end subroutine runCGS
+
 subroutine runGMRES(this, region, restartFilename)
 
   ! <<< External modules >>>
@@ -1081,7 +1236,7 @@ subroutine runGMRES(this, region, restartFilename)
       this%beta = 0.0_wp
       this%Q(1) = this%r * (1.0_wp/rNorm)
       this%beta(1) = rNorm
-      do substep = 1, this%maxGMRES
+      do substep = 1, this%maxSubsteps
         this%H(1:substep+1,substep) = arnoldi(this,region,substep)
 
         call givensRotation(this%H(1:substep+1,substep),this%cs(1:substep),this%sn(1:substep),substep)

@@ -10,7 +10,8 @@ module Optimizer_enum
        NLCG   = 302,                                                                         &
        NEWTON = 303,                                                                         &
        GMRES  = 304,                                                                         &
-       BICGSTAB = 305
+       BICGSTAB = 305,&
+       CGS = 306
 
 end module Optimizer_enum
 
@@ -28,7 +29,7 @@ module Optimizer_mod
      SCALAR_TYPE :: initialStep, goldenRatio, linminTol, cgTol
      SCALAR_TYPE :: bracket(3,2), gg1
 
-     integer :: maxGMRES, maxRestart
+     integer :: maxSubsteps, maxRestart
      SCALAR_TYPE, allocatable :: H(:,:), sn(:), cs(:), beta(:)
      type(t_RegionVector), allocatable :: Q(:)
      character(len=STRING_LENGTH) :: outputPrefix
@@ -40,7 +41,7 @@ module Optimizer_mod
      procedure, pass :: cleanup => cleanupOptimizer
      procedure, pass :: verifyAdjoint
      procedure, pass :: runNLCG
-     ! procedure, pass :: runCGS
+     procedure, pass :: runCGS
      procedure, pass :: runGMRES
      procedure, pass :: runBICGSTAB
      procedure, pass :: printBracket
@@ -103,6 +104,21 @@ module Optimizer_mod
        character(len = *), intent(in), optional :: restartFilename
 
      end subroutine runNLCG
+
+  end interface
+
+  interface
+
+     subroutine runCGS(this, region, restartFilename)
+
+       use Region_mod, only : t_Region
+       import :: t_Optimizer
+
+       class(t_Optimizer) :: this
+       class(t_Region) :: region
+       character(len = *), intent(in) :: restartFilename
+
+     end subroutine runCGS
 
   end interface
 
