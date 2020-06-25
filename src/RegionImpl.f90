@@ -1166,6 +1166,7 @@ subroutine cleanupRegion(this)
   SAFE_DEALLOCATE(this%patchMasterRanks)
 
   SAFE_DEALLOCATE(this%params%buffer)
+  SAFE_DEALLOCATE(this%paramWeights%buffer)
   if (allocated(this%data_)) then
     do i = 1, size(this%data_)
       SAFE_DEALLOCATE(this%data_(i)%buffer)

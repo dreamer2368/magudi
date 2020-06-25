@@ -10,7 +10,7 @@ module Optimizer_enum
        NLCG   = 302,                                                                         &
        NEWTON = 303,                                                                         &
        GMRES  = 304,                                                                         &
-       BICGSTAB = 305,&
+       BICGSTABL = 305,                                                                      &
        CGS = 306
 
 end module Optimizer_enum
@@ -29,9 +29,9 @@ module Optimizer_mod
      SCALAR_TYPE :: initialStep, goldenRatio, linminTol, cgTol
      SCALAR_TYPE :: bracket(3,2), gg1
 
-     integer :: maxSubsteps, maxRestart
-     SCALAR_TYPE, allocatable :: H(:,:), sn(:), cs(:), beta(:)
-     type(t_RegionVector), allocatable :: Q(:)
+     integer :: maxSubsteps, maxRestart, firstIndex
+     SCALAR_TYPE, allocatable :: H(:,:), sn(:), cs(:), beta(:), gamma(:,:)
+     type(t_RegionVector), allocatable :: Q(:), U(:)
      character(len=STRING_LENGTH) :: outputPrefix
      logical :: verbose
 
@@ -43,7 +43,7 @@ module Optimizer_mod
      procedure, pass :: runNLCG
      procedure, pass :: runCGS
      procedure, pass :: runGMRES
-     procedure, pass :: runBICGSTAB
+     procedure, pass :: runBICGSTABL
      procedure, pass :: printBracket
      procedure, pass :: showProgress => showProgressOptimizer
 
@@ -79,7 +79,7 @@ module Optimizer_mod
   end interface
 
   interface
-     subroutine verifyAdjoint(this, region)
+     subroutine verifyAdjoint(this, region, restartFilename)
 
        use Region_mod, only : t_Region
 
@@ -87,6 +87,7 @@ module Optimizer_mod
 
        class(t_Optimizer) :: this
        class(t_Region) :: region
+       character(len = *), intent(in), optional :: restartFilename
 
      end subroutine verifyAdjoint
 
@@ -139,7 +140,7 @@ module Optimizer_mod
 
   interface
 
-     subroutine runBICGSTAB(this, region, restartFilename)
+     subroutine runBICGSTABL(this, region, restartFilename)
 
        use Region_mod, only : t_Region
        import :: t_Optimizer
@@ -148,7 +149,7 @@ module Optimizer_mod
        class(t_Region) :: region
        character(len = *), intent(in) :: restartFilename
 
-     end subroutine runBICGSTAB
+     end subroutine runBICGSTABL
 
   end interface
 

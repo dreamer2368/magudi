@@ -35,6 +35,12 @@ contains
     allocate(region%params%buffer(1,1))
     region%params%buffer = getOption("traveling_wave/initial_speed",1.0_wp)
 
+    SAFE_DEALLOCATE(region%paramWeights%buffer)
+    allocate(region%paramWeights%buffer(1,1))
+    region%paramWeights%buffer = getOption("traveling_wave/parameter_weight",1.0_wp)
+
+    region%params%buffer = region%params%buffer / region%paramWeights%buffer
+
   end subroutine setupTravelingWave
 
   subroutine computeTravelingWaveResidual(region, residual)
@@ -58,9 +64,10 @@ contains
     ! <<< Local variables >>>
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, nDimensions, nUnknowns
+    SCALAR_TYPE :: convectionSpeed
     SCALAR_TYPE, allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:)
 
-    ! call residual%set(region) !... seems redundant
+    convectionSpeed = region%params%buffer(1,1) * region%paramWeights%buffer(1,1)
 
     call region%computeRhs(FORWARD,1,1)
 
@@ -95,7 +102,7 @@ contains
         residual%states(i)%conservedVariables(:,j) * region%grids(i)%jacobian(:,1)
       end do
       residual%states(i)%conservedVariables =                                   &
-            - region%params%buffer(1,1) * residual%states(i)%conservedVariables &
+            - convectionSpeed * residual%states(i)%conservedVariables           &
             - region%states(i)%rightHandSide
 
       SAFE_DEALLOCATE(fluxes2)
@@ -132,6 +139,7 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, k, direction, index, nDimensions, nUnknowns, ierror
     SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
+    SCALAR_TYPE :: convectionSpeed, paramWeight
     type(t_RegionVector) :: temp
 
     nUnknowns = region%solverOptions%nUnknowns
@@ -139,6 +147,8 @@ contains
     assert_key(nDimensions, (1, 2, 3))
 
     direction = 1
+    convectionSpeed = region%params%buffer(1,1) * region%paramWeights%buffer(1,1)
+    paramWeight = region%paramWeights%buffer(1,1)
 
     call output%set(input)
 
@@ -195,7 +205,7 @@ contains
         end do
       end select
       output%states(i)%conservedVariables =                                     &
-              - region%params%buffer(1,1) * output%states(i)%conservedVariables &
+              - convectionSpeed * output%states(i)%conservedVariables           &
               - region%states(i)%rightHandSide
       SAFE_DEALLOCATE(fluxes1)
     end do
@@ -226,10 +236,10 @@ contains
       end do
 
       output%states(i)%conservedVariables = output%states(i)%conservedVariables &
-                          - input%params(1) * temp%states(i)%conservedVariables
+            - input%params(1) * paramWeight * temp%states(i)%conservedVariables
 
-      output%params = output%params                                             &
-        - region%grids(i)%computeInnerProduct(region%states(i)%adjointVariables,&
+      output%params = output%params - paramWeight *                             &
+          region%grids(i)%computeInnerProduct(region%states(i)%adjointVariables,&
                                               temp%states(i)%conservedVariables)
     end do
 

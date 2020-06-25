@@ -61,8 +61,8 @@ program traveling_wave
       mode = CGS
     case("--gmres")
       mode = GMRES
-    case("--bicgstab")
-      mode = BICGSTAB
+    case("--bicgstabl")
+      mode = BICGSTABL
     case("--save_metrics")
       saveMetricsFlag = .true.
     case default
@@ -150,7 +150,11 @@ program traveling_wave
     write(message, '(A)') "Running on the verification mode."
     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
     call optimizer%setup(region,mode)
-    call optimizer%verifyAdjoint(region)
+    if (restartFlag) then
+      call optimizer%verifyAdjoint(region, trim(restartFilename))
+    else
+      call optimizer%verifyAdjoint(region)
+    end if
   case(NLCG)
     call optimizer%setup(region,mode)
     if (restartFlag) then
@@ -174,13 +178,13 @@ program traveling_wave
     else
       call optimizer%runGMRES(region, trim(restartFilename))
     end if
-  case(BICGSTAB)
+  case(BICGSTABL)
     call optimizer%setup(region,mode)
     if (.not. restartFlag) then
       write(message,'(A)') "Linear Newton solver requires a restart filename!"
       call gracefulExit(MPI_COMM_WORLD, message)
     else
-      call optimizer%runBICGSTAB(region, trim(restartFilename))
+      call optimizer%runBICGSTABL(region, trim(restartFilename))
     end if
   case default
     write(message, '(A)') 'Mode is not specified correctly!: --verify, --nlcg, --newton, --gmres'

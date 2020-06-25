@@ -453,7 +453,7 @@ subroutine setupOptimizer(this, region, mode)
   this%linminTol = getOption("optimization/linmin_tolerance",(0.1_wp)**3)
   this%cgTol = getOption("optimization/cg_tolerance",(0.1_wp)**5)
   this%maxSubsteps = getOption("optimization/max_substeps",30)
-  this%maxRestart = getOption("optimization/max_gmres_restart",100)
+  this%maxRestart = getOption("optimization/max_restart",100)
   this%saveInterval = getOption("save_interval",-1)
   this%reportInterval = getOption("report_interval",-1)
   this%nTimesteps = getOption("number_of_timesteps",100)
@@ -500,16 +500,25 @@ subroutine setupOptimizer(this, region, mode)
     do i = 1, this%maxSubsteps+1
       call this%Q(i)%set(region)
     end do
-  case(BICGSTAB)
+    this%firstIndex = 1
+  case(BICGSTABL)
     call this%residual%set(region)
     call this%base%set(region)
     call this%x%set(region)
     call this%r%set(region)
     call this%rcg%set(region)
-    call this%conjGrad%set(region)
-    call this%Ap%set(region)
-    call this%s%set(region)
-    call this%As%set(region)
+
+    assert(this%maxSubsteps>0)
+    allocate(this%Q(0:this%maxSubsteps))
+    allocate(this%U(0:this%maxSubsteps))
+    do i = 0, this%maxSubsteps
+      call this%Q(i)%set(region)
+      call this%U(i)%set(region)
+    end do
+    this%firstIndex = 0
+    allocate(this%H(this%maxSubsteps,this%maxSubsteps))
+    allocate(this%sn(this%maxSubsteps))
+    allocate(this%gamma(this%maxSubsteps,3))
   end select
 
 end subroutine setupOptimizer
@@ -546,11 +555,18 @@ subroutine cleanupOptimizer(this)
   SAFE_DEALLOCATE(this%sn)
   SAFE_DEALLOCATE(this%cs)
   SAFE_DEALLOCATE(this%beta)
+  SAFE_DEALLOCATE(this%gamma)
   if (allocated(this%Q)) then
-    do i = 1, this%maxSubsteps+1
+    do i = this%firstIndex, this%firstIndex + this%maxSubsteps
       call this%Q(i)%cleanup()
     end do
     SAFE_DEALLOCATE(this%Q)
+  end if
+  if (allocated(this%U)) then
+    do i = this%firstIndex, this%firstIndex + this%maxSubsteps
+      call this%U(i)%cleanup()
+    end do
+    SAFE_DEALLOCATE(this%U)
   end if
 
 end subroutine cleanupOptimizer
@@ -615,23 +631,28 @@ subroutine showProgressOptimizer(this, region, mode, step, scalars,             
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: str, filename, message
-  logical :: fileExists, append_
+  logical :: fileExists, append_, report_
   integer :: procRank, ierror, fileUnit, ostat
+  SCALAR_TYPE :: convectionSpeed
 
   append_ = .false.
   if (present(append)) append_ = append
 
-  if (this%reportInterval > 0 .and. mod(step, max(1, this%reportInterval)) == 0) then
+  report_ = (mode==NEWTON) .or. (this%reportInterval > 0 .and. mod(step, max(1, this%reportInterval)) == 0)
+
+  if (report_) then
+    convectionSpeed = region%params%buffer(1,1) * region%paramWeights%buffer(1,1)
+
     select case(mode)
     case (VERIFY, NLCG)
       assert(size(scalars)==2)
       write(str, '(2A,I8,3(A,E13.6))') PROJECT_NAME, ": timestep = ", step,                     &
-           ", convection speed = ", region%params%buffer(1,1),                                  &
+           ", convection speed = ", convectionSpeed,                                            &
            ", cost functional = ", scalars(1), ", cost sensitivity = ", scalars(2)
-    case (NEWTON, CGS, GMRES, BICGSTAB)
+    case (NEWTON, CGS, GMRES, BICGSTABL)
       assert(size(scalars)>=1)
       write(str, '(2A,I8,2(A,E13.6))') PROJECT_NAME, ": timestep = ", step,                     &
-           ", convection speed = ", region%params%buffer(1,1),                                  &
+           ", convection speed = ", convectionSpeed,                                            &
            ", residual = ", scalars(1)
     case default
       write(str, '(A)') 'The mode cannot be identified!'
@@ -660,10 +681,10 @@ subroutine showProgressOptimizer(this, region, mode, step, scalars,             
       select case(mode)
       case (VERIFY, NLCG)
         write(fileUnit, '(I8,3(1X,SP,' // SCALAR_FORMAT // '))')                       &
-              step, region%params%buffer(1,1), scalars(1), scalars(2)
-      case (NEWTON, GMRES, BICGSTAB, CGS)
+              step, convectionSpeed, scalars(1), scalars(2)
+      case (NEWTON, GMRES, BICGSTABL, CGS)
         write(fileUnit, '(I8,2(1X,SP,' // SCALAR_FORMAT // '))')                       &
-              step, region%params%buffer(1,1), scalars(1)
+              step, convectionSpeed, scalars(1)
       end select
     end if
 
@@ -682,16 +703,19 @@ subroutine showProgressOptimizer(this, region, mode, step, scalars,             
   end if
 
   select case(mode)
-  case (VERIFY, NLCG, NEWTON)
+  case (VERIFY, NLCG)
     if (this%saveInterval > 0 .and. mod(step, max(1, this%saveInterval)) == 0) then
       write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", step, ".q"
       call saveTravelingWave(region, filename)
     end if
+  case (NEWTON)
+    write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", step, ".q"
+    call saveTravelingWave(region, filename)
   end select
 
 end subroutine showProgressOptimizer
 
-subroutine verifyAdjoint(this, region)
+subroutine verifyAdjoint(this, region, restartFilename)
 
   ! <<< External modules >>>
   use iso_fortran_env, only : output_unit
@@ -723,6 +747,7 @@ subroutine verifyAdjoint(this, region)
   ! <<< Arguments >>>
   class(t_Optimizer) :: this
   class(t_Region) :: region
+  character(len = *), intent(in), optional :: restartFilename
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
@@ -735,8 +760,12 @@ subroutine verifyAdjoint(this, region)
   call startTiming("verifyAdjoint")
 
   ! Load the initial condition.
-  call getRequiredOption("initial_condition_file", filename, region%comm)
-  call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
+  if (present(restartFilename)) then
+    call loadTravelingWave(region,trim(restartFilename))
+  else
+    call getRequiredOption("initial_condition_file", filename, region%comm)
+    call region%loadData(QOI_FORWARD_STATE, filename) !... initialize from file.
+  end if
 
   if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
     region%oneOverVolume = computeRegionIntegral(region)
@@ -761,6 +790,9 @@ subroutine verifyAdjoint(this, region)
   costSensitivity = regionInnerProduct(this%grad,this%grad,region)
   write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
                              'Adjoint run: cost sensitivity = ', costSensitivity
+  call writeAndFlush(region%comm, output_unit, message)
+  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                      &
+                             'Adjoint run: parameter sensitivity = ', this%grad%params(1)
   call writeAndFlush(region%comm, output_unit, message)
 
   call random_number(this%prevGrad%params)
@@ -1311,7 +1343,7 @@ subroutine runGMRES(this, region, restartFilename)
 
 end subroutine runGMRES
 
-subroutine runBICGSTAB(this, region, restartFilename)
+subroutine runBICGSTABL(this, region, restartFilename)
 
   ! <<< External modules >>>
   use MPI
@@ -1323,11 +1355,12 @@ subroutine runBICGSTAB(this, region, restartFilename)
   use RegionVector_mod
 
   ! <<< Enumerations >>>
-  ! use State_enum, only : QOI_FORWARD_STATE, QOI_ADJOINT_STATE, QOI_RIGHT_HAND_SIDE
-  use Region_enum, only : FORWARD, LINEARIZED
+  use State_enum, only : QOI_FORWARD_STATE
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
+  use Optimizer_enum, only : NEWTON, BICGSTABL
 
   ! <<< Internal modules >>>
-  ! use OptimizerImpl, only : arnoldi, givensRotation, backwardSubstitution
+  use OptimizerImpl, only : backwardSubstitution
   use RegionVectorImpl
   use TravelingWaveImpl
   use SolverImpl, only : checkSolutionLimits
@@ -1345,18 +1378,23 @@ subroutine runBICGSTAB(this, region, restartFilename)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, fileUnit, ostat, procRank, ierror,                              &
-             startTimestep, timestep
-  SCALAR_TYPE :: a, w, rr, rr0, rr1, b, residualNorm
+  integer :: i, j, l, fileUnit, ostat, procRank, ierror,                        &
+             startTimestep, timestep, totalSubsteps, restart
+  SCALAR_TYPE :: rho0, rho1, alpha, w, beta, gamma, rr, rr0, rr1,               &
+                 residualNorm, residualNorm1
   character(len = STRING_LENGTH) :: filename, outputFilename, message
 
-  call startTiming("runBICGSTAB")
+  call startTiming("runBICGSTAB(l)")
 
-  write(outputFilename, '(2A)') trim(this%outputPrefix), ".traveling_wave.bicgstab.txt"
+  write(outputFilename, '(2A)') trim(this%outputPrefix), ".traveling_wave.bicgstabl.txt"
+  write(filename, '(2A)') trim(this%outputPrefix), ".traveling_wave.newton.txt"
+
+  l = this%maxSubsteps
 
   ! Load the initial condition.
   call loadTravelingWave(region,trim(restartFilename))
   startTimestep = region%timestep
+  totalSubsteps = 0
 
   if (region%simulationFlags%enableBodyForce .or. region%simulationFlags%checkConservation) then
     region%oneOverVolume = computeRegionIntegral(region)
@@ -1379,56 +1417,142 @@ subroutine runBICGSTAB(this, region, restartFilename)
   end if
 
   call computeTravelingWaveResidual(region,this%residual)
-  ! residualNorm = sqrt(regionInnerProduct(this%residual,this%residual,region))
-  ! error = 1.0_wp
-  this%x%params = 0.0_wp
-  do i = 1, size(region%states)
-    this%x%states(i)%conservedVariables = 0.0_wp
-  end do
+  residualNorm = sqrt(regionInnerProduct(this%residual,this%residual,region))
 
-  this%r = this%residual * (-1.0_wp)                                            &
-                        - computeTravelingWaveJacobian(region,this%x,LINEARIZED)
-  ! this%rcg = computeTravelingWaveJacobian(region,this%r,LINEARIZED)
-  this%rcg = this%r
-  this%conjGrad = this%r
+  do timestep = startTimestep + 1, startTimestep + this%nTimesteps
 
-  residualNorm = regionInnerProduct(this%r,this%r,region)
-  rr0 = regionInnerProduct(this%r,this%rcg,region)
-  if (rr0<this%cgTol*residualNorm) then
-    write(message,'(A)') 'Initial vectors are chosen to be trivial.'
-    call gracefulExit(region%comm, message)
-  end if
+    this%x%params = 0.0_wp
+    do i = 1, size(region%states)
+      this%x%states(i)%conservedVariables = 0.0_wp
+    end do
 
-  do timestep = startTimestep, startTimestep + this%nTimesteps
-    region%timestep = timestep
+    this%Q(0) = this%residual * (-1.0_wp)                                            &
+                          - computeTravelingWaveJacobian(region,this%x,LINEARIZED)
+    ! this%rcg = computeTravelingWaveJacobian(region,this%Q(0),ADJOINT)
+    this%rcg = computeTravelingWaveJacobian(region,this%Q(0),LINEARIZED)
+    ! this%rcg = this%Q(0)
+    ! this%rcg%params = 0.1_wp * residualNorm
+    this%rcg = this%rcg * sqrt(1.0_wp/regionInnerProduct(this%rcg,this%rcg,region))
+    residualNorm1 =  regionInnerProduct(this%rcg,this%rcg,region)
+    this%U(0) = this%x
 
-    this%Ap = computeTravelingWaveJacobian(region,this%conjGrad,LINEARIZED)
-    a = rr0 / regionInnerProduct(this%Ap,this%rcg,region)
-
-    this%s = this%r - this%Ap * a
-    this%As = computeTravelingWaveJacobian(region,this%s,LINEARIZED)
-    w = regionInnerProduct(this%As,this%s,region)                              &
-        / regionInnerProduct(this%As,this%As,region)
-
-    this%x = this%x + this%conjGrad * a + this%s * w
-    this%r = this%s - this%As * w
-
-    rr = regionInnerProduct(this%r,this%r,region)
-    write(message,'(I8.8,1X,A,1X,'// SCALAR_FORMAT //')') timestep, ' error: ', rr
-    call writeAndFlush(region%comm, output_unit, message)
-
-    if (rr<this%cgTol*residualNorm) then
-      write(message,'(A)') 'BICGSTAB procedure finished.'
+    rr0 = residualNorm
+    rr1 = regionInnerProduct(this%Q(0),this%rcg,region)
+    if (abs(rr1)<this%cgTol*rr0) then
+      write(message,'(2(A, ES13.6))') 'rr = ', rr0, ', rr1 = ', rr1
       call writeAndFlush(region%comm, output_unit, message)
-      exit
+      write(message,'(A)') 'Initial vectors are chosen to be trivial!'
+      call gracefulExit(region%comm, message)
     end if
 
-    rr1 = regionInnerProduct(this%r,this%rcg,region)
-    b = a / w * rr1 / rr0
-    this%conjGrad = this%r + (this%conjGrad - this%Ap * w) * b
+    rho0 = 1.0_wp
+    alpha = 0.0_wp
+    w = 1.0_wp
+
+    do restart = l, this%maxRestart, l
+      rho0 = - w * rho0
+
+      ! bicg part.
+      do j = 0, l-1
+        rho1 = regionInnerProduct(this%Q(j),this%rcg,region)
+        beta = alpha * rho1 / rho0
+        rho0 = rho1
+        do i = 0, j
+          this%U(i) = this%Q(i) - this%U(i) * beta
+        end do
+        this%U(j+1) = computeTravelingWaveJacobian(region,this%U(j),LINEARIZED)
+
+        gamma = regionInnerProduct(this%U(j+1),this%rcg,region)
+        alpha = rho0 / gamma
+        do i = 0, j
+          this%Q(i) = this%Q(i) - this%U(i+1) * alpha
+        end do
+        this%Q(j+1) = computeTravelingWaveJacobian(region,this%Q(j),LINEARIZED)
+        this%x = this%x + this%U(0) * alpha
+      end do
+
+      ! minimal residual part.
+      this%H = 0.0_wp
+      this%sn = 0.0_wp
+      this%gamma = 0.0_wp
+      ! modified Gram-Schmidt.
+      do j = 1, l
+        do i = 1, j-1
+          this%H(i,j) = regionInnerProduct(this%Q(i),this%Q(j),region) / this%sn(i)
+          this%Q(j) = this%Q(j) - this%Q(i) * this%H(i,j)
+        end do
+        this%sn(j) = regionInnerProduct(this%Q(j),this%Q(j),region)
+        this%gamma(j,2) = regionInnerProduct(this%Q(0),this%Q(j),region) / this%sn(j)
+        this%H(j,j) = 1.0_wp
+      end do
+
+      w = this%gamma(l,2)
+      this%gamma(:,1) = backwardSubstitution(this%H,this%gamma(:,2))
+      ! knowing that H is upper-triangular, this matmul operation can be more optimized.
+      this%gamma(1:l-1,3) = matmul(this%H(1:l-1,1:l-1),this%gamma(2:l,1))
+
+      ! update.
+      this%x = this%x + this%Q(0) * this%gamma(1,1)
+      this%Q(0) = this%Q(0) - this%Q(l) * this%gamma(l,2)
+      this%U(0) = this%U(0) - this%U(l) * this%gamma(l,1)
+      do j = 1, l-1
+        this%U(0) = this%U(0) - this%U(j) * this%gamma(j,1)
+        this%x    = this%x    + this%Q(j) * this%gamma(j,3)
+        this%Q(0) = this%Q(0) - this%Q(j) * this%gamma(j,2)
+      end do
+
+      rr = sqrt(regionInnerProduct(this%Q(0),this%Q(0),region))
+      call this%showProgress(region, BICGSTABL, totalSubsteps + restart, (/ rr /), &
+               outputFilename, totalSubsteps + restart - l > this%reportInterval)
+
+      if (rr<this%linminTol*rr0) then
+        exit
+      end if
+
+    end do
+
+    totalSubsteps = totalSubsteps + restart
+
+    if (rr>=this%linminTol*rr0) then
+      write(message,'(A)') 'BICGSTAB(l) iteration failed.'
+      call gracefulExit(region%comm, message)
+    end if
+
+    this%Q(0) = this%residual * (-1.0_wp)                                            &
+                          - computeTravelingWaveJacobian(region,this%x,LINEARIZED)
+    print *, 'did it actually solve? ', sqrt(regionInnerProduct(this%Q(0),this%Q(0),region))
+    print *, 'last residual? ', this%Q(0)%params(1)
+
+    call loadRegionVector(region,this%base + this%x,QOI_FORWARD_STATE)
+
+    do i = 1, size(region%states) !... update state
+       call region%states(i)%update(region%grids(i), region%simulationFlags,                   &
+            region%solverOptions)
+    end do
+
+    ! Check if physical quantities are within allowed limits.
+    if (region%simulationFlags%enableSolutionLimits) then
+      if ( checkSolutionLimits(region, FORWARD, this%outputPrefix) ) then
+        write(message,'(A)') 'Newton iteration reached an infeasible solution!'
+        call gracefulExit(region%comm, message)
+      end if
+    end if
+
+    call computeTravelingWaveResidual(region,this%residual)
+    residualNorm1 = residualNorm
+    residualNorm = sqrt(regionInnerProduct(this%residual,this%residual,region))
+
+    call this%showProgress(region, NEWTON, timestep, (/ residualNorm /),                       &
+                           filename, timestep - startTimestep - 1 > this%reportInterval)
+
+    if (residualNorm > residualNorm1) then
+      write(message,'(2(A,ES13.6))') 'Newton iteration failed! Previous: ', residualNorm1,     &
+                                     ', Current: ', residualNorm
+      call gracefulExit(region%comm, message)
+    end if
 
   end do
 
-  call endTiming("runBICGSTAB")
+  call endTiming("runBICGSTAB(l)")
 
-end subroutine runBICGSTAB
+end subroutine runBICGSTABL
