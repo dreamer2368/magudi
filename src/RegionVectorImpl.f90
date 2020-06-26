@@ -146,7 +146,6 @@ contains
        call MPI_Bcast(r, 1, SCALAR_TYPE_MPI, 0, region%grids(i)%comm, ierror)
     end do
 
-    ! print *, sqrt(r), sqrt(sum(a%params*b%params)), a%params, b%params
     r = r + sum(a%params * b%params)
 
   end function regionInnerProduct

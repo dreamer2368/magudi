@@ -718,6 +718,7 @@ end subroutine showProgressOptimizer
 subroutine verifyAdjoint(this, region, restartFilename)
 
   ! <<< External modules >>>
+  use MPI
   use iso_fortran_env, only : output_unit
 
   ! <<< Derived types >>>
@@ -752,7 +753,7 @@ subroutine verifyAdjoint(this, region, restartFilename)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: filename, message
-  integer :: i, j, k, nDimensions, nUnknowns
+  integer :: i, j, k, nDimensions, nUnknowns, ierror
   SCALAR_TYPE :: costFunctional0, costFunctional1, costSensitivity, ATxy, xAy
   SCALAR_TYPE :: stepSizes(32), errorHistory(32), convergenceHistory(31)
   logical :: solutionCrashes = .false., success_
@@ -796,6 +797,8 @@ subroutine verifyAdjoint(this, region, restartFilename)
   call writeAndFlush(region%comm, output_unit, message)
 
   call random_number(this%prevGrad%params)
+  call MPI_Bcast(this%prevGrad%params, 1, SCALAR_TYPE_MPI, 0, MPI_COMM_WORLD, ierror)
+  
   do i = 1, size(region%states)
     call random_number(this%prevGrad%states(i)%conservedVariables)
   end do
