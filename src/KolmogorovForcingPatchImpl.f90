@@ -151,20 +151,20 @@ subroutine addKolmogorovForcing(this, mode, simulationFlags, solverOptions, grid
            case (FORWARD)
               state%rightHandSide(gridIndex,2) = state%rightHandSide(gridIndex,2) +          &
                    state%conservedVariables(gridIndex,1) * localForcing
-              state%rightHandSide(gridIndex,nDimensions+2) =                                 &
-                   state%rightHandSide(gridIndex,nDimensions+2) +                            &
-                   state%conservedVariables(gridIndex,2) * localForcing
+              ! state%rightHandSide(gridIndex,nDimensions+2) =                                 &
+              !      state%rightHandSide(gridIndex,nDimensions+2) +                            &
+              !      state%conservedVariables(gridIndex,2) * localForcing
            case (ADJOINT)
               state%rightHandSide(gridIndex,1) = state%rightHandSide(gridIndex,1) -          &
                    state%adjointVariables(gridIndex,2) * localForcing
-              state%rightHandSide(gridIndex,2) = state%rightHandSide(gridIndex,2) -          &
-                   state%adjointVariables(gridIndex,nDimensions+2) * localForcing
+              ! state%rightHandSide(gridIndex,2) = state%rightHandSide(gridIndex,2) -          &
+              !      state%adjointVariables(gridIndex,nDimensions+2) * localForcing
            case (LINEARIZED)
               state%rightHandSide(gridIndex,2) = state%rightHandSide(gridIndex,2) +          &
                    state%adjointVariables(gridIndex,1) * localForcing
-              state%rightHandSide(gridIndex,nDimensions+2) =                                 &
-                   state%rightHandSide(gridIndex,nDimensions+2) +                            &
-                   state%adjointVariables(gridIndex,2) * localForcing
+              ! state%rightHandSide(gridIndex,nDimensions+2) =                                 &
+              !      state%rightHandSide(gridIndex,nDimensions+2) +                            &
+              !      state%adjointVariables(gridIndex,2) * localForcing
            end select
 
         end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)

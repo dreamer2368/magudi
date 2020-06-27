@@ -44,7 +44,7 @@ def random_solution(g,time=0.0,timestep=0):
     return s.fromprimitive(gamma)
 
 if __name__ == '__main__':
-    g = grid([256,256],alpha=1.0)
+    g = grid([256,256],alpha=0.9)
     g.save('KolmogorovFlow.xyz')
-    initial_condition(g,mach_number=0.2).save('KolmogorovFlow.ic.q')
+    initial_condition(g,mach_number=0.05).save('KolmogorovFlow.ic.q')
     #random_solution(g).save('ChannelFlow.ic.q')
