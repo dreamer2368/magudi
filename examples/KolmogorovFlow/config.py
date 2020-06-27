@@ -43,8 +43,52 @@ def random_solution(g,time=0.0,timestep=0):
 
     return s.fromprimitive(gamma)
 
+def target_mollifier(g, alpha = 1.0):
+    x = g.xyz[0][:,:,:,0]
+    y = g.xyz[0][:,:,:,1]
+    x_min =  0.6  * alpha
+    x_max =  1.0  * alpha
+    y_min =  0.0
+    y_max =  1.0
+    f = p3d.Function().copy_from(g)
+    f.f[0].fill(1.)
+    n = f.get_size(0)
+    #for i in range(n[0]):
+    #    f.f[0][i,:,0,0] *= p3d.tanh_support(
+    #        g.xyz[0][i,:,0,1], y_min, y_max, 40., 0.2)
+    for j in range(n[1]):
+        f.f[0][:,j,0,0] *= p3d.tanh_support(
+            g.xyz[0][:,j,0,0], x_min, x_max, 10., 0.3)
+    imin, imax = p3d.find_extents(g.xyz[0][:,0,0,0], x_min, x_max)
+    jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], y_min, y_max)
+    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        'targetRegion', 'COST_TARGET', 1, 0, imin, imax, jmin, jmax, 1, -1)
+    return f
+
+def control_mollifier(g,alpha=1.0):
+    x_min =  0.0  * alpha
+    x_max =  0.6  * alpha
+    y_min =  0.
+    y_max =  1.
+    f = p3d.Function().copy_from(g)
+    f.f[0].fill(1.)
+    n = f.get_size(0)
+    for j in range(n[1]):
+        f.f[0][:,j,0,0] *= p3d.tanh_support(
+            g.xyz[0][:,j,0,0], x_min, x_max, 10., 0.3)
+    #for i in range(n[0]):
+    #    f.f[0][i,:,0,0] *= p3d.cubic_bspline_support(
+    #        g.xyz[0][i,:,0,1], y_min, y_max)
+    imin, imax = p3d.find_extents(g.xyz[0][:,0,0,0], x_min, x_max)
+    jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], y_min, y_max)
+    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        'controlRegion', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)
+    return f
+
 if __name__ == '__main__':
     g = grid([256,256],alpha=0.9)
     g.save('KolmogorovFlow.xyz')
     initial_condition(g,mach_number=0.05).save('KolmogorovFlow.ic.q')
+    target_mollifier(g,alpha=0.9).save('KolmogorovFlow.target_mollifier.f')
+    control_mollifier(g,alpha=0.9).save('KolmogorovFlow.control_mollifier.f')
     #random_solution(g).save('ChannelFlow.ic.q')
