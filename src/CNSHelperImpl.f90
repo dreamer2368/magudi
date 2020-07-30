@@ -493,7 +493,8 @@ PURE_SUBROUTINE computeVorticityMagnitudeAndDilatation(nDimensions, velocityGrad
      end if
      if (present(vorticityMagnitude)) then
         assert(size(vorticityMagnitude) == size(velocityGradient, 1))
-        vorticityMagnitude = abs(velocityGradient(:,3) - velocityGradient(:,2))
+        ! vorticityMagnitude = abs(velocityGradient(:,3) - velocityGradient(:,2))
+        vorticityMagnitude = velocityGradient(:,3) - velocityGradient(:,2)
      end if
 
   case (3)
