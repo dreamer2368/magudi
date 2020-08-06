@@ -222,18 +222,18 @@ contains
        minMeshsize =  huge(1.0_wp)
        maxMeshsize = -huge(1.0_wp)
 
-       do k = 1, region%grids(1)%localSize(3)
-          do j = 1, region%grids(1)%localSize(2)
-             do i = 1, region%grids(1)%localSize(1)
-                gridIndex = i + region%grids(1)%localSize(1) * (j - 1 +                           &
-                                           region%grids(1)%localSize(2) * (k - 1))
+       do k = region%grids(1)%offset(3) + 1, region%grids(1)%offset(3) + region%grids(1)%localSize(3)
+          do j = region%grids(1)%offset(2) + 1, region%grids(1)%offset(2) + region%grids(1)%localSize(2)
+             do i = region%grids(1)%offset(1) + 1, region%grids(1)%offset(1) + region%grids(1)%localSize(1)
+                gridIndex = i - region%grids(1)%offset(1) + region%grids(1)%localSize(1) *          &
+                       (j - region%grids(1)%offset(2) - 1 + region%grids(1)%localSize(2) *          &
+                       (k - region%grids(1)%offset(3) - 1))
                 ! Create y
                 region%grids(1)%coordinates(gridIndex, 2) = 0.5_wp * Ly * (1.0_wp + g(j)) - 0.5_wp * Ly
 
                 ! Find min/max spacing
                 if (j .gt. 2) then
-                   gridIndex2 = i + region%grids(1)%localSize(1) * (j - 2 +                       &
-                                             region%grids(1)%localSize(2) * (k - 1))
+                   gridIndex2 = gridIndex - region%grids(1)%localSize(1)
                    y1 = region%grids(1)%coordinates(gridIndex, 2)
                    y2 = region%grids(1)%coordinates(gridIndex2, 2)
                    minMeshsize = min(minMeshsize, abs(y2 - y1))
