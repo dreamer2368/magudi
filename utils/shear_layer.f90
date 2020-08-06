@@ -162,12 +162,13 @@ contains
     stretchGrid = getOption("shear_layer/stretch_grid",.false.)
 
     ! Generate the grid
-    do k = 1, region%grids(1)%localSize(3)
-       do j = 1, region%grids(1)%localSize(2)
-          do i = 1, region%grids(1)%localSize(1)
+    do k = region%grids(1)%offset(3) + 1, region%grids(1)%offset(3) + region%grids(1)%localSize(3)
+       do j = region%grids(1)%offset(2) + 1, region%grids(1)%offset(2) + region%grids(1)%localSize(2)
+          do i = region%grids(1)%offset(1) + 1, region%grids(1)%offset(1) + region%grids(1)%localSize(1)
 
-             gridIndex = i + region%grids(1)%localSize(1) * (j - 1 +                           &
-                                         region%grids(1)%localSize(2) * (k - 1))
+             gridIndex = i - region%grids(1)%offset(1) + region%grids(1)%localSize(1) *         &
+                   (j - region%grids(1)%offset(2) - 1 + region%grids(1)%localSize(2) *          &
+                   (k - region%grids(1)%offset(3) - 1))
 
              ! Create X
              if (nx .gt. 1) then
