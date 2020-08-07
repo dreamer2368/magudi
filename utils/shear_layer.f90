@@ -302,7 +302,7 @@ contains
     real(wp) :: density, temperature, pressure, velocity, velocityDifference,                  &
          lowerTemperature, upperTemperature, T0, P0, x, y, z, Lpx, Lpz,                        &
          scalar, initialThickness, rand, ratioOfSpecificHeats,                                 &
-         shear_layer_initial_rms_fraction, midplaneRMS, minDensity, maxDensity, Yv
+         shear_layer_initial_rms_fraction, midplaneRMS, minDensity, maxDensity, deltaPhase
     real(wp), dimension(:,:), allocatable :: gradA, phaseJitter, velocityFluctuations
     real(wp), dimension(:), allocatable :: A
     real(wp), dimension(nkx, -nkz:nkz) :: phases
@@ -413,7 +413,8 @@ contains
         do i = 0, numBlocks
             do j = 0, numBlocks
                 call random_number(rand)
-                phaseJitter(i,j) = rand
+                rand = 2.0_wp * rand - 1.0_wp
+                phaseJitter(i,j) = rand * 0.25_wp * pi
             end do
         end do
     end if
@@ -431,19 +432,12 @@ contains
 
       xint = int(x / (Lpx / real(numBlocks, wp)))
       if (nDimensions .eq. 3) zint = int(z / (Lpz / real(numBlocks, wp)))
+      deltaPhase = phaseJitter(xint, zint) * sin( 2.0_wp * pi * x / (Lpx / real(numBlocks, wp)) )
+      if (nDimensions .eq. 3) deltaPhase = deltaPhase * sin( 2.0_wp * pi * z / (Lpz / real(numBlocks, wp)) )
 
       ! Broadbanded scalar with Phase Jittering similar to Kim thesis and Lui thesis,
       ! except theirs were phase jitted in time.
-      if (phaseJitter(xint, zint) .lt. 1.0_wp/3.0_wp) then
-         call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases + 0.1_wp * pi, nkx, nkz,   &
-              scalar)
-      else if (phaseJitter(xint, zint) .lt. 2.0_wp/3.0_wp .and.                                     &
-           phaseJitter(xint, zint) .ge. 1.0_wp/3.0_wp) then
-         call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases - 0.1_wp * pi, nkx, nkz,   &
-              scalar)
-      else
-         call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases, nkx, nkz, scalar)
-      end if
+      call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases + deltaPhase, nkx, nkz, scalar)
       A(i) = scalar
     end do
 
