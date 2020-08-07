@@ -233,7 +233,7 @@ contains
                 region%grids(1)%coordinates(gridIndex, 2) = 0.5_wp * Ly * (1.0_wp + g(j)) - 0.5_wp * Ly
 
                 ! Find min/max spacing
-                if (j .gt. 2) then
+                if (j .gt. region%grids(1)%offset(2) + 2) then
                    gridIndex2 = gridIndex - region%grids(1)%localSize(1)
                    y1 = region%grids(1)%coordinates(gridIndex, 2)
                    y2 = region%grids(1)%coordinates(gridIndex2, 2)
@@ -294,7 +294,7 @@ contains
     type(t_State) :: state
 
     ! Local variables
-    integer :: i, j, k, ierror
+    integer :: i, j, k, ierror, procRank
     integer, parameter :: nkx = 10, nkz = 5
     integer, parameter :: wp = SCALAR_KIND
     real(SCALAR_KIND), parameter :: pi = 4.0_wp * atan(1.0_wp)
@@ -397,22 +397,28 @@ contains
     if (nDimensions .eq. 3) call getRequiredOption("shear_layer/domain_size/z",Lpz)
 
     phases = 0.0_wp
-    do j = 1, nkx
-      do i = -nkz, nkz
-         call random_number(rand)
-         rand = 2.0_wp * rand - 1.0_wp
-         phases(j,i) = rand * pi
-      end do
-    end do
-
     allocate(phaseJitter(0:numBlocks, 0:numBlocks))
     phaseJitter = 0.0_wp
-    do i = 0, numBlocks
-      do j = 0, numBlocks
-         call random_number(rand)
-         phaseJitter(i,j) = rand
-      end do
-    end do
+
+    call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
+    if (procRank == 0) then
+        do j = 1, nkx
+            do i = -nkz, nkz
+                call random_number(rand)
+                rand = 2.0_wp * rand - 1.0_wp
+                phases(j,i) = rand * pi
+            end do
+        end do
+
+        do i = 0, numBlocks
+            do j = 0, numBlocks
+                call random_number(rand)
+                phaseJitter(i,j) = rand
+            end do
+        end do
+    end if
+    call MPI_Bcast(phases, nkx*(2*nkz+1), REAL_TYPE_MPI, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast(phaseJitter, (numBlocks+1)**2, REAL_TYPE_MPI, 0, MPI_COMM_WORLD, ierror)
 
     z = 0.0_wp
     zint = 1
@@ -428,12 +434,12 @@ contains
 
       ! Broadbanded scalar with Phase Jittering similar to Kim thesis and Lui thesis,
       ! except theirs were phase jitted in time.
-      if (phaseJitter(xint, zint) .lt. 0.33_wp) then
-         call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases + pi, nkx, nkz,   &
+      if (phaseJitter(xint, zint) .lt. 1.0_wp/3.0_wp) then
+         call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases + 0.1_wp * pi, nkx, nkz,   &
               scalar)
-      else if (phaseJitter(xint, zint) .lt. 0.667_wp .and.                                 &
-           phaseJitter(xint, zint) .ge. 0.33_wp) then
-         call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases - pi, nkx, nkz,   &
+      else if (phaseJitter(xint, zint) .lt. 2.0_wp/3.0_wp .and.                                     &
+           phaseJitter(xint, zint) .ge. 1.0_wp/3.0_wp) then
+         call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases - 0.1_wp * pi, nkx, nkz,   &
               scalar)
       else
          call broadband_real(x, y, z, Lpx, Lpz, initialThickness, phases, nkx, nkz, scalar)
