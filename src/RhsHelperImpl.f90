@@ -406,11 +406,15 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
 
   state%rightHandSide = 0.0_wp
 
+  call startTiming("computeRhsAdjoint-adjoint-derivative")
+
   ! Partial derivatives of adjoint variables w.r.t. *computational* coordinates.
   do i = 1, nDimensions
      temp1(:,:,i) = state%adjointVariables
      call grid%adjointFirstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
   end do
+
+  call endTiming("computeRhsAdjoint-adjoint-derivative")
 
   allocate(localFluxJacobian1(nUnknowns, nUnknowns))
   allocate(localConservedVariables(nUnknowns))
@@ -422,6 +426,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
      allocate(localStressTensor(nDimensions ** 2))
      allocate(localHeatFlux(nDimensions))
   end if
+  call startTiming("computeRhsAdjoint-inviscid+firstPartialViscous")
 
   do j = 1, grid%nGridPoints
 
@@ -484,12 +489,14 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
      end do !... i = 1, nDimensions
 
   end do !... j = 1, grid%nGridPoints
+  call endTiming("computeRhsAdjoint-inviscid+firstPartialViscous")
 
   SAFE_DEALLOCATE(localConservedVariables)
   SAFE_DEALLOCATE(localFluxJacobian1)
   SAFE_DEALLOCATE(localHeatFlux)
   SAFE_DEALLOCATE(localStressTensor)
   SAFE_DEALLOCATE(localFluxJacobian2)
+  call startTiming("computeRhsAdjoint-secondPartialViscous")
 
   if (simulationFlags%viscosityOn) then
 
@@ -569,6 +576,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
      SAFE_DEALLOCATE(localMetricsAlongDirection2)
 
   end if !... simulationFlags%viscosityOn
+  call endTiming("computeRhsAdjoint-secondPartialViscous")
 
   SAFE_DEALLOCATE(localMetricsAlongDirection1)
   SAFE_DEALLOCATE(localVelocity)

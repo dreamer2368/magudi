@@ -183,6 +183,10 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
     SAFE_DEALLOCATE(YBuffer)
     SAFE_DEALLOCATE(ZBuffer)
 
+    write(message,'(F10.2,A)') real(globalOffset,wp)/real(globalSize,wp)*100.0_wp, "% of Z file written."
+    call writeAndFlush(comm, output_unit, message)
+
+
   end do
 
 end subroutine
