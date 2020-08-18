@@ -915,6 +915,90 @@ contains
 
   end subroutine computeBulkQuantities
 
+  subroutine normalizeKolmogorovForcing(region)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+    use Patch_mod, only : t_Patch
+    use KolmogorovForcingPatch_mod, only : t_KolmogorovForcingPatch
+
+    ! <<< Internal modules >>>
+    use Patch_factory, only : computeQuadratureOnPatches
+
+    ! <<< Arguments >>>
+    class(t_Region) :: region
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: ierror, j, k
+    class(t_Patch), pointer :: patch => null()
+    real(SCALAR_KIND), allocatable :: patchVolume(:), gridVolume(:), gridForcing(:)
+    real(SCALAR_KIND) :: globalVolume, globalForcing
+
+    globalVolume = 0.0_wp
+    globalForcing = 0.0_wp
+
+    do j = 1, size(region%grids)
+      allocate(gridVolume(region%grids(j)%nGridPoints))
+      allocate(gridForcing(region%grids(j)%nGridPoints))
+      gridVolume = 0.0_wp
+      gridForcing = 0.0_wp
+      do k = 1, size(region%patchFactories)
+        call region%patchFactories(k)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
+        select type (patch)
+        class is (t_KolmogorovForcingPatch)
+          call patch%disperseAdd(patch%forcePerUnitMass, gridForcing)
+          allocate(patchVolume,MOLD=patch%forcePerUnitMass)
+          patchVolume = 1.0_wp
+          call patch%disperseAdd(patchVolume, gridVolume)
+          SAFE_DEALLOCATE(patchVolume)
+        end select
+      end do
+
+      globalVolume = globalVolume +                                                                     &
+                         computeQuadratureOnPatches(region%patchFactories, 'KOLMOGOROV_FORCING',        &
+                                                     region%grids(j), gridVolume )
+      globalForcing = globalForcing +                                                                   &
+                        computeQuadratureOnPatches(region%patchFactories, 'KOLMOGOROV_FORCING',         &
+                                                    region%grids(j), gridForcing )
+
+      SAFE_DEALLOCATE(gridVolume)
+      SAFE_DEALLOCATE(gridForcing)
+    end do
+
+    if (region%commGridMasters /= MPI_COMM_NULL) then
+         call MPI_Allreduce(MPI_IN_PLACE, globalVolume, 1,                                          &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+         call MPI_Allreduce(MPI_IN_PLACE, globalForcing, 1,                                          &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+    end if
+
+    do j = 1, size(region%grids)
+       call MPI_Bcast(globalForcing, 1, SCALAR_TYPE_MPI,                                            &
+            0, region%grids(j)%comm, ierror)
+       call MPI_Bcast(globalVolume, 1, SCALAR_TYPE_MPI,                                            &
+            0, region%grids(j)%comm, ierror)
+    end do
+
+    do j = 1, size(region%grids)
+      do k = 1, size(region%patchFactories)
+        call region%patchFactories(k)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
+        select type (patch)
+        class is (t_KolmogorovForcingPatch)
+          patch%forcePerUnitMass = patch%forcePerUnitMass - globalForcing / globalVolume
+        end select
+      end do
+    end do
+
+  end subroutine normalizeKolmogorovForcing
+
 end module RegionImpl
 
 subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptions, verbose)
@@ -1111,6 +1195,7 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
   ! <<< Internal modules >>>
   use InterfaceHelper, only : readPatchInterfaceInformation
   use MPITimingsHelper, only : startTiming, endTiming
+  use Patch_factory, only : queryPatchTypeExists
 
   implicit none
 
@@ -1162,6 +1247,9 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
         end do
      end do
   end if
+
+  if (queryPatchTypeExists(this%patchFactories,'KOLMOGOROV_FORCING'))                        &
+     call normalizeKolmogorovForcing(this)
 
   if (this%simulationFlags%enableController)                                                 &
      call normalizeControlMollifier(this)
