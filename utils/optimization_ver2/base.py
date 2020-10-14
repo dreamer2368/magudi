@@ -148,14 +148,21 @@ def distributeCommand(baseDirectory,zeroControlForcing):
 
     if (not zeroControlForcing):
         commands = []
-        for k in range(Nsplit):
-            kOffset = Nts * k
+        if (Nsplit==1):
             for j in range(NcontrolRegion):
-                sliceControlForcingFile = '%s/%s/%s%s'%(bdir,directories[k],prefixes[k],controlForcingFiles[j])
+                sliceControlForcingFile = '%s/%s/%s%s'%(bdir,directories[0],prefixes[0],controlForcingFiles[j])
                 globalControlForcingFile = '%s/%s'%(bdir,globalControlSpaceFiles[j])
-                commands += ['./slice_control_forcing %s %s %d %d %d'                                                           \
-                             % (sliceControlForcingFile, globalControlForcingFile, totalTimestep, kOffset, Nts)]
-        commandString += scriptor.parallelLoopCommand(commands,'slice','slice_control_forcing')
+                commands += ['./zaxpy %s 1.0 %s' % (sliceControlForcingFile, globalControlForcingFile)]
+            commandString += scriptor.parallelLoopCommand(commands,'zaxpy','slice_control_forcing')
+        else:
+            for k in range(Nsplit):
+                kOffset = Nts * k
+                for j in range(NcontrolRegion):
+                    sliceControlForcingFile = '%s/%s/%s%s'%(bdir,directories[k],prefixes[k],controlForcingFiles[j])
+                    globalControlForcingFile = '%s/%s'%(bdir,globalControlSpaceFiles[j])
+                    commands += ['./slice_control_forcing %s %s %d %d %d'                                                           \
+                                % (sliceControlForcingFile, globalControlForcingFile, totalTimestep, kOffset, Nts)]
+            commandString += scriptor.parallelLoopCommand(commands,'slice','slice_control_forcing')
 
     return commandString
 
@@ -169,13 +176,19 @@ def gatherControlForcingGradientCommand():
             commandString += 'rm %s \n'%(globalGradFiles[j])
 
     commands = []
-    for k in range(Nsplit):
-        kOffset = Nts * k
+    if (Nsplit==1):
         for j in range(NcontrolRegion):
-            sliceGradFile = 'x0/%s/%s%s'%(directories[k],prefixes[k],gradientFiles[j])
-            commands += ['./paste_control_forcing %s %s %d %d %d'                                                           \
-                         % (globalGradFiles[j], sliceGradFile, totalTimestep, kOffset, Nts)]
-    commandString += scriptor.parallelLoopCommand(commands,'paste','paste_control_forcing')
+            sliceGradFile = 'x0/%s/%s%s'%(directories[0],prefixes[0],gradientFiles[j])
+            commands += ['mv %s %s' % (sliceGradFile, globalGradFiles[j])]
+        commandString += scriptor.nonMPILoopCommand(commands,'paste_control_forcing')
+    else:
+        for k in range(Nsplit):
+            kOffset = Nts * k
+            for j in range(NcontrolRegion):
+                sliceGradFile = 'x0/%s/%s%s'%(directories[k],prefixes[k],gradientFiles[j])
+                commands += ['./paste_control_forcing %s %s %d %d %d'                                                           \
+                            % (globalGradFiles[j], sliceGradFile, totalTimestep, kOffset, Nts)]
+        commandString += scriptor.parallelLoopCommand(commands,'paste','paste_control_forcing')
 
     return commandString
 
@@ -199,7 +212,14 @@ def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
     bdir = baseDirectory
 
     commandString = ''
+    #if (Nsplit>1):
     commandString += distributeCommand(bdir,zeroControlForcing)
+    #elif (not zeroControlForcing):
+    #    for j in range(NcontrolRegion):
+    #        sliceControlForcingFile = '%s/%s/%s%s'%(bdir,directories[0],prefixes[0],controlForcingFiles[j])
+    #        globalControlForcingFile = '%s/%s'%(bdir,globalControlSpaceFiles[j])
+    #        commandString += 'mv %s %s \n' % (globalControlForcingFile,sliceControlForcingFile)
+
 
     commands, commandDirs = [], []
     for k in range(Nsplit):
@@ -207,6 +227,27 @@ def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
         commands += ['./forward --input %s' % inputFiles[k]]
     commandString += scriptor.parallelLoopCommand(commands,'forward',
                                                   'forward',directories=commandDirs)
+
+    #if ((Nsplit==1) and (not zeroControlForcing)):
+    #    for j in range(NcontrolRegion):
+    #        sliceControlForcingFile = '%s/%s/%s%s'%(bdir,directories[0],prefixes[0],controlForcingFiles[j])
+    #        globalControlForcingFile = '%s/%s'%(bdir,globalControlSpaceFiles[j])
+    #        commandString += 'mv %s %s \n' % (sliceControlForcingFile,globalControlForcingFile)
+    crashCheck  = 'crash=0\n'
+    for k in range(Nsplit):
+        commandDir = '%s/%s'%(bdir,directories[k])
+        crashCheck += 'if [ -f "%s/%s-crashed.q" ]; then\n' % (commandDir,prefixes[k])
+        crashCheck += '   echo "%d-th forward run crashed. Retry with a smaller step."\n' % k
+        crashCheck += '   mv %s/%s-crashed.q %s/%s\n' % (commandDir,prefixes[k],commandDir,matchingForwardFiles[k])
+        crashCheck += '   let "crash+=1"\n'
+        crashCheck += 'fi\n\n'
+    crashCheck += 'if [ $crash -eq 0 ]; then\n'                                             \
+                  '   echo "No crash is found."\n'                                          \
+                  'else\n'                                                                  \
+                  '   echo "$crash crashes found."\n'                                       \
+                  '   exit 0\n'                                                             \
+                  'fi\n\n'
+    commandString += crashCheck
 
     commands = []
     for k in range(Nsplit):
@@ -355,7 +396,7 @@ def updateLagrangian(weight,initial=False):
         else:
             command += ' '+lagrangianFiles[k]
         commands += [command]
-    commandString += bashParallelLoopCommand(commands,'qfile-zaxpy',
+    commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
                                             'update_lagrangian')
 
     return commandString

@@ -64,7 +64,16 @@ def NextMnbrak(zeroBaseline=True):
     bExists = sum(dirIdx=='b')
     cExists = sum(dirIdx=='c')
 
-    if (bExists):
+    if (Jx>huge):
+        print ('Forward run crashed. Retrying with a smaller step.')
+        df.loc[df['directory index']=='x','directory index'] = '0'
+        Cr = 1.0 - 1.0/golden_ratio
+        if (bExists):
+            b = np.array(df['step'][df['directory index']=='b'])[0]
+            new_x = b + Cr * (x-b)
+        else:
+            new_x = a + Cr * (x-a)
+    elif (bExists):
         b = np.array(df['step'][df['directory index']=='b'])[0]
         Jb = np.array(df['QoI'][df['directory index']=='b'])[0]
 
@@ -89,37 +98,13 @@ def NextMnbrak(zeroBaseline=True):
             switchDirectory('a','x',df)
             df.loc[df['directory index']=='x','directory index'] = '0'
 
-            new_x = x * golden_ratio
-            data = {'step':[new_x], 'QoI':[np.nan], 'directory index':['x']}
-            new_df = pd.DataFrame(data)
-            df = df.append(new_df, ignore_index=True)
-
-            commandString = ''
-            temp = ['x0/'+file for file in globalControlSpaceFiles]
-            if (zeroBaseline):
-                for j in range(NcontrolRegion):
-                    temp[j] = ''
-            target = ['x/'+file for file in globalControlSpaceFiles]
-            commandString += scriptor.parallelPurgeCommand(target,'purge_target')
-            commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
-            commandString += '\n'
-            commandString += forwardRunCommand('x')
-            commandString += scriptor.purgeDirectoryCommand('x')
-            fID = open(globalCommandFile,'w')
-            fID.write(commandString)
-            fID.close()
-
-            commandFile = open(decisionMakerCommandFile,'w')
-            command = 'python3 '+decisionMaker+' 3'
-            if(zeroBaseline):
-                command += ' -zero_baseline'
-            commandFile.write(command+'\n')
-            commandFile.close()
-
-            df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-            print (df[df['directory index']!='0'])
+            if (len(df[(df['QoI']>huge)])>0):
+                maxX = np.min(np.array(df['step'][df['QoI']>huge]))
+                Cr = 1.0 - 1.0/golden_ratio
+                new_x = x + Cr * (maxX-x)
+            else:
+                new_x = x * golden_ratio if (x<safe_zone) else x * 1.05
             print ('MNBRAK: expanding the bracket - Run intermediate forward simulation.')
-            return 2
     elif (cExists):
         c = np.array(df['step'][df['directory index']=='c'])[0]
         Jc = np.array(df['QoI'][df['directory index']=='c'])[0]
@@ -145,102 +130,52 @@ def NextMnbrak(zeroBaseline=True):
             df.loc[df['directory index']=='x','directory index'] = '0'
 
             new_x = x / golden_ratio
-            data = {'step':[new_x], 'QoI':[np.nan], 'directory index':['x']}
-            new_df = pd.DataFrame(data)
-            df = df.append(new_df, ignore_index=True)
-
-            commandString = ''
-            temp = ['x0/'+file for file in globalControlSpaceFiles]
-            if (zeroBaseline):
-                for j in range(NcontrolRegion):
-                    temp[j] = ''
-            target = ['x/'+file for file in globalControlSpaceFiles]
-            commandString += scriptor.parallelPurgeCommand(target,'purge_target')
-            commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
-            commandString += '\n'
-            commandString += forwardRunCommand('x')
-            commandString += scriptor.purgeDirectoryCommand('x')
-            fID = open(globalCommandFile,'w')
-            fID.write(commandString)
-            fID.close()
-
-            commandFile = open(decisionMakerCommandFile,'w')
-            command = 'python3 '+decisionMaker+' 3'
-            if(zeroBaseline):
-                command += ' -zero_baseline'
-            commandFile.write(command+'\n')
-            commandFile.close()
-
-            df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-            print (df[df['directory index']!='0'])
             print ('MNBRAK: narrowing the bracket - Run intermediate forward simulations.')
-            return 1
     else:
         if (Jx>Ja):
             switchDirectory('x','c',df)
 
             new_x = x / golden_ratio
-            data = {'step':[new_x], 'QoI':[np.nan], 'directory index':['x']}
-            new_df = pd.DataFrame(data)
-            df = df.append(new_df, ignore_index=True)
-
-            commandString = ''
-            temp = ['x0/'+file for file in globalControlSpaceFiles]
-            if (zeroBaseline):
-                for j in range(NcontrolRegion):
-                    temp[j] = ''
-            target = ['x/'+file for file in globalControlSpaceFiles]
-            commandString += scriptor.parallelPurgeCommand(target,'purge_target')
-            commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
-            commandString += '\n'
-            commandString += forwardRunCommand('x')
-            commandString += scriptor.purgeDirectoryCommand('x')
-            fID = open(globalCommandFile,'w')
-            fID.write(commandString)
-            fID.close()
-
-            commandFile = open(decisionMakerCommandFile,'w')
-            command = 'python3 '+decisionMaker+' 3'
-            if(zeroBaseline):
-                command += ' -zero_baseline'
-            commandFile.write(command+'\n')
-            commandFile.close()
-
-            df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-            print (df[df['directory index']!='0'])
             print ('MNBRAK: narrowing the bracket - Run intermediate forward simulations.')
-            return 1
         else:
             switchDirectory('x','b',df)
 
-            new_x = x * golden_ratio
-            data = {'step':[new_x], 'QoI':[np.nan], 'directory index':['x']}
-            new_df = pd.DataFrame(data)
-            df = df.append(new_df, ignore_index=True)
-
-            commandString = ''
-            temp = ['x0/'+file for file in globalControlSpaceFiles]
-            if (zeroBaseline):
-                for j in range(NcontrolRegion):
-                    temp[j] = ''
-            target = ['x/'+file for file in globalControlSpaceFiles]
-            commandString += scriptor.parallelPurgeCommand(target,'purge_target')
-            commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
-            commandString += '\n'
-            commandString += forwardRunCommand('x')
-            commandString += scriptor.purgeDirectoryCommand('x')
-            fID = open(globalCommandFile,'w')
-            fID.write(commandString)
-            fID.close()
-
-            commandFile = open(decisionMakerCommandFile,'w')
-            command = 'python3 '+decisionMaker+' 3'
-            if(zeroBaseline):
-                command += ' -zero_baseline'
-            commandFile.write(command+'\n')
-            commandFile.close()
-
-            df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-            print (df[df['directory index']!='0'])
+            if (len(df[(df['QoI']>huge)])>0):
+                maxX = np.min(np.array(df['step'][df['QoI']>huge]))
+                Cr = 1.0 - 1.0/golden_ratio
+                new_x = x + Cr * (maxX-x)
+            else:
+                new_x = x * golden_ratio if (x<safe_zone) else x * 1.05
             print ('MNBRAK: expanding the bracket - Run intermediate forward simulation.')
-            return 2
+
+    data = {'step':[new_x], 'QoI':[np.nan], 'directory index':['x']}
+    new_df = pd.DataFrame(data)
+    df = df.append(new_df, ignore_index=True)
+
+    commandString = ''
+    temp = ['x0/'+file for file in globalControlSpaceFiles]
+    if (zeroBaseline):
+        for j in range(NcontrolRegion):
+            temp[j] = ''
+    target = ['x/'+file for file in globalControlSpaceFiles]
+    commandString += scriptor.parallelPurgeCommand(target,'purge_target')
+    commandString += zaxpyCommand(target, -new_x, globalConjugateGradientFiles, temp)
+    commandString += '\n'
+    commandString += forwardRunCommand('x')
+    commandString += scriptor.purgeDirectoryCommand('x')
+    fID = open(globalCommandFile,'w')
+    fID.write(commandString)
+    fID.close()
+
+    commandFile = open(decisionMakerCommandFile,'w')
+    command = 'python3 '+decisionMaker+' 3'
+    if(zeroBaseline):
+        command += ' -zero_baseline'
+    commandFile.write(command+'\n')
+    commandFile.close()
+
+    df.to_csv(lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+    print (df[df['directory index']!='0'])
+    
+    return 0
+

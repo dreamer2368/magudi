@@ -1,6 +1,6 @@
-Nsplit = 3                                               # number of split time segments
-Nts = 6                                                  # number of timesteps of each time segment
-startTimestep = 12                                       # initial timestep of the first time segment
+Nsplit = 1                                               # number of split time segments
+Nts = 20000                                              # number of timesteps of each time segment
+startTimestep = 60000                                   # initial timestep of the first time segment
 totalTimestep = Nsplit * Nts                             # number of timesteps for the entire time span
 
 import numpy as np
@@ -14,30 +14,30 @@ if (not periodicSolution):
     matchingConditionWeight[0] = 0.0
     initialConditionControllability[0] = 0.0
 
-NcontrolRegion = 1                                       # number of control region
+NcontrolRegion = 4                                       # number of control region
 if (ignoreController):
     NcontrolRegion = 0
 
 NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
 
-scriptorType = 'flux'                                    # either 'bash' or 'flux'
+scriptorType = 'bash'                                    # either 'bash' or 'flux'
 enableParallelBash = True
 bashVerbose = False                                      # check only when serial bash loops
 pcc = 36
-maxNodes = 10
+maxNodes = 40
 
 procedureSwitcher = { # number of nodes and processors for each procedure.
-    'forward':      3 * np.array([1,pcc]),
-    'adjoint':      3 * np.array([1,pcc]),
-    'zaxpy':        3 * np.array([1,pcc]),
-    'qfile-zaxpy':  3 * np.array([1,pcc]),
-    'zxdoty':       3 * np.array([1,pcc]),
-    'qfile-zxdoty': 3 * np.array([1,pcc]),
-    'paste':        3 * np.array([1,pcc]),
-    'slice':        3 * np.array([1,pcc]),
+    'forward':      maxNodes * np.array([1,pcc]),
+    'adjoint':      maxNodes * np.array([1,pcc]),
+    'zaxpy':        10 * np.array([1,pcc]),
+    'qfile-zaxpy':  1 * np.array([1,pcc]),
+    'zxdoty':       10 * np.array([1,pcc]),
+    'qfile-zxdoty': 1 * np.array([1,pcc]),
+    'paste':        10 * np.array([1,pcc]),
+    'slice':        10 * np.array([1,pcc]),
 }
 
-initial_step = 1.0e9
+initial_step, safe_zone = 1.0e-8, 1.0e-4
 golden_ratio = 1.618034
-tol, eps = 1.0e-2,  1.0e-15
+tol, eps, huge = 1.0e-2,  1.0e-15, 1.0e100
 linminTol, Nlinmin = 1.0e-1, 50
