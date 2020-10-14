@@ -858,10 +858,6 @@ contains
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
 
-    ! ! <<< SeungWhan: debugging >>>
-    ! use, intrinsic :: iso_fortran_env, only : output_unit
-    ! use ErrorHandler, only : writeAndFlush
-
     ! <<< Arguments >>>
     class(t_Region), intent(in) :: region
 
@@ -872,10 +868,6 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, j, ierror, nDimensions
     SCALAR_TYPE, allocatable :: F(:,:)
-
-    ! ! <<< SeungWhan: message, timeRampFactor >>
-    ! character(len=STRING_LENGTH) :: message
-    ! real(wp) :: timeRampFactor
 
     assert(allocated(region%grids))
     assert(allocated(region%states))
@@ -919,6 +911,7 @@ contains
 
     ! <<< External modules >>>
     use MPI
+    use, intrinsic :: iso_fortran_env, only : output_unit
 
     ! <<< Derived types >>>
     use Region_mod, only : t_Region
@@ -927,6 +920,7 @@ contains
 
     ! <<< Internal modules >>>
     use Patch_factory, only : computeQuadratureOnPatches
+    use ErrorHandler, only : writeAndFlush
 
     ! <<< Arguments >>>
     class(t_Region) :: region
@@ -937,6 +931,7 @@ contains
     class(t_Patch), pointer :: patch => null()
     real(SCALAR_KIND), allocatable :: patchVolume(:), gridVolume(:), gridForcing(:)
     real(SCALAR_KIND) :: globalVolume, globalForcing
+    character(len=STRING_LENGTH) :: message
 
     globalVolume = 0.0_wp
     globalForcing = 0.0_wp
@@ -984,6 +979,10 @@ contains
        call MPI_Bcast(globalVolume, 1, SCALAR_TYPE_MPI,                                            &
             0, region%grids(j)%comm, ierror)
     end do
+
+    write(message,'(2(A,'//SCALAR_FORMAT//'))')                                                     &
+    'Kolmogorov forcing offset: ', globalForcing, ', patch volume: ', globalVolume
+    call writeAndFlush(region%comm, output_unit, message)
 
     do j = 1, size(region%grids)
       do k = 1, size(region%patchFactories)

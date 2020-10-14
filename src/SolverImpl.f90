@@ -1011,8 +1011,12 @@ function runAdjoint(this, region) result(costSensitivity)
            end if
         end if
 
+        call startTiming("controllerUpdateGradient")
+
         ! Update gradient.
         call controller%updateGradient(region)
+
+        call endTiming("controllerUpdateGradient")
 
         ! Update cost sensitivity.
         instantaneousCostSensitivity = controller%computeSensitivity(region)
