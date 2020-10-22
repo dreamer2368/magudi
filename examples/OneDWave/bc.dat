@@ -1,0 +1,12 @@
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  farField.E           SAT_FAR_FIELD            1       1    1    1    1   -1    1   -1
+  farField.W           SAT_FAR_FIELD            1      -1   -1   -1    1   -1    1   -1
+  farField.S           SAT_FAR_FIELD            1       2    1   -1    1    1    1   -1
+  farField.N           SAT_FAR_FIELD            1      -2    1   -1   -1   -1    1   -1
+  sponge.E             SPONGE                   1       1    1   11    1   -1    1   -1
+  sponge.W             SPONGE                   1      -1  -11   -1    1   -1    1   -1
+  sponge.S             SPONGE                   1       2    1   -1    1   11    1   -1
+  sponge.N             SPONGE                   1      -2    1   -1  -11   -1    1   -1
+  targetRegion         COST_TARGET              1       0  143  167   13   39    1   -1
+  controlRegion        ACTUATOR                 1       0   43   67   13   39    1   -1

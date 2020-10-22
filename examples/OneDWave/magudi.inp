@@ -1,0 +1,89 @@
+# magudi.inp
+# Written by Ramanathan Vishnampet
+
+# Filenames, etc.
+output_prefix = "OneDWave"
+grid_file = "OneDWave.xyz"
+initial_condition_file = "OneDWave.ic.q"
+boundary_condition_file = "bc.dat"
+control_mollifier_file = "OneDWave.control_mollifier.f"
+target_mollifier_file = "OneDWave.target_mollifier.f"
+#mean_pressure_file = "OneDWave.mean_pressure.f"
+
+# Simulation flags
+include_viscous_terms = true
+use_constant_CFL_mode = false
+curvilinear_domain = false
+compute_time_average = false
+
+# Controller flags
+enable_controller = false
+controller_switch = false
+
+# Functional flags
+enable_functional = false
+cost_functional_type = "SOUND"
+
+# Adjoint optimization flags
+enable_adjoint_solver = false
+baseline_prediction_available = false
+use_continuous_adjoint = false
+controller_buffer_size = 20
+
+# Gradient accuracy options
+check_gradient_accuracy = true
+number_of_control_iterations = 32
+initial_actuation_amount = 1e2
+restart_control_iteration = 0
+actuation_amount_geometric_growth = 0.5623413251903491
+
+# Physical constants
+Reynolds_number = 200.
+Prandtl_number = 0.7
+viscosity_power_law_exponent = 0.
+bulk_viscosity_ratio = 0.
+
+# Discretization scheme
+defaults/discretization_scheme = "SBP 3-6"
+
+# Time stepping options
+time_step_size = 0.05
+number_of_timesteps = 480
+report_interval = 10
+save_interval = 20
+
+# Artificial dissipation
+add_dissipation = true
+dissipation_amount = 0.0001
+composite_dissipation = false
+
+# Sponge options
+defaults/sponge_amount = 0.2
+
+# Solution limits
+enable_solution_limits = true
+minimum_density = 0.1
+minimum_temperature = 0.05
+maximum_density = 5.
+maximum_temperature = 4.
+
+# Acoustic source
+number_of_acoustic_sources = 3
+acoustic_source01/amplitude = 0.01
+acoustic_source01/frequency = 0.477464829275686
+acoustic_source01/x = 1.
+acoustic_source01/y = 1.25
+acoustic_source01/radius = 2.1213203435596424
+acoustic_source02/amplitude = 0.01
+acoustic_source02/frequency = 0.477464829275686
+acoustic_source02/x = 1.
+acoustic_source02/y = 2.5
+acoustic_source02/radius = 2.1213203435596424
+acoustic_source03/amplitude = 0.01
+acoustic_source03/frequency = 0.477464829275686
+acoustic_source03/x = 1.
+acoustic_source03/y = 3.75
+acoustic_source03/radius = 2.1213203435596424
+
+# Penalty parameters
+defaults/viscous_penalty_amount = 0.
