@@ -420,7 +420,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
   use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
-  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces
+  use InterfaceHelper, only : checkFunctionContinuityAtInterfaces, exchangeInterfaceData
 
   implicit none
 
