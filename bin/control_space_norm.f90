@@ -209,18 +209,20 @@ contains
     if (region%simulationFlags%steadyStateSimulation) timemarchDirection = 1
 
     ! Put norm filename into gradient filename and use gradient filename.
-    do i = 1, size(region%patchFactories)
-      call region%patchFactories(i)%connect(patch)
-      if (.not. associated(patch)) cycle
-      do j = 1, size(region%states)
-        if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
-        select type (patch)
-        class is (t_ActuatorPatch)
-          write(filename, '(4A)') trim(this%outputPrefix), ".norm_", trim(patch%name), ".dat"
-          patch%gradientFilename = trim(filename)
-        end select
+    if (allocated(region%patchFactories)) then
+      do i = 1, size(region%patchFactories)
+        call region%patchFactories(i)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(region%states)
+          if (patch%gridIndex /= region%grids(j)%index .or. patch%nPatchPoints <= 0) cycle
+          select type (patch)
+          class is (t_ActuatorPatch)
+            write(filename, '(4A)') trim(this%outputPrefix), ".norm_", trim(patch%name), ".dat"
+            patch%gradientFilename = trim(filename)
+          end select
+        end do
       end do
-    end do
+    end if
     ! Call controller hooks before time marching starts.
     call controller%hookBeforeTimemarch(region, ADJOINT)
 
