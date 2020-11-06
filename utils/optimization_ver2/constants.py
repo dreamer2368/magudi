@@ -41,3 +41,8 @@ initial_step, safe_zone = 1.0e-8, 1.0e-4
 golden_ratio = 1.618034
 tol, eps, huge = 1.0e-2,  1.0e-15, 1.0e100
 linminTol, Nlinmin = 1.0e-1, 50
+
+saveDiffFiles = True                                     # flag for saving discontinuity files
+Ndiff = 8                                                # number of discontinuity files that are saved in line searches
+diffStep = int(np.floor(Nsplit/Ndiff))
+

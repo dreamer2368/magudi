@@ -116,6 +116,12 @@ def afterLinmin(zeroBaseline):
         commands += ['cp b/%s x0/ ' % (globalControlSpaceFiles[k])]
         commands += ['mv %s %s' % (globalGradFiles[k],previousGradFiles[k])]
         commands += ['mv %s %s' % (globalConjugateGradientFiles[k],previousCGFiles[k])]
+
+    if (saveDiffFiles):
+        subprocess.check_call('mkdir -p diffLog/%d'%numFiles,shell=True)
+        for k in range(Nsplit-1,Nsplit-Ndiff*diffStep,-diffStep):
+            commands += ['mv %s diffLog/%d/%s-%d.diff.%d.q' % (diffFiles[k],numFiles,globalPrefix,k,numFiles)]
+
     commandString += scriptor.nonMPILoopCommand(commands,'saving_line_minimization_files')
 
     commandString += '\n'
