@@ -11,3 +11,4 @@ add_executable(slice_control_forcing $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURC
 add_executable(paste_control_forcing $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/paste_control_forcing.f90)
 add_executable(spatial_inner_product $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/spatial_inner_product.f90)
 add_executable(qfile_zaxpy $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/qfile_zaxpy.f90)
+add_executable(terminal_objective $<TARGET_OBJECTS:magudiObj> ${PROJECT_SOURCE_DIR}/bin/terminal_objective.f90)
