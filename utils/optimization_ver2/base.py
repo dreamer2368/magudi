@@ -42,11 +42,11 @@ def readScalar(scalarFilename):
 def QoI(baseDirectory = 'x0'):
     bdir = baseDirectory
 
-    subJ = np.zeros(3*Nsplit)
+    subJ = np.zeros(3*Nsplit+1)
     J = 0.0
     for k in range(Nsplit):
         subJ[k] = readScalar(bdir + '/' + directories[k] + '/' + outputFiles[k])
-        if (not ignoreObjective):
+        if (not ignoreIntegralObjective):
             J += subJ[k]
 
         subJ[Nsplit+k] = 0.5 * readScalar(diffOutputFiles[k])
@@ -56,6 +56,11 @@ def QoI(baseDirectory = 'x0'):
             subJ[2*Nsplit+k] = readScalar(lagrangianOutputFiles[k])
             # followed the convention of Portryagin's minimum principle
             J -= subJ[2*Nsplit+k]
+
+        if (terminalObjective):
+            subJ[3*Nsplit] = readScalar(terminalOutputFile)
+            J += subJ[3*Nsplit]
+
     return J, subJ
 
 def collectQoI(logFilename):
@@ -249,6 +254,13 @@ def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
                   'fi\n\n'
     commandString += crashCheck
 
+    if (terminalObjective):
+        commandDirs = ['%s/%s'%(bdir,directories[-1])]
+        commands = ['./terminal_objective --mode forward --input %s --output %s'                \
+                    % (inputFiles[-1],terminalOutputFile) ]
+        commandString += scriptor.singleJobCommand(commands,'qfile_zaxpy',
+                                                      'terminal_objective',directories=commandDirs)
+
     commands = []
     for k in range(Nsplit):
         matchingFile = '%s/%s/%s'%(bdir,directories[k-1],matchingForwardFiles[k-1])
@@ -283,7 +295,7 @@ def adjointRunCommand(baseDirectory='x0'):
 
     targetInputFiles = ['%s/%s/%s'%(bdir,dir,file) for dir, file in zip(directories,inputFiles)]
 
-    if (ignoreObjective):
+    if (ignoreIntegralObjective):
         commands = []
         for k in range(Nsplit):
             commands += ['./setOption.sh %s "adjoint_forcing_switch" "false"' % targetInputFiles[k]]
@@ -312,6 +324,12 @@ def adjointRunCommand(baseDirectory='x0'):
                     % targetInputFiles[k]]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_nonzero_initial_condition_true')
 
+    if (terminalObjective):
+        commandDirs = ['%s/%s' % (bdir,directories[-1])]
+        commands = ['./terminal_objective --mode adjoint --input %s' % inputFiles[-1]]
+        commandString += scriptor.singleJobCommand(commands,'qfile_zaxpy',
+                                                    'terminal_sensitivity',directories=commandDirs)
+
     commands, commandDirs = [], []
     for k in range(Nsplit):
         commandDirs += ['%s/%s' % (bdir,directories[k])]
@@ -320,7 +338,7 @@ def adjointRunCommand(baseDirectory='x0'):
                                                 'adjoint',directories=commandDirs)
 
     # TODO: Either check the last adjoint run, or complete the periodic optimization!!
-    if (ignoreObjective):
+    if (ignoreIntegralObjective):
         commands = []
         for k in range(Nsplit):
             commands += ['./setOption.sh %s "adjoint_forcing_switch" "true"' % targetInputFiles[k]]

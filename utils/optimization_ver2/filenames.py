@@ -52,6 +52,8 @@ for k in range(NcontrolRegion):
     conjugateGradientFiles += ['.conjugate_gradient_%s.dat'%controlRegions[k]]
     controlForcingFiles += ['.control_forcing_%s.dat'%controlRegions[k]]
 
+terminalOutputFile = TXTDIR + globalPrefix + '.terminal_objective.txt'
+
 ##################           slice level files              #####################
 
 prefixes, inputFiles, outputFiles, commandFiles = [], [], [], []

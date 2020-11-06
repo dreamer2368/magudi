@@ -7,7 +7,8 @@ import numpy as np
 matchingConditionWeight = 1.0e-7 * np.ones(Nsplit)       # weight for matching condition penalty
 initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
 useLagrangian = False                                    # flag for augmented lagrangian
-ignoreObjective = False
+ignoreIntegralObjective = False
+terminalObjective = False                                # flag for terminal objective
 ignoreController = False
 periodicSolution = False
 if (not periodicSolution):
@@ -45,4 +46,3 @@ linminTol, Nlinmin = 1.0e-1, 50
 saveDiffFiles = True                                     # flag for saving discontinuity files
 Ndiff = 8                                                # number of discontinuity files that are saved in line searches
 diffStep = int(np.floor(Nsplit/Ndiff))
-
