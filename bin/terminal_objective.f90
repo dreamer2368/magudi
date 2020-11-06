@@ -223,7 +223,8 @@ contains
     class(t_Patch), pointer :: patch => null()
     integer :: i, j, timestep, startTimestep
     real(wp) :: time, startTime, timeStepSize
-    logical :: controllerSwitch = .false., solutionCrashes = .false.
+    logical :: controllerSwitch = .false., solutionCrashes = .false.,           &
+                nonzeroAdjointInitialCondition = .false.
 
     call startTiming("runTerminalObjective")
 
@@ -267,6 +268,18 @@ contains
 
     case(ADJOINT)
 
+      ! Adjoint initial condition option.
+      nonzeroAdjointInitialCondition =                                                           &
+                      getOption("adjoint_nonzero_initial_condition",.false.)
+      if (nonzeroAdjointInitialCondition) then
+        write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
+        call region%loadData(QOI_ADJOINT_STATE, filename)
+      else
+        do i = 1, size(region%states)
+           region%states(i)%adjointVariables = 0.0_wp
+        end do
+      end if
+
       region%states(:)%adjointForcingFactor = - 1.0_wp !... adjoint forcing is defined with negative sign for backward time-integration.
       call functional%updateAdjointForcing(region,.false.) !...always non-zero adjoint forcing.
 
@@ -274,21 +287,24 @@ contains
          region%states(i)%rightHandSide = 0.0_wp
       end do
 
-      do i = 1, size(region%patchFactories)
-         call region%patchFactories(i)%connect(patch)
-         if (.not. associated(patch)) cycle
-         select type (patch)
-            class is (t_CostTargetPatch)
-            do j = 1, size(region%states)
-               if (patch%gridIndex /= region%grids(j)%index) cycle
-               call patch%updateRhs(ADJOINT, region%simulationFlags,                     &
-                    region%solverOptions, region%grids(j), region%states(j))
-            end do
-         end select
-      end do
+      if (allocated(region%patchFactories)) then
+        do i = 1, size(region%patchFactories)
+           call region%patchFactories(i)%connect(patch)
+           if (.not. associated(patch)) cycle
+           select type (patch)
+              class is (t_CostTargetPatch)
+              do j = 1, size(region%states)
+                 if (patch%gridIndex /= region%grids(j)%index) cycle
+                 call patch%updateRhs(ADJOINT, region%simulationFlags,                     &
+                      region%solverOptions, region%grids(j), region%states(j))
+              end do
+           end select
+        end do
+      end if
 
       do i = 1, size(region%states)
-         region%states(i)%adjointVariables = region%states(i)%rightHandSide
+         region%states(i)%adjointVariables = region%states(i)%adjointVariables            &
+                                            + region%states(i)%rightHandSide
       end do
 
       write(filename, '(2A,I8.8,A)') trim(this%outputPrefix), "-", region%timestep, ".adjoint.q"
