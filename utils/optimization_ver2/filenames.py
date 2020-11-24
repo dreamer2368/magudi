@@ -18,7 +18,7 @@ dirList = [OUTDIR,DIFFDIR,GRADDIR,LGRNGDIR,TXTDIR,CGDIR,PREVDIR,DIFFLOGDIR]
 
 globalInputFile = 'magudi.inp'
 
-globalPrefix = 'AcousticMonopole'
+globalPrefix = 'WeiFreundSDML'
 
 globalCommandFile = globalPrefix + '.command.sh'
 decisionMakerCommandFile = globalPrefix+'.command.python.ready.sh'
@@ -34,6 +34,7 @@ for k in range(Nsplit):
     forwardLogColumns += ['matching_penalty%d'%k]
 for k in range(Nsplit):
     forwardLogColumns += ['lagrangian%d'%k]
+forwardLogColumns += ['terminal']
 
 gradientLog = globalPrefix + '.gg_log.txt'
 gradientLogColumns = ['total']
@@ -52,7 +53,7 @@ for k in range(NcontrolRegion):
     conjugateGradientFiles += ['.conjugate_gradient_%s.dat'%controlRegions[k]]
     controlForcingFiles += ['.control_forcing_%s.dat'%controlRegions[k]]
 
-terminalOutputFile = TXTDIR + globalPrefix + '.terminal_objective.txt'
+terminalOutputFile = TXTDIR + '/' + globalPrefix + '.terminal_objective.txt'
 
 ##################           slice level files              #####################
 

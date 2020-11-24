@@ -81,6 +81,7 @@ def NextMnbrak(zeroBaseline=True):
             switchDirectory('x','c',df)
 
             commandFile = open(globalCommandFile,'w')
+            commandFile.write('exit 0\n')
             commandFile.close()
             commandFile = open(decisionMakerCommandFile,'w')
             command = 'python3 '+decisionMaker+' 4 -linmin_initial'
@@ -113,6 +114,7 @@ def NextMnbrak(zeroBaseline=True):
             switchDirectory('x','b',df)
 
             commandFile = open(globalCommandFile,'w')
+            commandFile.write('exit 0\n')
             commandFile.close()
             commandFile = open(decisionMakerCommandFile,'w')
             command = 'python3 '+decisionMaker+' 4 -linmin_initial'

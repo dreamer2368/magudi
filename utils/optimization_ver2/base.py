@@ -57,9 +57,9 @@ def QoI(baseDirectory = 'x0'):
             # followed the convention of Portryagin's minimum principle
             J -= subJ[2*Nsplit+k]
 
-        if (terminalObjective):
-            subJ[3*Nsplit] = readScalar(terminalOutputFile)
-            J += subJ[3*Nsplit]
+    if (terminalObjective):
+        subJ[3*Nsplit] = readScalar(terminalOutputFile)
+        J += subJ[3*Nsplit]
 
     return J, subJ
 
@@ -258,7 +258,7 @@ def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
         commandDirs = ['%s/%s'%(bdir,directories[-1])]
         commands = ['./terminal_objective --mode forward --input %s --output %s'                \
                     % (inputFiles[-1],terminalOutputFile) ]
-        commandString += scriptor.singleJobCommand(commands,'qfile_zaxpy',
+        commandString += scriptor.singleJobCommand(commands,'qfile-zaxpy',
                                                       'terminal_objective',directories=commandDirs)
 
     commands = []
@@ -327,7 +327,7 @@ def adjointRunCommand(baseDirectory='x0'):
     if (terminalObjective):
         commandDirs = ['%s/%s' % (bdir,directories[-1])]
         commands = ['./terminal_objective --mode adjoint --input %s' % inputFiles[-1]]
-        commandString += scriptor.singleJobCommand(commands,'qfile_zaxpy',
+        commandString += scriptor.singleJobCommand(commands,'qfile-zaxpy',
                                                     'terminal_sensitivity',directories=commandDirs)
 
     commands, commandDirs = [], []

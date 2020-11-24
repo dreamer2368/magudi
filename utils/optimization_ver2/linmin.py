@@ -37,6 +37,7 @@ def nextLinmin(zeroBaseline=True, initial=True, stop=False):
         print ('LINMIN: line minimization is stopped.')
 
         commandFile = open(globalCommandFile,'w')
+        commandFile.write('exit 0\n')
         commandFile.close()
         commandFile = open(decisionMakerCommandFile,'w')
         command = 'python3 '+decisionMaker+' 5'
@@ -60,6 +61,7 @@ def nextLinmin(zeroBaseline=True, initial=True, stop=False):
         print ('LINMIN: line minimization is finished.')
 
         commandFile = open(globalCommandFile,'w')
+        commandFile.write('exit 0\n')
         commandFile.close()
         commandFile = open(decisionMakerCommandFile,'w')
         command = 'python3 '+decisionMaker+' 5'
