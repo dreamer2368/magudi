@@ -55,6 +55,8 @@ for k in range(NcontrolRegion):
 
 terminalOutputFile = TXTDIR + '/' + globalPrefix + '.terminal_objective.txt'
 
+icMollifierFile = ROOTDIR + '/' + globalPrefix + '.ic_mollifier.f'
+
 ##################           slice level files              #####################
 
 prefixes, inputFiles, outputFiles, commandFiles = [], [], [], []

@@ -5,7 +5,7 @@ import numpy as np
 import subprocess
 import pandas as pd
 
-__all__ = ['commandScriptor','bashCommandScriptor','fluxCommandScriptor','scriptorSwitcher']
+__all__ = ['commandScriptor','baseCommandScriptor','bashCommandScriptor','fluxCommandScriptor','scriptorSwitcher']
 
 class commandScriptor:
     def singleJobCommand(self,commands,procedure,prefix='job',directories=None):
@@ -122,6 +122,72 @@ class commandScriptor:
         if(countFails>0):
             commandString += '   FAIL=0\n'
         commandString += 'fi\n\n'
+
+        return commandString
+
+class baseCommandScriptor(commandScriptor):
+
+    def singleJobCommand(self,commands,procedure,prefix='job',directories=None):
+        if (directories is None):
+            moveDir = False
+        else:
+            moveDir = True
+            if (len(commands)!=len(directories)):
+                raise ValueError('Provide directories for all commands.')
+
+        nodePerCommand, procsPerCommand = procedureSwitcher.get(procedure)
+
+        commandString = ''
+
+        for k, command in enumerate(commands):
+            if (moveDir): commandString += 'cd %s \n'%(directories[k])
+            commandString += 'mpirun -n %d ' % (procsPerCommand)
+            commandString += command
+            commandString += ' &> %s/%s_result_%d.out \n' % (OUTDIR,prefix,k)
+            commandString += self.checkResultCommand('%s-serial-%d'%(prefix,k))
+            if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+
+        return commandString
+
+    def parallelLoopCommand(self,commands,procedure,prefix='job',directories=None):
+        if (directories is None):
+            moveDir = False
+        else:
+            moveDir = True
+            if (len(commands)!=len(directories)):
+                raise ValueError('Provide directories for all commands.')
+
+        nodePerCommand, procsPerCommand = procedureSwitcher.get(procedure)
+
+        maxJobsPerLoop = int(np.floor(maxNodes/nodePerCommand))
+        if (maxJobsPerLoop<1):
+            raise ValueError('The job %s requires at least %d number of nodes. '                \
+                                %(prefix,nodePerCommand) +                                      \
+                             'Only %d nodes are assigned.'%(maxNodes))
+
+        commandString = ''
+
+        idx, nJobs = 0, len(commands)
+        loop = 0
+        while (nJobs>0):
+            jobsPerLoop = maxJobsPerLoop if (nJobs>maxJobsPerLoop) else nJobs
+            for k in range(jobsPerLoop):
+                if (moveDir): commandString += 'cd %s \n'%(directories[idx+k])
+
+                command = ''
+                command += 'mpirun -n %d ' % (procsPerCommand)
+                command += commands[idx+k]
+                command += ' &> %s/%s_result_%d.out &' % (OUTDIR,prefix,idx+k)
+                command += '\n'
+                command += 'pids[%d]=$!\n\n' % k
+                commandString += command
+
+                if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+            commandString += self.checkResultCommand('%s-iteration%d'%(prefix,loop),
+                                                    jobsPerLoop)
+            nJobs -= jobsPerLoop
+            idx += jobsPerLoop
+            loop += 1
 
         return commandString
 
@@ -317,6 +383,7 @@ class fluxCommandScriptor(commandScriptor):
         return commandString
 
 scriptorSwitcher = {
+    'base': baseCommandScriptor(),
     'bash': bashCommandScriptor(),
     'flux': fluxCommandScriptor()
 }

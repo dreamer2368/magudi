@@ -172,7 +172,7 @@ program spatial_inner_product
     call region%setupBoundaryConditions(filename)
 
     call region%loadData(QOI_CONTROL_MOLLIFIER, mollifierFilename)
-    call normalizeControlMollifier(region)
+    ! call normalizeControlMollifier(region)
   else
     do i = 1, size(region%grids)
        region%grids(i)%controlMollifier = 1.0_wp
@@ -188,7 +188,7 @@ program spatial_inner_product
   do i=1,size(region%states)
     dummyValue = dummyValue +                                                                &
                   region%grids(i)%computeInnerProduct(region%states(i)%conservedVariables,   &
-                                        temp(i)%F, region%grids(i)%controlMollifier(:,1)**2)
+                                        temp(i)%F, region%grids(i)%controlMollifier(:,1) )
   end do
 
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
