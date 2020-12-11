@@ -431,3 +431,54 @@ def updateLagrangian(weight,initial=False):
                                             'update_lagrangian')
 
     return commandString
+
+def checkStateDistance():
+    commandString = ''
+
+    commands = []
+    for k in range(Nsplit):
+        icFile = 'x0/%s' % icFiles[k]
+        baselineFile = baselineFiles[k]
+        baseDiffFile = '%s/%s.base_diff.q' % (DIFFDIR,prefixes[k])
+        commands += ['./qfile_zaxpy %s -1.0 %s %s' % (baseDiffFile, baselineFile, icFile)]
+    commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
+                                                'baseline_diff')
+
+    commands = []
+    for k in range(Nsplit):
+        diffFile = diffFiles[k]
+        baseDiffFile = '%s/%s.base_diff.q' % (DIFFDIR,prefixes[k])
+        for j in range(NdiffRegion):
+            diffOutput = '%s/%s.diff.%d.txt' % (TXTDIR,prefixes[k],j)
+            baseDiffOutput = '%s/%s.base_diff.%d.txt' % (TXTDIR,prefixes[k],j)
+            mollifierFile = diffMollifierFiles[j]
+            commands += ['./spatial_inner_product %s %s --mollifier %s --output %s --input %s'                 \
+                        % (diffFile, diffFile, mollifierFile, diffOutput, globalInputFile)]
+            commands += ['./spatial_inner_product %s %s --mollifier %s --output %s --input %s'                 \
+                        % (baseDiffFile, baseDiffFile, mollifierFile, baseDiffOutput, globalInputFile)]
+    commandString += scriptor.parallelLoopCommand(commands,'qfile-zxdoty',
+                                                'mollified_diffs')
+
+    return commandString
+
+def readStateDistance():
+    diffs = np.zeros(2*Nsplit*NdiffRegion)
+    for k in range(Nsplit):
+        for j in range(NdiffRegion):
+            diffOutput = '%s/%s.diff.%d.txt' % (TXTDIR,prefixes[k],j)
+            baseDiffOutput = '%s/%s.base_diff.%d.txt' % (TXTDIR,prefixes[k],j)
+            idx = 2*(j+NdiffRegion*k)
+            diffs[idx+1] = readScalar(diffOutput)
+            diffs[idx] = readScalar(baseDiffOutput)
+
+    new_df = pd.DataFrame([list(diffs)],columns=stateLogColumns)
+    from os import path
+    if(path.exists(stateLog)):
+        df = pd.read_csv(stateLog, sep='\t', header=0)
+        df = df.append(new_df)
+    else:
+        df = new_df
+    df.to_csv(stateLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+
+    return
+

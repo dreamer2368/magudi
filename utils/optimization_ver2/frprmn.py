@@ -12,6 +12,10 @@ def beforeLinmin(initial, zeroBaseline):
     data = [[gg]+list(subgg)]
     dJ_new_df = pd.DataFrame(data,columns=gradientLogColumns)
 
+    commandString = ''
+    if (saveStateLog):
+        commandString += checkStateDistance()
+
     if (initial):
         J_new_df.to_csv(forwardLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
         dJ_new_df.to_csv(gradientLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
@@ -22,7 +26,7 @@ def beforeLinmin(initial, zeroBaseline):
         commands = []
         for k in range(NcontrolSpace):
             commands += ['cp %s %s' % (globalGradFiles[k], globalConjugateGradientFiles[k])]
-        commandString = scriptor.nonMPILoopCommand(commands,'initial-conjugate-gradient')
+        commandString += scriptor.nonMPILoopCommand(commands,'initial-conjugate-gradient')
         fID = open(globalCommandFile,'w')
         fID.write(commandString)
         fID.close()
@@ -76,7 +80,7 @@ def beforeLinmin(initial, zeroBaseline):
     elif (gamma < -gamma1):
         gamma = -gamma1
 
-    commandString = zaxpyCommand(globalConjugateGradientFiles,gamma,previousCGFiles,globalGradFiles)
+    commandString += zaxpyCommand(globalConjugateGradientFiles,gamma,previousCGFiles,globalGradFiles)
     commandString += '\n'
     commandString += scriptor.parallelPurgeCommand(previousCGFiles,'purge_prev_cg')
     commandFile = open(globalCommandFile,'w')

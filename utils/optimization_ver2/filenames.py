@@ -14,6 +14,7 @@ TXTDIR = '%s/txt'%ROOTDIR
 CGDIR = '%s/cg'%ROOTDIR
 PREVDIR = '%s/previous'%ROOTDIR
 DIFFLOGDIR = '%s/diffLog'%ROOTDIR
+BASELINEDIR = '%s/baseline'%ROOTDIR
 dirList = [OUTDIR,DIFFDIR,GRADDIR,LGRNGDIR,TXTDIR,CGDIR,PREVDIR,DIFFLOGDIR]
 
 globalInputFile = 'magudi.inp'
@@ -43,6 +44,13 @@ for j in range(NcontrolRegion):
 for k in range(Nsplit):
     gradientLogColumns += ['initial_condition%d'%k]
 
+stateLog = globalPrefix + '.state_log.txt'
+stateLogColumns = []
+for k in range(Nsplit):
+    for j in range(NdiffRegion):
+        stateLogColumns += ['base_diff%d_%d'%(k,j)]
+        stateLogColumns += ['diff%d_%d'%(k,j)]
+
 ##################           global level files              #####################
 
 controlRegions = ['controlRegion']
@@ -56,6 +64,7 @@ for k in range(NcontrolRegion):
 terminalOutputFile = TXTDIR + '/' + globalPrefix + '.terminal_objective.txt'
 
 icMollifierFile = ROOTDIR + '/' + globalPrefix + '.ic_mollifier.f'
+diffMollifierFiles = [ROOTDIR + '/' + globalPrefix + '.ic_mollifier.%d.f'%k for k in range(NdiffRegion)]
 
 ##################           slice level files              #####################
 
@@ -64,6 +73,7 @@ icFiles, diffFiles, diffOutputFiles             = [], [], []
 matchingForwardFiles, matchingAdjointFiles      = [], []
 icAdjointFiles, icGradientFiles, directories    = [], [], []
 lagrangianFiles, lagrangianOutputFiles          = [], []
+baselineFiles                                   = []
 for k in range(Nsplit):
     prefixes += ['%s-%01d'%(globalPrefix,k)]
     inputFiles += ['magudi-%01d.inp'%(k)]
@@ -82,7 +92,8 @@ for k in range(Nsplit):
     kOffset = startTimestep + Nts * k
     icAdjointFiles += ['%s-%01d-%08d.adjoint.q'%(globalPrefix,k,kOffset)]        #use only 1, ... , Nsplit-1
     icGradientFiles += ['%s-%01d.ic.adjoint.q'%(globalPrefix,k)]                 #use only 1, ... , Nsplit-1
-    directories += ['%01d'%k]
+    baselineFiles += ['%s-%08d.q'%(globalPrefix,kOffset)]
+    directories += ['%01d'%k]    
 
 ##################           global+slice level files              #####################
 
@@ -127,3 +138,5 @@ lagrangianOutputFiles = [TXTDIR + '/' + file for file in lagrangianOutputFiles]
 globalGradFiles = [GRADDIR + '/' + file for file in globalGradFiles]
 globalConjugateGradientFiles = [CGDIR + '/' + file for file in globalConjugateGradientFiles]
 globalSensitivityFiles = [TXTDIR + '/' + file for file in globalSensitivityFiles]
+
+baselineFiles = [BASELINEDIR + '/' + file for file in baselineFiles]

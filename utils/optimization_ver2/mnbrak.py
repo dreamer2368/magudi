@@ -4,6 +4,9 @@ def setupInitialSteps(zeroBaseline=True):
     import subprocess
     import pandas as pd
 
+    if(saveStateLog):
+        readStateDistance()
+
     commandString = ''
     J0, dummy = QoI()
 
