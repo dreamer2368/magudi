@@ -15,8 +15,14 @@ def setupInitialSteps(zeroBaseline=True):
             commands += ['cp x0/%s ./a/ ' % globalControlSpaceFiles[j]]
     commandString += scriptor.nonMPILoopCommand(commands,'copy_control_params')
 
+    import os
+    numFiles = len(os.listdir('./linminLog/'))
+    if (numFiles>0):
+        df_temp = pd.read_csv('linminLog/%d/%s'%(numFiles-1,lineMinLog), sep='\t', header=0)
+        lastStep = np.array(df_temp['step'][df_temp['directory index']=='b'])[0]
+
     steps, Js = np.zeros(2), np.zeros(2)
-    steps[1] = initial_step
+    steps[1] = initial_step if numFiles==0 else lastStep
     Js[0] = J0
 
     temp = ['x0/'+file for file in globalControlSpaceFiles]
