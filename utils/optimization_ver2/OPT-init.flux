@@ -18,11 +18,19 @@ export nextDecisionMakerCommandFile='KolmogorovFlow.command.python.ready.sh'
 export FLUX='/usr/global/tools/flux/toss_3_x86_64_ib/flux-0.17.0-pre-ft/bin/flux'
 export LD_PRELOAD=/usr/global/tools/flux/toss_3_x86_64_ib/flux-0.17.0-pre-ft/lib/flux/libpmi2.so.0
 
-chmod u+x initial.sh
+chmod u+x initial-forward.sh
+chmod u+x initial-adjoint.sh
 
-srun -N $SLURM_NNODES --mpi=none --mpibind=off $FLUX start ./initial.sh
+srun -N $SLURM_NNODES --mpi=none --mpibind=off $FLUX start ./initial-forward.sh
 if [ $? -ne 0 ]; then
-    echo "initial run is not run successfully."
+    echo "initial forward is not run successfully."
+    exit -1
+fi
+scontrol show job $SLURM_JOBID
+
+srun -N $SLURM_NNODES --mpi=none --mpibind=off $FLUX start ./initial-adjoint.sh
+if [ $? -ne 0 ]; then
+    echo "initial adjoint is not run successfully."
     exit -1
 fi
 scontrol show job $SLURM_JOBID

@@ -1,16 +1,24 @@
 from base import *
 
-zeroControlForcing = True
+zeroControlForcing = False
+initialLagrangian = False
+weight = 2.88e-1 * np.ones(Nsplit)       # weight for matching condition penalty
+if (not periodicSolution):
+    weight[0] = 0.0
 
 command = ''
-command += forwardRunCommand('.',zeroControlForcing)
-command += adjointRunCommand()
-command += gatherControlForcingGradientCommand()
-command += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
-command += 'python3 optimization.py 1 -zero_baseline -initial_cg\n'
-#command += 'python3 optimization.py 1 -initial_cg\n'
+command += forwardRunCommand('x0',zeroControlForcing)
+command += updateLagrangian(weight,initialLagrangian)
 
-fID = open('initial.sh','w')
+fID = open('initial-forward.sh','w')
 fID.write(command)
 fID.close()
 
+command = ''
+command += adjointRunCommand()
+command += gatherControlForcingGradientCommand()
+command += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
+
+fID = open('initial-adjoint.sh','w')
+fID.write(command)
+fID.close()
