@@ -1,12 +1,14 @@
 from constants import *
 from filenames import *
 from command_scriptor import scriptorSwitcher
+from penalty_norm import penaltySwitcher
 
 import numpy as np
 import subprocess
 import pandas as pd
 
 scriptor = scriptorSwitcher.get(scriptorType)
+penalty = penaltySwitcher.get(penaltyType)
 
 magudiSetOptionCommand = 'function setOption() {\n'                                         \
                          '    if grep -q "$1" magudi.inp\n'                                 \
@@ -49,8 +51,9 @@ def QoI(baseDirectory = 'x0'):
         if (not ignoreIntegralObjective):
             J += subJ[k]
 
-        subJ[Nsplit+k] = 0.5 * readScalar(diffOutputFiles[k])
-        J += matchingConditionWeight[k] * subJ[Nsplit+k]
+        L2sq = readScalar(diffOutputFiles[k])
+        subJ[Nsplit+k] = 0.5 * L2sq
+        J += matchingConditionWeight[k] * penalty.norm(L2sq)
 
         if (useLagrangian):
             subJ[2*Nsplit+k] = readScalar(lagrangianOutputFiles[k])
@@ -217,13 +220,7 @@ def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
     bdir = baseDirectory
 
     commandString = ''
-    #if (Nsplit>1):
     commandString += distributeCommand(bdir,zeroControlForcing)
-    #elif (not zeroControlForcing):
-    #    for j in range(NcontrolRegion):
-    #        sliceControlForcingFile = '%s/%s/%s%s'%(bdir,directories[0],prefixes[0],controlForcingFiles[j])
-    #        globalControlForcingFile = '%s/%s'%(bdir,globalControlSpaceFiles[j])
-    #        commandString += 'mv %s %s \n' % (globalControlForcingFile,sliceControlForcingFile)
 
 
     commands, commandDirs = [], []
@@ -233,11 +230,6 @@ def forwardRunCommand(baseDirectory='x0',zeroControlForcing=False):
     commandString += scriptor.parallelLoopCommand(commands,'forward',
                                                   'forward',directories=commandDirs)
 
-    #if ((Nsplit==1) and (not zeroControlForcing)):
-    #    for j in range(NcontrolRegion):
-    #        sliceControlForcingFile = '%s/%s/%s%s'%(bdir,directories[0],prefixes[0],controlForcingFiles[j])
-    #        globalControlForcingFile = '%s/%s'%(bdir,globalControlSpaceFiles[j])
-    #        commandString += 'mv %s %s \n' % (sliceControlForcingFile,globalControlForcingFile)
     crashCheck  = 'crash=0\n'
     for k in range(Nsplit):
         commandDir = '%s/%s'%(bdir,directories[k])
@@ -303,9 +295,11 @@ def adjointRunCommand(baseDirectory='x0'):
 
     commands = []
     for k in range(Nsplit):
+        L2sq = readScalar(diffOutputFiles[k])
+        weight = -matchingConditionWeight[k] / penalty.gradientFactor(L2sq)
         matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k-1],matchingAdjointFiles[k-1])
         commands += ['./qfile_zaxpy %s %.16E %s --zero --input %s'                                      \
-        % (matchingAdjointFile, -matchingConditionWeight[k], diffFiles[k], globalInputFile)]
+        % (matchingAdjointFile, weight, diffFiles[k], globalInputFile)]
     commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
                                             'adjoint_run_qfile_zaxpy')
 
@@ -353,9 +347,11 @@ def adjointRunCommand(baseDirectory='x0'):
     commands = []
     for k in range(Nsplit):
         idx = NcontrolRegion + k
+        L2sq = readScalar(diffOutputFiles[k])
+        weight = matchingConditionWeight[k] / penalty.gradientFactor(L2sq)
         icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-                     % (globalGradFiles[idx], matchingConditionWeight[k], diffFiles[k], icAdjointFile, globalInputFile)]
+                     % (globalGradFiles[idx], weight, diffFiles[k], icAdjointFile, globalInputFile)]
     commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
                                             'adjoint_run_ic')
 
@@ -468,5 +464,3 @@ def readStateDistance():
     df.to_csv(stateLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
     return
-
-

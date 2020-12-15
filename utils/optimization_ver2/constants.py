@@ -4,6 +4,7 @@ startTimestep = 30000                                    # initial timestep of t
 totalTimestep = Nsplit * Nts                             # number of timesteps for the entire time span
 
 import numpy as np
+penaltyType = 'base'                                     # either 'base' or 'Huber'
 matchingConditionWeight = 1.6e-6 * np.ones(Nsplit)       # weight for matching condition penalty
 initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
 useLagrangian = False                                    # flag for augmented lagrangian
@@ -21,7 +22,7 @@ if (ignoreController):
 
 NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
 
-scriptorType = 'flux'                                    # either 'bash' or 'flux'
+scriptorType = 'flux'                                    # 'base', 'bash' or 'flux'
 enableParallelBash = True
 bashVerbose = False                                      # check only when serial bash loops
 pcc = 36
