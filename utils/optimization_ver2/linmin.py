@@ -60,13 +60,40 @@ def nextLinmin(zeroBaseline=True, initial=True, stop=False):
         print ('QoIs: %.16E %.16E %.16E'%(Ja,Jb,Jc))
         print ('LINMIN: line minimization is finished.')
 
+        commandString = ''
+
+        target = ['a/'+file for file in globalControlSpaceFiles]
+        commandString += scriptor.parallelPurgeCommand(target,'purge_a')
+        target = ['c/'+file for file in globalControlSpaceFiles]
+        commandString += scriptor.parallelPurgeCommand(target,'purge_c')
+        target = ['x/'+file for file in globalControlSpaceFiles]
+        commandString += scriptor.parallelPurgeCommand(target,'purge_x')
+
+        commands = []
+        for k in range(NcontrolSpace):
+            commands += ['cp b/%s x0/ ' % (globalControlSpaceFiles[k])]
+            commands += ['mv %s %s' % (globalGradFiles[k],previousGradFiles[k])]
+            commands += ['mv %s %s' % (globalConjugateGradientFiles[k],previousCGFiles[k])]
+        commandString += scriptor.nonMPILoopCommand(commands,'move_line_minimum_files')
+
+        commandString += '\n'
+        if( zeroBaseline and (not ignoreController) ):
+            commandString += generalSetOptionCommand
+            targetInputFiles = ['x0/%s/%s'%(dir,file) for dir, file in zip(directories,inputFiles)]
+            commands = []
+            for k in range(Nsplit):
+                commands += ['./setOption.sh %s "controller_switch" true' % targetInputFiles[k]]
+            commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_turn_on_controller')
+
+        commandString += forwardRunCommand()
+
         commandFile = open(globalCommandFile,'w')
-        commandFile.write('exit 0\n')
+        commandFile.write(commandString)
         commandFile.close()
         commandFile = open(decisionMakerCommandFile,'w')
         command = 'python3 '+decisionMaker+' 5'
         if(zeroBaseline):
-            command += ' -zero_baseline'
+            command += ' -zero_baseline'                                        # afterLinmin doesn't use zeroBaseline. This has no effect.
         commandFile.write(command+'\n')
         commandFile.close()
         return 0

@@ -116,11 +116,6 @@ def afterLinmin(zeroBaseline):
         commands += ['cp %s linminLog/%d/'%(costFunctionalFile,numFiles)]
         commands += ['cp %s linminLog/%d/'%(diffOutputFiles[k],numFiles)]
 
-    for k in range(NcontrolSpace):
-        commands += ['cp b/%s x0/ ' % (globalControlSpaceFiles[k])]
-        commands += ['mv %s %s' % (globalGradFiles[k],previousGradFiles[k])]
-        commands += ['mv %s %s' % (globalConjugateGradientFiles[k],previousCGFiles[k])]
-
     if (saveDiffFiles):
         subprocess.check_call('mkdir -p diffLog/%d'%numFiles,shell=True)
         for k in range(Nsplit-1,Nsplit-Ndiff*diffStep,-diffStep):
@@ -128,23 +123,6 @@ def afterLinmin(zeroBaseline):
 
     commandString += scriptor.nonMPILoopCommand(commands,'saving_line_minimization_files')
 
-    commandString += '\n'
-    if( zeroBaseline and (not ignoreController) ):
-        commandString += generalSetOptionCommand
-        targetInputFiles = ['x0/%s/%s'%(dir,file) for dir, file in zip(directories,inputFiles)]
-        commands = []
-        for k in range(Nsplit):
-            commands += ['./setOption.sh %s "controller_switch" true' % targetInputFiles[k]]
-        commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_turn_on_controller')
-
-    target = ['a/'+file for file in globalControlSpaceFiles]
-    commandString += scriptor.parallelPurgeCommand(target,'purge_a')
-    target = ['c/'+file for file in globalControlSpaceFiles]
-    commandString += scriptor.parallelPurgeCommand(target,'purge_c')
-    target = ['x/'+file for file in globalControlSpaceFiles]
-    commandString += scriptor.parallelPurgeCommand(target,'purge_x')
-
-    commandString += forwardRunCommand()
     commandString += '\n'
     commandString += adjointRunCommand()
     commandString += '\n'
