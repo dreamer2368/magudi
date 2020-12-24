@@ -305,7 +305,6 @@ def adjointRunCommand(baseDirectory='x0'):
 
     commands = []
     for k in range(Nsplit):
-        L2sq = readScalar(diffOutputFiles[k])
         # Assuming all weights are equal except k=0.
         weight = -matchingConditionWeight[k] / penalty.gradientFactor(L2sqSum)
         matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k-1],matchingAdjointFiles[k-1])
@@ -358,7 +357,6 @@ def adjointRunCommand(baseDirectory='x0'):
     commands = []
     for k in range(Nsplit):
         idx = NcontrolRegion + k
-        L2sq = readScalar(diffOutputFiles[k])
         # Assuming all weights are equal except k=0.
         weight = matchingConditionWeight[k] / penalty.gradientFactor(L2sqSum)
         icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])

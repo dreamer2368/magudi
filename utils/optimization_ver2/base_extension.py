@@ -1,12 +1,14 @@
 from constants import *
 from filenames import *
 from command_scriptor import scriptorSwitcher
+from penalty_norm import penaltySwitcher
 
 import numpy as np
 import subprocess
 import pandas as pd
 
 scriptor = scriptorSwitcher.get(scriptorType)
+penalty = penaltySwitcher.get(penaltyType)
 
 magudiSetOptionCommand = 'function setOption() {\n'                                         \
                          '    if grep -q "$1" magudi.inp\n'                                 \
@@ -49,9 +51,6 @@ def QoI(baseDirectory = 'x0'):
         if (not ignoreIntegralObjective):
             J += subJ[k]
 
-        subJ[Nsplit+k] = 0.5 * readScalar(diffOutputFiles[k])
-        J += matchingConditionWeight[k] * subJ[Nsplit+k]
-
         if (useLagrangian):
             subJ[2*Nsplit+k] = readScalar(lagrangianOutputFiles[k])
             # followed the convention of Portryagin's minimum principle
@@ -60,6 +59,15 @@ def QoI(baseDirectory = 'x0'):
         if (terminalObjective):
             subJ[3*Nsplit] = readScalar(terminalOutputFile)
             J += subJ[3*Nsplit]
+
+    L2sqSum = 0.0
+    kStart = 0 if periodicSolution else 1
+    for k in range(kStart, Nsplit):
+        L2sq = readScalar(diffOutputFiles[k])
+        subJ[Nsplit+k] = 0.5 * L2sq
+        L2sqSum += L2sq
+    # Assuming all weights are equal except k=0.
+    J += matchingConditionWeight[-1] * penalty.norm(L2sqSum)
 
     return J, subJ
 
@@ -306,11 +314,18 @@ def adjointRunCommand(baseDirectory='x0'):
                     % targetInputFiles[k]]
     commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_nonzero_initial_condition_true')
 
+    L2sqSum = 0.0
+    kStart = 0 if periodicSolution else 1
+    for k in range(kStart, Nsplit):
+        L2sqSum += readScalar(diffOutputFiles[k])
+
     commands = []
     for k in range(0,-Nsplit,-1):
+        # Assuming all weights are equal except k=0.
+        weight = -matchingConditionWeight[k] / penalty.gradientFactor(L2sqSum)
         matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k-1],matchingAdjointFiles[k-1])
         commands = ['./qfile_zaxpy %s %.16E %s --zero --input %s'                                      \
-        % (matchingAdjointFile, -matchingConditionWeight[k], diffFiles[k], globalInputFile)]
+        % (matchingAdjointFile, weight, diffFiles[k], globalInputFile)]
         commandString += scriptor.singleJobCommand(commands,'qfile-zaxpy',
                                                 'adjoint_run_qfile_zaxpy')
 
@@ -358,9 +373,11 @@ def adjointRunCommand(baseDirectory='x0'):
     commands = []
     for k in range(Nsplit):
         idx = NcontrolRegion + k
+        # Assuming all weights are equal except k=0.
+        weight = matchingConditionWeight[k] / penalty.gradientFactor(L2sqSum)
         icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
-                     % (globalGradFiles[idx], matchingConditionWeight[k], diffFiles[k], icAdjointFile, globalInputFile)]
+                     % (globalGradFiles[idx], weight, diffFiles[k], icAdjointFile, globalInputFile)]
     commandString += scriptor.parallelLoopCommand(commands,'qfile-zaxpy',
                                             'adjoint_run_ic')
 
@@ -481,4 +498,3 @@ def readStateDistance():
     df.to_csv(stateLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
     return
-
