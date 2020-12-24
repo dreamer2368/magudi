@@ -51,10 +51,6 @@ def QoI(baseDirectory = 'x0'):
         if (not ignoreIntegralObjective):
             J += subJ[k]
 
-        L2sq = readScalar(diffOutputFiles[k])
-        subJ[Nsplit+k] = 0.5 * L2sq
-        J += matchingConditionWeight[k] * penalty.norm(L2sq)
-
         if (useLagrangian):
             subJ[2*Nsplit+k] = readScalar(lagrangianOutputFiles[k])
             # followed the convention of Portryagin's minimum principle
@@ -63,6 +59,15 @@ def QoI(baseDirectory = 'x0'):
     if (terminalObjective):
         subJ[3*Nsplit] = readScalar(terminalOutputFile)
         J += subJ[3*Nsplit]
+
+    L2sqSum = 0.0
+    kStart = 0 if periodicSolution else 1
+    for k in range(kStart, Nsplit):
+        L2sq = readScalar(diffOutputFiles[k])
+        subJ[Nsplit+k] = 0.5 * L2sq
+        L2sqSum += L2sq
+    # Assuming all weights are equal except k=0.
+    J += matchingConditionWeight[-1] * penalty.norm(L2sqSum)
 
     return J, subJ
 
@@ -293,10 +298,16 @@ def adjointRunCommand(baseDirectory='x0'):
             commands += ['./setOption.sh %s "adjoint_forcing_switch" "false"' % targetInputFiles[k]]
         commandString += scriptor.nonMPILoopCommand(commands,'magudi_option_disable_adjoint_forcing')
 
+    L2sqSum = 0.0
+    kStart = 0 if periodicSolution else 1
+    for k in range(kStart, Nsplit):
+        L2sqSum += readScalar(diffOutputFiles[k])
+
     commands = []
     for k in range(Nsplit):
         L2sq = readScalar(diffOutputFiles[k])
-        weight = -matchingConditionWeight[k] / penalty.gradientFactor(L2sq)
+        # Assuming all weights are equal except k=0.
+        weight = -matchingConditionWeight[k] / penalty.gradientFactor(L2sqSum)
         matchingAdjointFile = '%s/%s/%s'%(bdir,directories[k-1],matchingAdjointFiles[k-1])
         commands += ['./qfile_zaxpy %s %.16E %s --zero --input %s'                                      \
         % (matchingAdjointFile, weight, diffFiles[k], globalInputFile)]
@@ -348,7 +359,8 @@ def adjointRunCommand(baseDirectory='x0'):
     for k in range(Nsplit):
         idx = NcontrolRegion + k
         L2sq = readScalar(diffOutputFiles[k])
-        weight = matchingConditionWeight[k] / penalty.gradientFactor(L2sq)
+        # Assuming all weights are equal except k=0.
+        weight = matchingConditionWeight[k] / penalty.gradientFactor(L2sqSum)
         icAdjointFile = '%s/%s/%s' % (bdir,directories[k],icAdjointFiles[k])
         commands += ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
                      % (globalGradFiles[idx], weight, diffFiles[k], icAdjointFile, globalInputFile)]
