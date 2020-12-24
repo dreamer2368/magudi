@@ -116,11 +116,6 @@ def afterLinmin(zeroBaseline):
         commands += ['cp %s linminLog/%d/'%(costFunctionalFile,numFiles)]
         commands += ['cp %s linminLog/%d/'%(diffOutputFiles[k],numFiles)]
 
-    if (saveDiffFiles):
-        subprocess.check_call('mkdir -p diffLog/%d'%numFiles,shell=True)
-        for k in range(Nsplit-1,Nsplit-Ndiff*diffStep,-diffStep):
-            commands += ['mv %s diffLog/%d/%s-%d.diff.%d.q' % (diffFiles[k],numFiles,globalPrefix,k,numFiles)]
-
     commandString += scriptor.nonMPILoopCommand(commands,'saving_line_minimization_files')
 
     commandString += '\n'
@@ -130,6 +125,11 @@ def afterLinmin(zeroBaseline):
     commandString += '\n'
     commandString += innerProductCommand(globalGradFiles,globalGradFiles,ggFiles)
     commandString += scriptor.purgeDirectoryCommand('x0')
+
+    if (saveDiffFiles):
+        subprocess.check_call('mkdir -p diffLog/%d'%numFiles,shell=True)
+        for k in range(Nsplit-1,Nsplit-Ndiff*diffStep,-diffStep):
+            commands += ['mv %s diffLog/%d/%s-%d.diff.%d.q' % (diffFiles[k],numFiles,globalPrefix,k,numFiles)]
 
     commands = []
     for k in range(Nsplit):
