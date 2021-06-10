@@ -119,7 +119,7 @@ import numpy as np
 import subprocess
 
 fID = open('J0.txt','r')
-J0 = float(fID.read())
+QoI0 = float(fID.read())
 fID.close()
 fID = open('Grad0.txt','r')
 Grad0 = float(fID.read())
