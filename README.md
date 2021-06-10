@@ -60,7 +60,7 @@ To execute the baseline simulation, run:
 ./forward --output J0.txt
 ```
 
-This saves the quantity-of-interest J in `J0.txt`. Additionally, solutions at designated timesteps are saved. These will be required for adjoint simulation. Please check the code to see more optional arguments for `forward`.
+This saves the quantity-of-interest (QoI) J in `J0.txt`. Additionally, solutions at designated timesteps are saved. These will be required for adjoint simulation. Please check the code to see more optional arguments for `forward`.
 
 ### Adjoint simulation
 For baseline simulation, make a link to `<magudi-build>/bin/adjoint`:
@@ -86,4 +86,70 @@ To make the control forcing file, make a link to `<magudi-build>/bin/zaxpy`:
 ln -s <magudi-build>/bin/zaxpy ./
 ```
 
-`zaxpy` refers to `**z**=a**x**+**y**`.
+`zaxpy` refers to `z=a*x+y`, where `z`, `x`, and `y` are the vector `.dat` files with the same length of the gradient file, and `a` is a scalar. We make a control forcing that is 0.0001 times smaller than the gradient,
+```
+./zaxpy AcousticMonopole.control_forcing.controlRegion.dat 1e-4 AcousticMonopole.gradient.controlRegion.dat`
+```
+where the argument `y` is automatically taken to be zero. Run another forward run with this file,
+```
+./forward --output J1.txt
+```
+where QoI is saved in `J1.txt`. A python3 routine to compute the finite-difference and check the accuracy is
+```
+import numpy as np
+fID = open('J0.txt','r')
+J0 = float(fID.read())
+fID.close()
+fID = open('Grad0.txt','r')
+Grad0 = float(fID.read())
+fID.close()
+fID = open('J1.txt','r')
+J1 = float(fID.read())
+fID.close()
+
+A1 = 1.0E-4
+Grad1 = (J1-J0) / A1
+Error = abs( (Grad1 - Grad0)/Grad0 )
+print ("{:.16E}".format(A1), "{:.16E}".format(Error))
+```
+
+Following python3 subroutine does this job for multiple amplitudes and save the errors in `AcousticMonopole.gradient_accuracy.txt`:
+```
+import numpy as np
+import subprocess
+
+fID = open('J0.txt','r')
+J0 = float(fID.read())
+fID.close()
+fID = open('Grad0.txt','r')
+Grad0 = float(fID.read())
+fID.close()
+
+Nk = 20
+Ak = 10.0**(-2.0-0.25*np.array(range(Nk)))
+QoIk = np.zeros((Nk,),dtype=np.double)
+Gradk = np.zeros((Nk,),dtype=np.double)
+ek = np.zeros((Nk,),dtype=np.double)
+
+for k in range(Nk):
+    amp = Ak[k]
+    command = ''
+    command += './zaxpy AcousticMonopole.control_forcing.controlRegion.dat %.16E AcousticMonopole.gradient.controlRegion.dat`' % amp
+    command += './forward --output J1.txt'
+    fID = open('test-step.sh','w')
+    fID.write(command)
+    fID.close()
+    subprocess.check_call('bash test-step.sh', shell=True)
+
+    fID = open('J1.txt','r')
+    QoIk[k] = float(fID.read())
+    fID.close()
+
+    Gradk[k] = (QoIk[k]-QoI0)/Ak[k]
+    ek[k] = abs( (Gradk[k]-Grad0)/Grad0 )
+    print ("{:.16E}".format(Ak[k]), "{:.16E}".format(QoIk[k]), "{:.16E}".format(Gradk[k]), "{:.16E}".format(ek[k]))
+
+    fId = open(globalPrefix+'.gradient_accuracy.txt','a+')
+    fId.write('%.16E\t%.16E\t%.16E\t%.16E\n' % (Ak[k], QoIk[k], Gradk[k], ek[k]))
+    fId.close()
+```
