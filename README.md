@@ -53,6 +53,7 @@ ln -s <magudi-build>/bin/forward ./
 ```
 
 `forward` requires two input files:
+
 * `magudi.inp`: this includes all flags/parameters for simulation.
 * `bc.dat`: this includes boundary condition information on grids. you can specify your own boundary condition file in `magudi.inp`.
 
