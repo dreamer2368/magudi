@@ -86,4 +86,4 @@ To make the control forcing file, make a link to `<magudi-build>/bin/zaxpy`:
 ln -s <magudi-build>/bin/zaxpy ./
 ```
 
-`zaxpy` refers to $$\mathbf{z}=a\mathbf{x}+y$$
+`zaxpy` refers to `**z**=a**x**+**y**`.
