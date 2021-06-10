@@ -78,7 +78,7 @@ To execute the adjoint simulation, run:
 This saves the gradient magnitude in `Grad0.txt`. Gradient vector (forcing) will be saved as `AcousticMonopole.gradient.controlRegion.dat`. Additionally, solutions at designated timesteps are saved. These will be required for adjoint simulation. Please check the code to see more optional arguments for `adjoint`.
 
 ### Gradient accuracy check by finite-difference
-We check the gradient accuracy by applying the control forcing along the gradient direction. In `magudi.inp`, change the `control_forcing_switch` flag,
+We check the gradient accuracy by applying the control forcing along the gradient direction. In `magudi.inp`, change the `controller_switch` flag,
 ```
 controller_switch = true
 ```
