@@ -77,10 +77,11 @@ def random_solution(g,time=0.0,timestep=0):
 if __name__ == '__main__':
     g = grid([201, 201])
     g.save('AcousticMonopole.xyz')
+    p3d.Solution().copy_from(g).quiescent(gamma).save('AcousticMonopole.ic.q')
 
-    dt = 5.0e-2
-    Nt = 100
-    for k in range(2):
-        random_solution(g,k*Nt*dt,k*Nt).save('AcousticMonopole-%d.ic.q'%k)
+    # dt = 5.0e-2
+    # Nt = 100
+    # for k in range(2):
+    #     random_solution(g,k*Nt*dt,k*Nt).save('AcousticMonopole-%d.ic.q'%k)
     target_mollifier(g).save('AcousticMonopole.target_mollifier.f')
     control_mollifier(g).save('AcousticMonopole.control_mollifier.f')
