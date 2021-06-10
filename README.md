@@ -16,6 +16,7 @@ make
 ```
 
 The flag `-D<cmake-var>=%` is optional, to manually set `<cmake-var>` to `%`. Some useful flags `<cmake-var>` are:
+
 * `CMAKE_BUILD_TYPE`: set to either `release` or `debug`
 * `CMAKE_Fortran_COMPILER`: set to a specific fortran compiler binary file
 
