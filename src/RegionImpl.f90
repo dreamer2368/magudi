@@ -1448,7 +1448,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   select case(quantityOfInterest)
   case (QOI_GRID, QOI_JACOBIAN, QOI_TARGET_MOLLIFIER, QOI_CONTROL_MOLLIFIER,                 &
-       QOI_METRICS, QOI_DUMMY_FUNCTION)
+       QOI_METRICS, QOI_DUMMY_FUNCTION, QOI_NORM)
   case default
      isSolutionFile = .true.
      if (filename(len_trim(filename)-1:len_trim(filename)) /= ".q") then
