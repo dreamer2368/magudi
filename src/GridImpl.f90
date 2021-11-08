@@ -454,6 +454,9 @@ subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, succe
   case (QOI_JACOBIAN)
      call plot3dWriteSingleFunction(this%comm, trim(filename), offsetInBytes,                &
           this%mpiDerivedTypeScalarSubarray, this%globalSize, this%jacobian, success)
+  case (QOI_NORM)
+     call plot3dWriteSingleFunction(this%comm, trim(filename), offsetInBytes,                &
+          this%mpiDerivedTypeScalarSubarray, this%globalSize, this%norm, success)
   case (QOI_METRICS)
      call plot3dWriteSingleFunction(this%comm, trim(filename), offsetInBytes,                &
           this%mpiDerivedTypeScalarSubarray, this%globalSize, this%metrics, success)

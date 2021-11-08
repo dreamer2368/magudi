@@ -10,7 +10,8 @@ module Grid_enum
        QOI_METRICS           =  1,                                                           &
        QOI_JACOBIAN          =  2,                                                           &
        QOI_TARGET_MOLLIFIER  =  3,                                                           &
-       QOI_CONTROL_MOLLIFIER =  4
+       QOI_CONTROL_MOLLIFIER =  4,                                                           &
+       QOI_NORM              =  5
 
   integer, parameter, public ::                                                              &
        NONE    = 0,                                                                          &
