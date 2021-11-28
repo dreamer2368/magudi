@@ -37,9 +37,15 @@ def readScalar(scalarFilename):
         print (scalarFilename+' is not found.')
         return np.nan
     else:
-        scalar = float(fID.read())
-        fID.close()
-        return scalar
+        temp = fID.read()
+        try:
+            scalar = float(temp)
+        except ValueError:
+            print (scalarFilename, ': ', temp)
+        else:
+            scalar = float(temp)
+            fID.close()
+            return scalar
 
 def QoI(baseDirectory = 'x0'):
     bdir = baseDirectory
