@@ -599,6 +599,88 @@ def mean_pressure(s):
         print (np.min(fi), np.max(fi))
     return f
 
+def state_mollifier(g):
+    z_min =   0.95
+    z_max =   5.5
+    r_min =   0.75
+    r_max =   2.0
+    z_rmax =  5.0
+    f = p3d.Function().copy_from(g)
+    z = g.xyz[0][0,0,:,2]
+
+    scaled_z = 2.0*(z-z_min)/(z_max-z_min) - 1.0
+    z_factor = np.tanh( 40.0 * ( scaled_z + 1.0 ) )
+    z_factor -= np.tanh( 2.0 * ( scaled_z - 1.0 ) )
+
+    slope_min, slope_max = 2.0, 10.0
+    r_slope = np.array( [ slope_max - (slope_max - slope_min) * np.sin( 0.5*np.pi*(zk-z_min)/(z_rmax-z_min) ) if (zk<=z_rmax) else slope_min for zk in z] )
+
+    n = f.get_size()
+    block_code = ['IB', 'E', 'N', 'W', 'S']
+    for i, fi in enumerate(f.f):
+        r = np.sqrt(g.xyz[i][:,:,0,0] ** 2 + g.xyz[i][:,:,0,1] ** 2)
+        if r.min() > r_max:
+            fi.fill(0.)
+            continue
+        fi.fill(1.)
+        for k in range(n[i][2]):
+            zk = z[k]
+            #if ((zk-1. < z_min) or (zk-1. > z_max)):
+            #    fi[:,:,k,0] *= 0.
+            #    continue
+            rk = r_min + (r_max-r_min) * np.sin(0.5*np.pi*(zk-z_min)/(z_rmax-z_min)) if zk<=z_rmax else r_max
+            slopek = r_slope[k]
+            r_factor = p3d.tanh_support(r, -rk, rk, slopek, 0.0, False)
+
+            fi[:,:,k,0] *= r_factor
+            fi[:,:,k,0] *= z_factor[k]
+
+    fmax = 0.0
+    for fi in f.f:
+        fmax = max(fmax,np.amax(fi))
+    for fi in f.f:
+        fi /= fmax
+    return f
+
+# def random_adjoint_condition(g, time, timestep, center, width, Nmodes=1):
+#     s = p3d.Solution().copy_from(g).quiescent(gamma)
+#     amp = 2. * np.random.rand(Nmodes,3) - 1.
+#     xc, yc, zc = center
+#     wr, wz = width
+#     rc = np.sqrt(xc**2 + yc**2)
+#
+#     rho_amp = 2. * np.random.rand() - 1.
+#     rho_phase = 2. * np.pi * np.random.rand(2)
+#     rhoE_amp = 2. * np.random.rand() - 1.
+#     rhoE_phase = 2. * np.pi * np.random.rand(2)
+#     A_amp = 2. * np.random.rand(Nmodes,3,2) - 1.
+#     A_phase = 2. * np.pi * np.random.rand(Nmodes,3,2)
+#
+#     s.q[:] *= 0.0
+#     for i, xyz in enumerate(g.xyz):
+#         z = xyz[0,0,:,2]
+#         r = np.sqrt(xyz[:,:,0,0] ** 2 + xyz[:,:,0,1] ** 2) / 0.5
+#         x, y = xyz[:,:,0,0], xyz[:,:,0,1]
+#
+#         mollifier = np.exp( - 0.5*(r-rc)**2/wr/wr - 0.5 * (z-zc)**2/wz/wz )
+#
+#         for k in range(z.size):
+#             s.q[i][:,:,k,0] = mollifier * rho_amp * np.sin( np.pi * (x-xc) / wr + rho_phase[0] ) *
+#                                                     np.sin( np.pi * (y-yc) / wr + rho_phase[1] )
+#             s.q[i][:,:,k,4] = mollifier * rhoE_amp * np.sin( np.pi * (x-xc) / wr + rhoE_phase[0] ) *
+#                                                      np.sin( np.pi * (y-yc) / wr + rhoE_phase[1] )
+#             s.q[i][:,:,k,3] = 0.5 * u_j * (1. + np.tanh(
+#                 0.25 / theta[k] * (1. / r - r)))
+#         s.q[i][:,:,:,0] = 1. / (0.5 * (gamma - 1.) * s.q[i][:,:,:,3] / u_j *
+#                                 (1. - s.q[i][:,:,:,3] / u_j) *
+#                                 mach_number ** 2 + s.q[i][:,:,:,3] / u_j +
+#                                 (1. - s.q[i][:,:,:,3] / u_j) /
+#                                 temperature_ratio) / temperature_ratio
+#
+#     s.time = time
+#     s._format.aux_header[0] = timestep
+#
+#     return s.fromprimitive(gamma)
 
 if __name__ == '__main__':
     g = grid(60, 196, 132, a_inner=0.24, p_inner=1.08634735266)
