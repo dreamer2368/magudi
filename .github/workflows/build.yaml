@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    container:
+      image: dreamer2368/magudi_env:pre1.0.0
+      options: --user 1001 --privileged
+    name: Build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Cmake
+        run: |
+         mkdir build
+         cd build
+         cmake -DCMAKE_BUILD_TYPE=release -DCMAKE_Fortran_COMPILER=mpif90 ../
+      - name: Make
+        run: |
+         cd build
+         make -j 2
+
