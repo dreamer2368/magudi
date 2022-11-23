@@ -1110,6 +1110,12 @@ end module StencilOperatorImpl
 
 subroutine setupOperator(this, stencilScheme)
 
+  ! <<< External modules >>>
+  use MPI
+  use ErrorHandler, only : gracefulExit
+
+  use, intrinsic :: iso_fortran_env, only : output_unit
+
   ! <<< Derived types >>>
   use StencilOperator_mod, only : t_StencilOperator
 
@@ -1125,6 +1131,7 @@ subroutine setupOperator(this, stencilScheme)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: x1, x2, x3
+  character(len = STRING_LENGTH) :: message
 
   assert_key(stencilScheme, (       \
   'SBP 1-2 first derivative',       \
@@ -2119,6 +2126,9 @@ subroutine setupOperator(this, stencilScheme)
                                     +8.9801406812550448657719127266081E-004_wp /)
 
   else if (trim(stencilScheme) == "DRP 13-point filter") then
+
+     write(message, '(A)') "DRP 13-point filter currently does not pass the test. Aborted."
+     call gracefulExit(MPI_COMM_WORLD, message)
 
      this%symmetryType = SYMMETRIC
      this%interiorWidth = 13
