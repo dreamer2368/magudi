@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-20.04
     container:
-      image: dreamer2368/magudi_env:pre1.0.0
+      image: dreamer2368/magudi_env:latest
       options: --user 1001 --privileged
     name: Build
     steps:
@@ -25,4 +25,3 @@ jobs:
         run: |
          cd build
          make -j 2
-
