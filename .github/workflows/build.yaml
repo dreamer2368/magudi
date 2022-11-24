@@ -20,8 +20,12 @@ jobs:
         run: |
          mkdir build
          cd build
-         cmake -DCMAKE_BUILD_TYPE=release -DCMAKE_Fortran_COMPILER=mpif90 ../
+         cmake -DCMAKE_BUILD_TYPE=debug -DCMAKE_Fortran_COMPILER=mpif90 ../
       - name: Make
         run: |
          cd build
-         make -j 2
+         make -j 16
+      - name: Unit test
+        run: |
+         cd build
+         CTEST_OUTPUT_ON_FAILURE=TRUE make test
