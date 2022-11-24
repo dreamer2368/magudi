@@ -11,6 +11,10 @@ function(add_serial_test name)
   add_test(NAME ${name} COMMAND ${name})
 endfunction(add_serial_test)
 
+function(add_executable_simple name)
+  add_executable(${name} $<TARGET_OBJECTS:magudiObj> ${name}.f90)
+endfunction(add_executable_simple)
+
 # Serial tests
 add_serial_test(stencil_coefficients)
 add_serial_test(options_parser)
@@ -36,6 +40,7 @@ add_mpi_test(patch_collectives "${numProcs}")
 #add_mpi_test(boundary_operator "${numProcs}")
 add_mpi_test(testZAXPY "${numProcs}")
 #add_mpi_test(block_interface_sign "${numProcs}")
+add_executable_simple(block_interface_sign)
 
 # Subdirectories
 add_subdirectory(adjoint_relation)
