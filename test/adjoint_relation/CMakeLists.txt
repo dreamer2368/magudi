@@ -25,7 +25,7 @@ add_executable_simple(initial_condition)
 
 # MPI tests
 set(numProcs 1 2 4 8)
-add_mpi_test(time_integrator "${numProcs}")
+#add_mpi_test(time_integrator "${numProcs}")
 #add_mpi_test(full_rhs "${numProcs}")
 add_executable_simple(full_rhs)
 #add_mpi_test(sponge "${numProcs}")
