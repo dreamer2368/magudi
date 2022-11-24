@@ -33,7 +33,7 @@ add_mpi_test(composite_dissipation_sanity "${numProcs}")
 add_mpi_test(dissipation_self_adjoint "${numProcs}")
 add_mpi_test(SBP_property "${numProcs}")
 add_mpi_test(patch_collectives "${numProcs}")
-add_mpi_test(boundary_operator "${numProcs}")
+#add_mpi_test(boundary_operator "${numProcs}")
 add_mpi_test(testZAXPY "${numProcs}")
 add_mpi_test(block_interface_sign "${numProcs}")
 
