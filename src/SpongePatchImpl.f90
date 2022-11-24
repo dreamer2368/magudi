@@ -90,7 +90,7 @@ subroutine addDamping(this, mode, simulationFlags, solverOptions, grid, state)
   ! <<< Local variables >>>
   integer :: i, j, k, l, gridIndex, patchIndex
 
-  assert_key(mode, (FORWARD, ADJOINT))
+  assert_key(mode, (FORWARD, ADJOINT, LINEARIZED))
   assert(this%gridIndex == grid%index)
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))

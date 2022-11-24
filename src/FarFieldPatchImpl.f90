@@ -124,7 +124,7 @@ subroutine addFarFieldPenalty(this, mode, simulationFlags, solverOptions, grid, 
        localMetricsAlongNormalDirection(:), localVelocity(:), localStressTensor(:),          &
        localHeatFlux(:), incomingJacobianOfInviscidFlux(:,:), localViscousFluxJacobian(:,:)
 
-  assert_key(mode, (FORWARD, ADJOINT))
+  assert_key(mode, (FORWARD, ADJOINT, LINEARIZED))
   assert(this%gridIndex == grid%index)
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))
