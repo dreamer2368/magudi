@@ -30,7 +30,7 @@ if (LAPACK_FOUND)
 endif()
 
 # MPI tests
-set(numProcs 1 2 4 8)
+set(numProcs 1 2)
 add_mpi_test(operator_convergence "${numProcs}")
 add_mpi_test(composite_dissipation_sanity "${numProcs}")
 add_mpi_test(dissipation_self_adjoint "${numProcs}")

@@ -22,7 +22,7 @@ add_executable_simple(SAT_block_interface_linearized)
 # add_serial_test(initial_condition)
 
 # MPI tests
-set(numProcs 1 2 4 8)
+set(numProcs 1 2)
 #add_mpi_test(full_rhs_linearized "${numProcs}")
 add_executable_simple(full_rhs_linearized)
 #add_mpi_test(sponge_linearized "${numProcs}")
