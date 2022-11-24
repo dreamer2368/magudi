@@ -3,9 +3,9 @@
 program drag_adjoint_forcing
 
   use MPI
-  use, intrinsic :: iso_fortran_env, only : real64
+  use, intrinsic :: iso_fortran_env, only : real64, output_unit
 
-  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler
+  use ErrorHandler, only : initializeErrorHandler, cleanupErrorHandler, writeAndFlush
   use RandomNumber, only : initializeRandomNumberGenerator, random
 
   use Patch_mod, only : t_Patch
@@ -30,7 +30,8 @@ program drag_adjoint_forcing
   real(real64) :: startTime
   character(len = STRING_LENGTH) :: discretizationType
   logical :: isDomainCurvilinear
-  real(SCALAR_KIND) :: dragDirection(3)
+  real(SCALAR_KIND) :: dragDirection(3), error
+  character(len = STRING_LENGTH) :: message
 
   type(t_Region) :: region(2)
   type(t_FunctionalFactory) :: functionalFactory(2)
@@ -181,8 +182,11 @@ program drag_adjoint_forcing
 
         if (.not. success) exit
 
-        success = success .and. (maxval(abs(region(1)%states(1)%rightHandSide -              &
-             region(2)%states(1)%rightHandSide)) < tolerance)
+        error = maxval(abs(region(1)%states(1)%rightHandSide -              &
+                       region(2)%states(1)%rightHandSide))
+        success = success .and. (error < tolerance)
+        write(message, '(A, E13.6)') "Error: ", error
+        call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
         if (.not. success) exit
 
      end do !... nDimensions = 1, 3

@@ -11,13 +11,17 @@ function(add_serial_test name)
   add_test(NAME ${name} COMMAND ${name})
 endfunction(add_serial_test)
 
+function(add_executable_simple name)
+  add_executable(${name} $<TARGET_OBJECTS:magudiObj> ${name}.f90)
+endfunction(add_executable_simple)
+
 # Serial tests
 add_serial_test(stencil_coefficients)
 add_serial_test(options_parser)
 add_serial_test(inviscid_flux_jacobian)
 add_serial_test(impenetrable_wall_SAT)
 add_serial_test(isothermal_wall_SAT)
-add_serial_test(drag_adjoint_forcing)
+#add_serial_test(drag_adjoint_forcing)
 
 find_package(LAPACK)
 if (LAPACK_FOUND)
@@ -26,16 +30,16 @@ if (LAPACK_FOUND)
 endif()
 
 # MPI tests
-set(numProcs 1 2 4 8)
+set(numProcs 1 2)
 add_mpi_test(operator_convergence "${numProcs}")
-##add_mpi_test(adjoint_relation "${numProcs}")
 add_mpi_test(composite_dissipation_sanity "${numProcs}")
 add_mpi_test(dissipation_self_adjoint "${numProcs}")
 add_mpi_test(SBP_property "${numProcs}")
 add_mpi_test(patch_collectives "${numProcs}")
 add_mpi_test(boundary_operator "${numProcs}")
 add_mpi_test(testZAXPY "${numProcs}")
-add_mpi_test(block_interface_sign "${numProcs}")
+#add_mpi_test(block_interface_sign "${numProcs}")
+add_executable_simple(block_interface_sign)
 
 # Subdirectories
 add_subdirectory(adjoint_relation)
