@@ -49,6 +49,7 @@ program patch_collectives
 
   call initializeErrorHandler()
   call initializeRandomNumberGenerator()
+  call simulationFlags%initialize()
 
   startTime = MPI_Wtime()
 
