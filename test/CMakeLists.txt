@@ -17,7 +17,7 @@ add_serial_test(options_parser)
 add_serial_test(inviscid_flux_jacobian)
 add_serial_test(impenetrable_wall_SAT)
 add_serial_test(isothermal_wall_SAT)
-add_serial_test(drag_adjoint_forcing)
+#add_serial_test(drag_adjoint_forcing)
 
 find_package(LAPACK)
 if (LAPACK_FOUND)
