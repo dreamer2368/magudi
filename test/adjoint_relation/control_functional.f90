@@ -514,8 +514,8 @@ subroutine testAdjointRelation(costType, nDimensions, success, isPeriodic, toler
       ! Take a single sub-step using the time integrator.
       call timeIntegrator%substepAdjoint(region, time, timeStepSize, timestep, i)
 
-      ! Save adjoint states
-      adjointState(:,timestep*timeIntegrator%nStages+i) = reshape(region%states(1)%adjointVariables,(/9/))
+      ! ! Save adjoint states
+      ! adjointState(:,timestep*timeIntegrator%nStages+i) = reshape(region%states(1)%adjointVariables,(/9/))
     end do
 
     if (mod(timestep, max(1, saveInterval)) == 0) then

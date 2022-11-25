@@ -221,6 +221,7 @@ subroutine assignSolverOptions(this, solverOptions)
       call gracefulExit(comm_, message)
     end if
   end if
+  this%controllerNorm = solverOptions%controllerNorm
 
   this%costFunctionalType = solverOptions%costFunctionalType
   if ( len(trim(this%costFunctionalType))>0 ) then

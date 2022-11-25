@@ -25,8 +25,7 @@ endfunction()
 
 # Serial tests
 add_script_test(SAT_block_interface)
-#add_serial_test(control_functional)
-add_executable_simple(control_functional)
+add_script_test(control_functional)
 #add_serial_test(initial_condition)
 add_executable_simple(initial_condition)
 
