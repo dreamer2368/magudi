@@ -54,7 +54,7 @@ def target_mollifier(g):
     for i, xyz in enumerate(g.xyz):
         f.f[i][:,:,:,0] = p3d.tanh_support(xyz[:,:,:,0], x_min, x_max,
                                            80., 0.14) * \
-            p3d.cubic_bspline_support(xyz[:,:,:,1], y_min, y_max)        
+            p3d.cubic_bspline_support(xyz[:,:,:,1], y_min, y_max)
         imin, imax = p3d.find_extents(xyz[:,0,0,0], x_min, x_max)
         jmin, jmax = p3d.find_extents(xyz[0,:,0,1], y_min, y_max)
         if imin and imax and jmin and jmax:
@@ -91,7 +91,9 @@ def mean_pressure(s):
 if __name__ == '__main__':
     g = grid([961, 641])
     g.save('WeiFreundSDML.xyz')
-    initial_condition(g, u1=0.9, u2=0.2).save('WeiFreundSDML.ic.q')
+    s = initial_condition(g, u1=0.9, u2=0.2)
+    s.save('WeiFreundSDML.ic.q')
     target_state(g, u1=0.9, u2=0.2, S=0.05).save('WeiFreundSDML.target.q')
     target_mollifier(g).save('WeiFreundSDML.target_mollifier.f')
     control_mollifier(g).save('WeiFreundSDML.control_mollifier.f')
+    mean_pressure(s).save('WeiFreundSDML.mean_pressure.f')
