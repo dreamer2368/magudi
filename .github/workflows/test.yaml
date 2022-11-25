@@ -7,25 +7,25 @@ on:
   pull_request:
 
 jobs:
-  build:
+  cpu-test:
     runs-on: ubuntu-20.04
     container:
       image: dreamer2368/magudi_env:latest
       options: --user 1001 --privileged
-    name: Build
+    name: CPU-test
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Cmake
         run: |
-         mkdir build
-         cd build
-         cmake -DCMAKE_BUILD_TYPE=debug -DCMAKE_Fortran_COMPILER=mpif90 ../
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=debug -DCMAKE_Fortran_COMPILER=mpif90 ../
       - name: Make
         run: |
-         cd build
-         make -j 16
+          cd build
+          make -j 16
       - name: Unit test
         run: |
-         cd build
-         CTEST_OUTPUT_ON_FAILURE=TRUE make test
+          cd build
+          CTEST_OUTPUT_ON_FAILURE=TRUE make test

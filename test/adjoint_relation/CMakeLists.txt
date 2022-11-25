@@ -15,9 +15,16 @@ function(add_executable_simple name)
   add_executable(${name} $<TARGET_OBJECTS:magudiObj> ${name}.f90)
 endfunction(add_executable_simple)
 
+function(add_script_test name)
+    add_executable(${name} $<TARGET_OBJECTS:magudiObj> ${name}.f90)
+
+    add_test(NAME ${name}
+             COMMAND sh ${name}.sh ${CMAKE_CURRENT_BINARY_DIR}
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endfunction()
+
 # Serial tests
-#add_serial_test(SAT_block_interface)
-add_executable_simple(SAT_block_interface)
+add_script_test(SAT_block_interface)
 #add_serial_test(control_functional)
 add_executable_simple(control_functional)
 #add_serial_test(initial_condition)
