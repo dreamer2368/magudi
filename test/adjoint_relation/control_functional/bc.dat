@@ -1,0 +1,4 @@
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  targetRegion         COST_TARGET              1       0    1   -1    1   -1    1   -1
+  controlRegion        ACTUATOR                 1       0    1   -1    1   -1    1   -1

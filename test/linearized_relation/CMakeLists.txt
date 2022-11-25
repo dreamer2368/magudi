@@ -15,16 +15,20 @@ function(add_executable_simple name)
   add_executable(${name} $<TARGET_OBJECTS:magudiObj> ${name}.f90)
 endfunction(add_executable_simple)
 
+function(add_script_test name)
+    add_executable(${name} $<TARGET_OBJECTS:magudiObj> ${name}.f90)
+
+    add_test(NAME ${name}
+             COMMAND sh ${name}.sh ${CMAKE_CURRENT_BINARY_DIR}
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endfunction()
+
 # Serial tests
-#add_serial_test(SAT_block_interface_linearized)
-add_executable_simple(SAT_block_interface_linearized)
-# add_serial_test(control_functional)
-# add_serial_test(initial_condition)
+add_script_test(SAT_block_interface_linearized)
+add_script_test(full_rhs_linearized)
 
 # MPI tests
 set(numProcs 1 2)
-#add_mpi_test(full_rhs_linearized "${numProcs}")
-add_executable_simple(full_rhs_linearized)
 #add_mpi_test(sponge_linearized "${numProcs}")
 #add_mpi_test(SAT_farfield_linearized "${numProcs}")
 add_serial_test(SAT_farfield_linearized)

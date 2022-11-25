@@ -79,7 +79,7 @@ subroutine addAdjointForcing(this, mode, simulationFlags, solverOptions, grid, s
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD, ADJOINT
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
   implicit none
 
@@ -96,7 +96,7 @@ subroutine addAdjointForcing(this, mode, simulationFlags, solverOptions, grid, s
   integer :: i, j, k, l, gridIndex, patchIndex
   real(SCALAR_KIND) :: forcingFactor
 
-  assert_key(mode, (FORWARD, ADJOINT))
+  assert_key(mode, (FORWARD, ADJOINT, LINEARIZED))
   assert(this%gridIndex == grid%index)
   assert(all(grid%offset == this%gridOffset))
   assert(all(grid%localSize == this%gridLocalSize))

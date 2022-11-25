@@ -448,7 +448,8 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
 
   if (k > 2) then
      call sort(convergenceHistory(:k-2))
-     success = success .and. nint(meanTrimmed(convergenceHistory(:k-2))).ge.1
+     if (procRank==0) print *, "FD order: ", (meanTrimmed(convergenceHistory(:k-2)))
+     success = success .and. (meanTrimmed(convergenceHistory(:k-2)) .ge. 0.9_wp)
   else
      success = .false.
      if (procRank==0)                                          &

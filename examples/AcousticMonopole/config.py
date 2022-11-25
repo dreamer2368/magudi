@@ -77,7 +77,10 @@ def random_solution(g,time=0.0,timestep=0):
 if __name__ == '__main__':
     g = grid([201, 201])
     g.save('AcousticMonopole.xyz')
-    p3d.Solution().copy_from(g).quiescent(gamma).save('AcousticMonopole.ic.q')
+    gamma = 1.4
+    s = p3d.Solution().copy_from(g).quiescent(gamma)
+    s.save('AcousticMonopole.ic.q')
+    mean_pressure(s).save('AcousticMonopole.mean_pressure.f')
 
     # dt = 5.0e-2
     # Nt = 100
