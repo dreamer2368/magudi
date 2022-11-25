@@ -111,7 +111,7 @@ program isothermal_wall_SAT
 
         gridSize(:,:) = 1
         do i = 1, nDimensions
-           gridSize(i,1) = random(1, 60)
+           gridSize(i,1) = random(30, 60)
         end do
 
         simulationFlags%isDomainCurvilinear = (random(0, 2) == 0)
