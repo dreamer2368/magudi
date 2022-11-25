@@ -26,8 +26,7 @@ endfunction()
 # Serial tests
 add_script_test(SAT_block_interface)
 add_script_test(control_functional)
-#add_serial_test(initial_condition)
-add_executable_simple(initial_condition)
+add_script_test(initial_condition)
 
 # MPI tests
 set(numProcs 1 2)
