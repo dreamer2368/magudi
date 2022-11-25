@@ -282,7 +282,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   h = 1.0_wp / real(grid%globalSize(1:nDimensions)-1,wp)
   do i = 1, grid%nGridPoints
     call random_number(gridPerturbation)
-    gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.13_wp * h
+    gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.05_wp * h
     grid%coordinates(i,:) = grid%coordinates(i,:) + gridPerturbation
   end do
 
