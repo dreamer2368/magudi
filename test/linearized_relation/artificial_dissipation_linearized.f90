@@ -356,7 +356,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   scalar1 = grid%computeInnerProduct(state0%adjointVariables,linearizedRightHandSide)
   ! <u, \delta R(v)>
   ! Prepare step sizes
-  stepSizes(1) = 0.01_wp
+  stepSizes(1) = 1.0_wp / abs(scalar1)
   do k = 2, size(stepSizes)
      stepSizes(k) = stepSizes(k-1) * 10.0_wp**(-0.25_wp)
   end do
