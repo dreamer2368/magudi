@@ -50,38 +50,16 @@ program time_integrator
   do nDimensions = 1, 1
     do j = 1, 1 !... for each discretizationTypes
       success = .true.
-      do i = 1, 10 !... test multiple times
-        ! Didn't test periodic grid yet!!
-        ! isPeriodic = .true.
-        ! call testAdjointRelation(discretizationTypes(j), nDimensions,           &
-        !                          success_, isPeriodic)
-        ! success = success .and. success_
-        ! if( .not. success) then
-        !   if( procRank == 0 ) then
-        !     print *, 'Failed, ', trim(discretizationTypes(j))
-        !     print *, 'dimension: ', nDimensions
-        !     print *, 'periodicity: ', isPeriodic
-        !   end if
-        !   exit
-        ! end if
-
+      do i = 1, 1 !... test multiple times
         isPeriodic = .false.
         call testAdjointRelation(discretizationTypes(j), nDimensions,           &
                                  success_, isPeriodic)
         success = success .and. success_
-        ! if( .not. success_) then
-        !   if( procRank == 0 ) then
-        !     print *, 'Failed, ', trim(discretizationTypes(j))
-        !     print *, 'dimension: ', nDimensions
-        !     print *, 'periodicity: ', isPeriodic
-        !   end if
-        !   exit
-        ! end if
       end do
-      ! if( procRank == 0 .and. success ) then
-      !   print *, 'Success, ', trim(discretizationTypes(j))
-      !   print *, 'dimension: ', nDimensions
-      ! end if
+      if( procRank == 0 .and. success ) then
+        print *, 'Success'
+        print *, 'dimension: ', nDimensions
+      end if
     end do
   end do
 
@@ -149,7 +127,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer, allocatable :: gridSize(:,:)
   integer :: i, j, k, nUnknowns, nTimesteps, timestep, startTimestep, timemarchDirection
-  real(wp) :: timeStepSize, time
+  real(wp) :: timeStepSize, time, error
   real(SCALAR_KIND), allocatable :: forwardState(:), adjointState(:),           &
                                     forwardRhs(:), adjointRhs(:)
   character(len = STRING_LENGTH) :: errorMessage
@@ -212,6 +190,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   ! Forward run: Dx = f
   region%tempRhs = forwardRhs
   region%tempRhsIndex = 1
+  ! scalar1 = (D^{\dagger}x^{\dagger}) dot x
   scalar1 = 0.0_wp
 
   time = 0.0_wp
@@ -238,12 +217,12 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
   ! Adjoint run = D^{\dagger}x^{\dagger} = g
   region%tempRhs = adjointRhs
   region%tempRhsIndex = size(adjointRhs)
+  ! scalar2 = x^{\dagger} dot (D x)
   scalar2 = 0.0_wp
 
-  ! This is positive for the test; in application the sign changes.
-  region%states(1)%adjointVariables = region%solverOptions%timeStepSize/6.0_wp                &
+  region%states(1)%adjointVariables = -region%solverOptions%timeStepSize/6.0_wp                &
                                           * adjointRhs(size(adjointRhs))
-  adjointState(size(adjointState)) =  region%states(1)%adjointVariables(1,1)
+  adjointState(size(adjointState)) = region%states(1)%adjointVariables(1,1)
 
   time = nTimesteps * region%solverOptions%timeStepSize
   region%states(:)%time = time
@@ -257,7 +236,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
 
     do i = timeIntegrator%nStages, 1, -1
       ! Update the cost functional.
-       scalar2 = scalar2 + forwardRhs(timestep*timeIntegrator%nStages+i)                  &
+       scalar2 = scalar2 + forwardRhs(timestep * timeIntegrator%nStages + i)                  &
             * timeIntegrator%norm(i) * timeStepSize * region%states(1)%adjointVariables(1,1)
 
       ! Take a single sub-step using the time integrator.
@@ -268,7 +247,9 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, tol
     end do
 
   end do
-  success = abs( (scalar1 - (scalar2 + adjointState(1)*forwardState(1)))/scalar1 ) < tolerance_
+
+  error = abs( (scalar1 + (scalar2 + adjointState(1)*forwardState(1)))/scalar1 )
+  success = (error < tolerance_)
 
   SAFE_DEALLOCATE(forwardState)
   SAFE_DEALLOCATE(forwardRhs)
