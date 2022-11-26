@@ -51,7 +51,7 @@ program sponge_linearized
   do nDimensions = 1, 3
     do j = 1, 4!... for each discretizationTypes
       success = .true.
-      do i = 1, 10 !... test multiple times
+      do i = 1, 1 !... test multiple times
         success1 = .true.
         ! Didn't test periodic grid yet!!
         ! isPeriodic = .true.
@@ -255,7 +255,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
   character(len = STRING_LENGTH) :: errorMessage
 
-  tolerance_ = 1.0E-10
+  tolerance_ = 1.0E-9
   if( present(tolerance) ) tolerance_ = tolerance
 
   success = .true.

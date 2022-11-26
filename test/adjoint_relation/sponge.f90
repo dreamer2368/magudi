@@ -253,7 +253,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
   character(len = STRING_LENGTH) :: errorMessage
 
-  tolerance_ = 1.0E-13
+  tolerance_ = 1.0E-12
   if( present(tolerance) ) tolerance_ = tolerance
 
   success = .true.
