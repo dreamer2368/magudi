@@ -308,7 +308,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, direction, t
     do j = 1, region%grids(1)%globalSize(2)
       do i = 1, region%grids(1)%globalSize(1)
         call random_number(gridPerturbation)
-        gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.13_wp * h
+        gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.05_wp * h
 
         gridIndex = i + region%grids(1)%globalSize(1)*( j-1 + region%grids(1)%globalSize(2)*( k-1 ) )
         region%grids(1)%coordinates(gridIndex,:) = region%grids(1)%coordinates(gridIndex,:) + gridPerturbation
@@ -348,7 +348,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, direction, t
         end select
 
         call random_number(gridPerturbation)
-        gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.13_wp * h
+        gridPerturbation = (2.0_wp * gridPerturbation - 1.0_wp) * 0.05_wp * h
 
         gridIndex = i + region%grids(2)%globalSize(1)*( j-1 + region%grids(2)%globalSize(2)*( k-1 ) )
         region%grids(2)%coordinates(gridIndex,:) = region%grids(2)%coordinates(gridIndex,:) + gridPerturbation

@@ -24,6 +24,7 @@ function(add_script_test name)
 endfunction()
 
 # Serial tests
+add_serial_test(time_integrator)
 add_script_test(SAT_block_interface)
 add_script_test(control_functional)
 add_script_test(initial_condition)
@@ -31,7 +32,6 @@ add_script_test(full_rhs)
 
 # MPI tests
 set(numProcs 1 2)
-#add_mpi_test(time_integrator "${numProcs}")
 #add_mpi_test(sponge "${numProcs}")
 add_serial_test(sponge)
 #add_mpi_test(SAT_farfield "${numProcs}")

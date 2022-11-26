@@ -39,6 +39,13 @@ subroutine testComputeRhs(this,mode, timeStep, stage)
     case(FORWARD)
       this%tempRhsIndex = stage + 4*(timeStep-1)
       this%states(i)%rightHandSide = this%tempRhs(this%tempRhsIndex)
+    case(ADJOINT)
+      this%tempRhsIndex = stage-1 + 4*timeStep
+      if (this%tempRhsIndex == 0) then
+        this%states(i)%rightHandSide = 0.0_wp
+      else
+        this%states(i)%rightHandSide = this%states(i)%adjointForcingFactor * this%tempRhs(this%tempRhsIndex)
+      end if
     end select
   end do
 
