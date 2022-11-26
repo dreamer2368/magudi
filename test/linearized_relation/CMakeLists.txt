@@ -29,7 +29,8 @@ add_script_test(full_rhs_linearized)
 
 # MPI tests
 set(numProcs 1 2)
-#add_mpi_test(sponge_linearized "${numProcs}")
+# add_mpi_test(sponge_linearized "${numProcs}")
+add_serial_test(sponge_linearized)
 #add_mpi_test(SAT_farfield_linearized "${numProcs}")
 add_serial_test(SAT_farfield_linearized)
 #add_mpi_test(SAT_isothermal_linearized "${numProcs}")
