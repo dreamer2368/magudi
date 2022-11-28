@@ -3,12 +3,12 @@
 
 # Filenames, etc.
 output_prefix = "OneDWave"
-grid_file = "OneDWave.xyz"
+grid_file = "../../OneDWave.xyz"
 initial_condition_file = "OneDWave.ic.q"
-boundary_condition_file = "bc.dat"
-control_mollifier_file = "OneDWave.control_mollifier.f"
-target_mollifier_file = "OneDWave.target_mollifier.f"
-#mean_pressure_file = "OneDWave.mean_pressure.f"
+boundary_condition_file = "../../bc.dat"
+control_mollifier_file = "../../OneDWave.control_mollifier.f"
+target_mollifier_file = "../../OneDWave.target_mollifier.f"
+#mean_pressure_file = "../../OneDWave.mean_pressure.f"
 
 # Simulation flags
 include_viscous_terms = true

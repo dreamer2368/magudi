@@ -53,6 +53,26 @@ def control_mollifier(g):
         'controlRegion', 'ACTUATOR', 1, 0, imin, imax, jmin, jmax, 1, -1)
     return f
 
+def state_mollifier(g):
+    x_min =  -10.
+    x_max =   10.
+    y_min =  0.
+    y_max =  5.
+    f = p3d.Function().copy_from(g)
+    f.f[0].fill(1.)
+    n = f.get_size(0)
+    for j in range(n[1]):
+        f.f[0][:,j,0,0] *= p3d.tanh_support(
+            g.xyz[0][:,j,0,0], x_min, x_max, 20, 0.5, False)
+#    for i in range(n[0]):
+#        f.f[0][i,:,0,0] *= p3d.tanh_support(
+#            g.xyz[0][i,:,0,1], y_min, y_max,5,0.2)
+    f.f[0] /= np.max(f.f[0])
+#    imin, imax = p3d.find_extents(g.xyz[0][:,0,0,0], x_min, x_max)
+#    jmin, jmax = p3d.find_extents(g.xyz[0][0,:,0,1], y_min, y_max)
+
+    return f
+
 def mean_pressure(s):
     f = p3d.Function().copy_from(s)
     f.f[0][:,:,:,0] = s.toprimitive().q[0][:,:,:,4]
@@ -62,17 +82,30 @@ def random_solution(g,time=0.0,timestep=0):
 
     gamma = 1.4
     s = p3d.Solution().copy_from(g).quiescent(gamma)
+    s.q[0] *= 0.0
     n = s.get_size(0)
-    s.q[0][:,:,0,0] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-2 + 1.0
-    s.q[0][:,:,0,1] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-3 + 0.0
-    s.q[0][:,:,0,2] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-3 + 0.0
-    s.q[0][:,:,0,4] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-2 + 1./(gamma-1.)
+    s.q[0][:,:,0,0] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-4
+    s.q[0][:,:,0,1] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-4
+    s.q[0][:,:,0,2] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-4
+    s.q[0][:,:,0,4] = ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-4
     s.q[0][:,:,0,4] *= (gamma-1.)/gamma * s.q[0][:,:,0,0]
 
     s.time = time
     s._format.aux_header[0] = timestep
 
-    return s.fromprimitive(gamma)
+    return s
+
+def add_random_perturbation(s_old):
+
+    gamma = 1.4
+    s = s_old.copy()
+    n = s.get_size(0)
+    s.q[0][:,:,0,0] += ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-4
+    s.q[0][:,:,0,1] += ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-4
+    s.q[0][:,:,0,2] += ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-4
+    s.q[0][:,:,0,4] += ( 2.0 * np.random.rand(n[0],n[1]) - 1.0 ) * 1.0e-4
+
+    return s
 
 if __name__ == '__main__':
     g = grid([201, 51])
@@ -80,8 +113,6 @@ if __name__ == '__main__':
     p3d.Solution().copy_from(g).quiescent(1.4).fromprimitive().save('OneDWave.ic.q')
 
     dt = 5.0e-2
-    Nt = 100
-    for k in range(2):
-        random_solution(g,k*Nt*dt,k*Nt).save('OneDWave-%d.ic.q'%k)
     target_mollifier(g).save('OneDWave.target_mollifier.f')
     control_mollifier(g).save('OneDWave.control_mollifier.f')
+    state_mollifier(g).save('OneDWave.ic_mollifier.f')
