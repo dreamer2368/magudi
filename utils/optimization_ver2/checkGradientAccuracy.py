@@ -7,8 +7,11 @@ def checkFiniteDifferenceOrder(filename):
 
     order = np.log(result[1:,-1] / result[:-1,-1]) / np.log(result[1:,0] / result[:-1,0])
     print (order)
-    mask = np.logical_and((order > 0.0), (order <= 0.5))
-    print (order[mask])
+    temp = order[order < 0.0][0]
+    tempIdx = np.where(order == temp)[0][0]
+    mask = (order <= 0.5)
+    mask[tempIdx:] = False
+    print (len(order[mask]))
 
     if (len(order[mask]) >= 4):
         print(result)
