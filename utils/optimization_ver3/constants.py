@@ -1,3 +1,5 @@
+import numpy as np
+
 class Constants:
     Nsplit = -1                 # number of split time segments
     Nts = -1                    # number of timesteps of each time segment
@@ -10,6 +12,26 @@ class Constants:
 
     saveStateLog = True
     NdiffRegion = -1
+
+    ignoreIntegralObjective = False
+
+    penaltyType = ''
+    useLagrangian = False       # flag for augmented lagrangian
+    terminalObjective = False   # flag for terminal objective
+
+    periodicSolution = False
+    matchingConditionWeight = 1.6e-6 * np.ones(Nsplit)       # weight for matching condition penalty
+    initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
+
+    saveDiffFiles = False                                    # flag for saving discontinuity files
+    Ndiff = -1                                                # number of discontinuity files that are saved in line searches
+    diffStep = -1
+
+    initial_step, safe_zone = -1.0, -1.0
+    tol = -1.0
+    linminTol, Nlinmin = -1.0, -1
+
+    golden_ratio, eps, huge = 1.618034, 1.0e-15, 1.0e100
 
     def __init__(self, config):
         self.Nsplit = config.getInput(['time_splitting', 'number_of_segments'], datatype=int)
@@ -29,57 +51,34 @@ class Constants:
         self.saveStateLog = config.getInput(['state_log', 'enabled'], fallback=False)
         self.NdiffRegion = config.getInput(['state_log', 'number_of_regions'], fallback=0)
 
+        self.ignoreIntegralObjective = (not config.getInput(['objective', 'include_time_integral'], fallback=True))
+        self.terminalObjective = config.getInput(['objective', 'include_terminal'], fallback=False)
+
+        self.penaltyType = config.getInput(['penalty_norm', 'base'], datatype=str)
+        if (self.penaltyType = 'Huber'):
+            self.useLagrangian = False
+        else:
+            self.useLagrangian = config.getInput(['penalty_norm', 'augmented_lagrangian'], fallback=False)
+
+        self.matchingConditionWeight = np.ones(self.Nsplit)
+        self.matchingConditionWeight *= config.getInput(['time_splitting', 'matching_condition_weight'], datatype=float)
+        self.initialConditionControllability = np.ones(self.Nsplit)
+        self.initialConditionControllability *= config.getInput(['time_splitting', 'state_controllability'], fallback=1.0)
+        self.periodicSolution = config.getInput(['time_splitting', 'periodic_solution'], fallback=False)
+        if (not self.periodicSolution):
+            self.matchingConditionWeight[0] = 0.0
+            self.initialConditionControllability[0] = 0.0
+
+        self.saveDiffFiles = config.getInput(['discontinuity_log', 'enabled'], fallback=False)
+        if (self.saveDiffFiles):
+            self.Ndiff = config.getInput(['discontinuity_log', 'number_of_time_points'], datatype=int)
+        else:
+            self.Ndiff = 0
+        self.diffStep = int(np.floor(self.Nsplit/self.Ndiff))
+
+        self.initial_step = config.getInput(['optimization', 'line_minimization', 'initial_step_size'], fallback = 1.0)
+        self.safe_zone = config.getInput(['optimization', 'line_minimization', 'safe_zone'], fallback = 1.0e4)
+        self.tol = config.getInput(['optimization', 'tolerance'], fallback=1.0e-8)
+        self.linminTol = config.getInput(['optimization', 'line_minimization', 'tolerance'], fallback=1.0e-1)
+        self.Nlinmin = config.getInput(['optimization', 'line_minimization', 'number_of_searches'], fallback=50)
         return
-# Nsplit = 6                                               # number of split time segments
-# Nts = 2400                                               # number of timesteps of each time segment
-# startTimestep = 30000                                    # initial timestep of the first time segment
-# totalTimestep = Nsplit * Nts                             # number of timesteps for the entire time span
-
-import numpy as np
-# penaltyType = 'base'                                     # either 'base' or 'Huber'
-matchingConditionWeight = 1.6e-6 * np.ones(Nsplit)       # weight for matching condition penalty
-initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
-useLagrangian = False                                    # flag for augmented lagrangian
-ignoreIntegralObjective = False
-terminalObjective = False                                # flag for terminal objective
-# ignoreController = False
-periodicSolution = False
-if (not periodicSolution):
-    matchingConditionWeight[0] = 0.0
-    initialConditionControllability[0] = 0.0
-
-# NcontrolRegion = 1                                       # number of control region
-# if (ignoreController):
-#     NcontrolRegion = 0
-
-# NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
-
-# scriptorType = 'flux'                                    # 'base', 'bash' or 'flux'
-# enableParallelBash = True
-# bashVerbose = False                                      # check only when serial bash loops
-# pcc = 36
-# maxNodes = 6
-# maxProcs = maxNodes * pcc
-
-# procedureSwitcher = { # number of nodes and processors for each procedure.
-#     'forward':      maxNodes * np.array([1,pcc]),
-#     'adjoint':      maxNodes * np.array([1,pcc]),
-#     'zaxpy':        2 * np.array([1,pcc]),
-#     'qfile-zaxpy':  1 * np.array([1,5]),
-#     'zxdoty':       2 * np.array([1,pcc]),
-#     'qfile-zxdoty': 1 * np.array([1,5]),
-#     'paste':        1 * np.array([1,5]),
-#     'slice':        1 * np.array([1,5]),
-# }
-
-initial_step, safe_zone = 1.0e0, 1.0e4
-golden_ratio = 1.618034
-tol, eps, huge = 1.0e-8,  1.0e-15, 1.0e100
-linminTol, Nlinmin = 1.0e-1, 50
-
-saveDiffFiles = False                                    # flag for saving discontinuity files
-Ndiff = 8                                                # number of discontinuity files that are saved in line searches
-diffStep = int(np.floor(Nsplit/Ndiff))
-
-# saveStateLog = True
-# NdiffRegion = 4

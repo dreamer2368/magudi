@@ -16,12 +16,17 @@ command_scriptor:
     enable_parallel: false
     verbose: false
 
-penalty_norm: base
+penalty_norm:
+  type: base
+  augmented_lagrangian: false
 
 time_splitting:
   number_of_segments: 6
   segment_length: 2400
   start_timestep: 30000
+  periodic_solution: false
+  matching_condition_weight: 1.6e-6
+  state_controllability: 1.0
 
 controller:
   enabled: true
@@ -29,5 +34,21 @@ controller:
   actuator_list: ['controlRegion']
 
 state_log:
-  enabled: true
+  enabled: false
   number_of_regions: 4
+
+discontinuity_log:
+  enabled: false
+  number_of_time_points: 8
+
+objective:
+  include_time_integral: true
+  include_terminal: false
+
+optimization:
+  tolerance: 1.0e-8
+  line_minimization:
+    initial_step_size: 1.0
+    safe_zone: 1.0e+4
+    tolerance: 1.0e-1
+    number_of_searches: 50

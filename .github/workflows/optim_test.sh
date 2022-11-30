@@ -102,6 +102,7 @@ cat <<EOF > ${nextDecisionMakerCommandFile}
 python3 optimization.py 1 -initial_cg -zero_baseline
 EOF
 
+export REF_ERROR="5.2613616409101998E-08"
 cat <<EOF > ${checkResultFile}
 from base import *
 J, subJ = QoI('b')
@@ -111,8 +112,6 @@ if (error > 1.0e-10):
 else:
     print('Optimization test passed.')
 EOF
-
-export REF_ERROR="5.2613616409101998E-08"
 
 for k in {1..15}
 do
