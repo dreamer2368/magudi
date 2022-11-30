@@ -63,28 +63,29 @@ class BaseCommander:
         subJ = np.zeros(3 * self.const.Nsplit + 1)
         J = 0.0
         for k in range(self.const.Nsplit):
-            subJ[k] = readScalar(bdir + '/' + self.fl.directories[k] + '/' + self.fl.outputFiles[k])
+            subJ[k] = self.readScalar(bdir + '/' + self.fl.directories[k] + '/' + self.fl.outputFiles[k])
             if (not self.const.ignoreIntegralObjective):
                 J += subJ[k]
 
             if (self.const.useLagrangian):
-                subJ[2 * self.const.Nsplit + k] = readScalar(self.fl.lagrangianOutputFiles[k])
+                subJ[2 * self.const.Nsplit + k] = self.readScalar(self.fl.lagrangianOutputFiles[k])
                 # followed the convention of Portryagin's minimum principle
                 J -= subJ[2 * self.const.Nsplit + k]
 
         if (self.const.terminalObjective):
-            subJ[3 * self.const.Nsplit] = readScalar(self.fl.terminalOutputFile)
+            subJ[3 * self.const.Nsplit] = self.readScalar(self.fl.terminalOutputFile)
             J += subJ[3 * self.const.Nsplit]
 
         L2sqSum = 0.0
         kStart = 0 if self.const.periodicSolution else 1
         for k in range(kStart, self.const.Nsplit):
-            L2sq = readScalar(self.fl.diffOutputFiles[k])
+            L2sq = self.readScalar(self.fl.diffOutputFiles[k])
             subJ[self.const.Nsplit + k] = 0.5 * L2sq
             L2sqSum += L2sq
         # Assuming all weights are equal except k=0.
-        # J += self.const.matchingConditionWeight[-1] * self.penalty.norm(L2sqSum)
-        J += np.dot(self.const.matchingConditionWeight, self.penalty.norm(L2sqSum))
+        assert(np.all(self.const.matchingConditionWeight[1:] == self.const.matchingConditionWeight[-1]))
+        if (self.const.periodicSolution): assert(self.const.matchingConditionWeight[0] == self.const.matchingConditionWeight[-1])
+        J += self.const.matchingConditionWeight[-1] * self.penalty.norm(L2sqSum)
 
         return J, subJ
 
@@ -318,7 +319,7 @@ class BaseCommander:
         L2sqSum = 0.0
         kStart = 0 if self.const.periodicSolution else 1
         for k in range(kStart, self.const.Nsplit):
-            L2sqSum += readScalar(self.fl.diffOutputFiles[k])
+            L2sqSum += self.readScalar(self.fl.diffOutputFiles[k])
 
         commands = []
         for k in range(self.const.Nsplit):

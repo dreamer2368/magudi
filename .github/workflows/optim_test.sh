@@ -12,10 +12,7 @@ BINARYDIR="$(pwd)/bin"
 mkdir ${EXAMPLE}
 
 echo "Setting up the python files for multi-point optimization."
-cp ../utils/optimization_ver2/*.py ./${EXAMPLE}/
-if [ $? -ne 0 ]; then exit -1; fi
-
-mv ./${EXAMPLE}/base_extension.py ./${EXAMPLE}/base.py
+cp ../utils/optimization_ver3/*.py ./${EXAMPLE}/
 if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Copying input files for ${EXAMPLE}"
@@ -56,7 +53,7 @@ if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Setting up the directories for multi-point optimization."
 
-python3 optimization.py -h
+python3 optimization.py optim.yml -1
 
 for dir in {a,b,c,x,x0}
 do
@@ -99,13 +96,17 @@ bash initial-adjoint.sh
 if [ $? -ne 0 ]; then exit -1; fi
 
 cat <<EOF > ${nextDecisionMakerCommandFile}
-python3 optimization.py 1 -initial_cg -zero_baseline
+python3 optimization.py optim.yml 1 -initial_cg -zero_baseline
 EOF
 
 export REF_ERROR="5.2613616409101998E-08"
 cat <<EOF > ${checkResultFile}
-from base import *
-J, subJ = QoI('b')
+from inputs import InputParser
+from optimizer import Optimizer
+config = InputParser('./optim.yml')
+optim = Optimizer(config)
+
+J, subJ = optim.base.QoI('b')
 error = abs(J - ${REF_ERROR})
 if (error > 1.0e-10):
     raise RuntimeError('Error: %.15E' % error)

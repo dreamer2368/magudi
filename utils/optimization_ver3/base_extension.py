@@ -102,9 +102,9 @@ class BaseCommanderExtended(BaseCommander):
         commandString += self.scriptor.nonMPILoopCommand(commands,'magudi_option_nonzero_initial_condition_true')
 
         L2sqSum = 0.0
-        kStart = 0 if self.cosnt.periodicSolution else 1
+        kStart = 0 if self.const.periodicSolution else 1
         for k in range(kStart, self.const.Nsplit):
-            L2sqSum += readScalar(self.fl.diffOutputFiles[k])
+            L2sqSum += self.readScalar(self.fl.diffOutputFiles[k])
 
         commands = []
         for k in range(0,-self.const.Nsplit,-1):

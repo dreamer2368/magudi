@@ -1,6 +1,3 @@
-from constants import *
-from filenames import *
-
 import numpy as np
 import subprocess
 import pandas as pd
@@ -8,18 +5,21 @@ import pandas as pd
 __all__ = ['CommandScriptor','BaseCommandScriptor','BashCommandScriptor','FluxCommandScriptor','scriptorSwitcher']
 
 class CommandScriptor:
+    fl = None
     procedureSwitcher = {}
 
     maxNodes, maxProcs = -1, -1
 
-    def __init__(self, config):
+    def __init__(self, config, filenamelist):
+        self.fl = filenamelist
+
         from copy import deepcopy
         self.procedureSwitcher = deepcopy(config.getInput(['resource_distribution'], datatype=dict))
 
         self.maxNodes, self.maxProcs = 0, 0
         for key, val in self.procedureSwitcher.items():
-            self.maxNodes = np.amax(self.maxNodes, val[0])
-            self.maxProcs = np.amax(self.maxProcs, val[-1])
+            self.maxNodes = max(self.maxNodes, val[0])
+            self.maxProcs = max(self.maxProcs, val[-1])
         return
 
     def singleJobCommand(self,commands,procedure,prefix='job',directories=None):
@@ -157,9 +157,9 @@ class BaseCommandScriptor(CommandScriptor):
             if (moveDir): commandString += 'cd %s \n'%(directories[k])
             commandString += 'mpirun -n %d ' % (procsPerCommand)
             commandString += command
-            commandString += ' &> %s/%s_result_%d.out \n' % (OUTDIR,prefix,k)
+            commandString += ' &> %s/%s_result_%d.out \n' % (self.fl.OUTDIR,prefix,k)
             commandString += self.checkResultCommand('%s-serial-%d'%(prefix,k))
-            if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+            if (moveDir): commandString += 'cd %s \n'%(self.fl.ROOTDIR)
 
         return commandString
 
@@ -191,12 +191,12 @@ class BaseCommandScriptor(CommandScriptor):
                 command = ''
                 command += 'mpirun -n %d ' % (procsPerCommand)
                 command += commands[idx+k]
-                command += ' &> %s/%s_result_%d.out &' % (OUTDIR,prefix,idx+k)
+                command += ' &> %s/%s_result_%d.out &' % (self.fl.OUTDIR,prefix,idx+k)
                 command += '\n'
                 command += 'pids[%d]=$!\n\n' % k
                 commandString += command
 
-                if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+                if (moveDir): commandString += 'cd %s \n'%(self.fl.ROOTDIR)
             commandString += self.checkResultCommand('%s-iteration%d'%(prefix,loop),
                                                     jobsPerLoop)
             nJobs -= jobsPerLoop
@@ -209,11 +209,11 @@ class BashCommandScriptor(CommandScriptor):
     enableParallelBash = False
     bashVerbose = False
 
-    def __init__(self, config):
-        CommandScriptor.__init__(self, config)
+    def __init__(self, config, filenamelist):
+        CommandScriptor.__init__(self, config, filenamelist)
 
         self.enableParallelBash = config.getInput(['command_scriptor', 'bash', 'enable_parallel'], datatype=bool)
-        self.bashVerbose = config.getInput(['command_scriptor', 'bash', 'verbose'], datatype=bool)
+        self.bashVerbose = True if (self.enableParallelBash) else False
 
         return
 
@@ -261,9 +261,9 @@ class BashCommandScriptor(CommandScriptor):
             commandString += 'srun -N %d -n %d -w ${nodeListString} '                         \
                              % (nodePerCommand,procsPerCommand)
             commandString += command
-            commandString += ' &> %s/%s_result_%d.out \n' % (OUTDIR,prefix,k)
+            commandString += ' &> %s/%s_result_%d.out \n' % (self.fl.OUTDIR,prefix,k)
             commandString += self.checkResultCommand('%s-serial-%d'%(prefix,k))
-            if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+            if (moveDir): commandString += 'cd %s \n'%(self.fl.ROOTDIR)
 
         return commandString
 
@@ -300,13 +300,13 @@ class BashCommandScriptor(CommandScriptor):
                                 % (nodePerCommand,procsPerCommand)
                 command += commands[idx+k]
                 if (self.enableParallelBash or (not self.bashVerbose) ):
-                    command += ' &> %s/%s_result_%d.out &' % (OUTDIR,prefix,idx+k)
+                    command += ' &> %s/%s_result_%d.out &' % (self.fl.OUTDIR,prefix,idx+k)
                 command += '\n'
                 if (self.enableParallelBash):
                     command += 'pids[%d]=$!\n\n' % k
                 commandString += command
 
-                if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+                if (moveDir): commandString += 'cd %s \n'%(self.fl.ROOTDIR)
             commandString += self.checkResultCommand('%s-iteration%d'%(prefix,loop),
                                                     jobsPerLoop)
             nJobs -= jobsPerLoop
@@ -357,11 +357,11 @@ class FluxCommandScriptor(CommandScriptor):
         for k, command in enumerate(commands):
             if (moveDir): commandString += 'cd %s \n'%(directories[k])
             commandString += 'JOBIDS="$JOBIDS $(flux mini submit -n %d --output=%s/%s_result_%d.out '                         \
-                             % (procsPerCommand,OUTDIR,prefix,k)
+                             % (procsPerCommand,self.fl.OUTDIR,prefix,k)
             commandString += command
             commandString += ')"\n\nwaitall ${JOBIDS}\n'
             commandString += self.checkResultCommand('%s-serial-%d'%(prefix,k))
-            if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+            if (moveDir): commandString += 'cd %s \n'%(self.fl.ROOTDIR)
 
         return commandString
 
@@ -393,12 +393,12 @@ class FluxCommandScriptor(CommandScriptor):
 
                 command = ''
                 command += 'JOBIDS="$JOBIDS $(flux mini submit -n %d --output=%s/%s_result_%d.out '                         \
-                             % (procsPerCommand,OUTDIR,prefix,idx+k)
+                             % (procsPerCommand,self.fl.OUTDIR,prefix,idx+k)
                 command += commands[idx+k]
                 command += ')"\n'
                 commandString += command
 
-                if (moveDir): commandString += 'cd %s \n'%(ROOTDIR)
+                if (moveDir): commandString += 'cd %s \n'%(self.fl.ROOTDIR)
             commandString += 'waitall ${JOBIDS}\n'
             commandString += self.checkResultCommand('%s-iteration%d'%(prefix,loop))
             nJobs -= jobsPerLoop
@@ -408,7 +408,7 @@ class FluxCommandScriptor(CommandScriptor):
         return commandString
 
 scriptorSwitcher = {
-    'base': BaseCommandScriptor(),
-    'bash': BashCommandScriptor(),
-    'flux': FluxCommandScriptor()
+    'base': BaseCommandScriptor,
+    'bash': BashCommandScriptor,
+    'flux': FluxCommandScriptor
 }

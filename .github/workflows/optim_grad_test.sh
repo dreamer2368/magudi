@@ -8,10 +8,7 @@ BINARYDIR="$(pwd)/bin"
 mkdir ${EXAMPLE}
 
 echo "Setting up the python files for multi-point optimization."
-cp ../utils/optimization_ver2/*.py ./${EXAMPLE}/
-if [ $? -ne 0 ]; then exit -1; fi
-
-mv ./${EXAMPLE}/base_extension.py ./${EXAMPLE}/base.py
+cp ../utils/optimization_ver3/*.py ./${EXAMPLE}/
 if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Copying input files for ${EXAMPLE}"
@@ -51,7 +48,7 @@ if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Setting up the directories for multi-point optimization."
 
-python3 optimization.py -h
+python3 optimization.py optim.yml -1
 
 for dir in {a,b,c,x,x0}
 do

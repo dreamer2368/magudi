@@ -20,10 +20,10 @@ class Constants:
     terminalObjective = False   # flag for terminal objective
 
     periodicSolution = False
-    matchingConditionWeight = 1.6e-6 * np.ones(Nsplit)       # weight for matching condition penalty
-    initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative with respect to initial conditions
+    matchingConditionWeight = np.array([])              # weight for matching condition penalty
+    initialConditionControllability = np.array([])      # weight for derivative with respect to initial conditions
 
-    saveDiffFiles = False                                    # flag for saving discontinuity files
+    saveDiffFiles = False                                     # flag for saving discontinuity files
     Ndiff = -1                                                # number of discontinuity files that are saved in line searches
     diffStep = -1
 
@@ -43,7 +43,7 @@ class Constants:
         if (self.ignoreController):
             self.NcontrolRegion = 0
         else:
-            self.NcontrolRegion = config.getInput(['controller', 'number_of_actuators', datatype=int])
+            self.NcontrolRegion = config.getInput(['controller', 'number_of_actuators'], datatype=int)
             assert(self.NcontrolRegion > 0)
 
         self.NcontrolSpace = self.NcontrolRegion + self.Nsplit
@@ -54,8 +54,8 @@ class Constants:
         self.ignoreIntegralObjective = (not config.getInput(['objective', 'include_time_integral'], fallback=True))
         self.terminalObjective = config.getInput(['objective', 'include_terminal'], fallback=False)
 
-        self.penaltyType = config.getInput(['penalty_norm', 'base'], datatype=str)
-        if (self.penaltyType = 'Huber'):
+        self.penaltyType = config.getInput(['penalty_norm', 'type'], datatype=str)
+        if (self.penaltyType == 'huber'):
             self.useLagrangian = False
         else:
             self.useLagrangian = config.getInput(['penalty_norm', 'augmented_lagrangian'], fallback=False)
@@ -72,9 +72,9 @@ class Constants:
         self.saveDiffFiles = config.getInput(['discontinuity_log', 'enabled'], fallback=False)
         if (self.saveDiffFiles):
             self.Ndiff = config.getInput(['discontinuity_log', 'number_of_time_points'], datatype=int)
+            self.diffStep = int(np.floor(self.Nsplit/self.Ndiff))
         else:
-            self.Ndiff = 0
-        self.diffStep = int(np.floor(self.Nsplit/self.Ndiff))
+            self.Ndiff, self.diffStep = 0, 0
 
         self.initial_step = config.getInput(['optimization', 'line_minimization', 'initial_step_size'], fallback = 1.0)
         self.safe_zone = config.getInput(['optimization', 'line_minimization', 'safe_zone'], fallback = 1.0e4)

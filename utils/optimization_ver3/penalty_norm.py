@@ -23,5 +23,5 @@ class HuberNorm(PenaltyBase):
 
 penaltySwitcher = {
     'base': PenaltyBase(),
-    'Huber': HuberNorm(),
+    'huber': HuberNorm(),
 }

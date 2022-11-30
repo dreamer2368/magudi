@@ -22,6 +22,7 @@ class FilenameList:
     PREVDIR = ''
     DIFFLOGDIR = ''
     BASELINEDIR = ''
+    LINMINDIR = ''
     dirList = ['']
 
     forwardLog = ''
@@ -98,8 +99,10 @@ class FilenameList:
         self.PREVDIR = '%s/previous' % self.ROOTDIR
         self.DIFFLOGDIR = '%s/diffLog' % self.ROOTDIR
         self.BASELINEDIR = '%s/baseline' % self.ROOTDIR
+        self.LINMINDIR = '%s/linminLog' % self.ROOTDIR
         self.dirList = [self.OUTDIR, self.DIFFDIR, self.GRADDIR, self.LGRNGDIR,
-                        self.TXTDIR, self.CGDIR, self.PREVDIR, self.DIFFLOGDIR]
+                        self.TXTDIR, self.CGDIR, self.PREVDIR, self.DIFFLOGDIR,
+                        self.LINMINDIR]
 
         self.forwardLog = self.globalPrefix + '.cost_reduction.txt'
         self.forwardLogColumns = ['total']
@@ -155,7 +158,7 @@ class FilenameList:
             self.inputFiles += ['magudi-%01d.inp' % (k)]
             self.outputFiles += ['%s-%01d.forward_run.txt' % (self.globalPrefix, k)]
             self.commandFiles += ['%s-%01d.command.sh' % (self.globalPrefix, k)]
-            self.icFiles += ['%s-%01d.ic.q' % (self.globalPrefix, self.k)]
+            self.icFiles += ['%s-%01d.ic.q' % (self.globalPrefix, k)]
 
             kOffset = self.const.startTimestep + self.const.Nts * (k + 1)
             self.diffFiles += ['%s-%01d.diff.q' % (self.globalPrefix, k)]                              #use only 0, ... , Nsplit-2
@@ -175,7 +178,7 @@ class FilenameList:
 
         self.innerProductFiles, self.ggFiles, self.dggFiles = [], [], []
         for j in range(self.const.NcontrolRegion):
-            self.innerProductFiles += ['%s.inner_product_%s.txt' % (self.globalPrefix,controlRegions[j])]
+            self.innerProductFiles += ['%s.inner_product_%s.txt' % (self.globalPrefix, self.controlRegions[j])]
             self.ggFiles += ['%s.gg_%s.txt' % (self.globalPrefix, self.controlRegions[j])]
             self.dggFiles += ['%s.dgg_%s.txt' % (self.globalPrefix, self.controlRegions[j])]
         for k in range(self.const.Nsplit):
