@@ -3,6 +3,7 @@ EXAMPLE="OneDWave"
 export commandFile="${EXAMPLE}.command.sh"
 export decisionMakerCommandFile="${EXAMPLE}.command.python.sh"
 export nextDecisionMakerCommandFile="${EXAMPLE}.command.python.ready.sh"
+export checkResultFile="check_result.py"
 
 cd build
 
@@ -101,6 +102,16 @@ cat <<EOF > ${nextDecisionMakerCommandFile}
 python3 optimization.py 1 -initial_cg -zero_baseline
 EOF
 
+cat <<EOF > ${checkResultFile}
+from base import *
+J, subJ = QoI('b')
+error = abs(J - ${REF_ERROR})
+if (error > 1.0e-10):
+    raise RuntimeError('Error: %.15E' % error)
+else:
+    print('Optimization test passed.')
+EOF
+
 export REF_ERROR="5.2613616409101998E-08"
 
 for k in {1..15}
@@ -117,8 +128,7 @@ do
     export RESULT=$?
     if [ $RESULT -eq 1 ]; then
       echo "Optimization finished."
-      python3 -c "from base import *; J, subJ = QoI('b'); error = abs(J - ${REF_ERROR}); raise Exception('Error: %.15E' % error) if (error > 1.0e-10) else print('Optimization test passed.')"
-      if [ $? -ne 0 ]; then exit -1; else exit 0; fi
+      python3 ${checkResultFile}
     elif [ $RESULT -ne 0 ]; then
       echo $RESULT
       echo "$commandFile is not run successfully."
