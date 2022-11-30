@@ -128,6 +128,7 @@ do
     if [ $RESULT -eq 1 ]; then
       echo "Optimization finished."
       python3 ${checkResultFile}
+      if [ $? -eq 0 ]; then exit 0; else exit -1; fi
     elif [ $RESULT -ne 0 ]; then
       echo $RESULT
       echo "$commandFile is not run successfully."

@@ -32,12 +32,6 @@ RUN echo "PyYAML" >> requirements.txt
 
 RUN sudo pip install -r ./requirements.2.txt
 RUN sudo pip3 install -r ./requirements.txt
-#RUN sudo pip install numpy
-#RUN sudo pip install scipy
-#RUN sudo pip3 install numpy
-#RUN sudo pip3 install scipy
-#RUN sudo pip3 install argparse
-#RUN sudo pip3 install pandas
 RUN sudo apt-get install -yq valgrind
 RUN sudo apt-get install -yq git-lfs
 RUN sudo apt-get clean -q
