@@ -117,8 +117,8 @@ do
     export RESULT=$?
     if [ $RESULT -eq 1 ]; then
       echo "Optimization finished."
-      python3 -c "from base import *; J, subJ = QoI('b'); error = abs(J - ${REF_ERROR}); if (error > 1.0e-10):\n raise RuntimeError('Error: %.15E' % error)"
-      exit 0
+      python3 -c "from base import *; J, subJ = QoI('b'); error = abs(J - ${REF_ERROR}); raise Exception('Error: %.15E' % error) if (error > 1.0e-10) else print('Optimization test passed.')"
+      if [ $? -ne 0 ]; then exit -1; else exit 0; fi
     elif [ $RESULT -ne 0 ]; then
       echo $RESULT
       echo "$commandFile is not run successfully."
