@@ -4,6 +4,8 @@ import numpy as np
 import subprocess
 import pandas as pd
 
+__all__ = ['BaseCommander']
+
 class BaseCommander:
     scriptor = None
     penalty = None
@@ -45,9 +47,15 @@ class BaseCommander:
             print (scalarFilename+' is not found.')
             return np.nan
         else:
-            scalar = float(fID.read())
-            fID.close()
-            return scalar
+            temp = fID.read()
+            try:
+                scalar = float(temp)
+            except ValueError:
+                print (scalarFilename, ': ', temp)
+            else:
+                scalar = float(temp)
+                fID.close()
+                return scalar
 
     def QoI(self, baseDirectory = 'x0'):
         bdir = baseDirectory

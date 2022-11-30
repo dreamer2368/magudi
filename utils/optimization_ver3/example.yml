@@ -27,6 +27,7 @@ time_splitting:
   periodic_solution: false
   matching_condition_weight: 1.6e-6
   state_controllability: 1.0
+  use_state_mollifier: false
 
 controller:
   enabled: true
