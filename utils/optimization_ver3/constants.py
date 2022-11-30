@@ -4,11 +4,31 @@ class Constants:
     startTimestep = -1          # initial timestep of the first time segment
     totalTimestep = -1          # number of timesteps for the entire time span
 
+    ignoreController = False
+    NcontrolRegion = -1         # number of control region
+    NcontrolSpace = -1          # dimension of control space including intermediate states
+
+    saveStateLog = True
+    NdiffRegion = -1
+
     def __init__(self, config):
         self.Nsplit = config.getInput(['time_splitting', 'number_of_segments'], datatype=int)
         self.Nts = config.getInput(['time_splitting', 'segment_length'], datatype=int)
         self.startTimestep = config.getInput(['time_splitting', 'start_timestep'], datatype=int)
         self.totalTimestep = self.Nsplit * self.Nts
+
+        self.ignoreController = (not config.getInput(['controller', 'enabled'], datatype=bool))
+        if (self.ignoreController):
+            self.NcontrolRegion = 0
+        else:
+            self.NcontrolRegion = config.getInput(['controller', 'number_of_actuators', datatype=int])
+            assert(self.NcontrolRegion > 0)
+
+        self.NcontrolSpace = self.NcontrolRegion + self.Nsplit
+
+        self.saveStateLog = config.getInput(['state_log', 'enabled'], fallback=False)
+        self.NdiffRegion = config.getInput(['state_log', 'number_of_regions'], fallback=0)
+
         return
 # Nsplit = 6                                               # number of split time segments
 # Nts = 2400                                               # number of timesteps of each time segment
@@ -22,17 +42,17 @@ initialConditionControllability = 1.0e0 * np.ones(Nsplit)# weight for derivative
 useLagrangian = False                                    # flag for augmented lagrangian
 ignoreIntegralObjective = False
 terminalObjective = False                                # flag for terminal objective
-ignoreController = False
+# ignoreController = False
 periodicSolution = False
 if (not periodicSolution):
     matchingConditionWeight[0] = 0.0
     initialConditionControllability[0] = 0.0
 
-NcontrolRegion = 1                                       # number of control region
-if (ignoreController):
-    NcontrolRegion = 0
+# NcontrolRegion = 1                                       # number of control region
+# if (ignoreController):
+#     NcontrolRegion = 0
 
-NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
+# NcontrolSpace = NcontrolRegion + Nsplit                  # dimension of control space
 
 # scriptorType = 'flux'                                    # 'base', 'bash' or 'flux'
 # enableParallelBash = True
@@ -61,5 +81,5 @@ saveDiffFiles = False                                    # flag for saving disco
 Ndiff = 8                                                # number of discontinuity files that are saved in line searches
 diffStep = int(np.floor(Nsplit/Ndiff))
 
-saveStateLog = True
-NdiffRegion = 4
+# saveStateLog = True
+# NdiffRegion = 4

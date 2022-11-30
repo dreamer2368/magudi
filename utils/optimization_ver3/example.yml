@@ -1,3 +1,5 @@
+global_prefix: 'OneDWave'
+
 resource_distribution:
   forward:      [6, 216]
   adjoint:      [6, 216]
@@ -15,3 +17,17 @@ command_scriptor:
     verbose: false
 
 penalty_norm: base
+
+time_splitting:
+  number_of_segments: 6
+  segment_length: 2400
+  start_timestep: 30000
+
+controller:
+  enabled: true
+  number_of_actuators: 1
+  actuator_list: ['controlRegion']
+
+state_log:
+  enabled: true
+  number_of_regions: 4
