@@ -40,9 +40,9 @@ procedureSwitcher = { # number of nodes and processors for each procedure.
     'slice':        np.array([1,1]),
 }
 
-initial_step, safe_zone = 1.0e0, 1.0e4
+initial_step, safe_zone = 3.0e1, 1.0e4
 golden_ratio = 1.618034
-tol, eps, huge = 1.0e-9,  1.0e-15, 1.0e100
+tol, eps, huge = 1.0e9,  1.0e-15, 1.0e100
 linminTol, Nlinmin = 1.0e-1, 50
 
 saveDiffFiles = False                                     # flag for saving discontinuity files

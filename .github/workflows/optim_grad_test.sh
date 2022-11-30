@@ -1,8 +1,5 @@
 #/usr/bin/bash
 EXAMPLE="OneDWave"
-export commandFile="${EXAMPLE}.command.sh"
-export decisionMakerCommandFile="${EXAMPLE}.command.python.sh"
-export nextDecisionMakerCommandFile="${EXAMPLE}.command.python.ready.sh"
 
 cd build
 
@@ -39,7 +36,6 @@ ln -s ${BINARYDIR}/control_space_norm ./
 ln -s ${BINARYDIR}/qfile_zaxpy ./
 ln -s ${BINARYDIR}/spatial_inner_product ./
 ln -s ${BINARYDIR}/zxdoty ./
-ln -s ${BINARYDIR}/zwxmwy ./
 ln -s ${BINARYDIR}/zaxpy ./
 ln -s ${BINARYDIR}/slice_control_forcing ./
 ln -s ${BINARYDIR}/paste_control_forcing ./
@@ -86,42 +82,6 @@ do
   printf -v newfile "OneDWave-%d.ic.q" $k
   cp $oldfile x0/${newfile}
 done
-if [ $? -ne 0 ]; then exit -1; fi
 
-echo "Initial forward and adjoint run."
-
-python3 initial.py
-if [ $? -ne 0 ]; then exit -1; fi
-bash initial-forward.sh
-if [ $? -ne 0 ]; then exit -1; fi
-bash initial-adjoint.sh
-if [ $? -ne 0 ]; then exit -1; fi
-
-cat <<EOF > ${nextDecisionMakerCommandFile}
-python3 optimization.py 1 -initial_cg -zero_baseline
-EOF
-
-export REF_ERROR="5.2613616409101998E-08"
-
-for k in {1..15}
-do
-    echo "Optimization Iteration $k"
-
-    mv $nextDecisionMakerCommandFile $decisionMakerCommandFile
-    bash $decisionMakerCommandFile
-    if [ $? -ne 0 ]; then
-        echo "$decisionMakerCommandFile is not run successfully."
-        exit -1
-    fi
-    bash $commandFile
-    export RESULT=$?
-    if [ $RESULT -eq 1 ]; then
-      echo "Optimization finished."
-      python3 -c "from base import *; J, subJ = QoI('b'); error = abs(J - ${REF_ERROR}); if (error > 1.0e-10):\n raise RuntimeError('Error: %.15E' % error)"
-      exit 0
-    elif [ $RESULT -ne 0 ]; then
-      echo $RESULT
-      echo "$commandFile is not run successfully."
-      exit -1
-    fi
-done
+echo "Check gradient accuracy: checkGradientAccuracy.py"
+python3 checkGradientAccuracy.py
