@@ -1,5 +1,39 @@
 global_prefix: 'OneDWave'
 
+optimization:
+  log_file: OneDWave.optim.h5
+  initial:
+    zero_control: True
+    zero_lagrangian: True
+  tolerance: 1.0e-8
+  line_minimization:
+    initial_step_size: 1.0
+    safe_zone: 1.0e+4
+    tolerance: 1.0e-1
+    number_of_searches: 50
+
+objective:
+  include_time_integral: true
+  include_terminal: false
+
+controller:
+  enabled: true
+  number_of_actuators: 1
+  actuator_list: ['controlRegion']
+
+time_splitting:
+  number_of_segments: 6
+  segment_length: 2400
+  start_timestep: 30000
+  periodic_solution: false
+  matching_condition_weight: 1.6e-6
+  state_controllability: 1.0
+  use_state_mollifier: false
+
+penalty_norm:
+  type: base
+  augmented_lagrangian: false
+
 resource_distribution:
   forward:      [6, 216]
   adjoint:      [6, 216]
@@ -16,24 +50,6 @@ command_scriptor:
     enable_parallel: false
     verbose: false
 
-penalty_norm:
-  type: base
-  augmented_lagrangian: false
-
-time_splitting:
-  number_of_segments: 6
-  segment_length: 2400
-  start_timestep: 30000
-  periodic_solution: false
-  matching_condition_weight: 1.6e-6
-  state_controllability: 1.0
-  use_state_mollifier: false
-
-controller:
-  enabled: true
-  number_of_actuators: 1
-  actuator_list: ['controlRegion']
-
 state_log:
   enabled: false
   number_of_regions: 4
@@ -41,15 +57,3 @@ state_log:
 discontinuity_log:
   enabled: false
   number_of_time_points: 8
-
-objective:
-  include_time_integral: true
-  include_terminal: false
-
-optimization:
-  tolerance: 1.0e-8
-  line_minimization:
-    initial_step_size: 1.0
-    safe_zone: 1.0e+4
-    tolerance: 1.0e-1
-    number_of_searches: 50

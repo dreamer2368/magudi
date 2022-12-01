@@ -53,7 +53,7 @@ if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Setting up the directories for multi-point optimization."
 
-python3 optimization.py optim.yml -1
+python3 optimization.py optim.yml --mode setup
 
 for dir in {a,b,c,x,x0}
 do
@@ -88,16 +88,16 @@ if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Initial forward and adjoint run."
 
-python3 initial.py
-if [ $? -ne 0 ]; then exit -1; fi
-bash initial-forward.sh
-if [ $? -ne 0 ]; then exit -1; fi
-bash initial-adjoint.sh
-if [ $? -ne 0 ]; then exit -1; fi
-
-cat <<EOF > ${nextDecisionMakerCommandFile}
-python3 optimization.py optim.yml 1 -initial_cg -zero_baseline
-EOF
+# python3 initial.py
+# if [ $? -ne 0 ]; then exit -1; fi
+# bash initial-forward.sh
+# if [ $? -ne 0 ]; then exit -1; fi
+# bash initial-adjoint.sh
+# if [ $? -ne 0 ]; then exit -1; fi
+#
+# cat <<EOF > ${nextDecisionMakerCommandFile}
+# python3 optimization.py optim.yml 1 -initial_cg -zero_baseline
+# EOF
 
 export REF_ERROR="5.2613616409101998E-08"
 cat <<EOF > ${checkResultFile}
@@ -118,10 +118,11 @@ for k in {1..15}
 do
     echo "Optimization Iteration $k"
 
-    mv $nextDecisionMakerCommandFile $decisionMakerCommandFile
-    bash $decisionMakerCommandFile
+    # mv $nextDecisionMakerCommandFile $decisionMakerCommandFile
+    # bash $decisionMakerCommandFile
+    python3 optimization.py optim.yml --mode schedule
     if [ $? -ne 0 ]; then
-        echo "$decisionMakerCommandFile is not run successfully."
+        echo "Scheduling is not run successfully."
         exit -1
     fi
     bash $commandFile
@@ -130,9 +131,8 @@ do
       echo "Optimization finished."
       python3 ${checkResultFile}
       if [ $? -eq 0 ]; then exit 0; else exit -1; fi
-    elif [ $RESULT -ne 0 ]; then
+    else
       echo $RESULT
-      echo "$commandFile is not run successfully."
-      exit -1
+      python3 optimization.py optim.yml --mode log_result --result $RESULT
     fi
 done

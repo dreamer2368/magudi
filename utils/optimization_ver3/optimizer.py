@@ -3,12 +3,27 @@ from constants import Constants
 from filenames import FilenameList
 from base import BaseCommander
 from base_extension import BaseCommanderExtended
+from enum import Enum
 import numpy as np
 import subprocess
 import pandas as pd
 import os
+import os.path as path
+import h5py
 
 __all__ = ['Optimizer']
+
+class Result(Enum):
+    UNEXECUTED = -1
+    SUCCESS = 0
+    FAIL = 1
+
+class Stage(Enum):
+    CG_FW = 0
+    CG_AD = 1
+    POST_AD = 2
+    BRKT = 3
+    LNMN = 4
 
 class Optimizer:
     scriptor = None
@@ -17,6 +32,20 @@ class Optimizer:
     base = None
 
     inputFile = ''
+    logFile = ''
+
+    isInitial = True   # the very beginning of the entire multi-point optimization
+    hyperStep = -1     # Penalty-method level hyper-iteration
+    cgStep = -1        # Number of CG step at the current hyper step
+    lineStep = -1      # Number of line step at the current CG step
+    bracketed = False
+    linminInitial = True
+
+    stage = None                # Scheduled action at the current (hyperStep, cgStep, lineStep)
+    result = Result.UNEXECUTED  # Result of scheduled action at the current (hyperStep, cgStep, lineStep)
+
+    zeroControlForcing = True   # control at the current CG step (directory x0)
+    zeroLagrangian = True       # augmented_lagrangian at the current stage (root directory)
 
     def __init__(self, config):
         self.const = Constants(config)
@@ -31,6 +60,142 @@ class Optimizer:
             self.base = BaseCommander(config, self.scriptor, self.const, self.fl)
 
         self.inputFile = config.filename
+        self.logFile = config.getInput(['optimization', 'log_file'], datatype=str)
+        self.isInitial = (not path.exists(self.logFile))
+
+        if (self.isInitial):
+            self.hyperStep = 0
+            self.cgStep = 0
+            self.lineStep = 0
+            self.stage, self.result = Stage.CG_FW, Result.UNEXECUTED
+            self.bracketed = False
+            self.linminInitial = True
+            self.zeroControlForcing = config.getInput(['optimization', 'initial', 'zero_control'], fallback=True)
+            if (self.const.useLagrangian):
+                self.zeroLagrangian = config.getInput(['optimization', 'initial', 'zero_lagrangian'], fallback=True)
+        else:
+            self.loadState()
+        return
+
+    def schedule(self):
+        if ((self.stage is Stage.CG_FW) and (self.result is Result.UNEXECUTED)):
+            self.initialForward()
+            self.saveState()
+            return
+
+        assert(self.result is Result.SUCCESS)
+        # Based on the completed stage, determine next action
+        if (self.stage is Stage.CG_FW):
+            if (self.cgStep == 0):
+                self.initialAdjoint()
+            else:
+                case = self.afterLinmin()
+            self.stage, self.result = Stage.CG_AD, Result.UNEXECUTED
+        elif (self.stage is Stage.CG_AD):
+            success = self.beforeLinmin()
+            if (success!=0):
+                print ('pre-processing for line minimization is failed.')
+            self.stage, self.result = Stage.POST_AD, Result.UNEXECUTED
+        elif (self.stage is Stage.POST_AD):
+            success = self.setupInitialSteps()
+            if (success != 0):
+                print ('initialization for mnbrak is failed.')
+            self.lineStep += 1
+            self.stage, self.result = Stage.BRKT, Result.UNEXECUTED
+        elif (self.stage is Stage.BRKT):
+            self.bracketed = self.nextMnbrak()
+            if (self.bracketed):
+                self.stage, self.linminInitial = Stage.LNMN, True
+                self.schedule()
+                return
+            else:
+                self.lineStep += 1
+                self.stage, self.result = Stage.BRKT, Result.UNEXECUTED
+        elif (self.stage is Stage.LNMN):
+            continueLinmin = self.nextLinmin(self.linminInitial)#, stop=linminStop)
+            self.linminInitial = False
+            if (continueLinmin):
+                self.lineStep += 1
+                self.stage, self.result = Stage.LNMN, Result.UNEXECUTED
+            else:
+                self.cgStep += 1
+                self.lineStep = 0
+                self.zeroControlForcing, self.bracketed = False, False
+                self.stage, self.result = Stage.CG_FW, Result.UNEXECUTED
+
+        self.saveState()
+        return
+
+    def checkResult(self, result):
+        self.result = Result(result) if (result == 0) else Result.FAIL
+        self.saveState()
+
+        if (self.result is Result.FAIL):
+            raise RuntimeError("%s is not run successfully." % self.fl.globalCommandFile)
+        return
+
+    def loadState(self):
+        assert(path.exists(self.logFile))
+
+        with h5py.File(self.logFile, 'r') as f:
+            self.hyperStep = f.attrs['hyper_step']
+            self.cgStep = f.attrs['cg_step']
+            self.lineStep = f.attrs['line_step']
+            self.bracketed = f.attrs['bracketed']
+            self.linminInitial = f.attrs['linmin_initial']
+            self.zeroControlForcing = f.attrs['control']
+            self.stage = Stage(f.attrs['stage'])
+            self.result = Result(f.attrs['result'])
+            if (self.const.useLagrangian):
+                self.zeroLagrangian = f.attrs['lagrangian']
+        return
+
+    def loadPreviousPenalty(self):
+        assert(path.exists(self.logFile))
+        assert(self.const.useLagrangian)
+        assert((self.hyperStep > 0) and (self.cgStep == 0) and (self.lineStep == 0))
+
+        with h5py.File(self.logFile, 'r') as f:
+            dsetName = "%d/penalty_weight" % (self.hyperStep - 1)
+            weight = f[dsetName][...]
+        return weight
+
+    def saveState(self):
+        self.printState()
+
+        with h5py.File(self.logFile, 'a') as f:
+            f.attrs['hyper_step'] = self.hyperStep
+            f.attrs['cg_step'] = self.cgStep
+            f.attrs['line_step'] = self.lineStep
+            f.attrs['bracketed'] = self.bracketed
+            f.attrs['linmin_initial'] = self.linminInitial
+            f.attrs['control'] = self.zeroControlForcing
+            f.attrs['stage'] = self.stage.value
+            f.attrs['result'] = self.result.value
+            if (self.const.useLagrangian):
+                f.attrs['lagrangian'] = self.zeroLagrangian
+        return
+
+    def printState(self):
+        output = "=" * 20 + "  Optimizer Status  " + "=" * 20
+        length = len(output)
+        output += "\n"
+
+        output += "Log file: %s\n\n" % (self.logFile)
+        output += "Stage: %s\n" % (self.stage.name)
+        output += "Result: %s\n" % (self.result.name)
+        output += "\n"
+        output += "Hyper step: %d\n" % (self.hyperStep)
+        output += "CG step: %d\n" % (self.cgStep)
+        output += "Line step: %d\n" % (self.lineStep)
+        output += "Bracketed: %s\n" % (self.bracketed)
+        output += "LinMin Initial: %s\n" % (self.linminInitial)
+        output += "No baseline control: %s\n" % (self.zeroControlForcing)
+        if (self.const.useLagrangian):
+            output += "Zero Lagrangian: %s\n" % (self.zeroLagrangian)
+
+        output += "=" * length + "\n"
+        print(output)
         return
 
     def writeCommandFile(self, command, filename):
@@ -47,7 +212,28 @@ class Optimizer:
                     / ( (b-a)*(fb-fc) - (b-c)*(fb-fa) )
         return x
 
-    def setupInitialSteps(self, zeroBaseline=True):
+    def initialForward(self):
+        command = ''
+        command += self.base.forwardRunCommand('x0', self.zeroControlForcing)
+
+        if (self.const.useLagrangian and (self.hyperStep > 0)):
+            initialLagrangian = (not self.zeroLagrangian)
+            weight = self.loadPreviousPenalty()
+            command += optim.base.updateLagrangian(weight, initialLagrangian)
+        self.writeCommandFile(command, self.fl.globalCommandFile)
+        return
+
+    def initialAdjoint(self):
+        command = ''
+        command += self.base.adjointRunCommand()
+        command += self.base.gatherControlForcingGradientCommand()
+        command += self.base.innerProductCommand(self.fl.globalGradFiles,
+                                                 self.fl.globalGradFiles,
+                                                 self.fl.ggFiles)
+        self.writeCommandFile(command, self.fl.globalCommandFile)
+        return
+
+    def setupInitialSteps(self):
         if(self.const.saveStateLog):
             self.readStateDistance()
 
@@ -57,7 +243,7 @@ class Optimizer:
         commands = []
         for k in range(1, self.const.Nsplit):
             commands += ['cp x0/%s ./a/ ' % self.fl.icFiles[k]]
-        if (not zeroBaseline):
+        if (not self.zeroControlForcing):
             for j in range(self.const.NcontrolRegion):
                 commands += ['cp x0/%s ./a/ ' % self.const.globalControlSpaceFiles[j]]
         commandString += self.scriptor.nonMPILoopCommand(commands,'copy_control_params')
@@ -73,7 +259,7 @@ class Optimizer:
         Js[0] = J0
 
         temp = ['x0/'+file for file in self.fl.globalControlSpaceFiles]
-        if (zeroBaseline):
+        if (self.zeroControlForcing):
             for j in range(self.const.NcontrolRegion):
                 temp[j] = ''
         target = self.fl.globalControlSpaceFiles.copy()
@@ -85,18 +271,13 @@ class Optimizer:
         commandString += self.scriptor.purgeDirectoryCommand('x')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-        command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 3'
-        if (zeroBaseline):
-            command += ' -zero_baseline'
-        self.writeCommandFile(command+'\n', self.fl.decisionMakerCommandFile)
-
         data = {'step':steps,'QoI':Js,'directory index':['a','x']}
         df = pd.DataFrame(data)
         df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
         print ('Initial steps written in command. Run ' + self.fl.globalCommandFile + '.')
         return 0
 
-    def nextMnbrak(self, zeroBaseline=True):
+    def nextMnbrak(self):
         df = self.base.collectQoI(self.fl.lineMinLog)
         steps = np.array(df['step'][df['directory index']!='0'])
         Js = np.array(df['step'][df['directory index']!='0'])
@@ -126,16 +307,10 @@ class Optimizer:
             if (Jx > Jb):
                 self.base.switchDirectory('x','c',df)
 
-                self.writeCommandFile('exit 0\n', self.fl.globalCommandFile)
-                command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 4 -linmin_initial'
-                if(zeroBaseline):
-                    command += ' -zero_baseline'
-                self.writeCommandFile(command+'\n', self.fl.decisionMakerCommandFile)
-
                 df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
                 print (np.array(df[df['directory index']!='0']))
                 print ('MNBRAK: initial mininum bracket is prepared.')
-                return 0
+                return True # bracketed.
             else:
                 self.base.switchDirectory('x','b',df)
                 self.base.switchDirectory('a','x',df)
@@ -155,16 +330,10 @@ class Optimizer:
             if (Jx < Ja):
                 self.base.switchDirectory('x','b',df)
 
-                self.writeCommandFile('exit 0\n', self.fl.globalCommandFile)
-                command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 4 -linmin_initial'
-                if (zeroBaseline):
-                    command += ' -zero_baseline'
-                self.writeCommandFile(command+'\n', self.fl.decisionMakerCommandFile)
-
                 df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
                 print (np.array(df[df['directory index']!='0']))
                 print ('MNBRAK: initial mininum bracket is prepared.')
-                return 0
+                return True # bracketed.
             else:
                 self.base.switchDirectory('x','c',df)
                 df.loc[df['directory index']=='x','directory index'] = '0'
@@ -194,7 +363,7 @@ class Optimizer:
 
         commandString = ''
         temp = ['x0/'+file for file in self.fl.globalControlSpaceFiles]
-        if (zeroBaseline):
+        if (self.zeroControlForcing):
             for j in range(self.const.NcontrolRegion):
                 temp[j] = ''
         target = ['x/'+file for file in self.fl.globalControlSpaceFiles]
@@ -205,17 +374,12 @@ class Optimizer:
         commandString += self.scriptor.purgeDirectoryCommand('x')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-        command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 3'
-        if (zeroBaseline):
-            command += ' -zero_baseline'
-        self.writeCommandFile(command+'\n', self.fl.decisionMakerCommandFile)
-
         df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
         print (df[df['directory index']!='0'])
 
-        return 0
+        return False # not bracketed.
 
-    def nextLinmin(self, zeroBaseline=True, initial=True, stop=False):
+    def nextLinmin(self, initial=True, stop=False):
         if (initial):
             df = pd.read_csv(self.fl.lineMinLog, sep='\t', header=0)
         else:
@@ -241,11 +405,6 @@ class Optimizer:
             print ('LINMIN: line minimization is stopped.')
 
             self.writeCommandFile('exit 0\n', self.fl.globalCommandFile)
-            command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 5'
-            if(zeroBaseline):
-                command += ' -zero_baseline'
-            command += '\n exit 0\n'
-            self.writeCommandFile(command, self.fl.decisionMakerCommandFile)
             return 0
 
         a = np.array(df['step'][df['directory index']=='a'])[0]
@@ -277,7 +436,7 @@ class Optimizer:
             commandString += self.scriptor.nonMPILoopCommand(commands,'move_line_minimum_files')
 
             commandString += '\n'
-            if( zeroBaseline and (not self.const.ignoreController) ):
+            if( self.zeroControlForcing and (not self.const.ignoreController) ):
                 commandString += self.base.generalSetOptionCommand
                 targetInputFiles = ['x0/%s/%s'%(dir,file) for dir, file in zip(self.fl.directories, self.fl.inputFiles)]
                 commands = []
@@ -288,11 +447,7 @@ class Optimizer:
             commandString += self.base.forwardRunCommand()
 
             self.writeCommandFile(commandString, self.fl.globalCommandFile)
-            command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 5'
-            if(zeroBaseline):
-                command += ' -zero_baseline'                                        # afterLinmin doesn't use zeroBaseline. This has no effect.
-            self.writeCommandFile(command+'\n', self.fl.decisionMakerCommandFile)
-            return 0
+            return False # completed linmin.
 
         xs = self.parabolic_interp([a,b,c],[Ja,Jb,Jc])
         Cr = 1.0 - 1.0 / self.const.golden_ratio
@@ -307,7 +462,7 @@ class Optimizer:
 
         commandString = ''
         temp = ['x0/'+file for file in self.fl.globalControlSpaceFiles]
-        if (zeroBaseline):
+        if (self.zeroControlForcing):
             for j in range(self.const.NcontrolRegion):
                 temp[j] = ''
         target = ['x/'+file for file in self.fl.globalControlSpaceFiles]
@@ -318,17 +473,12 @@ class Optimizer:
         commandString += self.scriptor.purgeDirectoryCommand('x')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-        command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 4'
-        if(zeroBaseline):
-            command += ' -zero_baseline'
-        self.writeCommandFile(command+'\n', self.fl.decisionMakerCommandFile)
-
         df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
         print (df[df['directory index']!='0'])
         print ('LINMIN: next linmin evaluation is prepared-')
-        return 1
+        return True # continue linmin.
 
-    def beforeLinmin(self, initial, zeroBaseline):
+    def beforeLinmin(self):
         J0, subJ0 = self.base.QoI()
         gg, subgg = self.base.readInnerProduct(self.fl.ggFiles)
 
@@ -341,7 +491,8 @@ class Optimizer:
         if (self.const.saveStateLog):
             commandString += self.base.checkStateDistance()
 
-        if (initial):
+        # Initial cg step
+        if (self.cgStep == 0):
             J_new_df.to_csv(self.fl.forwardLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
             dJ_new_df.to_csv(self.fl.gradientLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
@@ -353,11 +504,6 @@ class Optimizer:
                 commands += ['cp %s %s' % (self.fl.globalGradFiles[k], self.fl.globalConjugateGradientFiles[k])]
             commandString += self.scriptor.nonMPILoopCommand(commands,'initial-conjugate-gradient')
             self.writeCommandFile(commandString, self.fl.globalCommandFile)
-
-            command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 2'
-            if (zeroBaseline):
-                command += ' -zero_baseline'
-            self.writeCommandFile(command+'\n', self.fl.decisionMakerCommandFile)
 
             print ('Initial line minimization is ready. Run mnbrak and linmin procedures.')
             return 0
@@ -383,7 +529,6 @@ class Optimizer:
         if (gg <= self.const.tol):
             print ('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
             self.writeCommandFile('exit 1\n', self.fl.globalCommandFile)
-            self.writeCommandFile('exit 1\n', self.fl.decisionMakerCommandFile)
             return 0
 
         dgg, dummy = self.base.readInnerProduct(self.fl.dggFiles)
@@ -403,15 +548,10 @@ class Optimizer:
         commandString += self.scriptor.parallelPurgeCommand(self.fl.previousCGFiles,'purge_prev_cg')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-        command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 2'
-        if(zeroBaseline):
-            command += ' -zero_baseline'
-        self.writeCommandFile(command+'\n', self.decisionMakerCommandFile)
-
         print ('line minimization is ready. Run mnbrak and linmin procedures.')
         return 0
 
-    def afterLinmin(self, zeroBaseline):
+    def afterLinmin(self):
         #copy line minimization log
         numFiles = len(os.listdir(self.fl.LINMINDIR))
         subprocess.check_call('mkdir -p %s/%d' % (self.fl.LINMINDIR, numFiles), shell=True)
@@ -451,10 +591,6 @@ class Optimizer:
         commandString += self.base.dggCommand()
         commandString += self.scriptor.parallelPurgeCommand(self.fl.previousGradFiles,'purge_prev_grad')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
-        command = 'python3 ' + self.fl.decisionMaker + ' ' + self.inputFile + ' 1 \n'
-        if (self.const.useLagrangian and (numFiles > self.const.Nlinmin)):
-            command += 'exit -1 \n'
-        self.writeCommandFile(command, self.fl.decisionMakerCommandFile)
 
         print ('FRPRMN - after linmin: postprocessing is finished. Run new forward/adjoint simulations.')
         return 1

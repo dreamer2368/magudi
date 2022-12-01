@@ -48,7 +48,7 @@ if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Setting up the directories for multi-point optimization."
 
-python3 optimization.py optim.yml -1
+python3 optimization.py optim.yml --mode setup
 
 for dir in {a,b,c,x,x0}
 do
