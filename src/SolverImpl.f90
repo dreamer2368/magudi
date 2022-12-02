@@ -320,6 +320,8 @@ contains
        else if (region%simulationFlags%useTargetState) then
           filename = getOption("initial_condition_file", "")
           if (len_trim(filename) == 0) then
+             write(message, '(A)') "Initial condition not specified. Using target state.."
+             call writeAndFlush(region%comm, output_unit, message)
              region%timestep = 0
              do i = 1, size(region%states) !... initialize from target state.
                 region%states(i)%conservedVariables = region%states(i)%targetState
