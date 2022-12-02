@@ -15,11 +15,7 @@ if __name__ == '__main__':
     elif (args.mode == "log_result"):
         optim.checkResult(args.result)
     elif (args.mode == "setup"):
-        from os import path
-        import subprocess
-        for dir in optim.fl.dirList:
-            if (not path.exists(dir)):
-                subprocess.check_call('mkdir -p %s'%dir, shell=True)
+        optim.setupDirectories()
 
     else:
         print("choose the action. for possible choices, add '-h' flag and run it again.")

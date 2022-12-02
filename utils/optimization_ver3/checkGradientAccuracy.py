@@ -1,7 +1,12 @@
 import numpy as np
 import subprocess
+import argparse
 from inputs import InputParser
 from optimizer import Optimizer
+
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+parser.add_argument('input_file', metavar='string', type=str,
+                    help='filename for the optimization input file.\n')
 
 def checkFiniteDifferenceOrder(filename):
     result = np.loadtxt(filename)
@@ -20,7 +25,8 @@ def checkFiniteDifferenceOrder(filename):
     return
 
 if __name__ == '__main__':
-    config = InputParser('./optim.yml')
+    args = parser.parse_args()
+    config = InputParser(args.input_file)
     optim = Optimizer(config)
 
     command = optim.base.forwardRunCommand('x0',True)

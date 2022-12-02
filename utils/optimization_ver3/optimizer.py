@@ -13,6 +13,10 @@ import h5py
 
 __all__ = ['Optimizer']
 
+magudiExes = ['forward', 'adjoint', 'control_space_norm', 'qfile_zaxpy',
+              'spatial_inner_product', 'zxdoty', 'zwxmwy', 'zaxpy',
+              'slice_control_forcing', 'paste_control_forcing', 'patchup_qfile']
+
 class Result(Enum):
     UNEXECUTED = -1
     SUCCESS = 0
@@ -26,10 +30,13 @@ class Stage(Enum):
     LNMN = 4
 
 class Optimizer:
+    config = None
     scriptor = None
     const = None
     fl = None
     base = None
+
+    binaryPath = ''
 
     inputFile = ''
     logFile = ''
@@ -48,6 +55,7 @@ class Optimizer:
     zeroLagrangian = True       # augmented_lagrangian at the current stage (root directory)
 
     def __init__(self, config):
+        self.config = config
         self.const = Constants(config)
         self.fl = FilenameList(config, self.const)
 
@@ -58,6 +66,9 @@ class Optimizer:
             self.base = BaseCommanderExtended(config, self.scriptor, self.const, self.fl)
         else:
             self.base = BaseCommander(config, self.scriptor, self.const, self.fl)
+
+        self.binaryPath = self.config.getInput(['magudi', 'binary_directory'], datatype=str)
+        self.binaryPath = os.path.abspath(self.binaryPath)
 
         self.inputFile = config.filename
         self.logFile = config.getInput(['optimization', 'log_file'], datatype=str)
@@ -211,6 +222,92 @@ class Optimizer:
         x = b - 0.5 * ( ((b-a)**2)*(fb-fc) - ((b-c)**2)*(fb-fa) )                                           \
                     / ( (b-a)*(fb-fc) - (b-c)*(fb-fa) )
         return x
+
+    def setMagudiInputFiles(self, inputFiles, key, vals):
+        assert(len(inputFiles) == len(vals))
+        commandString = self.base.generalSetOptionCommand
+
+        commands = []
+        for inputFile, val in zip(inputFiles, vals):
+            commands += ['./setOption.sh %s "%s" %s ' % (inputFile, key, val)]
+        commandString += self.scriptor.nonMPILoopCommand(commands, key)
+        return commandString
+
+    def setupDirectories(self):
+        prerequisites = self.fl.globalNormFiles
+        for k in range(self.const.Nsplit):
+            idx = self.const.startTimestep + k * self.const.Nts
+            prerequisites += ["%s-%08d.q" % (self.fl.globalPrefix, idx)]
+        for file in prerequisites:
+            assert(path.exists(file))
+
+        commandString = ''
+
+        for exe in magudiExes:
+            commandString += 'ln -s %s/%s ./\n' % (self.binaryPath, exe)
+
+        for dir in self.fl.dirList:
+            if (not path.exists(dir)):
+                commandString += 'mkdir -p %s\n' % dir
+
+        commandString +=                                                                \
+        'for dir in {a,b,c,x,x0}\n'                                                     \
+        'do\n'                                                                          \
+        '   mkdir $dir\n'                                                               \
+        '   for k in {0..%d}\n' % (self.const.Nsplit - 1)
+        commandString +=                                                                \
+        '   do\n'                                                                       \
+        '       mkdir -p ${dir}/${k}\n'                                                 \
+        '       ln -s %s/forward ./${dir}/${k}/\n' % self.binaryPath
+        commandString +=                                                                \
+        '       ln -s %s/adjoint ./${dir}/${k}/\n' % self.binaryPath
+        commandString +=                                                                \
+        '       cp ./%s ./${dir}/${k}/magudi-${k}.inp\n' % self.fl.globalInputFile
+        commandString +=                                                                \
+        '   done\n'                                                                     \
+        'done\n'
+        commandString += 'if [ $? -ne 0 ]; then exit -1; fi\n\n'
+
+        targetInputFiles = []
+        for bdir in ['a', 'b', 'c', 'x', 'x0']:
+            targetInputFiles += ['%s/%s/%s'%(bdir,dir,file) for dir, file in zip(self.fl.directories, self.fl.inputFiles)]
+
+        rootFiles = self.config.getInput(['magudi', 'root_files'], datatype=dict)
+        for key, val in rootFiles.items():
+            assert(type(val) is str)
+            vals = ['\'"../../%s"\'' % val] * len(targetInputFiles)
+            commandString += self.setMagudiInputFiles(targetInputFiles, key, vals)
+
+        vals = ['\'"%s-%d"\'' % (self.fl.globalPrefix, k) for k in range(self.const.Nsplit)] * 5
+        commandString += self.setMagudiInputFiles(targetInputFiles, 'output_prefix', vals)
+
+        prefix = self.fl.globalPrefix
+        if (type(self.base) is not BaseCommanderExtended): prefix = '../' + prefix
+        vals = ['\'"%s-%d.ic.q"\'' % (prefix, k) for k in range(self.const.Nsplit)] * 5
+        commandString += self.setMagudiInputFiles(targetInputFiles, 'initial_condition_file', vals)
+
+        vals = ['%d' % self.const.Nts] * len(targetInputFiles)
+        commandString += self.setMagudiInputFiles(targetInputFiles, 'number_of_timesteps', vals)
+
+        vals = ['%d' % self.const.Nts] * (4 * self.const.Nsplit)
+        adjointSaveTimestep = self.config.getInput(['magudi', 'adjoint_save_timesteps'], fallback = self.const.Nts)
+        vals += ['%d' % adjointSaveTimestep] * self.const.Nsplit
+        commandString += self.setMagudiInputFiles(targetInputFiles, 'save_interval', vals)
+
+        vals = ['"true"'] * (4 * self.const.Nsplit)
+        vals += ['"%s"' % ('true' if (not self.zeroControlForcing) else 'false')] * self.const.Nsplit
+        commandString += self.setMagudiInputFiles(targetInputFiles, 'controller_switch', vals)
+
+        commands = []
+        for k in range(self.const.Nsplit):
+            idx = self.const.startTimestep + k * self.const.Nts
+            oldFile = "%s-%08d.q" % (self.fl.globalPrefix, idx)
+            newFile = "%s-%d.ic.q" % (self.fl.globalPrefix, k)
+            commands += ['cp %s x0/%s' % (oldFile, newFile)]
+        commandString += self.scriptor.nonMPILoopCommand(commands, 'copying_initial_conditions')
+
+        self.writeCommandFile(commandString, self.fl.globalCommandFile)
+        return
 
     def initialForward(self):
         command = ''

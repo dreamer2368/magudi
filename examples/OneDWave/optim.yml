@@ -1,5 +1,14 @@
 global_prefix: 'OneDWave'
 
+magudi:
+  binary_directory: ../bin
+  root_files:
+    grid_file: OneDWave.xyz
+    boundary_condition_file: bc.dat
+    control_mollifier_file: OneDWave.control_mollifier.f
+    target_mollifier_file: OneDWave.target_mollifier.f
+  adjoint_save_timesteps: 20
+
 optimization:
   log_file: OneDWave.optim.h5
   initial:
