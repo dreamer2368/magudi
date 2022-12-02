@@ -10,6 +10,7 @@ import pandas as pd
 import os
 import os.path as path
 import h5py
+import logging
 
 __all__ = ['Optimizer']
 
@@ -40,6 +41,7 @@ class Optimizer:
 
     inputFile = ''
     logFile = ''
+    journalFile = ''
 
     isInitial = True   # the very beginning of the entire multi-point optimization
     hyperStep = -1     # Penalty-method level hyper-iteration
@@ -70,6 +72,11 @@ class Optimizer:
         self.binaryPath = self.config.getInput(['magudi', 'binary_directory'], datatype=str)
         self.binaryPath = os.path.abspath(self.binaryPath)
 
+        defaultJournal = "%s.journal.txt" % self.fl.globalPrefix
+        self.journalFile = config.getInput(['optimization', 'journal_file'], fallback=defaultJournal)
+        logging.basicConfig(filename=self.journalFile, filemode='a',
+                            level=logging.INFO, format='%(asctime)s\n%(message)s')
+
         self.inputFile = config.filename
         self.logFile = config.getInput(['optimization', 'log_file'], datatype=str)
         self.isInitial = (not path.exists(self.logFile))
@@ -84,6 +91,8 @@ class Optimizer:
             self.zeroControlForcing = config.getInput(['optimization', 'initial', 'zero_control'], fallback=True)
             if (self.const.useLagrangian):
                 self.zeroLagrangian = config.getInput(['optimization', 'initial', 'zero_lagrangian'], fallback=True)
+
+            self.saveState()
         else:
             self.loadState()
         return
@@ -105,12 +114,12 @@ class Optimizer:
         elif (self.stage is Stage.CG_AD):
             success = self.beforeLinmin()
             if (success!=0):
-                print ('pre-processing for line minimization is failed.')
+                self.printAndLog('pre-processing for line minimization is failed.')
             self.stage, self.result = Stage.POST_AD, Result.UNEXECUTED
         elif (self.stage is Stage.POST_AD):
             success = self.setupInitialSteps()
             if (success != 0):
-                print ('initialization for mnbrak is failed.')
+                self.printAndLog('initialization for mnbrak is failed.')
             self.lineStep += 1
             self.stage, self.result = Stage.BRKT, Result.UNEXECUTED
         elif (self.stage is Stage.BRKT):
@@ -206,7 +215,12 @@ class Optimizer:
             output += "Zero Lagrangian: %s\n" % (self.zeroLagrangian)
 
         output += "=" * length + "\n"
-        print(output)
+        self.printAndLog(output)
+        return
+
+    def printAndLog(self, message):
+        print(message)
+        logging.info(message)
         return
 
     def writeCommandFile(self, command, filename):
@@ -371,7 +385,8 @@ class Optimizer:
         data = {'step':steps,'QoI':Js,'directory index':['a','x']}
         df = pd.DataFrame(data)
         df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-        print ('Initial steps written in command. Run ' + self.fl.globalCommandFile + '.')
+
+        self.printAndLog('Initial steps written in command. Run ' + self.fl.globalCommandFile + '.')
         return 0
 
     def nextMnbrak(self):
@@ -389,7 +404,7 @@ class Optimizer:
         cExists = sum(dirIdx=='c')
 
         if (Jx > self.const.huge):
-            print ('Forward run crashed. Retrying with a smaller step.')
+            self.printAndLog('Forward run crashed. Retrying with a smaller step.')
             df.loc[df['directory index']=='x','directory index'] = '0'
             Cr = 1.0 - 1.0 / self.const.golden_ratio
             if (bExists):
@@ -405,8 +420,8 @@ class Optimizer:
                 self.base.switchDirectory('x','c',df)
 
                 df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-                print (np.array(df[df['directory index']!='0']))
-                print ('MNBRAK: initial mininum bracket is prepared.')
+                self.printAndLog(np.array(df[df['directory index']!='0']))
+                self.printAndLog('MNBRAK: initial mininum bracket is prepared.')
                 return True # bracketed.
             else:
                 self.base.switchDirectory('x','b',df)
@@ -419,7 +434,7 @@ class Optimizer:
                     new_x = x + Cr * (maxX - x)
                 else:
                     new_x = x * self.const.golden_ratio if (x < self.const.safe_zone) else x * 1.05
-                print ('MNBRAK: expanding the bracket - Run intermediate forward simulation.')
+                self.printAndLog('MNBRAK: expanding the bracket - Run intermediate forward simulation.')
         elif (cExists):
             c = np.array(df['step'][df['directory index']=='c'])[0]
             Jc = np.array(df['QoI'][df['directory index']=='c'])[0]
@@ -428,21 +443,21 @@ class Optimizer:
                 self.base.switchDirectory('x','b',df)
 
                 df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-                print (np.array(df[df['directory index']!='0']))
-                print ('MNBRAK: initial mininum bracket is prepared.')
+                self.printAndLog(np.array(df[df['directory index']!='0']))
+                self.printAndLog('MNBRAK: initial mininum bracket is prepared.')
                 return True # bracketed.
             else:
                 self.base.switchDirectory('x','c',df)
                 df.loc[df['directory index']=='x','directory index'] = '0'
 
                 new_x = x / self.const.golden_ratio
-                print ('MNBRAK: narrowing the bracket - Run intermediate forward simulations.')
+                self.printAndLog('MNBRAK: narrowing the bracket - Run intermediate forward simulations.')
         else:
             if (Jx > Ja):
                 self.base.switchDirectory('x','c',df)
 
                 new_x = x / self.const.golden_ratio
-                print ('MNBRAK: narrowing the bracket - Run intermediate forward simulations.')
+                self.printAndLog('MNBRAK: narrowing the bracket - Run intermediate forward simulations.')
             else:
                 self.base.switchDirectory('x','b',df)
 
@@ -452,7 +467,7 @@ class Optimizer:
                     new_x = x + Cr * (maxX-x)
                 else:
                     new_x = x * self.const.golden_ratio if (x < self.const.safe_zone) else x * 1.05
-                print ('MNBRAK: expanding the bracket - Run intermediate forward simulation.')
+                self.printAndLog('MNBRAK: expanding the bracket - Run intermediate forward simulation.')
 
         data = {'step':[new_x], 'QoI':[np.nan], 'directory index':['x']}
         new_df = pd.DataFrame(data)
@@ -472,7 +487,7 @@ class Optimizer:
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
         df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-        print (df[df['directory index']!='0'])
+        self.printAndLog(df[df['directory index']!='0'])
 
         return False # not bracketed.
 
@@ -498,8 +513,8 @@ class Optimizer:
             df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
         if (stop):
-            print (df[df['directory index']!='0'])
-            print ('LINMIN: line minimization is stopped.')
+            self.printAndLog(df[df['directory index']!='0'])
+            self.printAndLog('LINMIN: line minimization is stopped.')
 
             self.writeCommandFile('exit 0\n', self.fl.globalCommandFile)
             return 0
@@ -512,9 +527,9 @@ class Optimizer:
         Jc = np.array(df['QoI'][df['directory index']=='c'])[0]
 
         if ( (c-a) < b * self.const.linminTol + self.const.eps ):
-            print ('steps: %.16E %.16E %.16E' % (a,b,c))
-            print ('QoIs: %.16E %.16E %.16E' % (Ja,Jb,Jc))
-            print ('LINMIN: line minimization is finished.')
+            self.printAndLog('steps: %.16E %.16E %.16E' % (a,b,c))
+            self.printAndLog('QoIs: %.16E %.16E %.16E' % (Ja,Jb,Jc))
+            self.printAndLog('LINMIN: line minimization is finished.')
 
             commandString = ''
 
@@ -571,8 +586,8 @@ class Optimizer:
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
         df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-        print (df[df['directory index']!='0'])
-        print ('LINMIN: next linmin evaluation is prepared-')
+        self.printAndLog(df[df['directory index']!='0'])
+        self.printAndLog('LINMIN: next linmin evaluation is prepared-')
         return True # continue linmin.
 
     def beforeLinmin(self):
@@ -602,7 +617,7 @@ class Optimizer:
             commandString += self.scriptor.nonMPILoopCommand(commands,'initial-conjugate-gradient')
             self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-            print ('Initial line minimization is ready. Run mnbrak and linmin procedures.')
+            self.printAndLog('Initial line minimization is ready. Run mnbrak and linmin procedures.')
             return 0
 
         df = pd.read_csv(self.fl.forwardLog, sep='\t', header=0)
@@ -624,7 +639,7 @@ class Optimizer:
         #reduction = gg/gg0
         #if (reduction<=tol):
         if (gg <= self.const.tol):
-            print ('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
+            self.printAndLog('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
             self.writeCommandFile('exit 1\n', self.fl.globalCommandFile)
             return 0
 
@@ -645,7 +660,7 @@ class Optimizer:
         commandString += self.scriptor.parallelPurgeCommand(self.fl.previousCGFiles,'purge_prev_cg')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-        print ('line minimization is ready. Run mnbrak and linmin procedures.')
+        self.printAndLog('line minimization is ready. Run mnbrak and linmin procedures.')
         return 0
 
     def afterLinmin(self):
@@ -689,5 +704,5 @@ class Optimizer:
         commandString += self.scriptor.parallelPurgeCommand(self.fl.previousGradFiles,'purge_prev_grad')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-        print ('FRPRMN - after linmin: postprocessing is finished. Run new forward/adjoint simulations.')
+        self.printAndLog('FRPRMN - after linmin: postprocessing is finished. Run new forward/adjoint simulations.')
         return 1

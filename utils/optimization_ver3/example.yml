@@ -11,6 +11,7 @@ magudi:
 
 optimization:
   log_file: OneDWave.optim.h5
+  journal_file: OneDWave.journal.txt
   initial:
     zero_control: True
     zero_lagrangian: True
