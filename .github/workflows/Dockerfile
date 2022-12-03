@@ -28,14 +28,16 @@ RUN sudo apt-get install -yq hdf5-tools
 RUN echo "numpy" >> requirements.txt
 RUN echo "scipy" >> requirements.txt
 RUN cp requirements.txt requirements.2.txt
+RUN sudo pip install -r ./requirements.2.txt
 
 RUN echo "argparse" >> requirements.txt
+RUN echo "tables" >> requirements.txt
 RUN echo "pandas" >> requirements.txt
 RUN echo "PyYAML" >> requirements.txt
 RUN echo "h5py" >> requirements.txt
-
-RUN sudo pip install -r ./requirements.2.txt
+RUN sudo pip3 install --upgrade pip
 RUN sudo pip3 install -r ./requirements.txt
+
 RUN sudo apt-get clean -q
 
 # get modern-fortran code

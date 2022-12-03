@@ -10,6 +10,7 @@ class FilenameList:
     globalCommandFile = ''
     decisionMakerCommandFile = ''
     lineMinLog = ''
+    lineMinLogColumns = ['']
     CGLog = ''
 
     ROOTDIR = ''
@@ -27,9 +28,13 @@ class FilenameList:
 
     forwardLog = ''
     forwardLogColumns = ['']
+    forwardHistory = 'cost_functional'
+    forwardHistoryFiles = ['']
 
     gradientLog = ''
     gradientLogColumns = ['']
+    gradientHistory = 'cost_sensitivity'
+    gradientHistoryFiles = ['']
 
     stateLog = ''
     stateLogColumns = ['']
@@ -84,9 +89,9 @@ class FilenameList:
 
         self.globalPrefix = config.getInput(['global_prefix'], datatype=str)
         self.globalCommandFile = '%s.command.sh' % self.globalPrefix
-        self.decisionMakerCommandFile = '%s.command.python.ready.sh' % self.globalPrefix
-        self.lineMinLog = self.globalPrefix + '.line_minimization.txt'
-        self.CGLog = self.globalPrefix + '.conjugate_gradient.txt'
+        self.lineMinLog = 'line_minimization'
+        self.lineMinLogFile = self.globalPrefix + '.line_minimization.txt'
+        self.lineMinLogColumns = ['step', 'QoI', 'directory index']
 
         from os import path, getcwd
         self.ROOTDIR = getcwd()
@@ -104,7 +109,7 @@ class FilenameList:
                         self.TXTDIR, self.CGDIR, self.PREVDIR, self.DIFFLOGDIR,
                         self.LINMINDIR]
 
-        self.forwardLog = self.globalPrefix + '.cost_reduction.txt'
+        self.forwardLog = 'objectives'
         self.forwardLogColumns = ['total']
         for k in range(self.const.Nsplit):
             self.forwardLogColumns += ['cost_functional%d' % k]
@@ -113,13 +118,21 @@ class FilenameList:
         for k in range(self.const.Nsplit):
             self.forwardLogColumns += ['lagrangian%d' % k]
         self.forwardLogColumns += ['terminal']
+        tmp = {}
+        for k, col in enumerate(self.forwardLogColumns):
+            tmp[col] = k
+        self.forwardLogColumns = tmp
 
-        self.gradientLog = self.globalPrefix + '.gg_log.txt'
+        self.gradientLog = 'gradients'
         self.gradientLogColumns = ['total']
         for j in range(self.const.NcontrolRegion):
             self.gradientLogColumns += ['control_forcing%d' % j]
         for k in range(self.const.Nsplit):
             self.gradientLogColumns += ['initial_condition%d' % k]
+        tmp = {}
+        for k, col in enumerate(self.gradientLogColumns):
+            tmp[col] = k
+        self.gradientLogColumns = tmp
 
         self.stateLog = self.globalPrefix + '.state_log.txt'
         self.stateLogColumns = []
@@ -153,6 +166,7 @@ class FilenameList:
         self.icAdjointFiles, self.icGradientFiles, self.directories         = [], [], []
         self.lagrangianFiles, self.lagrangianOutputFiles                    = [], []
         self.baselineFiles                                                  = []
+        self.forwardHistoryFiles, self.gradientHistoryFiles                 = [], []
         for k in range(self.const.Nsplit):
             self.prefixes += ['%s-%01d' % (self.globalPrefix, k)]
             self.inputFiles += ['magudi-%01d.inp' % (k)]
@@ -173,6 +187,9 @@ class FilenameList:
             self.icGradientFiles += ['%s-%01d.ic.adjoint.q' % (self.globalPrefix, k)]                  #use only 1, ... , Nsplit-1
             self.baselineFiles += ['%s-%08d.q' % (self.globalPrefix, kOffset)]
             self.directories += ['%01d' % k]
+
+            self.forwardHistoryFiles += ['%01d/%s.%s.txt' % (k, self.prefixes[k], self.forwardHistory)]
+            self.gradientHistoryFiles += ['%01d/%s.%s.txt' % (k, self.prefixes[k], self.gradientHistory)]
 
         ##################           global+slice level files              #####################
 

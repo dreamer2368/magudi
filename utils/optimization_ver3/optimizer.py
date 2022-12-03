@@ -79,6 +79,7 @@ class Optimizer:
 
         self.inputFile = config.filename
         self.logFile = config.getInput(['optimization', 'log_file'], datatype=str)
+        assert(self.logFile[-3:] == ".h5")
         self.isInitial = (not path.exists(self.logFile))
 
         if (self.isInitial):
@@ -93,6 +94,14 @@ class Optimizer:
                 self.zeroLagrangian = config.getInput(['optimization', 'initial', 'zero_lagrangian'], fallback=True)
 
             self.saveState()
+
+            with h5py.File(self.logFile, 'a') as f:
+                dset = f.create_dataset("%s/columns" % self.fl.forwardLog,
+                                        data=list(self.fl.forwardLogColumns.keys()))
+                dset = f.create_dataset("%s/columns" % self.fl.gradientLog,
+                                        data=list(self.fl.gradientLogColumns.keys()))
+                dset = f.create_dataset("%s/columns" % self.fl.lineMinLog,
+                                        data=self.fl.lineMinLogColumns)
         else:
             self.loadState()
         return
@@ -179,6 +188,43 @@ class Optimizer:
             dsetName = "%d/penalty_weight" % (self.hyperStep - 1)
             weight = f[dsetName][...]
         return weight
+
+    def appendDataset(self, dataset, data):
+        with h5py.File(self.logFile, 'a') as f:
+            if (dataset in f):
+                self.printAndLog("Appending %s.." % dataset)
+                f[dataset].resize(f[dataset].shape[0] + 1, axis=0)
+                f[dataset][-1] = data
+            else:
+                self.printAndLog("Creating %s.." % dataset)
+                dset = f.create_dataset(dataset, data=data, maxshape=(None, data.shape[1]))
+        self.printAndLog("Succeeded.")
+        return
+
+    def saveCGStepData(self):
+        self.printAndLog("Saving data at cg step %d/%d.." % (self.hyperStep, self.cgStep))
+        fwHist = np.empty(shape=(0,4))
+        adjHist = np.empty(shape=(0,4))
+        for k in range(self.const.Nsplit):
+            fwHist = np.append(fwHist, np.loadtxt("x0/%s" % (self.fl.forwardHistoryFiles[k])), axis=0)
+            adjHist = np.append(adjHist, np.loadtxt("x0/%s" % self.fl.gradientHistoryFiles[k]), axis=0)
+
+        if (self.cgStep > 0):
+            with h5py.File(self.logFile, 'a') as f:
+                dsetName = "%s/%d/%d" % (self.fl.forwardHistory, self.hyperStep, self.cgStep)
+                dset = f.create_dataset(dsetName, data=fwHist)
+                dsetName = "%s/%d/%d" % (self.fl.gradientHistory, self.hyperStep, self.cgStep)
+                dset = f.create_dataset(dsetName, data=adjHist)
+
+                dsetName = "%s/%d/%d" % (self.fl.lineMinLog, self.hyperStep, self.cgStep)
+                df = pd.read_csv(self.fl.lineMinLogFile, sep='\t', header=0)
+                data = np.array(df.iloc[:, :2])
+                dset = f.create_dataset(dsetName, data=data)
+                for dir in ['a', 'b', 'c']:
+                    idx = np.array(df['step'][df['directory index']==dir])[0]
+                    dset.attrs[dir] = idx
+        self.printAndLog("Succeeded.")
+        return
 
     def saveState(self):
         self.printState()
@@ -361,7 +407,7 @@ class Optimizer:
 
         numFiles = len(os.listdir(self.fl.LINMINDIR))
         if (numFiles>0):
-            df_file = '%s/%d/%s' % (self.fl.LINMINDIR, numFiles-1, self.fl.lineMinLog)
+            df_file = '%s/%d/%s' % (self.fl.LINMINDIR, numFiles-1, self.fl.lineMinLogFile)
             df_temp = pd.read_csv(df_file, sep='\t', header=0)
             lastStep = np.array(df_temp['step'][df_temp['directory index']=='b'])[0]
 
@@ -384,13 +430,13 @@ class Optimizer:
 
         data = {'step':steps,'QoI':Js,'directory index':['a','x']}
         df = pd.DataFrame(data)
-        df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+        df.to_csv(self.fl.lineMinLogFile, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
         self.printAndLog('Initial steps written in command. Run ' + self.fl.globalCommandFile + '.')
         return 0
 
     def nextMnbrak(self):
-        df = self.base.collectQoI(self.fl.lineMinLog)
+        df = self.base.collectQoI(self.fl.lineMinLogFile)
         steps = np.array(df['step'][df['directory index']!='0'])
         Js = np.array(df['step'][df['directory index']!='0'])
         dirIdx = np.array(df['directory index'][df['directory index']!='0'])
@@ -419,7 +465,7 @@ class Optimizer:
             if (Jx > Jb):
                 self.base.switchDirectory('x','c',df)
 
-                df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+                df.to_csv(self.fl.lineMinLogFile, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
                 self.printAndLog(np.array(df[df['directory index']!='0']))
                 self.printAndLog('MNBRAK: initial mininum bracket is prepared.')
                 return True # bracketed.
@@ -442,7 +488,7 @@ class Optimizer:
             if (Jx < Ja):
                 self.base.switchDirectory('x','b',df)
 
-                df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+                df.to_csv(self.fl.lineMinLogFile, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
                 self.printAndLog(np.array(df[df['directory index']!='0']))
                 self.printAndLog('MNBRAK: initial mininum bracket is prepared.')
                 return True # bracketed.
@@ -486,16 +532,16 @@ class Optimizer:
         commandString += self.scriptor.purgeDirectoryCommand('x')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-        df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+        df.to_csv(self.fl.lineMinLogFile, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
         self.printAndLog(df[df['directory index']!='0'])
 
         return False # not bracketed.
 
     def nextLinmin(self, initial=True, stop=False):
         if (initial):
-            df = pd.read_csv(self.fl.lineMinLog, sep='\t', header=0)
+            df = pd.read_csv(self.fl.lineMinLogFile, sep='\t', header=0)
         else:
-            df = self.base.collectQoI(self.fl.lineMinLog)
+            df = self.base.collectQoI(self.fl.lineMinLogFile)
 
             steps = np.array(df['step'][df['directory index'] != '0'])
             Js = np.array(df['QoI'][df['directory index'] != '0'])
@@ -510,7 +556,7 @@ class Optimizer:
                 self.base.switchDirectory(dirIdx[minIdx-1+k], temp[k], df)
                 dirIdx = np.array(df['directory index'][df['directory index'] != '0'])
             df.loc[df['directory index']=='x','directory index'] = '0'
-            df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+            df.to_csv(self.fl.lineMinLogFile, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
         if (stop):
             self.printAndLog(df[df['directory index']!='0'])
@@ -551,10 +597,7 @@ class Optimizer:
             if( self.zeroControlForcing and (not self.const.ignoreController) ):
                 commandString += self.base.generalSetOptionCommand
                 targetInputFiles = ['x0/%s/%s'%(dir,file) for dir, file in zip(self.fl.directories, self.fl.inputFiles)]
-                commands = []
-                for k in range(self.const.Nsplit):
-                    commands += ['./setOption.sh %s "controller_switch" true' % targetInputFiles[k]]
-                commandString += self.scriptor.nonMPILoopCommand(commands,'magudi_option_turn_on_controller')
+                commandString += self.setMagudiInputFiles(targetInputFiles, "controller_switch", ["true"] * self.const.Nsplit)
 
             commandString += self.base.forwardRunCommand()
 
@@ -585,7 +628,7 @@ class Optimizer:
         commandString += self.scriptor.purgeDirectoryCommand('x')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
-        df.to_csv(self.fl.lineMinLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
+        df.to_csv(self.fl.lineMinLogFile, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
         self.printAndLog(df[df['directory index']!='0'])
         self.printAndLog('LINMIN: next linmin evaluation is prepared-')
         return True # continue linmin.
@@ -593,11 +636,18 @@ class Optimizer:
     def beforeLinmin(self):
         J0, subJ0 = self.base.QoI()
         gg, subgg = self.base.readInnerProduct(self.fl.ggFiles)
+        self.saveCGStepData()
 
-        data = [[J0]+list(subJ0)]
-        J_new_df = pd.DataFrame(data,columns=self.fl.forwardLogColumns)
-        data = [[gg]+list(subgg)]
-        dJ_new_df = pd.DataFrame(data,columns=self.fl.gradientLogColumns)
+        fwDset = "%s/%d" % (self.fl.forwardLog, self.hyperStep)
+        adjDset = "%s/%d" % (self.fl.gradientLog, self.hyperStep)
+        if (self.cgStep > 0):
+            with h5py.File(self.logFile, 'r') as f:
+                J1 = f[fwDset][-1, self.fl.forwardLogColumns['total']]
+                gg1 = f[adjDset][-1, self.fl.gradientLogColumns['total']]
+                gg0 = f[adjDset][0, self.fl.gradientLogColumns['total']]
+
+        self.appendDataset(fwDset, np.array([[J0]+list(subJ0)]))
+        self.appendDataset(adjDset, np.array([[gg]+list(subgg)]))
 
         commandString = ''
         if (self.const.saveStateLog):
@@ -605,12 +655,6 @@ class Optimizer:
 
         # Initial cg step
         if (self.cgStep == 0):
-            J_new_df.to_csv(self.fl.forwardLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-            dJ_new_df.to_csv(self.fl.gradientLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-
-            df = pd.DataFrame([np.nan],columns=['reduction'])
-            df.to_csv(self.fl.CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-
             commands = []
             for k in range(self.const.NcontrolSpace):
                 commands += ['cp %s %s' % (self.fl.globalGradFiles[k], self.fl.globalConjugateGradientFiles[k])]
@@ -619,22 +663,6 @@ class Optimizer:
 
             self.printAndLog('Initial line minimization is ready. Run mnbrak and linmin procedures.')
             return 0
-
-        df = pd.read_csv(self.fl.forwardLog, sep='\t', header=0)
-        J1 = df.at[df.index[-1],'total']
-        df = df.append(J_new_df)
-        df.to_csv(self.fl.forwardLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-
-        df = pd.read_csv(self.fl.gradientLog, sep='\t', header=0)
-        gg1 = df.at[df.index[-1],'total']
-        gg0 = df.at[df.index[0],'total']
-        df = df.append(dJ_new_df)
-        df.to_csv(self.fl.gradientLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
-
-        df = pd.read_csv(self.fl.CGLog, sep='\t', header=0)
-        df_addendum = pd.DataFrame([(1.0-J0/J1)], columns=['reduction'])
-        df = df.append(df_addendum)
-        df.to_csv(self.fl.CGLog, float_format='%.16E', encoding='utf-8', sep='\t', mode='w', index=False)
 
         #reduction = gg/gg0
         #if (reduction<=tol):
@@ -664,21 +692,7 @@ class Optimizer:
         return 0
 
     def afterLinmin(self):
-        #copy line minimization log
-        numFiles = len(os.listdir(self.fl.LINMINDIR))
-        subprocess.check_call('mkdir -p %s/%d' % (self.fl.LINMINDIR, numFiles), shell=True)
-        subprocess.check_call('cp %s %s/%d/'%(self.fl.lineMinLog, self.fl.LINMINDIR, numFiles), shell=True)
-
         commandString = ''
-
-        # copy result files
-        commands = []
-        for k in range(self.const.Nsplit):
-            costFunctionalFile = 'b/%s/%s.cost_functional.txt' % (self.fl.directories[k], self.fl.prefixes[k])
-            commands += ['cp %s linminLog/%d/' % (costFunctionalFile,numFiles)]
-            commands += ['cp %s linminLog/%d/' % (self.fl.diffOutputFiles[k],numFiles)]
-
-        commandString += self.scriptor.nonMPILoopCommand(commands,'saving_line_minimization_files')
 
         commandString += '\n'
         commandString += self.base.adjointRunCommand()
@@ -692,12 +706,6 @@ class Optimizer:
             subprocess.check_call('mkdir -p diffLog/%d'%numFiles,shell=True)
             for k in range(self.const.Nsplit - 1, self.const.Nsplit - self.const.Ndiff * self.const.diffStep, -self.const.diffStep):
                 commands += ['mv %s diffLog/%d/%s-%d.diff.%d.q' % (self.fl.diffFiles[k],numFiles,self.fl.globalPrefix,k,numFiles)]
-
-        commands = []
-        for k in range(self.const.Nsplit):
-            costSensitivityFile = 'x0/%s/%s.cost_sensitivity.txt'%(self.fl.directories[k], self.fl.prefixes[k])
-            commands += ['cp %s %s/%d/ '%(costSensitivityFile, self.fl.LINMINDIR, numFiles)]
-        commandString += self.scriptor.nonMPILoopCommand(commands,'copy_gradient_history')
 
         # Polak-Ribiere
         commandString += self.base.dggCommand()
