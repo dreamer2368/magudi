@@ -28,7 +28,7 @@ cost_functional_type = "SOUND"
 enable_adjoint_solver = false
 baseline_prediction_available = false
 use_continuous_adjoint = false
-controller_buffer_size = 20
+controller_buffer_size = 80
 
 # Gradient accuracy options
 check_gradient_accuracy = true

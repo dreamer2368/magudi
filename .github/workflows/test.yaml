@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  cpu-test:
+  magudi-unit:
     runs-on: ubuntu-20.04
     container:
       image: dreamer2368/magudi_env:latest
@@ -29,3 +29,43 @@ jobs:
         run: |
           cd build
           CTEST_OUTPUT_ON_FAILURE=TRUE make test
+  optim-grad-test:
+    runs-on: ubuntu-20.04
+    container:
+      image: dreamer2368/magudi_env:latest
+      options: --user 1001 --privileged
+    name: Optimization-gradient-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Cmake
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=debug -DCMAKE_Fortran_COMPILER=mpif90 ../
+      - name: Make
+        run: |
+          cd build
+          make -j 16
+      - name: Multi-point optimization gradient accuracy
+        run: bash .github/workflows/optim_grad_test.sh
+  optim-test:
+    runs-on: ubuntu-20.04
+    container:
+      image: dreamer2368/magudi_env:latest
+      options: --user 1001 --privileged
+    name: Optimization-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Cmake
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=debug -DCMAKE_Fortran_COMPILER=mpif90 ../
+      - name: Make
+        run: |
+          cd build
+          make -j 16
+      - name: Multi-point optimization framework test
+        run: bash .github/workflows/optim_test.sh

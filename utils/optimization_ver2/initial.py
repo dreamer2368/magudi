@@ -1,8 +1,8 @@
 from base import *
 
-zeroControlForcing = False
-initialLagrangian = False
-weight = 2.88e-1 * np.ones(Nsplit)       # weight for matching condition penalty
+zeroControlForcing = True
+initialLagrangian = True
+weight = 0.0e-1 * np.ones(Nsplit)       # weight for matching condition penalty
 if (not periodicSolution):
     weight[0] = 0.0
 

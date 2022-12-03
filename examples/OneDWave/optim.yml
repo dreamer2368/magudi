@@ -1,0 +1,67 @@
+global_prefix: 'OneDWave'
+
+magudi:
+  binary_directory: ../bin
+  root_files:
+    grid_file: OneDWave.xyz
+    boundary_condition_file: bc.dat
+    control_mollifier_file: OneDWave.control_mollifier.f
+    target_mollifier_file: OneDWave.target_mollifier.f
+  adjoint_save_timesteps: 20
+
+optimization:
+  log_file: OneDWave.optim.h5
+  initial:
+    zero_control: True
+    zero_lagrangian: True
+  tolerance: 1.0e+9
+  line_minimization:
+    initial_step_size: 3.0e+1
+    safe_zone: 1.0e+4
+    tolerance: 1.0e-1
+    number_of_searches: 50
+
+objective:
+  include_time_integral: true
+  include_terminal: false
+
+controller:
+  enabled: true
+  number_of_actuators: 1
+  actuator_list: ['controlRegion']
+
+time_splitting:
+  number_of_segments: 24
+  segment_length: 20
+  start_timestep: 0
+  periodic_solution: false
+  matching_condition_weight: 1.0e-5
+  state_controllability: 1.0
+  use_state_mollifier: true
+
+penalty_norm:
+  type: huber
+  augmented_lagrangian: false
+
+resource_distribution:
+  forward:      [1, 1]
+  adjoint:      [1, 1]
+  zaxpy:        [1, 1]
+  qfile-zaxpy:  [1, 1]
+  zxdoty:       [1, 1]
+  qfile-zxdoty: [1, 1]
+  paste:        [1, 1]
+  slice:        [1, 1]
+
+command_scriptor:
+  type: base
+  bash:
+    enable_parallel: true
+
+state_log:
+  enabled: false
+  number_of_regions: 4
+
+discontinuity_log:
+  enabled: false
+  number_of_time_points: 8

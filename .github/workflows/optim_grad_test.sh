@@ -1,7 +1,6 @@
 #/usr/bin/bash
 EXAMPLE="OneDWave"
 export commandFile="${EXAMPLE}.command.sh"
-export checkResultFile="check_result.py"
 
 cd build
 
@@ -48,38 +47,5 @@ if [ $? -ne 0 ]; then exit -1; fi
 bash ${commandFile}
 if [ $? -ne 0 ]; then exit -1; fi
 
-export REF_ERROR="5.2613616409101998E-08"
-cat <<EOF > ${checkResultFile}
-from inputs import InputParser
-from optimizer import Optimizer
-config = InputParser('./optim.yml')
-optim = Optimizer(config)
-
-J, subJ = optim.base.QoI('b')
-error = abs(J - ${REF_ERROR})
-if (error > 1.0e-10):
-    raise RuntimeError('Error: %.15E' % error)
-else:
-    print('Optimization test passed.')
-EOF
-
-for k in {1..15}
-do
-    echo "Optimization Iteration $k"
-
-    python3 optimization.py optim.yml --mode schedule
-    if [ $? -ne 0 ]; then
-        echo "Scheduling is not run successfully."
-        exit -1
-    fi
-    bash $commandFile
-    export RESULT=$?
-    if [ $RESULT -eq 1 ]; then
-      echo "Optimization finished."
-      python3 ${checkResultFile}
-      if [ $? -eq 0 ]; then exit 0; else exit -1; fi
-    else
-      echo $RESULT
-      python3 optimization.py optim.yml --mode log_result --result $RESULT
-    fi
-done
+echo "Check gradient accuracy: checkGradientAccuracy.py"
+python3 checkGradientAccuracy.py optim.yml
