@@ -41,11 +41,30 @@ if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Setting up the directories for multi-point optimization."
 
-python3 optimization.py optim.yml --mode setup
+python3 checkGradientAccuracy.py optim.yml --mode setup
 if [ $? -ne 0 ]; then exit -1; fi
 
 bash ${commandFile}
 if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Check gradient accuracy: checkGradientAccuracy.py"
-python3 checkGradientAccuracy.py optim.yml
+
+for k in {1..20}
+do
+    echo "Gradient Iteration $k"
+
+    python3 checkGradientAccuracy.py optim.yml --mode schedule
+    if [ $? -ne 0 ]; then
+        echo "Scheduling is not run successfully."
+        exit -1
+    fi
+    bash $commandFile
+    export RESULT=$?
+    if [ $RESULT -eq 1 ]; then
+      echo "Gradient check finished."
+      exit 0
+    else
+      echo $RESULT
+      python3 checkGradientAccuracy.py optim.yml --mode log_result --result $RESULT
+    fi
+done

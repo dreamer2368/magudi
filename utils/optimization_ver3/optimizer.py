@@ -12,7 +12,7 @@ import os.path as path
 import h5py
 import logging
 
-__all__ = ['Optimizer']
+__all__ = ['Optimizer', 'Result', 'Stage']
 
 magudiExes = ['forward', 'adjoint', 'control_space_norm', 'qfile_zaxpy',
               'spatial_inner_product', 'zxdoty', 'zwxmwy', 'zaxpy',
