@@ -1,12 +1,12 @@
 #!/bin/bash
-#MSUB -l nodes=160
-#MSUB -l partition=quartz
-#MSUB -l walltime=7:00:00
-#MSUB -m be
-#MSUB -N Kolmogorov
-#MSUB -V
-#MSUB -j oe -o result-%j.log
-#MSUB -q pbatch
+#SBATCH --nodes=160
+# The partititon option is not supported, please log onto the
+# Machine you want to use before submitting your job.
+#SBATCH --time=7:00:00
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --job-name=Kolmogorov
+#SBATCH --output=result-%j.log
+#SBATCH --partition=pbatch
 
 ppn=36
 numProcs=$(($SLURM_NNODES*$ppn))
@@ -33,5 +33,7 @@ do
   scontrol show job $SLURM_JOBID
 done
 
-msub OPT.flux -l depend=$SLURM_JOBID
+sbatch OPT.flux -l depend=$SLURM_JOBID
 scontrol show job $SLURM_JOBID
+##MSUB #-V # This is default behavior in SLURM.
+##MSUB #-j # Removing -e line (if it exists) , slurm will combine.
