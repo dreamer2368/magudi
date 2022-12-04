@@ -294,10 +294,11 @@ class Optimizer:
         return commandString
 
     def setupDirectories(self):
+        baselineDir = self.config.getInput(['magudi','baseline'], fallback='.')
         prerequisites = self.fl.globalNormFiles
         for k in range(self.const.Nsplit):
             idx = self.const.startTimestep + k * self.const.Nts
-            prerequisites += ["%s-%08d.q" % (self.fl.globalPrefix, idx)]
+            prerequisites += ["%s/%s-%08d.q" % (baselineDir, self.fl.globalPrefix, idx)]
         for file in prerequisites:
             assert(path.exists(file))
 
@@ -361,7 +362,7 @@ class Optimizer:
         commands = []
         for k in range(self.const.Nsplit):
             idx = self.const.startTimestep + k * self.const.Nts
-            oldFile = "%s-%08d.q" % (self.fl.globalPrefix, idx)
+            oldFile = "%s/%s-%08d.q" % (baselineDir, self.fl.globalPrefix, idx)
             newFile = "%s-%d.ic.q" % (self.fl.globalPrefix, k)
             commands += ['cp %s x0/%s' % (oldFile, newFile)]
         commandString += self.scriptor.nonMPILoopCommand(commands, 'copying_initial_conditions')

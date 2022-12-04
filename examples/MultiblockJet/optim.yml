@@ -1,0 +1,74 @@
+global_prefix: 'MultiblockJet'
+
+magudi:
+  binary_directory: /p/lustre1/chung28/magudi-release/bin
+  baseline: ./baseline
+  root_files:
+    grid_file: MultiblockJet.xyz
+    boundary_condition_file: bc.dat
+    control_mollifier_file: MultiblockJet.control_mollifier.f
+    target_mollifier_file: MultiblockJet.target_mollifier.f
+    target_state_file: MultiblockJet.target.q
+    mean_pressure_file: MultiblockJet.mean_pressure.f
+    decomposition_map_file: decomp.map
+    jet_excitation_prefix: MultiblockJet
+  adjoint_save_timesteps: 200
+
+optimization:
+  log_file: MultiblockJet.optim.h5
+  journal_file: MultiblockJet.journal.txt
+  initial:
+    zero_control: True
+    zero_lagrangian: True
+  tolerance: 1.0e-8
+  line_minimization:
+    initial_step_size: 1.0
+    safe_zone: 1.0e+4
+    tolerance: 1.0e-1
+    number_of_searches: 50
+
+objective:
+  include_time_integral: true
+  include_terminal: false
+
+controller:
+  enabled: true
+  number_of_actuators: 4
+  actuator_list: ['controlRegion.N','controlRegion.W','controlRegion.S','controlRegion.E']
+
+time_splitting:
+  number_of_segments: 50
+  segment_length: 1000
+  start_timestep: 1077000
+  periodic_solution: false
+  matching_condition_weight: 1.6e-6
+  state_controllability: 1.0
+  use_state_mollifier: false
+
+penalty_norm:
+  type: huber
+  augmented_lagrangian: false
+
+resource_distribution:
+  forward:      [60, 2112]
+  adjoint:      [60, 2112]
+  zaxpy:        [10, 360]
+  qfile-zaxpy:  [1, 36]
+  zxdoty:       [10, 360]
+  qfile-zxdoty: [1, 36]
+  paste:        [1, 36]
+  slice:        [1, 36]
+
+command_scriptor:
+  type: flux
+  bash:
+    enable_parallel: false
+    verbose: false
+
+state_log:
+  enabled: false
+  number_of_regions: 4
+
+discontinuity_log:
+  enabled: false
+  number_of_time_points: 8
