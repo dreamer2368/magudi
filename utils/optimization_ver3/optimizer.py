@@ -52,6 +52,7 @@ class Optimizer:
 
     stage = None                # Scheduled action at the current (hyperStep, cgStep, lineStep)
     result = Result.UNEXECUTED  # Result of scheduled action at the current (hyperStep, cgStep, lineStep)
+    stop = False                # Flag for intervention
 
     zeroControlForcing = True   # control at the current CG step (directory x0)
     zeroLagrangian = True       # augmented_lagrangian at the current stage (root directory)
@@ -82,6 +83,8 @@ class Optimizer:
         assert(self.logFile[-3:] == ".h5")
         self.isInitial = (not path.exists(self.logFile))
 
+        self.stop = config.getInput(['optimization', 'stop'], fallback=False)
+
         if (self.isInitial):
             self.hyperStep = 0
             self.cgStep = 0
@@ -107,6 +110,10 @@ class Optimizer:
         return
 
     def schedule(self):
+        if (self.stop):
+            self.printState()
+            self.printAndLog('Optimization is stopped for intervention.')
+            raise RuntimeError('Exiting the optimization loop.')
         if ((self.stage is Stage.CG_FW) and (self.result is Result.UNEXECUTED)):
             self.initialForward()
             self.saveState()

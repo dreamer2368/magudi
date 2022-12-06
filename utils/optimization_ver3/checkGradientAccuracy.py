@@ -71,6 +71,10 @@ class GradientTester(Optimizer):
         return
 
     def schedule(self):
+        if (self.stop):
+            self.printState()
+            self.printAndLog('Gradient test is stopped for intervention.')
+            raise RuntimeError('Exiting the optimization loop.')
         if ((self.stage is Stage.CG_FW) and (self.result is Result.UNEXECUTED)):
             command = self.base.forwardRunCommand('x0',True)
             self.writeCommandFile(command, self.fl.globalCommandFile)
