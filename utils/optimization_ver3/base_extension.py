@@ -27,11 +27,11 @@ class BaseCommanderExtended(BaseCommander):
             else:
                 yFile = '%s/%s/%s' % (bdir, self.fl.directories[k-1], self.fl.matchingForwardFiles[k-1] )
                 commands = ['./patchup_qfile %s %s %s %s' % (zFile, self.fl.icMollifierFile, xFile, yFile)]
-                commandString += self.scriptor.singleJobCommand(commands,'qfile-zaxpy','patch_up_initial_condition')
+                commandString += self.scriptor.singleJobCommand(commands,'qfile-zaxpy','patch_up_initial_condition%d' % k)
 
             commandDirs = ['%s/%s' % (bdir, self.fl.directories[k])]
             commands = ['./forward --input %s' % self.fl.inputFiles[k]]
-            commandString += self.scriptor.singleJobCommand(commands,'forward','forward',directories=commandDirs)
+            commandString += self.scriptor.singleJobCommand(commands,'forward','forward%d' % k, directories=commandDirs)
 
             commandDir = '%s/%s' % (bdir, self.fl.directories[k])
             crashCheck = 'if [ -f "%s/%s-crashed.q" ]; then\n' % (commandDir, self.fl.prefixes[k])
@@ -113,13 +113,13 @@ class BaseCommanderExtended(BaseCommander):
             matchingAdjointFile = '%s/%s/%s' % (bdir, self.fl.directories[k-1], self.fl.matchingAdjointFiles[k-1])
             commands = ['./qfile_zaxpy %s %.16E %s --zero --input %s'                                      \
             % (matchingAdjointFile, weight, self.fl.diffFiles[k], self.fl.globalInputFile)]
-            commandString += self.scriptor.singleJobCommand(commands,'qfile-zaxpy','adjoint_run_qfile_zaxpy')
+            commandString += self.scriptor.singleJobCommand(commands,'qfile-zaxpy','adjoint_run_qfile_zaxpy%d' % k)
 
             if (self.const.useLagrangian):
                 matchingAdjointFile = '%s/%s/%s' % (bdir, self.fl.directories[k-1], self.fl.matchingAdjointFiles[k-1])
                 commands = ['./qfile_zaxpy %s %.16E %s %s --input %s'                                      \
                 % (matchingAdjointFile, 1.0, self.fl.lagrangianFiles[k], self.fl.matchingAdjointFile, self.fl.globalInputFile)]
-                commandString += self.scriptor.singleJobCommand(commands,'qfile-zaxpy','adjoint_run_qfile_lagrangian')
+                commandString += self.scriptor.singleJobCommand(commands,'qfile-zaxpy','adjoint_run_qfile_lagrangian%d' % k)
 
             matchingAdjointFile = '%s/%s/%s' % (bdir, self.fl.directories[k-1], self.fl.matchingAdjointFiles[k-1])
             if(k==0):
@@ -128,7 +128,7 @@ class BaseCommanderExtended(BaseCommander):
                 patchingAdjointFile = '%s/%s/%s' % (bdir, self.fl.directories[k], self.fl.icAdjointFiles[k])
             commands = ['./patchup_qfile %s %s %s %s --input %s'                                      \
             % (matchingAdjointFile, self.fl.icMollifierFile, matchingAdjointFile, patchingAdjointFile, self.fl.globalInputFile)]
-            commandString += self.scriptor.singleJobCommand(commands,'qfile-zaxpy','adjoint_run_patch_up_qfile')
+            commandString += self.scriptor.singleJobCommand(commands,'qfile-zaxpy','adjoint_run_patch_up_qfile%d' % k)
 
             if ((k==0) and self.const.terminalObjective):
                 commandDirs = ['%s/%s' % (bdir, self.fl.directories[-1])]
@@ -139,7 +139,7 @@ class BaseCommanderExtended(BaseCommander):
             commandDirs = ['%s/%s' % (bdir, self.fl.directories[k-1])]
             commands = ['./adjoint --input %s' % self.fl.inputFiles[k-1]]
             commandString += self.scriptor.singleJobCommand(commands,'adjoint',
-                                                            'adjoint',directories=commandDirs)
+                                                            'adjoint%d' % k,directories=commandDirs)
 
         # TODO: Either check the last adjoint run, or complete the periodic optimization!!
         if (self.const.ignoreIntegralObjective):

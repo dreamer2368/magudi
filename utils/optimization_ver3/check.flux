@@ -3,7 +3,8 @@
 # The partititon option is not supported, please log onto the
 # Machine you want to use before submitting your job.
 #SBATCH --time=12:00:00
-#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=dreamer2368@gmail.com
 #SBATCH --job-name=MultiblockJet-check
 #SBATCH --output=result-%j.log
 #SBATCH --partition=pbatch
