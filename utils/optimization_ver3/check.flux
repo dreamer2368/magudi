@@ -38,6 +38,7 @@ do
     else
       echo $RESULT
       python3 checkGradientAccuracy.py optim.yml --mode log_result --result $RESULT
+      if [ $? -ne 0]; then exit -1; fi
     fi
 done
 
