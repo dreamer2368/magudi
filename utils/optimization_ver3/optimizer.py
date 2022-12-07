@@ -340,10 +340,19 @@ class Optimizer:
         for bdir in ['a', 'b', 'c', 'x', 'x0']:
             targetInputFiles += ['%s/%s/%s'%(bdir,dir,file) for dir, file in zip(self.fl.directories, self.fl.inputFiles)]
 
-        rootFiles = self.config.getInput(['magudi', 'root_files'], datatype=dict)
+        rootFiles = self.config.getInput(['magudi', 'root_files'], fallback={})
         for key, val in rootFiles.items():
             assert(type(val) is str)
             vals = ['\'"../../%s"\'' % val] * len(targetInputFiles)
+            commandString += self.setMagudiInputFiles(targetInputFiles, key, vals)
+
+        sliceOptions = self.config.getInput(['magudi', 'slice_specific_options'], fallback={})
+        for key, val in sliceOptions.items():
+            if (type(val) is bool):
+                valStr = "true" if val else "false"
+            else:
+                valStr = val
+            vals = [valStr] * len(targetInputFiles)
             commandString += self.setMagudiInputFiles(targetInputFiles, key, vals)
 
         vals = ['\'"%s-%d"\'' % (self.fl.globalPrefix, k) for k in range(self.const.Nsplit)] * 5

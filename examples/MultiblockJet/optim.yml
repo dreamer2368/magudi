@@ -12,14 +12,17 @@ magudi:
     mean_pressure_file: MultiblockJet.mean_pressure.f
     decomposition_map_file: decomp.map
     jet_excitation_prefix: MultiblockJet
+  slice_specific_options:
+    use_manual_domain_decomposition: true
   adjoint_save_timesteps: 200
 
 optimization:
+  stop: false
   log_file: MultiblockJet.optim.h5
   journal_file: MultiblockJet.journal.txt
   initial:
-    zero_control: True
-    zero_lagrangian: True
+    zero_control: true
+    zero_lagrangian: true
   tolerance: 1.0e-8
   line_minimization:
     initial_step_size: 1.0
@@ -37,13 +40,13 @@ controller:
   actuator_list: ['controlRegion.N','controlRegion.W','controlRegion.S','controlRegion.E']
 
 time_splitting:
-  number_of_segments: 50
+  number_of_segments: 20
   segment_length: 1000
   start_timestep: 1077000
   periodic_solution: false
-  matching_condition_weight: 1.6e-6
+  matching_condition_weight: 1.0e-6
   state_controllability: 1.0
-  use_state_mollifier: false
+  use_state_mollifier: true
 
 penalty_norm:
   type: huber
