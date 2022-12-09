@@ -26,7 +26,8 @@ module SimulationFlags_mod
                 computeTimeAverage    = .false., &
                 enableBodyForce       = .false., &
                 checkConservation     = .false., &
-                IsInitialized         = .false.
+                IsInitialized         = .false., &
+                enableIBM             = .false.
 
    contains
 

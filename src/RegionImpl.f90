@@ -1745,6 +1745,13 @@ subroutine computeRhs(this, mode, timeStep, stage)
      end do
   end do
 
+  ! Update immersed boundary variables.
+  if (this%simulationFlags%enableIBM) then
+    do i = 1, size(this%states)
+       call this%states(i)%updateIBMVariables(mode, this%grids(i), this%simulationFlags)
+    end do
+  end if
+
   ! Add patch penalties.
   if (allocated(this%patchFactories)) then
      do i = 1, size(this%patchFactories)
@@ -1758,7 +1765,7 @@ subroutine computeRhs(this, mode, timeStep, stage)
      end do
   end if
 
-  ! Source terms.
+  ! Acoustic source terms.
   do i = 1, size(this%states)
      call this%states(i)%addSources(mode, this%grids(i))
   end do

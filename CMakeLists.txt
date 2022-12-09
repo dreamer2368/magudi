@@ -211,6 +211,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ProbePatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/KolmogorovForcingPatch.f90
   ${PROJECT_SOURCE_DIR}/src/KolmogorovForcingPatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ImmersedBoundaryPatch.f90
+  ${PROJECT_SOURCE_DIR}/src/ImmersedBoundaryImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c
