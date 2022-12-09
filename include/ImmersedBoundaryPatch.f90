@@ -7,9 +7,10 @@ module ImmersedBoundaryPatch_mod
   implicit none
 
   type, extends(t_Patch), public :: t_ImmersedBoundaryPatch
-    real(SCALAR_KIND), dimension(:,:), allocatable :: levelset, levelsetNormal, levelsetCurvature,      &
-                                                      indicatorFunction, primitiveGridNorm
-    real(SCALAR_KIND) :: globalVolumeFraction
+    ! real(SCALAR_KIND), dimension(:,:), allocatable :: levelset, levelsetNormal, levelsetCurvature,      &
+    !                                                   indicatorFunction, primitiveGridNorm
+    real(SCALAR_KIND) :: ratioOfSpecificHeats, ibmTemperature
+    real(SCALAR_KIND) :: dti, maxSpeed, dissipationAmount, ibmEpsilon
   contains
      procedure, pass :: setup => setupImmersedBoundaryPatch
      procedure, pass :: cleanup => cleanupImmersedBoundaryPatch

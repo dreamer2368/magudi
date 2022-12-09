@@ -1,5 +1,39 @@
 #include "config.h"
 
+module ImmersedBoundaryImpl
+
+  implicit none
+  public
+
+contains
+
+  ! Regularized a Heaviside function
+  ! phi: signed-distance (levelset)
+  ! eps: regularization parameters (length)
+  ! ---------------------------------------
+  function regularizeHeaviside(phi, eps) result(H)
+
+    implicit none
+
+    ! Arguments
+    integer, parameter :: wp = SCALAR_KIND
+    real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
+    real(wp), intent(in) :: phi, eps
+    real(wp)             :: H
+
+    if (phi .le. -eps) then
+       H = 0.0_wp
+    else if (abs(phi) .lt. eps) then
+       H = 0.5_wp * (1.0_wp + phi / eps + 1.0_wp / pi * sin(phi * pi / eps))
+    else
+       H = 1.0_wp
+    end if
+
+    return
+  end function regularizeHeaviside
+
+end module ImmersedBoundaryImpl
+
 subroutine setupImmersedBoundaryPatch(this, index, comm, patchDescriptor,                            &
                                       grid, simulationFlags, solverOptions)
   ! <<< External modules >>>
@@ -38,6 +72,25 @@ subroutine setupImmersedBoundaryPatch(this, index, comm, patchDescriptor,       
     write(message, '(A)') "ImmersedBoundaryPatch does not support adjoint mode!"
     call gracefulExit(this%comm, message)
   end if
+
+  ! Set the max speed based on the reference sound speed
+  this%maxSpeed = 1.0_wp
+
+  ! Store inverse timestep size
+  this%dti = 1.0_wp / solverOptions%timeStepSize
+
+  ! Set the diffusion amount based on the stability limit
+  call getRequiredOption("immersed_boundary/dissipation_amount", this%dissipationAmount, this%comm)
+  ! dissipationAmount = 0.05_WP * minGridSpacing**2 * dti / real(nDimensions, WP)
+
+  this%ibmEpsilon = getOption("immersed_boundary/regularization_parameter", 0.0_wp)
+
+  ! Import specific heat ratio
+  this%ratioOfSpecificHeats = solverOptions%ratioOfSpecificHeats
+
+  ! Set wall temperature
+  this%ibmTemperature = getOption("immersed_boundary/wall_temperature",         &
+                                  1.0_wp / (solverOptions%ratioOfSpecificHeats - 1.0_wp))
 
   ! ! Store the unmodified grid norm
   ! allocate(this%primitiveGridNorm(this%nPatchPoints, 1))
@@ -95,9 +148,118 @@ function verifyImmersedBoundaryPatchUsage(this, patchDescriptor, gridSize, norma
 
 end function verifyImmersedBoundaryPatchUsage
 
-subroutine addImmersedBoundaryPenalty(this)
+subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions, grid, state)
+  ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
+  use SolverOptions_mod, only : t_SolverOptions
+  use SimulationFlags_mod, only : t_SimulationFlags
   use ImmersedBoundaryPatch_mod, only : t_ImmersedBoundaryPatch
+
+  ! <<< Enumerations >>>
+  use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
+
+  ! <<< Internal module >>>
+  use ImmersedBoundaryImpl, only : regularizeHeaviside
+
+  implicit none
+
+  ! <<< Arguments >>>
   class(t_ImmersedBoundaryPatch) :: this
+  integer, intent(in) :: mode
+  type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
+  class(t_Grid), intent(in) :: grid
+  class(t_State) :: state
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: nUnknowns, nDimensions
+  integer :: i, j, k, n, gridIndex, patchIndex
+  real(wp) :: localDensity, localVelocity(grid%nDimensions), localVelocitySquared,   &
+              localnDotGradRho, localuDotGradRho, localIbmDissipation(size(state%conservedVariables, 2))
+  real(wp) :: objectVelocity(grid%nDimensions), source_(size(state%conservedVariables, 2)), velocityPenalty(grid%nDimensions)
+  real(wp) :: buf, weight
+
+  !TODO: implement adjoint.
+  assert_key(mode, (FORWARD))
+  assert(this%gridIndex == grid%index)
+  assert(all(grid%offset == this%gridOffset))
+  assert(all(grid%localSize == this%gridLocalSize))
+
+  nUnknowns = size(state%conservedVariables, 2)
+  nDimensions = grid%nDimensions
+
+  ! Collect IBM variables.
+  !TODO: collect object velocity.
+  objectVelocity = 0.0_wp
+
+  ! Update the source terms and IBM forcing
+  do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+    do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+      do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+        gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                      &
+             (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                        &
+             (k - 1 - this%gridOffset(3)))
+        if (grid%iblank(gridIndex) == 0) cycle
+        patchIndex = i - this%offset(1) + this%localSize(1) *                             &
+             (j - 1 - this%offset(2) + this%localSize(2) *                                &
+             (k - 1 - this%offset(3)))
+
+        localDensity = state%conservedVariables(gridIndex, 1)
+        localVelocity = state%velocity(gridIndex, :)
+        localVelocitySquared = sum(localVelocity ** 2)
+        localnDotGradRho = state%nDotGradRho(gridIndex, 1)
+        localuDotGradRho = state%uDotGradRho(gridIndex, 1)
+        localIbmDissipation = state%ibmDissipation(gridIndex, :)
+     ! ! Get velocity of associated object
+     ! if (ibm_move) then
+     !    n = objectIndex(i)
+     !    objectVelocity = object(n)%velocity(1:nDimensions)
+     !    ibmVelocity(i,:) = objectVelocity
+     ! else
+     !    objectVelocity = 0.0_WP
+     ! end if
+
+        ! Compute the velocity penalty
+        velocityPenalty = objectVelocity - localVelocity
+
+        ! Zero-out the local source terms
+        source_ = 0.0_WP
+
+        ! Density treatment
+        source_(1) = this%maxSpeed * localnDotGradRho - localuDotGradRho            &
+                    + this%dissipationAmount * localIbmDissipation(1)
+
+        ! Momentum treatment
+        do n = 1, nDimensions
+          source_(n+1) = localDensity * velocityPenalty(n) * this%dti +                                     &
+               localVelocity(n) * (this%maxSpeed * localnDotGradRho - localuDotGradRho) +                       &
+               this%dissipationAmount * localIbmDissipation(n+1)
+        end do
+
+        ! Energy treatment
+        source_(nDimensions+2) = 0.5_wp * localVelocitySquared * (this%maxSpeed * localnDotGradRho -           &
+            localuDotGradRho) + this%dissipationAmount * localIbmDissipation(nDimensions+2) +   &
+            sum(state%conservedVariables(gridIndex, 2:nDimensions+1) * velocityPenalty(1:nDimensions)) * this%dti
+
+        ! Isothermal
+        source_(nDimensions+2) = source_(nDimensions+2) +                                    &
+             localDensity * (this%ibmTemperature - state%temperature(gridIndex,1)) / this%ratioOfSpecificHeats * this%dti
+
+        ! Add the IBM contribution
+        buf = 0.0_wp
+        ! buf = ibmEpsilon * sqrt(sum((levelsetNormal(i,:) * gridSpacing(i, :))**2))
+        weight = 1.0_wp - regularizeHeaviside(state%levelset(gridIndex, 1), buf)
+        if (state%levelset(gridIndex, 1) .le. 0.0_wp) then
+          state%rightHandSide(gridIndex,:) = source_ * weight
+        else
+          state%rightHandSide(gridIndex,:) = state%rightHandSide(gridIndex,:)   &
+                                              + source_ * weight
+        end if
+      end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+    end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+  end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
 end subroutine addImmersedBoundaryPenalty
 
 subroutine addImmersedBoundaryLevelset(this)
@@ -194,6 +356,10 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
     end if
     this%ibmDissipation = this%ibmDissipation + dissipationTerm
   end do
+
+  SAFE_DEALLOCATE(densityGradient)
+  SAFE_DEALLOCATE(dissipationTerm)
+  SAFE_DEALLOCATE(objectVelocity)
 
   call endTiming("updateIBMVariables")
 
