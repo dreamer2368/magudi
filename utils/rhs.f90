@@ -105,9 +105,9 @@ program rhs
      ! Save RHS
      i = len_trim(filename)
      if (filename(i-1:i) == ".q") then
-        filename = filename(:i-2) // ".rhs.q"
+        filename = filename(:i-2)
      else
-        filename = PROJECT_NAME // ".rhs.q"
+        filename = PROJECT_NAME
      end if
      call saveRhs(region, filename)
 
@@ -124,7 +124,7 @@ program rhs
         write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".q"
         call region%loadData(QOI_FORWARD_STATE, filename)
 
-        write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".rhs.q"
+        write(filename, '(2A,I8.8)') trim(outputPrefix), "-", i
         call saveRhs(region, filename)
 
      end do
@@ -144,10 +144,14 @@ subroutine saveRhs(region, filename)
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
+  use Patch_mod, only : t_Patch
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_DUMMY_FUNCTION
   use Region_enum, only : FORWARD
+
+  ! <<< External modules >>>
+  use InputHelper, only : getOption
 
   implicit none
 
@@ -156,12 +160,15 @@ subroutine saveRhs(region, filename)
   character(len = *), intent(in) :: filename
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer, save :: nDimensions = 0
+  integer :: i, j
+  character(len = STRING_LENGTH) :: patchFile
   type :: t_RhsInternal
      SCALAR_TYPE, pointer :: buffer(:,:) => null()
   end type t_RhsInternal
   type(t_RhsInternal), allocatable, save :: data_(:)
-  integer, save :: nDimensions = 0
-  integer :: i
+  class(t_Patch), pointer :: patch => null()
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -190,13 +197,39 @@ subroutine saveRhs(region, filename)
      end do
   end if
 
-  call region%computeRhs(FORWARD)
+  call region%computeRhs(FORWARD, region%timestep, 1)
 
   do i = 1, size(region%states)
      data_(i)%buffer = region%states(i)%rightHandSide
      region%states(i)%dummyFunction => data_(i)%buffer
   end do
 
-  call region%saveData(QOI_DUMMY_FUNCTION, filename)
+  call region%saveData(QOI_DUMMY_FUNCTION, trim(filename) // ".rhs.f")
+
+  if (getOption("rhs/save_patch_rhs", .false.) .and. (allocated(region%patchFactories))) then
+    ! Add patch penalties.
+    do i = 1, size(region%patchFactories)
+      ! Zero out the right-hand side.
+      do j = 1, size(region%states)
+        region%states(j)%rightHandSide = 0.0_wp
+      end do
+
+      call region%patchFactories(i)%connect(patch)
+      if (.not. associated(patch)) cycle
+      do j = 1, size(region%states)
+         if (patch%gridIndex /= region%grids(j)%index) cycle
+         call patch%updateRhs(FORWARD, region%simulationFlags, region%solverOptions,              &
+                              region%grids(j), region%states(j))
+      end do
+
+      do j = 1, size(region%states)
+         data_(j)%buffer = region%states(j)%rightHandSide
+         region%states(j)%dummyFunction => data_(j)%buffer
+      end do
+
+      write(patchFile, '(3A)') trim(filename) // ".", trim(patch%name), ".f"
+      call region%saveData(QOI_DUMMY_FUNCTION, patchFile)
+    end do
+  end if
 
 end subroutine saveRhs
