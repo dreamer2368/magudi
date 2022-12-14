@@ -92,6 +92,7 @@ subroutine assignSimulationFlags(this, simulationFlags)
   this%enableController      = simulationFlags%enableController
   this%enableFunctional      = simulationFlags%enableFunctional
   this%enableAdjoint         = simulationFlags%enableAdjoint
+  this%adjointForcingSwitch  = simulationFlags%adjointForcingSwitch
   this%repeatFirstDerivative = simulationFlags%repeatFirstDerivative
   this%useTargetState        = simulationFlags%useTargetState
   this%dissipationOn         = simulationFlags%dissipationOn
@@ -104,6 +105,9 @@ subroutine assignSimulationFlags(this, simulationFlags)
   this%isBaselineAvailable   = simulationFlags%isBaselineAvailable
   this%useContinuousAdjoint  = simulationFlags%useContinuousAdjoint
   this%compositeDissipation  = simulationFlags%compositeDissipation
+  this%enableBodyForce       = simulationFlags%enableBodyForce
+  this%checkConservation     = simulationFlags%checkConservation
+  this%enableIBM             = simulationFlags%enableIBM
 
   this%computeTimeAverage    = simulationFlags%computeTimeAverage
 
