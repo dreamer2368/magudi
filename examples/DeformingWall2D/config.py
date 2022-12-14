@@ -6,7 +6,7 @@ import plot3dnasa as p3d
 def mapping_function(x, sigma):
     return np.sinh(sigma * x) / np.sinh(sigma)
 
-def grid(size, mapping_type='sinh'):
+def grid(size, dip_range, mapping_type='sinh'):
     from scipy.optimize import fsolve
     x_min =  -10.
     x_max =  100.
@@ -16,26 +16,38 @@ def grid(size, mapping_type='sinh'):
     z_max =   40.
     dy_min = 0.016
     num_uniform = 7
-    g = p3d.Grid().set_size(size, True)
-    x = np.linspace(x_min, x_max, g.size[0,0] + 1)[:-1]
+
+    x = np.linspace(x_min, x_max, size[0] + 1)[:-1]
     if mapping_type == 'sinh':
         sigma = fsolve(lambda x: (
                 (y_max - y_min - num_uniform * dy_min) * mapping_function(
-                    1. / (g.size[0,1] - 1.), x) - dy_min) ** 2, 2.)
+                    1. / (size[1] - 1.), x) - dy_min) ** 2, 2.)
         y = np.append(np.linspace(y_min, y_min + dy_min * num_uniform,
                                   num_uniform + 1), y_min + dy_min *
                       num_uniform + (y_max - y_min - num_uniform * dy_min) *
-                      mapping_function(np.linspace(0., 1., g.size[0,1] -
+                      mapping_function(np.linspace(0., 1., size[1] -
                                                    num_uniform), sigma)[1:])
     else:
         sigma = fsolve(lambda x: (y_max - y_min) / dy_min - num_uniform + 1 -
-                       (x ** (g.size[0,1] - num_uniform) - 1.) /
+                       (x ** (size[1] - num_uniform) - 1.) /
                        (x - 1.), 1.02)
         print 100. * (sigma - 1.)
         y = np.append([0.], np.cumsum(
                 [dy_min if r < num_uniform - 1
                  else dy_min * sigma ** (r - num_uniform + 1)
-                 for r in range(g.size[0,1] - 1)]))
+                 for r in range(size[1] - 1)]))
+
+    # leftIdx, rightIdx = p3d.find_extents(x, dip_range[0], dip_range[1])
+    dummy, depthIdx = p3d.find_extents(y, 0.0, dip_range[2])
+    # assert(leftIdx >= 1)
+    # assert(rightIdx <= size[0])
+    assert(depthIdx <= size[1])
+    size[1] += depthIdx - 1
+    y = np.append(-y[(depthIdx-1):0:-1], y)
+
+    # sizes = [size, [rightIdx - leftIdx + 1, depthIdx]]
+    # print(sizes)
+    g = p3d.Grid().set_size(size, True)
     # z = np.linspace(z_min, z_max, g.size[0,2] + 1)[:-1]
     for i in range(x.size):
         g.xyz[0][i,:,:,0] = x[i]
@@ -43,6 +55,28 @@ def grid(size, mapping_type='sinh'):
         g.xyz[0][:,j,:,1] = y[j]
     # for k in range(z.size):
     #     g.xyz[0][:,:,k,2] = z[k]
+
+    # for i in range(rightIdx - leftIdx + 1):
+    #     g.xyz[1][i,:,:,0] = x[i + leftIdx - 1]
+    # for j in range(depthIdx):
+    #     g.xyz[1][:,-1-j,:,1] = -y[j]
+
+    patchRange = int(1.5 * depthIdx)
+    formatStr = '  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}'
+    print(formatStr.format('immersed1', 'IMMERSED_BOUNDARY',
+                           1, 0, 1, -1, 1, patchRange, 1, -1))
+    # print(formatStr.format('interface.S1', 'SAT_BLOCK_INTERFACE',
+    #                        1, 2, leftIdx, rightIdx, 1, 1, 1, -1))
+    # print(formatStr.format('interface.N2', 'SAT_BLOCK_INTERFACE',
+    #                        2, -2, 1, -1, -1, -1, 1, -1))
+    # print(formatStr.format('immersed1', 'IMMERSED_BOUNDARY',
+    #                        1, 0, leftIdx, rightIdx, 1, depthIdx, 1, -1))
+    # print(formatStr.format('immersed2', 'IMMERSED_BOUNDARY',
+    #                        2, 0, 1, -1, 1, -1, 1, -1))
+    # print(formatStr.format('flatPlate.S1', 'SAT_ISOTHERMAL_WALL',
+    #                        1, 2, 1, leftIdx - 1, 1, 1, 1, -1))
+    # print(formatStr.format('flatPlate.N1', 'SAT_ISOTHERMAL_WALL',
+    #                        1, 2, rightIdx + 1, -1, 1, 1, 1, -1))
     return g
 
 def solve_blasius(eta_max, Ng = 1001):
@@ -110,6 +144,10 @@ def initial_condition(g, mach_number=1.0 / 343.0, gamma=1.4, Re = 1.16e6):
     v0 = vtFunc(eta) / Re / delta
     p = 1.0 / gamma
 
+    mask = (eta < 0.0)
+    u0[mask] = 0.0
+    v0[mask] = 0.0
+
     s = p3d.Solution().copy_from(g).quiescent(gamma)
     s.q[0][:,:,:,0] = 1.0
     s.q[0][:,:,:,1:4] = 0.0
@@ -119,7 +157,8 @@ def initial_condition(g, mach_number=1.0 / 343.0, gamma=1.4, Re = 1.16e6):
     return s.fromprimitive()
 
 if __name__ == '__main__':
-    g = grid([301, 201], mapping_type='geom')
+    dip_range = [0.0, 15.0, 5.0]
+    g = grid([301, 201], dip_range, mapping_type='geom')
     g.save('DeformingWall2D.xyz')
     s = initial_condition(g, Re = 23175.7)
     s.save('DeformingWall2D.ic.q')

@@ -145,6 +145,7 @@ function verifyImmersedBoundaryPatchUsage(this, patchDescriptor, gridSize, norma
   end do
 
   success = .true.
+  isPatchUsed = .true.
 
 end function verifyImmersedBoundaryPatchUsage
 
@@ -345,15 +346,16 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
     this%uDotGradRho(:, 1) = this%uDotGradRho(:, 1) + objectVelocity(n) * densityGradient(:, n)
 
     ! Dissipation term.
-    dissipationTerm = this%conservedVariables
-    call grid%dissipation(n)%apply(dissipationTerm, grid%localSize)
-    if (.not. simulationFlags%compositeDissipation) then
-       do j = 1, nUnknowns
-          dissipationTerm(:,j) = - grid%arcLengths(:,n) * dissipationTerm(:,j)
-       end do
-       call grid%dissipationTranspose(n)%apply(dissipationTerm, grid%localSize)
-       call grid%firstDerivative(n)%applyNormInverse(dissipationTerm, grid%localSize)
-    end if
+    dissipationTerm = 0.0_wp
+    ! dissipationTerm = this%conservedVariables
+    ! call grid%dissipation(n)%apply(dissipationTerm, grid%localSize)
+    ! if (.not. simulationFlags%compositeDissipation) then
+    !    do j = 1, nUnknowns
+    !       dissipationTerm(:,j) = - grid%arcLengths(:,n) * dissipationTerm(:,j)
+    !    end do
+    !    call grid%dissipationTranspose(n)%apply(dissipationTerm, grid%localSize)
+    !    call grid%firstDerivative(n)%applyNormInverse(dissipationTerm, grid%localSize)
+    ! end if
     this%ibmDissipation = this%ibmDissipation + dissipationTerm
   end do
 
