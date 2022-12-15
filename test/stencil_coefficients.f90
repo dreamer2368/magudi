@@ -16,7 +16,6 @@ program stencil_coefficients
   integer, parameter :: wp = SCALAR_KIND
   type(t_StencilOperator) :: A
   logical :: success
-  integer :: i
 
   interface
 

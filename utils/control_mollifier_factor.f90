@@ -25,7 +25,7 @@ program control_mollifier_factor
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., lookForOutput = .false.,                                             &
               inputFlag = .false., outputFlag = .false.
-  character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, restartFilename
+  character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
@@ -35,7 +35,7 @@ program control_mollifier_factor
   type(t_Solver) :: solver
 
   ! << output variables >>
-  integer :: inputNumber, simulationNumber, intValue = 0
+  integer :: intValue = 0
   SCALAR_TYPE :: dummyValue = 0.0_wp, maxValue = 0.0_wp
 
   ! Initialize MPI.

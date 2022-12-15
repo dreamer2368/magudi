@@ -18,18 +18,15 @@ program savegridnorm
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, stat, fileUnit, procRank, numProcs, ierror
+  integer :: i, procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., lookForOutput = .false., saveMetricsFlag = .false.,                  &
               inputFlag = .false., outputFlag = .false.
-  character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, restartFilename
+  character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
-
-  ! << output variables >>
-  integer :: inputNumber, simulationNumber
 
   ! Initialize MPI.
   call MPI_Init(ierror)

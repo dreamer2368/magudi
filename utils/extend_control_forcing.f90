@@ -13,7 +13,7 @@ program extend_control_forcing
   character(len = STRING_LENGTH) :: ZFilename, XFilename, message,                                    &
                                     durationStr, totalTimestepStr
   integer :: ierror
-  integer :: startTimestep, duration, totalTimestep
+  integer :: duration, totalTimestep
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -69,13 +69,12 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, procRank, numProcs, ierror, mpiFileHandle
     character(len = STRING_LENGTH) :: message
-    logical :: XFileExists, success
-    integer(kind = MPI_OFFSET_KIND) :: XFileSize, ZFileSize, offset, extensionOffset
+    logical :: XFileExists
+    integer(kind = MPI_OFFSET_KIND) :: XFileSize, offset, extensionOffset
 
     integer(kind = MPI_OFFSET_KIND) :: XArraySize, patchSize, extensionSize, bufferSize, sendcnt, indexQuotient
     integer(kind = MPI_OFFSET_KIND), dimension(:), allocatable :: recvcnt, displc
     SCALAR_TYPE, dimension(:), allocatable :: XBuffer, extensionBuffer
-    SCALAR_TYPE :: dummyValue
 
     ! Initialize MPI.
     call MPI_Comm_rank(comm, procRank, ierror)

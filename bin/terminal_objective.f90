@@ -29,14 +29,12 @@ program terminal_objective
   integer :: mode
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
-  logical :: adjointRestart, fileExists, success
-  integer :: accumulatedNTimesteps
+  logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_Solver) :: solver
 
   ! << output variables >>
-  integer :: inputNumber, simulationNumber
   SCALAR_TYPE :: dummyValue = 0.0_wp
 
   ! Initialize MPI.
@@ -221,10 +219,9 @@ contains
     character(len = STRING_LENGTH) :: filename, message
     class(t_Functional), pointer :: functional => null()
     class(t_Patch), pointer :: patch => null()
-    integer :: i, j, timestep, startTimestep
-    real(wp) :: time, startTime, timeStepSize
-    logical :: controllerSwitch = .false., solutionCrashes = .false.,           &
-                nonzeroAdjointInitialCondition = .false.
+    integer :: i, j, startTimestep
+    real(wp) :: startTime
+    logical :: nonzeroAdjointInitialCondition = .false.
 
     call startTiming("runTerminalObjective")
 

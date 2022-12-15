@@ -22,20 +22,16 @@ program patchup_qfile
   end type t_VectorInternal
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, stat, fileUnit, procRank, numProcs, ierror
+  integer :: i, j, procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., inputFlag = .false.
   character(len = STRING_LENGTH) :: argument, inputFilename, mollifierFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message,                                          &
-                                    Zfilename, Astr, Xfilename, Yfilename
+                                    Zfilename, Xfilename, Yfilename
   logical :: fileExists, zeroYfile = .false., success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_VectorInternal), allocatable :: X(:), Y(:), antiW(:)
-
-  ! << output variables >>
-  integer :: inputNumber, simulationNumber
-  SCALAR_TYPE :: A
 
   ! Initialize MPI.
   call MPI_Init(ierror)

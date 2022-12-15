@@ -13,7 +13,7 @@ program run_zXdotY
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: zFilename, WFilename, XFilename, YFilename, normFilename, message
+  character(len = STRING_LENGTH) :: zFilename, XFilename, YFilename, normFilename, message
   SCALAR_TYPE :: z
   integer :: stat, fileUnit, procRank, ierror
 

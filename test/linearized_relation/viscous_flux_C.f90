@@ -11,7 +11,7 @@ program viscous_flux_C
   implicit none
 
   logical :: success, success_, isPeriodic
-  integer :: i, j, k, nDimensions, ierror
+  integer :: i, j, nDimensions, ierror
   integer :: procRank
   character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
@@ -226,8 +226,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  logical :: isPeriodic_(3), hasNegativeJacobian
-  real(wp) :: scalar1, scalar2, tolerance_, scalarHistory(32),                                  &
+  real(wp) :: scalar1, scalar2, scalarHistory(32),                                              &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns
   real(SCALAR_KIND), allocatable :: F(:,:), temp2(:,:),                                         &

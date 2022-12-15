@@ -26,7 +26,6 @@ subroutine setupDensityGradient(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
@@ -111,7 +110,7 @@ subroutine computeDensityGradientSpatialDistribution(this, grid, state, F)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, ierror
+  integer :: k, nDimensions, nUnknowns
 
   assert(size(F, 1) == grid%nGridPoints)
   assert(size(F, 2) == 1)
@@ -156,10 +155,9 @@ function computeDensityGradient(this, region) result(instantaneousFunctional)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, ierror
+  integer :: i, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
 
-  character(len=STRING_LENGTH) :: message
   real(wp) :: timeRampFactor
 
   assert(allocated(region%grids))
@@ -226,9 +224,9 @@ subroutine computeDensityGradientAdjointForcing(this, simulationFlags, solverOpt
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, l, nDimensions, nUnknowns, gridIndex, patchIndex
+  integer :: i, j, k, nDimensions, nUnknowns, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: adjointVector(:)
-  real(wp) :: temp, timeRampFactor
+  real(wp) :: timeRampFactor
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))

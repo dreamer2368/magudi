@@ -73,6 +73,7 @@ maximum_temperature = 4.
 
 # Immersed boundary parameters
 enable_immersed_boundary = true
+immersed_boundary/levelset_type = "sinusoidal_wall"
 immersed_boundary/dissipation_amount = 1e-3
 immersed_boundary/regularization_parameter = 3.0
 immersed_boundary/period = 48.0

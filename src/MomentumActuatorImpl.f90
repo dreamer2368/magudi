@@ -19,7 +19,7 @@ subroutine setupMomentumActuator(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, nDimensions, nActuatorComponents
+  integer :: i, nDimensions
   class(t_Patch), pointer :: patch => null()
 
   call this%cleanup()

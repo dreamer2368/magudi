@@ -20,15 +20,14 @@ subroutine ZAXPY(comm,ZFilename,A,XFilename,YFilename)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, procRank, numProcs, ierror, mpiFileHandle
   character(len = STRING_LENGTH) :: message
-  logical :: XFileExists, YFileExists, success
-  integer(kind = MPI_OFFSET_KIND) :: XFileSize, YFileSize, ZFileSize, fileOffset
+  logical :: XFileExists, YFileExists
+  integer(kind = MPI_OFFSET_KIND) :: XFileSize, YFileSize, fileOffset
 
   integer(kind = MPI_OFFSET_KIND) :: globalSize, bufferSize, sendcnt, indexQuotient
   integer(kind = MPI_OFFSET_KIND) :: globalBufferSize, globalOffset
   integer(kind = MPI_OFFSET_KIND), parameter :: bufferSizeLimit = FILE_LENGTH
   integer(kind = MPI_OFFSET_KIND), dimension(:), allocatable :: recvcnt, displc
   SCALAR_TYPE, dimension(:), allocatable :: XBuffer, YBuffer, ZBuffer
-  SCALAR_TYPE :: dummyValue
 
   ! Initialize MPI.
   call MPI_Comm_rank(comm, procRank, ierror)
@@ -213,7 +212,7 @@ function zWXMWY(comm,WFilename,XFilename,YFilename, normFilename) result(z)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, procRank, numProcs, ierror, mpiFileHandle
   character(len = STRING_LENGTH) :: message
-  logical :: WFileExists, XFileExists, YFileExists, normFileExists, success
+  logical :: WFileExists, XFileExists, YFileExists, normFileExists
   integer(kind = MPI_OFFSET_KIND) :: WFileSize, XFileSize, YFileSize, normFileSize, fileOffset
 
   integer(kind = MPI_OFFSET_KIND) :: globalSize, bufferSize, sendcnt, indexQuotient
@@ -442,9 +441,9 @@ function zXdotY(comm,XFilename,YFilename,normFilename) result(z)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, procRank, numProcs, ierror, mpiFileHandle
+  integer :: i, procRank, numProcs, ierror, mpiFileHandle
   character(len = STRING_LENGTH) :: message
-  logical :: XFileExists, YFileExists, normFileExists, success
+  logical :: XFileExists, YFileExists, normFileExists
   integer(kind = MPI_OFFSET_KIND) :: XFileSize, YFileSize, normFileSize, fileOffset
 
   integer(kind = MPI_OFFSET_KIND) :: globalSize, bufferSize, sendcnt, indexQuotient

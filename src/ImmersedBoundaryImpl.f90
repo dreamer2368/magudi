@@ -291,7 +291,6 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
   integer :: i, j, n, nUnknowns
-  real(wp) :: buf
   real(wp), dimension(:, :), allocatable :: densityGradient, dissipationTerm
 
   call startTiming("updateIBMVariables")

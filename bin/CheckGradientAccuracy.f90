@@ -26,7 +26,6 @@ program gradient_accuracy
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_Solver) :: solver
-  SCALAR_TYPE :: dummyValue
 
   ! Initialize MPI.
   call MPI_Init(ierror)

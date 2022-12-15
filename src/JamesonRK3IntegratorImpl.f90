@@ -189,7 +189,5 @@ subroutine substepLinearizedJamesonRK3(this, region, time, timeStepSize, timeste
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer, save :: stageLastCall = 0
-  integer :: i
 
 end subroutine substepLinearizedJamesonRK3

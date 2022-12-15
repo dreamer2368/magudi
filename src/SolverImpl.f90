@@ -681,7 +681,7 @@ function runForward(this, region, restartFilename) result(costFunctional)
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
-  logical :: controllerSwitch = .false., solutionCrashes = .false.
+  logical :: controllerSwitch = .false.
 
   call startTiming("runForward")
 
@@ -1184,7 +1184,7 @@ function runLinearized(this, region) result(costFunctional)
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
-  logical :: controllerSwitch = .false., solutionCrashes = .false.
+  logical :: controllerSwitch = .false.
 
   call startTiming("runLinearized")
 
@@ -1380,14 +1380,14 @@ subroutine checkGradientAccuracy(this, region)
   class(t_Region) :: region
 
   ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
-  integer :: numberOfActuatorPatches
-  class(t_Patch), pointer :: patch => null()
-  character(len = STRING_LENGTH) :: filename, message
-  character(len = STRING_LENGTH) :: gradientFilename, controlForcingFilename
-  real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
-       initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
+  character(len = STRING_LENGTH) :: message
+  ! integer :: i, j, nIterations, restartIteration, fileUnit, iostat, procRank, ierror
+  ! integer :: numberOfActuatorPatches
+  ! class(t_Patch), pointer :: patch => null()
+  ! character(len = STRING_LENGTH) :: filename, message
+  ! character(len = STRING_LENGTH) :: gradientFilename, controlForcingFilename
+  ! real(wp) :: actuationAmount, baselineCostFunctional, costFunctional, costSensitivity,      &
+  !      initialActuationAmount, geometricGrowthFactor, gradientError, dummyValue
 
   write(message, '(A)') "Subroutine checkGradientAccuracy is obsolete. Use utils/python/checkGradientAccuracy.py."
   call gracefulExit(region%comm, message)

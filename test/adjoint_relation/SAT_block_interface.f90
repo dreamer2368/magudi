@@ -11,7 +11,7 @@ program SAT_block_interface
   implicit none
 
   logical :: success, success_, isPeriodic
-  integer :: i, j, k, nDimensions, direction, ierror
+  integer :: i, j, nDimensions, direction, ierror
   integer :: procRank
   character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
@@ -236,8 +236,6 @@ subroutine testAdjointRelation(identifier, nDimensions, success, direction, tole
   type(t_Region) :: region
   type(t_Grid) :: grid(2)
   type(t_State) :: state0(2), state1(2), deltaState(2)
-  type(t_PatchDescriptor) :: patchDescriptor
-  type(t_PatchFactory), allocatable :: patchFactories(:)
   class(t_Patch), pointer :: patch => null()
   ! type(t_FarFieldPatch) :: patch
 
@@ -246,14 +244,12 @@ subroutine testAdjointRelation(identifier, nDimensions, success, direction, tole
   real(wp) :: scalar1, scalar2, tolerance_, hx,                                        &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, gridSize(nDimensions, 2), gridIndex,                            &
-             nUnknowns, direction_, errorCode, extent(6), ierror
-  real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),            &
-                                    deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
-                                    targetViscousFluxes(:,:,:)
+             nUnknowns, ierror
+  real(SCALAR_KIND), allocatable :: F(:,:), fluxes2(:,:,:),                           &
+                                    deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:)
   SCALAR_TYPE :: inviscidPenaltyAmount, viscousPenaltyAmount
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
-  character(len = STRING_LENGTH) :: errorMessage
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message, resultFilename
+  character(len = STRING_LENGTH) :: filename
 
   tolerance_ = 1.0E-11
   if( present(tolerance) ) tolerance_ = tolerance

@@ -111,9 +111,6 @@ function computeThermalActuatorSensitivity(this, region) result(instantaneousSen
   SCALAR_TYPE, allocatable :: F(:,:)
   real(SCALAR_KIND) :: timeRampFactor
 
-  ! <<< SeungWhan: variable for time_ramp printing >>>
-  character(len = STRING_LENGTH) :: message
-
   assert(allocated(region%grids))
   assert(allocated(region%states))
   assert(size(region%grids) == size(region%states))
@@ -189,9 +186,6 @@ subroutine updateThermalActuatorForcing(this, region)
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: temp(:,:)
 
-  ! <<< SeungWhan: variable for time_ramp printing >>>
-  character(len = STRING_LENGTH) :: message
-
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
@@ -266,9 +260,6 @@ subroutine updateThermalActuatorDeltaForcing(this, region)
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: temp(:,:)
 
-  ! <<< SeungWhan: variable for time_ramp printing >>>
-  character(len = STRING_LENGTH) :: message
-
   if (.not. allocated(region%patchFactories)) return
 
   nDimensions = size(region%globalGridSizes, 1)
@@ -340,9 +331,6 @@ subroutine migrateToThermalActuatorForcing(this, region, startTimeStep, endTimeS
   real(SCALAR_KIND) :: timeRampFactor
   class(t_Patch), pointer :: patch => null()
   SCALAR_TYPE, allocatable :: temp(:,:)
-
-  ! <<< SeungWhan: variable for time_ramp printing >>>
-  character(len = STRING_LENGTH) :: message
 
   if (.not. allocated(region%patchFactories)) return
 

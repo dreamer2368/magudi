@@ -20,16 +20,12 @@ program control_space_norm
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, stat, fileUnit, dictIndex, procRank, numProcs, ierror, STATUS
-  character(len = STRING_LENGTH) :: filename, resultFilename, outputPrefix, message
+  integer :: i, dictIndex, procRank, numProcs, ierror
+  character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_Solver) :: solver
-
-  ! << output variables >>
-  integer :: inputNumber, simulationNumber
-  SCALAR_TYPE :: dummyValue = 0.0_wp
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -169,8 +165,6 @@ contains
     class(t_TimeIntegrator), pointer :: timeIntegrator => null()
     class(t_Controller), pointer :: controller => null()
     class(t_Functional), pointer :: functional => null()
-    type(t_ReverseMigratorFactory) :: reverseMigratorFactory
-    class(t_ReverseMigrator), pointer :: reverseMigrator => null()
     integer :: i, j, timestep, startTimestep, timemarchDirection
     real(SCALAR_KIND) :: time, startTime, timeStepSize
 
