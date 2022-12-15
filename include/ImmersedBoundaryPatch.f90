@@ -16,7 +16,6 @@ module ImmersedBoundaryPatch_mod
      procedure, pass :: cleanup => cleanupImmersedBoundaryPatch
      procedure, pass :: verifyUsage => verifyImmersedBoundaryPatchUsage
      procedure, pass :: updateRhs => addImmersedBoundaryPenalty
-     procedure, pass :: updateLevelset => addImmersedBoundaryLevelset
   end type t_ImmersedBoundaryPatch
 
   interface
@@ -75,13 +74,6 @@ module ImmersedBoundaryPatch_mod
       class(t_Grid), intent(in) :: grid
       class(t_State) :: state
     end subroutine addImmersedBoundaryPenalty
-  end interface
-
-  interface
-    subroutine addImmersedBoundaryLevelset(this)
-      import :: t_ImmersedBoundaryPatch
-      class(t_ImmersedBoundaryPatch) :: this
-    end subroutine addImmersedBoundaryLevelset
   end interface
 
 end module ImmersedBoundaryPatch_mod

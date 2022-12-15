@@ -216,8 +216,7 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
         localLevelsetNormal = state%levelsetNormal(gridIndex, :)
 
         ! Get velocity of associated object
-        !TODO: include tangential component of the object velocity.
-        objectVelocity = state%objectSpeed(gridIndex) * localLevelsetNormal
+        objectVelocity = state%objectVelocity(gridIndex, :)
      ! if (ibm_move) then
      !    n = objectIndex(i)
      !    objectVelocity = object(n)%velocity(1:nDimensions)
@@ -266,11 +265,6 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
   end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
 end subroutine addImmersedBoundaryPenalty
 
-subroutine addImmersedBoundaryLevelset(this)
-  use ImmersedBoundaryPatch_mod, only : t_ImmersedBoundaryPatch
-  class(t_ImmersedBoundaryPatch) :: this
-end subroutine addImmersedBoundaryLevelset
-
 ! t_State method
 subroutine updateIBMVariables(this, mode, grid, simulationFlags)
 
@@ -297,7 +291,7 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
   integer :: i, j, n, nUnknowns
-  real(wp) :: buf, timeDerivativeFactor, objectVelocity(grid%nDimensions)
+  real(wp) :: buf
   real(wp), dimension(:, :), allocatable :: densityGradient, dissipationTerm
 
   call startTiming("updateIBMVariables")
@@ -314,24 +308,8 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
   allocate(densityGradient(grid%nGridPoints, grid%nDimensions))
   allocate(dissipationTerm(grid%nGridPoints, nUnknowns))
 
-  ! compute levelset.
-  call this%updateLevelset(mode, grid)
-  timeDerivativeFactor = 2.0_wp * pi / this%levelsetPeriod * cos(2.0_wp * pi * this%time / this%levelsetPeriod)
-
-  ! compute levelset normal.
-  call grid%computeGradient(this%levelset(:, 1), this%levelsetNormal)
-
-  do i = 1, grid%nGridPoints
-     ! levelset normal magnitude
-     buf = sqrt(sum(this%levelsetNormal(i,:) ** 2))
-
-     !TODO: include tangential component of the object velocity.
-     ! d/dt levelset = - wallShape * d/dt timeFactor
-     this%objectSpeed(i) = timeDerivativeFactor * this%wallShape(i) / buf
-
-     ! Make the levelset normal a unit norm
-     if (buf .gt. 0.0_wp) this%levelsetNormal(i,:) = this%levelsetNormal(i,:) / buf
-
+  !NOTE: remnant from jcode.
+  ! do i = 1, grid%nGridPoints
      ! ! Compute indicator function
      ! if (levelset(i, 1) .le. 0.0_wp) then
      !    indicatorFunction(i, 1) = 0.0_wp
@@ -341,7 +319,7 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
      !
      ! ! Update the grid norm
      ! gridNorm(i, 1) = primitiveGridNorm(i, 1) * indicatorFunction(i, 1)
-  end do
+  ! end do
 
   this%nDotGradRho = 0.0_wp
   this%uDotGradRho = 0.0_wp
@@ -349,10 +327,8 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
   call grid%computeGradient(this%conservedVariables(:,1), densityGradient)
 
   do i = 1, grid%nGridPoints
-    objectVelocity = this%objectSpeed(i) * this%levelsetNormal(i, :)
-
     this%nDotGradRho(i, 1) = this%nDotGradRho(i, 1) + sum(this%levelsetNormal(i, :) * densityGradient(i, :))
-    this%uDotGradRho(i, 1) = this%uDotGradRho(i, 1) + sum(objectVelocity * densityGradient(i, :))
+    this%uDotGradRho(i, 1) = this%uDotGradRho(i, 1) + sum(this%objectVelocity(i, :) * densityGradient(i, :))
   end do
 
   do n = 1, grid%nDimensions
@@ -375,79 +351,3 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
   call endTiming("updateIBMVariables")
 
 end subroutine updateIBMVariables
-
-subroutine setupLevelset(this, grid)
-
-  ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use State_mod, only : t_State
-
-  ! <<< Internal modules >>>
-  use InputHelper, only : getRequiredOption
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_State) :: this
-  class(t_Grid) :: grid
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  integer :: i, n
-
-  call getRequiredOption("immersed_boundary/location", this%levelsetLoc, grid%comm)
-  call getRequiredOption("immersed_boundary/width", this%levelsetWidth, grid%comm)
-  call getRequiredOption("immersed_boundary/amplitude", this%levelsetAmp, grid%comm)
-  call getRequiredOption("immersed_boundary/period", this%levelsetPeriod, grid%comm)
-
-  this%wallShape = 0.0_wp
-  do i = 1, grid%nGridPoints
-    if ((grid%coordinates(i, 1) < (this%levelsetLoc - 0.5_wp * this%levelsetWidth)) .or.  &
-        (grid%coordinates(i, 1) > (this%levelsetLoc + 0.5_wp * this%levelsetWidth))) cycle
-    this%wallShape(i) = 0.5_wp + 0.5_wp * cos(2.0_wp * pi * (grid%coordinates(i, 1) - this%levelsetLoc) / this%levelsetWidth)
-  end do
-
-  this%wallShape = this%wallShape * this%levelsetAmp
-
-end subroutine setupLevelset
-
-subroutine updateLevelset(this, mode, grid)
-
-  ! <<< Derived types >>>
-  use Grid_mod, only : t_Grid
-  use State_mod, only : t_State
-
-  ! <<< Enumerations >>>
-  use Region_enum, only : FORWARD
-
-  ! <<< Internal modules >>>
-  use MPITimingsHelper, only : startTiming, endTiming
-
-  implicit none
-
-  ! <<< Arguments >>>
-  class(t_State) :: this
-  integer, intent(in) :: mode
-  class(t_Grid), intent(in) :: grid
-
-  ! <<< Local variables >>>
-  integer, parameter :: wp = SCALAR_KIND
-  real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  real(wp) :: timeFactor
-
-  call startTiming("updateLevelset")
-
-  if (mode .ne. FORWARD) then
-    return
-  end if
-
-  assert(size(this%levelset, 1) == size(this%conservedVariables, 1))
-  assert(size(this%levelset, 2) == 1)
-
-  timeFactor = sin(2.0_wp * pi * this%time / this%levelsetPeriod)
-  this%levelset(:, 1) = grid%coordinates(:, 2) - this%wallShape * timeFactor
-
-  call endTiming("updateLevelset")
-
-end subroutine updateLevelset

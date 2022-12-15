@@ -64,7 +64,7 @@ module State_mod
     ! Variables for immersed boundary method.
     real(SCALAR_KIND), dimension(:,:), allocatable :: levelset, levelsetNormal!, indicatorFunction,   &
                                                       !primitiveGridNorm, levelsetCurvature
-    real(SCALAR_KIND), dimension(:), allocatable :: wallShape, objectSpeed
+    real(SCALAR_KIND), dimension(:,:), allocatable :: objectVelocity
     real(SCALAR_KIND) :: levelsetLoc, levelsetWidth, levelsetAmp, levelsetPeriod
     real(SCALAR_KIND), dimension(:,:), allocatable :: ibmDissipation, nDotGradRho, uDotGradRho
 
@@ -82,8 +82,6 @@ module State_mod
      procedure, pass :: computeTimeStepSize => computeStateTimeStepSize
      procedure, pass :: addSources
      procedure, pass :: updateIBMVariables
-     procedure, pass :: setupLevelset
-     procedure, pass :: updateLevelset
 
   end type t_State
 
@@ -273,25 +271,6 @@ module State_mod
       class(t_Grid), intent(in) :: grid
       type(t_SimulationFlags), intent(in) :: simulationFlags
     end subroutine updateIBMVariables
-  end interface
-
-  interface
-    subroutine setupLevelset(this, grid)
-      use Grid_mod, only : t_Grid
-      import :: t_State
-      class(t_State) :: this
-      class(t_Grid), intent(in) :: grid
-    end subroutine setupLevelset
-  end interface
-
-  interface
-    subroutine updateLevelset(this, mode, grid)
-      use Grid_mod, only : t_Grid
-      import :: t_State
-      class(t_State) :: this
-      integer, intent(in) :: mode
-      class(t_Grid), intent(in) :: grid
-    end subroutine updateLevelset
   end interface
 
 end module State_mod

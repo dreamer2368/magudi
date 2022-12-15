@@ -22,6 +22,7 @@ module Region_mod
   use SolverOptions_mod, only : t_SolverOptions
   use PatchDescriptor_mod, only : t_PatchDescriptor
   use SimulationFlags_mod, only : t_SimulationFlags
+  use LevelsetFactory_mod, only : t_LevelsetFactory
 
   implicit none
 
@@ -33,6 +34,7 @@ module Region_mod
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
      type(t_PatchDescriptor), allocatable :: patchData(:)
+     class(t_LevelsetFactory), pointer :: levelsetFactory => null()
      integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL, timestep = 0
      integer, allocatable :: globalGridSizes(:,:), processDistributions(:,:),                &
           gridCommunicators(:), patchCommunicators(:), patchInterfaces(:),                   &
@@ -40,6 +42,7 @@ module Region_mod
      logical :: outputOn = .true.
      SCALAR_TYPE :: initialXmomentum, oneOverVolume, momentumLossPerVolume,                  &
                     adjointMomentumLossPerVolume
+     character(len=STRING_LENGTH) :: levelsetType
 
    contains
 
@@ -55,6 +58,7 @@ module Region_mod
      procedure, pass :: saveSpongeStrength
      procedure, pass :: resetProbes
      procedure, pass :: saveProbeData
+     procedure, pass :: connectLevelsetFactory
 
   end type t_Region
 
@@ -224,6 +228,18 @@ module Region_mod
        logical, intent(in), optional :: finish
 
      end subroutine saveProbeData
+
+  end interface
+
+  interface
+
+     subroutine connectLevelsetFactory(this)
+
+       import :: t_Region
+
+       class(t_Region) :: this
+
+     end subroutine connectLevelsetFactory
 
   end interface
 

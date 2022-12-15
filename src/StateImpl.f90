@@ -63,8 +63,7 @@ contains
       allocate(this%ibmDissipation(nGridPoints, solverOptions%nUnknowns))
       allocate(this%nDotGradRho(nGridPoints, 1))
       allocate(this%uDotGradRho(nGridPoints, 1))
-      allocate(this%wallShape(nGridPoints))
-      allocate(this%objectSpeed(nGridPoints))
+      allocate(this%objectVelocity(nGridPoints, nDimensions))
     end if
 
   end subroutine allocateData
@@ -190,8 +189,7 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%ibmDissipation)
   SAFE_DEALLOCATE(this%nDotGradRho)
   SAFE_DEALLOCATE(this%uDotGradRho)
-  SAFE_DEALLOCATE(this%wallShape)
-  SAFE_DEALLOCATE(this%objectSpeed)
+  SAFE_DEALLOCATE(this%objectVelocity)
 
   this%adjointForcingFactor = 1.0_wp
 

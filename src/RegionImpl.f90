@@ -1148,6 +1148,11 @@ subroutine cleanupRegion(this)
   end if
   SAFE_DEALLOCATE(this%states)
 
+  if (this%simulationFlags%enableIBM) then
+    call this%levelsetFactory%cleanup()
+    nullify(this%levelsetFactory)
+  end if
+
   if (allocated(this%patchFactories)) then
      do i = 1, size(this%patchFactories)
         call this%patchFactories(i)%connect(patch)
@@ -1747,6 +1752,7 @@ subroutine computeRhs(this, mode, timeStep, stage)
 
   ! Update immersed boundary variables.
   if (this%simulationFlags%enableIBM) then
+    call this%levelsetFactory%updateLevelset(mode, this%grids, this%states)
     do i = 1, size(this%states)
        call this%states(i)%updateIBMVariables(mode, this%grids(i), this%simulationFlags)
     end do
@@ -2040,3 +2046,37 @@ subroutine saveProbeData(this, mode, finish)
   end do
 
 end subroutine saveProbeData
+
+subroutine connectLevelsetFactory(this)
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+  use LevelsetFactory_mod, only : t_LevelsetFactory
+  use SinusoidalWallLevelset_mod, only : t_SinusoidalWallLevelset
+
+  ! <<< Internal modules >>>
+  use InputHelper, only : getRequiredOption
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_Region) :: this
+
+  ! <<< Local variables >>>
+  character(len = STRING_LENGTH) :: levelsetType
+
+  call getRequiredOption("immersed_boundary/levelset_type", levelsetType, this%comm)
+
+  this%levelsetType = levelsetType
+
+  select case (trim(levelsetType))
+
+  case ('sinusoidal_wall')
+    allocate(t_SinusoidalWallLevelset :: this%levelsetFactory)
+
+  case default
+    this%levelsetType = ""
+
+  end select
+
+end subroutine connectLevelsetFactory

@@ -216,14 +216,13 @@ subroutine saveRhs(region, filename)
     ! resize the data buffer.
     do i = 1, size(data_)
       deallocate(data_(i)%buffer)
-      allocate(data_(i)%buffer(region%grids(i)%nGridPoints, region%grids(i)%nDimensions + 3))
+      allocate(data_(i)%buffer(region%grids(i)%nGridPoints, 1 + 2 * region%grids(i)%nDimensions))
     end do
 
     do j = 1, size(region%states)
        data_(j)%buffer(:, 1) = region%states(j)%levelset(:, 1)
-       data_(j)%buffer(:, 2) = region%states(j)%objectSpeed
-       data_(j)%buffer(:, 3) = region%states(j)%wallShape
-       data_(j)%buffer(:, 4:region%grids(j)%nDimensions + 3) = region%states(j)%levelsetNormal
+       data_(j)%buffer(:, 2:region%grids(j)%nDimensions + 1) = region%states(j)%levelsetNormal
+       data_(j)%buffer(:, region%grids(j)%nDimensions + 2 : 2 * region%grids(j)%nDimensions + 1) = region%states(j)%objectVelocity
        region%states(j)%dummyFunction => data_(j)%buffer
     end do
 

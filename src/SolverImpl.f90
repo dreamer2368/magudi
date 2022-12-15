@@ -587,9 +587,9 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
       call gracefulExit(region%comm, message)
     end if
 
-    do i = 1, size(region%states)
-      call region%states(i)%setupLevelset(region%grids(i))
-    end do
+    call region%connectLevelsetFactory()
+
+    call region%levelsetFactory%setup(region%grids, region%states)
 
     ! Determine minimum grid spacing (avoid holes)
     do i = 1, size(region%grids)
