@@ -405,6 +405,9 @@ end module SolverImpl
 
 subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
@@ -421,6 +424,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption, getRequiredOption
+  use ErrorHandler, only : gracefulExit
   use Patch_factory, only : computeSpongeStrengths, updatePatchFactories
   use InterfaceHelper, only : checkFunctionContinuityAtInterfaces, exchangeInterfaceData
 
@@ -433,8 +437,9 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: filename
-  integer :: i, j
+  real(wp) :: minGridSpacing
+  character(len = STRING_LENGTH) :: filename, message
+  integer :: i, j, ierror
   class(t_Patch), pointer :: patch => null()
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
@@ -574,6 +579,37 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      assert(associated(functional))
      call functional%setup(region)
 
+  end if
+
+  if (region%simulationFlags%enableIBM) then
+    if (.not. region%simulationFlags%dissipationOn) then
+      write(message, '(A)') "Immersed boundary requires artificial dissipation!"
+      call gracefulExit(region%comm, message)
+    end if
+
+    do i = 1, size(region%states)
+      call region%states(i)%setupLevelset(region%grids(i))
+    end do
+
+    ! Determine minimum grid spacing (avoid holes)
+    do i = 1, size(region%grids)
+      minGridSpacing = huge(1.0_wp)
+      do j = 1, region%grids(i)%nGridPoints
+         minGridSpacing = min(minGridSpacing,                                   &
+         minval(region%grids(i)%gridSpacing(j,1:region%grids(i)%nDimensions)))
+      end do
+      call MPI_Allreduce(MPI_IN_PLACE, minGridSpacing, 1, REAL_TYPE_MPI,        &
+                         MPI_MIN, region%grids(i)%comm, ierror)
+    end do
+
+    if (region%commGridMasters /= MPI_COMM_NULL)                                &
+         call MPI_Allreduce(MPI_IN_PLACE, minGridSpacing, 1, REAL_TYPE_MPI,     &
+                            MPI_MIN, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(minGridSpacing, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+       region%grids(i)%minGridSpacing = minGridSpacing
+    end do
   end if
 
 end subroutine setupSolver
