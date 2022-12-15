@@ -8,6 +8,7 @@ program rhs
   use State_enum, only : QOI_FORWARD_STATE
 
   use Region_mod, only : t_Region
+  use Solver_mod, only : t_Solver
 
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
@@ -22,6 +23,7 @@ program rhs
   character(len = STRING_LENGTH) :: filename, outputPrefix
   logical :: success
   type(t_Region) :: region
+  type(t_Solver) :: solver
   integer, allocatable :: globalGridSizes(:,:)
 
   interface
@@ -71,30 +73,8 @@ program rhs
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
-  ! Setup boundary conditions.
-  call getRequiredOption("boundary_condition_file", filename)
-  call region%setupBoundaryConditions(filename)
-
-  ! Compute damping strength on sponge patches.
-  do i = 1, size(region%grids)
-     call computeSpongeStrengths(region%patchFactories, region%grids(i))
-  end do
-
-  ! Check continuity at block interfaces.
-  if (getOption("check_interface_continuity", .false.))                                      &
-       call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
-
-  ! Update patches.
-  do i = 1, size(region%grids)
-     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
-          region%solverOptions, region%grids(i), region%states(i))
-  end do
-
-  ! Compute normalized metrics, norm matrix and Jacobian.
-  do i = 1, size(region%grids)
-     call region%grids(i)%update()
-  end do
-  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+  ! Initialize the solver.
+  call solver%setup(region, outputPrefix = outputPrefix)
 
   if (command_argument_count() >= 1) then !... only one solution file to process.
 
@@ -230,6 +210,25 @@ subroutine saveRhs(region, filename)
       write(patchFile, '(3A)') trim(filename) // ".", trim(patch%name), ".f"
       call region%saveData(QOI_DUMMY_FUNCTION, patchFile)
     end do
+  end if
+
+  if (getOption("enable_immersed_boundary", .false.)) then
+    ! resize the data buffer.
+    do i = 1, size(data_)
+      deallocate(data_(i)%buffer)
+      allocate(data_(i)%buffer(region%grids(i)%nGridPoints, region%grids(i)%nDimensions + 3))
+    end do
+
+    do j = 1, size(region%states)
+       data_(j)%buffer(:, 1) = region%states(j)%levelset(:, 1)
+       data_(j)%buffer(:, 2) = region%states(j)%objectSpeed
+       data_(j)%buffer(:, 3) = region%states(j)%wallShape
+       data_(j)%buffer(:, 4:region%grids(j)%nDimensions + 3) = region%states(j)%levelsetNormal
+       region%states(j)%dummyFunction => data_(j)%buffer
+    end do
+
+    write(patchFile, '(A)') trim(filename) // ".levelset.f"
+    call region%saveData(QOI_DUMMY_FUNCTION, patchFile)
   end if
 
 end subroutine saveRhs
