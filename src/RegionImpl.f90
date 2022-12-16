@@ -2051,6 +2051,8 @@ subroutine connectLevelsetFactory(this)
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
+  use Patch_mod, only : t_Patch
+  use ImmersedBoundaryPatch_mod, only : t_ImmersedBoundaryPatch
   use LevelsetFactory_mod, only : t_LevelsetFactory
   use SinusoidalWallLevelset_mod, only : t_SinusoidalWallLevelset
 
@@ -2064,7 +2066,31 @@ subroutine connectLevelsetFactory(this)
 
   ! <<< Local variables >>>
   character(len = STRING_LENGTH) :: levelsetType
+  integer :: i, j
+  class(t_Patch), pointer :: patch => null()
 
+  ! Determine whether IBM is actually used in each state.
+  do i = 1, size(this%states)
+    this%states(i)%ibmPatchExists = .false.
+  end do
+
+  if (allocated(this%patchFactories)) then
+    do i = 1, size(this%states)
+      do j = 1, size(this%patchFactories)
+        call this%patchFactories(j)%connect(patch)
+        if (.not. associated(patch)) cycle
+        if (patch%gridIndex /= this%grids(i)%index) cycle
+
+        select type (patch)
+        class is (t_ImmersedBoundaryPatch)
+          this%states(i)%ibmPatchExists = .true.
+          exit
+        end select
+      end do ! j = 1, size(this%patchFactories)
+    end do ! i = 1, size(this%states)
+  end if
+
+  ! Determine levelset type.
   call getRequiredOption("immersed_boundary/levelset_type", levelsetType, this%comm)
 
   this%levelsetType = levelsetType

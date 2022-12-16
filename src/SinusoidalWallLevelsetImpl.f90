@@ -104,6 +104,8 @@ subroutine updateSinusoidalWallLevelset(this, mode, grids, states)
   timeDerivativeFactor = 2.0_wp * pi / this%levelsetPeriod * cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
 
   do i = 1, size(states)
+    if (.not. states(i)%ibmPatchExists) cycle
+    
     assert(size(states(i)%levelset, 1) == size(states(i)%conservedVariables, 1))
     assert(size(states(i)%levelset, 2) == 1)
     assert(size(states(i)%levelset, 1) == size(this%wallShapes(i)%buffer))

@@ -67,6 +67,7 @@ module State_mod
     real(SCALAR_KIND), dimension(:,:), allocatable :: objectVelocity
     real(SCALAR_KIND) :: levelsetLoc, levelsetWidth, levelsetAmp, levelsetPeriod
     real(SCALAR_KIND), dimension(:,:), allocatable :: ibmDissipation, nDotGradRho, uDotGradRho
+    logical :: ibmPatchExists = .false.
 
     SCALAR_TYPE, dimension(:,:), pointer :: dummyFunction => null()
 
