@@ -129,8 +129,9 @@ subroutine addIsothermalWallPenalty(this, mode, simulationFlags, solverOptions, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, nUnknowns, direction, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: metricsAlongNormalDirection(:), velocity(:,:), temperature(:), &
-       metrics(:,:), penaltyAtBoundary(:), penaltyNearBoundary(:,:), temp(:,:),              &
+  SCALAR_TYPE, allocatable :: metricsAlongNormalDirection(:),                                &
+       ! metrics(:,:), penaltyNearBoundary(:,:),                                               &
+       penaltyAtBoundary(:), temp(:,:),                                                      &
        localVelocity(:), localFluxJacobian(:,:), adjointPenalties(:,:)
 
   assert_key(mode, (FORWARD, ADJOINT, LINEARIZED))

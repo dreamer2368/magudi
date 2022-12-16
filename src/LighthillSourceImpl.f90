@@ -26,7 +26,6 @@ subroutine setupLighthillSource(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, nDimensions, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
   SCALAR_TYPE, allocatable :: temp1(:,:), temp2(:,:)
 
   assert(allocated(region%states))
@@ -96,9 +95,6 @@ subroutine cleanupLighthillSource(this)
   ! <<< Arguments >>>
   class(t_LighthillSource) :: this
 
-  ! <<< Local variables >>>
-  integer :: i
-
   call this%cleanupBase()
 
 end subroutine cleanupLighthillSource
@@ -124,7 +120,7 @@ subroutine computeLighthillSourceSpatialDistribution(this, grid, state, F)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, ierror
+  integer :: j, k, nDimensions, nUnknowns
   logical :: computeViscousFlux = .false.
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:), F1(:,:,:), F2(:,:,:)
 
@@ -230,10 +226,9 @@ function computeLighthillSource(this, region) result(instantaneousFunctional)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, ierror
+  integer :: i, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
 
-  character(len=STRING_LENGTH) :: message
   real(wp) :: timeRampFactor
 
   assert(allocated(region%grids))

@@ -30,7 +30,7 @@ subroutine setupActuatorPatch(this, index, comm, patchDescriptor,               
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: outputPrefix, message,                            &
+  character(len = STRING_LENGTH) :: outputPrefix,                                     &
                                     gradientFilename, gradientDirectory,              &
                                     controlForcingFilename, controlForcingDirectory
 

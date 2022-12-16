@@ -26,14 +26,12 @@ program linearized_forward
               inputFlag = .false., outputFlag = .false., saveMetricsFlag = .false.
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
-  logical :: adjointRestart, fileExists, success
-  integer :: accumulatedNTimesteps
+  logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
-  type(t_Region) :: region, lineariedRegion
+  type(t_Region) :: region
   type(t_Solver) :: solver
 
   ! << output variables >>
-  integer :: inputNumber, simulationNumber
   SCALAR_TYPE :: dummyValue = 0.0_wp
 
   ! Initialize MPI.

@@ -15,7 +15,7 @@ program run_zXdotY
   integer, parameter :: wp = SCALAR_KIND
   character(len = STRING_LENGTH) :: zFilename, XFilename, YFilename, normFilename, message
   character(len = STRING_LENGTH) :: nTimesteps_str, argument
-  integer :: nTimesteps, reportInterval = 1, stat, fileUnit, procRank, ierror
+  integer :: nTimesteps, reportInterval = 1, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForReportInterval = .false.
 
@@ -91,7 +91,7 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, procRank, numProcs, ierror, mpiFileHandle, timestep, stage
     character(len = STRING_LENGTH) :: message
-    logical :: XFileExists, YFileExists, normFileExists, success, append
+    logical :: XFileExists, YFileExists, normFileExists, append
     integer(kind = MPI_OFFSET_KIND) :: XFileSize, YFileSize, normFileSize, offset, timeOffset
 
     integer(kind = MPI_OFFSET_KIND) :: globalSize, patchSize, bufferSize, sendcnt, indexQuotient
@@ -275,7 +275,7 @@ contains
 
     deallocate(XBuffer)
     deallocate(YBuffer)
-    deallocate(normBuffer)    
+    deallocate(normBuffer)
 
   end subroutine
 

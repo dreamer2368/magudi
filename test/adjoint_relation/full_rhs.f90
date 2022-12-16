@@ -20,8 +20,8 @@ program full_rhs
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, stat, fileUnit, dictIndex, procRank, numProcs, ierror, STATUS
-  character(len = STRING_LENGTH) :: filename, resultFilename, outputPrefix, message
+  integer :: i, dictIndex, procRank, numProcs, ierror
+  character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
@@ -42,10 +42,6 @@ program full_rhs
      end subroutine testAdjointRelation
 
   end interface
-
-  ! << output variables >>
-  integer :: inputNumber, simulationNumber
-  SCALAR_TYPE :: dummyValue = 0.0_wp
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -266,12 +262,10 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer(kind = MPI_OFFSET_KIND) :: offset
-  real(wp) :: scalar1, scalar2, tolerance_,&
+  real(wp) :: scalar1, scalar2,&
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, ierror, procRank
-  integer :: nDimensions, nUnknowns, stage
-  logical :: success_
+  integer :: nDimensions, stage
   character(len=STRING_LENGTH) :: filename
   real(SCALAR_KIND), allocatable :: F(:,:), deltaPrimitiveVariables(:,:)
 

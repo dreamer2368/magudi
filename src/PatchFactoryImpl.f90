@@ -17,6 +17,7 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
   use BlockInterfacePatch_mod, only : t_BlockInterfacePatch
   use SolenoidalExcitationPatch_mod, only : t_SolenoidalExcitationPatch
   use KolmogorovForcingPatch_mod, only : t_KolmogorovForcingPatch
+  use ImmersedBoundaryPatch_mod, only : t_ImmersedBoundaryPatch
 
   implicit none
 
@@ -76,6 +77,9 @@ subroutine connectPatch(this, patchTarget, patchType, createNew)
 
      case ('KOLMOGOROV_FORCING')
         allocate(t_KolmogorovForcingPatch :: this%patch)
+
+     case ('IMMERSED_BOUNDARY')
+        allocate(t_ImmersedBoundaryPatch :: this%patch)
         
      case default
         this%patchType = ""

@@ -31,7 +31,7 @@ subroutine setupKolmogorovForcingPatch(this, index, comm, patchDescriptor,      
   integer, parameter :: wp = SCALAR_KIND
   real(real64), parameter :: pi = 4.0_real64 * atan(1.0_real64)
   character(len = STRING_LENGTH) :: key
-  integer :: i, j, k, gridIndex, patchIndex, nDimensions, ierror
+  integer :: i, j, k, gridIndex, patchIndex, nDimensions
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (2, 3))
@@ -119,7 +119,6 @@ subroutine addKolmogorovForcing(this, mode, simulationFlags, solverOptions, grid
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
-  real(SCALAR_KIND) :: time, excitationAmount
   real(SCALAR_KIND), allocatable :: temporalFunctions(:,:)
   SCALAR_TYPE, allocatable :: temp(:,:,:)
   SCALAR_TYPE :: localForcing

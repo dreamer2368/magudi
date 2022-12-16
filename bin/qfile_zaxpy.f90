@@ -22,7 +22,7 @@ program qfile_zaxpy
   end type t_VectorInternal
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, stat, fileUnit, procRank, numProcs, ierror
+  integer :: i, j, procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., lookForMollifier = .false.,                                              &
               inputFlag = .false., mollifierFlag = .false.
@@ -35,7 +35,6 @@ program qfile_zaxpy
   type(t_VectorInternal), allocatable :: X(:), Y(:)
 
   ! << output variables >>
-  integer :: inputNumber, simulationNumber
   SCALAR_TYPE :: A
 
   ! Initialize MPI.

@@ -1,0 +1,86 @@
+# magudi.inp
+# Input file to magudi for simulation of a two-dimensional channel flow with a deforming wall
+# Written by "Kevin" Seung Whan Chung
+
+# Filenames, etc.
+output_prefix = "DeformingWall2D"
+grid_file = "DeformingWall2D.xyz"
+initial_condition_file = "DeformingWall2D.ic.q"
+target_state_file = "DeformingWall2D.target.q"
+boundary_condition_file = "bc.dat"
+
+# Simulation flags
+include_viscous_terms = true
+use_constant_CFL_mode = false
+use_target_state = true
+curvilinear_domain = false
+
+# Controller flags
+enable_controller = false
+controller_switch = false
+
+# Functional flags
+enable_functional = false
+cost_functional_type = "DRAG"
+
+# Adjoint optimization flags
+enable_adjoint_solver = false
+baseline_prediction_available = true
+use_continuous_adjoint = false
+controller_buffer_size = 100
+
+# Gradient accuracy options
+check_gradient_accuracy = false
+
+# Physical constants
+Reynolds_number = 23175.7
+Prandtl_number = 0.7
+viscosity_power_law_exponent = 0.0
+
+# Discretization scheme
+defaults/discretization_scheme = "SBP 3-6"
+
+# Time stepping options
+time_step_size = 1.2e-2
+number_of_timesteps = 4000
+report_interval = 10
+save_interval = 200
+
+# Artificial dissipation
+add_dissipation = true
+dissipation_amount = 1e-3
+composite_dissipation = false
+
+# Sponge options
+defaults/sponge_amount = 0.2
+
+# Solution limits
+enable_solution_limits = true
+minimum_density = 0.1
+minimum_temperature = 0.05
+maximum_density = 5.
+maximum_temperature = 4.
+
+## Periodicity
+#grid001/dir1/periodicity_type = 'PLANE'
+#grid001/dir1/periodic_length = 5.0
+
+# Penalty parameters
+#defaults/viscous_penalty_amount = 0.
+# This is based on actual Reynolds_number
+#patches/flatPlate.N/viscous_penalty_amount1 = 2.
+#patches/flatPlate.S/viscous_penalty_amount1 = 2.
+
+# Immersed boundary parameters
+enable_immersed_boundary = true
+immersed_boundary/levelset_type = "sinusoidal_wall"
+immersed_boundary/dissipation_amount = 1e-3
+immersed_boundary/regularization_parameter = 3.0
+immersed_boundary/period = 48.0
+immersed_boundary/location = 10.0
+immersed_boundary/width = 20.0
+immersed_boundary/amplitude = 1.0
+
+
+# utils/rhs
+rhs/save_patch_rhs = true

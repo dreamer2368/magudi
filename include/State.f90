@@ -50,18 +50,26 @@ module State_mod
 
   type, public :: t_State
 
-     type(t_AcousticSource), allocatable :: acousticSources(:)
+    type(t_AcousticSource), allocatable :: acousticSources(:)
 
-     integer :: nSpecies
-     real(wp) :: time, timeProgressive, adjointForcingFactor = 1.0_wp
-     SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
+    integer :: nSpecies
+    real(wp) :: time, timeProgressive, adjointForcingFactor = 1.0_wp
+    SCALAR_TYPE :: plot3dAuxiliaryData(4) = 0.0_wp
 
-     SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
-          specificVolume, velocity, velocityGradient, stressTensor, pressure, temperature,   &
-          heatFlux, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,      &
-          targetState, adjointVariables, timeAverage
+    SCALAR_TYPE, dimension(:,:), allocatable :: rightHandSide, conservedVariables,          &
+         specificVolume, velocity, velocityGradient, stressTensor, pressure, temperature,   &
+         heatFlux, dynamicViscosity, secondCoefficientOfViscosity, thermalDiffusivity,      &
+         targetState, adjointVariables, timeAverage
 
-     SCALAR_TYPE, dimension(:,:), pointer :: dummyFunction => null()
+    ! Variables for immersed boundary method.
+    real(SCALAR_KIND), dimension(:,:), allocatable :: levelset, levelsetNormal!, indicatorFunction,   &
+                                                      !primitiveGridNorm, levelsetCurvature
+    real(SCALAR_KIND), dimension(:,:), allocatable :: objectVelocity
+    real(SCALAR_KIND) :: levelsetLoc, levelsetWidth, levelsetAmp, levelsetPeriod
+    real(SCALAR_KIND), dimension(:,:), allocatable :: ibmDissipation, nDotGradRho, uDotGradRho
+    logical :: ibmPatchExists = .false.
+
+    SCALAR_TYPE, dimension(:,:), pointer :: dummyFunction => null()
 
    contains
 
@@ -74,6 +82,7 @@ module State_mod
      procedure, pass :: computeCfl => computeStateCfl
      procedure, pass :: computeTimeStepSize => computeStateTimeStepSize
      procedure, pass :: addSources
+     procedure, pass :: updateIBMVariables
 
   end type t_State
 
@@ -251,6 +260,18 @@ module State_mod
 
      end subroutine addSources
 
+  end interface
+
+  interface
+    subroutine updateIBMVariables(this, mode, grid, simulationFlags)
+      use Grid_mod, only : t_Grid
+      use SimulationFlags_mod, only : t_SimulationFlags
+      import :: t_State
+      class(t_State) :: this
+      integer, intent(in) :: mode
+      class(t_Grid), intent(in) :: grid
+      type(t_SimulationFlags), intent(in) :: simulationFlags
+    end subroutine updateIBMVariables
   end interface
 
 end module State_mod

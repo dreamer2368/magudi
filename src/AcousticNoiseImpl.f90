@@ -26,7 +26,7 @@ subroutine setupAcousticNoise(this, region)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
+  character(len = STRING_LENGTH) :: filename
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
@@ -147,10 +147,9 @@ function computeAcousticNoise(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
-  SCALAR_TYPE :: ideal_mean_pressure                            !SeungWhan: constant mean pressure
+  ! SCALAR_TYPE :: ideal_mean_pressure                            !SeungWhan: constant mean pressure
 
   ! <<< SeungWhan: message, timeRampFactor >>
-  character(len=STRING_LENGTH) :: message
   real(wp) :: timeRampFactor
 
   assert(allocated(region%grids))
@@ -231,7 +230,7 @@ subroutine computeAcousticNoiseAdjointForcing(this, simulationFlags, solverOptio
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, gridIndex, patchIndex
   SCALAR_TYPE, allocatable :: meanPressure(:)
-  SCALAR_TYPE :: F, ideal_mean_pressure                         !SeungWhan: constant mean pressure
+  SCALAR_TYPE :: F!, ideal_mean_pressure                         !SeungWhan: constant mean pressure
 
   ! <<< SeungWhan: message, timeRampFactor >>
   real(wp) :: timeRampFactor

@@ -167,7 +167,7 @@ subroutine updateGenericActuatorForcing(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions, nActuatorComponents
+  integer :: i, j, nDimensions
   class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return
@@ -222,7 +222,7 @@ subroutine updateGenericActuatorDeltaForcing(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions, nActuatorComponents
+  integer :: i, j, nDimensions
   class(t_Patch), pointer :: patch => null()
 
   if (.not. allocated(region%patchFactories)) return

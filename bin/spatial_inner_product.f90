@@ -35,7 +35,6 @@ program spatial_inner_product
   type(t_VectorInternal), allocatable :: temp(:)
 
   ! << output variables >>
-  integer :: inputNumber, simulationNumber
   SCALAR_TYPE :: dummyValue = 0.0_wp
 
   ! Initialize MPI.

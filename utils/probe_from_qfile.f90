@@ -24,14 +24,11 @@ program probe_from_qfile
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, startTimestep, endTimestep, saveInterval, ierror
+  integer :: i, startTimestep, endTimestep, saveInterval, ierror
   character(len = STRING_LENGTH) :: filename, outputPrefix
   logical :: success
   type(t_Region) :: region
   integer, allocatable :: globalGridSizes(:,:)
-  type(t_FunctionalFactory) :: functionalFactory
-  class(t_Functional), pointer :: functional => null()
-  SCALAR_TYPE :: instantaneousFunctional
   character(len = STRING_LENGTH) :: message  !SeungWhan: for debugging
 
   ! Initialize MPI.

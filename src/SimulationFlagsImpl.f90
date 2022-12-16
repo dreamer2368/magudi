@@ -2,16 +2,24 @@
 
 subroutine initializeSimulationFlags(this)
 
+  ! <<< External modules >>>
+  use MPI
+
   ! <<< Derived types >>>
   use SimulationFlags_mod, only : t_SimulationFlags
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
   ! <<< Arguments >>>
   class(t_SimulationFlags) :: this
+
+  ! <<< Local variables >>>
+  integer :: comm_
+  character(len = STRING_LENGTH) :: message
 
   this%viscosityOn           = getOption("include_viscous_terms", .false.)
   this%enableController      = getOption("enable_controller", .false.)
@@ -32,6 +40,7 @@ subroutine initializeSimulationFlags(this)
   this%compositeDissipation  = getOption("composite_dissipation", .true.)
   this%enableBodyForce       = getOption("enable_body_force", .false.)
   this%checkConservation     = getOption("check_conservation", .false.)
+  this%enableIBM             = getOption("enable_immersed_boundary", .false.)
 
   this%computeTimeAverage = .false.
   if (.not. this%useConstantCfl)                                                             &
@@ -40,6 +49,12 @@ subroutine initializeSimulationFlags(this)
   if (this%enableAdjoint) then
      this%enableController = .true.
      this%enableFunctional = .true.
+  end if
+
+  if (this%enableAdjoint .and. this%enableIBM) then
+    comm_ = MPI_COMM_WORLD
+    write(message, '(A)') "Adjoint mode for immersed boundary method is not implemented!"
+    call gracefulExit(comm_, message)
   end if
 
   this%IsInitialized = .true.
@@ -77,6 +92,7 @@ subroutine assignSimulationFlags(this, simulationFlags)
   this%enableController      = simulationFlags%enableController
   this%enableFunctional      = simulationFlags%enableFunctional
   this%enableAdjoint         = simulationFlags%enableAdjoint
+  this%adjointForcingSwitch  = simulationFlags%adjointForcingSwitch
   this%repeatFirstDerivative = simulationFlags%repeatFirstDerivative
   this%useTargetState        = simulationFlags%useTargetState
   this%dissipationOn         = simulationFlags%dissipationOn
@@ -89,6 +105,9 @@ subroutine assignSimulationFlags(this, simulationFlags)
   this%isBaselineAvailable   = simulationFlags%isBaselineAvailable
   this%useContinuousAdjoint  = simulationFlags%useContinuousAdjoint
   this%compositeDissipation  = simulationFlags%compositeDissipation
+  this%enableBodyForce       = simulationFlags%enableBodyForce
+  this%checkConservation     = simulationFlags%checkConservation
+  this%enableIBM             = simulationFlags%enableIBM
 
   this%computeTimeAverage    = simulationFlags%computeTimeAverage
 

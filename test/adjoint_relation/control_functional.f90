@@ -11,7 +11,7 @@ program control_functional
   implicit none
 
   logical :: success, success_, isPeriodic
-  integer :: i, j, k, nDimensions, ierror, stat
+  integer :: i, j, nDimensions, ierror, stat
   integer :: procRank
   character(len = STRING_LENGTH) :: costType
   character(len = STRING_LENGTH) :: controllerTypes(3)
@@ -168,17 +168,16 @@ subroutine testAdjointRelation(costType, controllerType, nDimensions, success, i
   real(wp) :: scalar1, sensitivity, scalar2, tolerance_,                        &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer, allocatable :: gridSize(:,:)
-  integer :: i, j, k, l, nUnknowns, nTimesteps, saveInterval,                      &
+  integer :: i, j, k, l, nTimesteps, saveInterval,                      &
               timestep, startTimestep, timemarchDirection
   real(wp) :: timeStepSize, time, startTime, velMin, velMax
-  real(SCALAR_KIND), allocatable :: forwardState(:,:), adjointState(:,:),           &
-                                    controlForcing(:,:), adjointForcing(:,:), deltaState(:,:),&
-                                    forwardRhs(:)
-  character(len = STRING_LENGTH) :: filename, errorMessage
+  character(len = STRING_LENGTH) :: filename
   character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
 
   success = .true.
+  tolerance_ = 1.0E-13
+  if (present(tolerance)) tolerance_ = tolerance
 
   ! set up simulation flags
   call simulationFlags%initialize()

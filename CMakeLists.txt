@@ -161,6 +161,7 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/include/ReverseMigrator.f90
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/MappingFunction.f90
+  ${PROJECT_SOURCE_DIR}/include/LevelsetFactory.f90
 
   # Extended types.
   ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90
@@ -211,6 +212,10 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ProbePatchImpl.f90
   ${PROJECT_SOURCE_DIR}/include/KolmogorovForcingPatch.f90
   ${PROJECT_SOURCE_DIR}/src/KolmogorovForcingPatchImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/ImmersedBoundaryPatch.f90
+  ${PROJECT_SOURCE_DIR}/src/ImmersedBoundaryImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/SinusoidalWallLevelset.f90
+  ${PROJECT_SOURCE_DIR}/src/SinusoidalWallLevelsetImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

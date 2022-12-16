@@ -11,7 +11,7 @@ program block_interface_sign
   use State_enum
 
   use InputHelper, only : parseInputFile, getFreeUnit, getOption, getRequiredOption
-  use InputHelperImpl, only: dict, find
+  use InputHelperImpl, only: find
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
@@ -24,8 +24,8 @@ program block_interface_sign
   implicit none
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, stat, fileUnit, dictIndex, procRank, numProcs, ierror, STATUS
-  character(len = STRING_LENGTH) :: filename, resultFilename, outputPrefix, message
+  integer :: i, j, procRank, numProcs, ierror
+  character(len = STRING_LENGTH) :: filename, outputPrefix, message
   logical :: success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
@@ -44,10 +44,6 @@ program block_interface_sign
      end subroutine testInterfaceRelation
 
   end interface
-
-  ! << output variables >>
-  integer :: inputNumber, simulationNumber
-  SCALAR_TYPE :: dummyValue = 0.0_wp
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -305,15 +301,11 @@ subroutine testInterfaceRelation(region,success,tolerance)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer(kind = MPI_OFFSET_KIND) :: offset
-  real(wp) :: scalar1, scalar2, tolerance_, randomArray(10),                         &
-              stepSizes(32), errorHistory(32), convergenceHistory(31)
+  real(wp) :: randomArray(10)
   integer :: i, j, k, l, ierror, procRank
-  integer :: nDimensions, nUnknowns, stage, direction, gridIndex
-  logical :: success_
+  integer :: nDimensions, direction, gridIndex
   character(len=STRING_LENGTH) :: filename, grid0Patch, outputPrefix
-  real(SCALAR_KIND), allocatable :: F(:,:), deltaPrimitiveVariables(:,:),             &
-                                    localMetricsAlongNormalDirection(:),              &
+  real(SCALAR_KIND), allocatable :: localMetricsAlongNormalDirection(:),              &
                                     fluxes2(:,:,:)
   integer, allocatable :: patch0Index(:)
   real(wp), parameter :: PI = 4.0_wp * ATAN(1.0_wp)

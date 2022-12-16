@@ -72,13 +72,12 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, procRank, numProcs, ierror, mpiFileHandle
     character(len = STRING_LENGTH) :: message
-    logical :: XFileExists, success
-    integer(kind = MPI_OFFSET_KIND) :: XFileSize, ZFileSize, offset, globalOffset
+    logical :: XFileExists
+    integer(kind = MPI_OFFSET_KIND) :: XFileSize, offset, globalOffset
 
     integer(kind = MPI_OFFSET_KIND) :: globalSize, patchSize, sliceSize, bufferSize, sendcnt, indexQuotient
     integer(kind = MPI_OFFSET_KIND), dimension(:), allocatable :: recvcnt, displc
     SCALAR_TYPE, dimension(:), allocatable :: XBuffer
-    SCALAR_TYPE :: dummyValue
 
     ! Initialize MPI.
     call MPI_Comm_rank(comm, procRank, ierror)

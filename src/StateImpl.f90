@@ -54,6 +54,18 @@ contains
        allocate(this%adjointVariables(nGridPoints, solverOptions%nUnknowns))
     end if
 
+    if (simulationFlags%enableIBM) then
+      ! Allocate levelset arrays
+      allocate(this%levelset(nGridPoints, 1))
+      allocate(this%levelsetNormal(nGridPoints, nDimensions))
+      ! allocate(this%levelsetCurvature(grid%nGridPoints, 1))
+      ! allocate(this%indicatorFunction(grid%nGridPoints, 1))
+      allocate(this%ibmDissipation(nGridPoints, solverOptions%nUnknowns))
+      allocate(this%nDotGradRho(nGridPoints, 1))
+      allocate(this%uDotGradRho(nGridPoints, 1))
+      allocate(this%objectVelocity(nGridPoints, nDimensions))
+    end if
+
   end subroutine allocateData
 
 end module StateImpl
@@ -167,6 +179,17 @@ subroutine cleanupState(this)
   SAFE_DEALLOCATE(this%stressTensor)
   SAFE_DEALLOCATE(this%heatFlux)
   SAFE_DEALLOCATE(this%timeAverage)
+
+  ! deallocate levelset arrays
+  SAFE_DEALLOCATE(this%levelset)
+  SAFE_DEALLOCATE(this%levelsetNormal)
+  ! SAFE_DEALLOCATE(this%levelsetCurvature)
+  ! SAFE_DEALLOCATE(this%indicatorFunction)
+  ! SAFE_DEALLOCATE(this%primitiveGridNorm)
+  SAFE_DEALLOCATE(this%ibmDissipation)
+  SAFE_DEALLOCATE(this%nDotGradRho)
+  SAFE_DEALLOCATE(this%uDotGradRho)
+  SAFE_DEALLOCATE(this%objectVelocity)
 
   this%adjointForcingFactor = 1.0_wp
 

@@ -11,7 +11,7 @@ program sponge_linearized
   implicit none
 
   logical :: success, success1, success2, success_, isPeriodic
-  integer :: i, j, k, nDimensions, direction, ierror
+  integer :: i, j, nDimensions, direction, ierror
   integer :: procRank
   character(len = STRING_LENGTH), parameter :: discretizationTypes(4) =                      &
        (/ "SBP 1-2", "SBP 2-4", "SBP 3-6", "SBP 4-8" /)
@@ -248,7 +248,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   real(wp) :: scalar1, scalar2, tolerance_, scalarHistory(32),                            &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, gridSize(nDimensions, 1), nUnknowns, direction_, errorCode, extent(6)
-  real(SCALAR_KIND), allocatable :: F(:,:), fluxes1(:,:,:), fluxes2(:,:,:),            &
+  real(SCALAR_KIND), allocatable :: F(:,:), fluxes2(:,:,:),                              &
                                     linearizedRightHandSide(:,:),                        &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     temp2(:,:)

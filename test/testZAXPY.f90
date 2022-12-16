@@ -13,8 +13,8 @@ program testZAXPY
 
   implicit none
 
-  character(len = STRING_LENGTH) :: ZFilename, Astr, XFilename, YFilename, message
-  integer :: i, stat, fileUnit, procRank, numProcs, ierror, mpiFileHandle, errorCode = 0
+  character(len = STRING_LENGTH) :: ZFilename, XFilename, YFilename
+  integer :: stat, fileUnit, procRank, numProcs, ierror, errorCode = 0
   SCALAR_TYPE, dimension(17) :: X, Y, Z, Zoutput
   SCALAR_TYPE :: A
 

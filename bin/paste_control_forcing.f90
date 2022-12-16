@@ -86,13 +86,12 @@ contains
     integer, parameter :: wp = SCALAR_KIND
     integer :: i, procRank, numProcs, ierror, mpiFileHandle
     character(len = STRING_LENGTH) :: message
-    logical :: XFileExists, ZFileExists, success
-    integer(kind = MPI_OFFSET_KIND) :: XFileSize, ZFileSize, offset, globalOffset
+    logical :: XFileExists, ZFileExists
+    integer(kind = MPI_OFFSET_KIND) :: XFileSize, offset, globalOffset
 
     integer(kind = MPI_OFFSET_KIND) :: globalSize, patchSize, sliceSize, bufferSize, sendcnt, indexQuotient
     integer(kind = MPI_OFFSET_KIND), dimension(:), allocatable :: recvcnt, displc
     SCALAR_TYPE, dimension(:), allocatable :: XBuffer, ZBuffer
-    SCALAR_TYPE :: dummyValue
 
     ! Initialize MPI.
     call MPI_Comm_rank(comm, procRank, ierror)
@@ -230,87 +229,86 @@ contains
 
   end subroutine
 
-  subroutine createZeroControlForcing(comm,ZFilename,globalSize)
-
-    use MPI
-    use, intrinsic :: iso_fortran_env, only : output_unit
-
-    use InputHelper, only : parseInputFile, getOption, getRequiredOption
-    use ErrorHandler
-    use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
-
-    implicit none
-
-    ! <<< Arguments >>>
-    integer, intent(in) :: comm
-    integer(kind = MPI_OFFSET_KIND), intent(in) :: globalSize
-    character(len = *), intent(in) :: ZFilename
-
-    ! <<< Local variables >>>
-    integer, parameter :: wp = SCALAR_KIND
-    integer :: i, procRank, numProcs, ierror, mpiFileHandle
-    character(len = STRING_LENGTH) :: message
-    logical :: XFileExists, success
-    integer(kind = MPI_OFFSET_KIND) :: ZFileSize, offset, globalOffset
-
-    integer(kind = MPI_OFFSET_KIND) :: patchSize, sliceSize, bufferSize, sendcnt, indexQuotient
-    integer(kind = MPI_OFFSET_KIND), dimension(:), allocatable :: recvcnt, displc
-    SCALAR_TYPE, dimension(:), allocatable :: ZBuffer
-    SCALAR_TYPE :: dummyValue
-
-    ! Initialize MPI.
-    call MPI_Comm_rank(comm, procRank, ierror)
-    call MPI_Comm_size(comm, numProcs, ierror)
-
-    call startTiming("File name and size check")
-
-    write(message,'(3A)') "Creating zero ", trim(ZFilename), "... "
-    call writeAndFlush(comm, output_unit, message, advance = 'no')
-
-    call endTiming("File name and size check")
-    call startTiming("Buffer setup")
-
-    indexQuotient = MOD(globalSize,int(numProcs,MPI_OFFSET_KIND))
-    bufferSize = globalSize/int(numProcs,MPI_OFFSET_KIND)
-    allocate(recvcnt(0:numProcs-1))
-    allocate(displc(0:numProcs-1))
-    recvcnt(0:indexQuotient-1) = bufferSize+1
-    recvcnt(indexQuotient:numProcs-1) = bufferSize
-    displc = 0
-    do i=1,numProcs-1
-      displc(i) = SUM(recvcnt(0:i-1))
-    end do
-    offset = displc(procRank)*SIZEOF_SCALAR
-
-    if( procRank<indexQuotient ) then
-      sendcnt = bufferSize+1
-    else
-      sendcnt = bufferSize
-    end if
-    allocate(ZBuffer(sendcnt))
-    ZBuffer = 0.0_wp
-
-    call endTiming("Buffer setup")
-    call startTiming("Write file")
-
-    call MPI_Barrier(comm, ierror)
-
-    call MPI_File_open(comm, trim(ZFilename),                                 &
-                       MPI_MODE_WRONLY + MPI_MODE_CREATE, MPI_INFO_NULL,      &
-                       mpiFileHandle, ierror)
-    call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
-                           'native',MPI_INFO_NULL,ierror)
-    call MPI_File_write_all(mpiFileHandle, ZBuffer, int(sendcnt),                   &
-                            SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
-    call MPI_File_close(mpiFileHandle, ierror)
-
-    call MPI_Barrier(comm, ierror)
-
-    call endTiming("Write file")
-
-    write(message, '(A)') " done!"
-    call writeAndFlush(comm, output_unit, message)
-
-  end subroutine
+  !NOTE: this subroutine is unused and thus commented out. Should be working.
+  ! subroutine createZeroControlForcing(comm,ZFilename,globalSize)
+  !
+  !   use MPI
+  !   use, intrinsic :: iso_fortran_env, only : output_unit
+  !
+  !   use InputHelper, only : parseInputFile, getOption, getRequiredOption
+  !   use ErrorHandler
+  !   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
+  !
+  !   implicit none
+  !
+  !   ! <<< Arguments >>>
+  !   integer, intent(in) :: comm
+  !   integer(kind = MPI_OFFSET_KIND), intent(in) :: globalSize
+  !   character(len = *), intent(in) :: ZFilename
+  !
+  !   ! <<< Local variables >>>
+  !   integer, parameter :: wp = SCALAR_KIND
+  !   integer :: i, procRank, numProcs, ierror, mpiFileHandle
+  !   character(len = STRING_LENGTH) :: message
+  !   integer(kind = MPI_OFFSET_KIND) :: offset
+  !
+  !   integer(kind = MPI_OFFSET_KIND) :: bufferSize, sendcnt, indexQuotient
+  !   integer(kind = MPI_OFFSET_KIND), dimension(:), allocatable :: recvcnt, displc
+  !   SCALAR_TYPE, dimension(:), allocatable :: ZBuffer
+  !
+  !   ! Initialize MPI.
+  !   call MPI_Comm_rank(comm, procRank, ierror)
+  !   call MPI_Comm_size(comm, numProcs, ierror)
+  !
+  !   call startTiming("File name and size check")
+  !
+  !   write(message,'(3A)') "Creating zero ", trim(ZFilename), "... "
+  !   call writeAndFlush(comm, output_unit, message, advance = 'no')
+  !
+  !   call endTiming("File name and size check")
+  !   call startTiming("Buffer setup")
+  !
+  !   indexQuotient = MOD(globalSize,int(numProcs,MPI_OFFSET_KIND))
+  !   bufferSize = globalSize/int(numProcs,MPI_OFFSET_KIND)
+  !   allocate(recvcnt(0:numProcs-1))
+  !   allocate(displc(0:numProcs-1))
+  !   recvcnt(0:indexQuotient-1) = bufferSize+1
+  !   recvcnt(indexQuotient:numProcs-1) = bufferSize
+  !   displc = 0
+  !   do i=1,numProcs-1
+  !     displc(i) = SUM(recvcnt(0:i-1))
+  !   end do
+  !   offset = displc(procRank)*SIZEOF_SCALAR
+  !
+  !   if( procRank<indexQuotient ) then
+  !     sendcnt = bufferSize+1
+  !   else
+  !     sendcnt = bufferSize
+  !   end if
+  !   allocate(ZBuffer(sendcnt))
+  !   ZBuffer = 0.0_wp
+  !
+  !   call endTiming("Buffer setup")
+  !   call startTiming("Write file")
+  !
+  !   call MPI_Barrier(comm, ierror)
+  !
+  !   call MPI_File_open(comm, trim(ZFilename),                                 &
+  !                      MPI_MODE_WRONLY + MPI_MODE_CREATE, MPI_INFO_NULL,      &
+  !                      mpiFileHandle, ierror)
+  !   call MPI_FILE_SET_VIEW(mpiFileHandle,offset,MPI_DOUBLE,MPI_DOUBLE,        &
+  !                          'native',MPI_INFO_NULL,ierror)
+  !   call MPI_File_write_all(mpiFileHandle, ZBuffer, int(sendcnt),                   &
+  !                           SCALAR_TYPE_MPI, MPI_STATUS_IGNORE, ierror)
+  !   call MPI_File_close(mpiFileHandle, ierror)
+  !
+  !   call MPI_Barrier(comm, ierror)
+  ! 
+  !   call endTiming("Write file")
+  !
+  !   write(message, '(A)') " done!"
+  !   call writeAndFlush(comm, output_unit, message)
+  !
+  ! end subroutine
 
 end program paste_control_forcing

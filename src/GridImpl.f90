@@ -41,6 +41,7 @@ contains
     allocate(this%coordinates(this%nGridPoints, this%nDimensions))
     allocate(this%jacobian(this%nGridPoints, 1))
     allocate(this%metrics(this%nGridPoints, this%nDimensions ** 2))
+    allocate(this%gridSpacing(this%nGridPoints, this%nDimensions))
     allocate(this%norm(this%nGridPoints, 1))
     this%norm = 1.0_wp
 
@@ -351,6 +352,7 @@ subroutine cleanupGrid(this)
   SAFE_DEALLOCATE(this%coordinates)
   SAFE_DEALLOCATE(this%jacobian)
   SAFE_DEALLOCATE(this%metrics)
+  SAFE_DEALLOCATE(this%gridSpacing)
   SAFE_DEALLOCATE(this%norm)
 
   SAFE_DEALLOCATE(this%targetMollifier)
@@ -796,6 +798,7 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
   case (1)
      this%jacobian(:,1) = jacobianMatrixInverse(:,1)
      this%metrics(:,1) = 1.0_wp
+     this%gridSpacing(:,1) = abs(jacobianMatrixInverse(:,1))
      if (allocated(this%arcLengths)) this%arcLengths(:,1) = abs(this%metrics(:,1))
 
   case (2)
@@ -807,6 +810,8 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         this%metrics(:,2) = - jacobianMatrixInverse(:,3)
         this%metrics(:,3) = - jacobianMatrixInverse(:,2)
         this%metrics(:,4) = jacobianMatrixInverse(:,1)
+        this%gridSpacing(:,1) = abs(jacobianMatrixInverse(:,1) + jacobianMatrixInverse(:,3))
+        this%gridSpacing(:,2) = abs(jacobianMatrixInverse(:,2) + jacobianMatrixInverse(:,4))
         if (allocated(this%arcLengths)) then
            this%arcLengths(:,1) = sqrt(this%metrics(:,1) ** 2 + this%metrics(:,2) ** 2)
            this%arcLengths(:,2) = sqrt(this%metrics(:,3) ** 2 + this%metrics(:,4) ** 2)
@@ -817,6 +822,8 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
         this%metrics(:,2) = 0.0_wp
         this%metrics(:,3) = 0.0_wp
         this%metrics(:,4) = jacobianMatrixInverse(:,1)
+        this%gridSpacing(:,1) = abs(jacobianMatrixInverse(:,1))
+        this%gridSpacing(:,2) = abs(jacobianMatrixInverse(:,4))
         if (allocated(this%arcLengths)) then
            this%arcLengths(:,1) = abs(this%metrics(:,1))
            this%arcLengths(:,2) = abs(this%metrics(:,4))
@@ -836,13 +843,22 @@ subroutine updateGrid(this, hasNegativeJacobian, errorMessage)
              jacobianMatrixInverse(:,7) *                                                    &
              (jacobianMatrixInverse(:,2) * jacobianMatrixInverse(:,6) -                      &
              jacobianMatrixInverse(:,5) * jacobianMatrixInverse(:,3))
+        this%gridSpacing(:,1) = abs(jacobianMatrixInverse(:,1) + jacobianMatrixInverse(:,4) +     &
+             jacobianMatrixInverse(:,7))
+        this%gridSpacing(:,2) = abs(jacobianMatrixInverse(:,2) + jacobianMatrixInverse(:,5) +     &
+             jacobianMatrixInverse(:,8))
+        this%gridSpacing(:,3) = abs(jacobianMatrixInverse(:,3) + jacobianMatrixInverse(:,6) +     &
+             jacobianMatrixInverse(:,9))
      else
         this%jacobian(:,1) = jacobianMatrixInverse(:,1) *                                    &
              jacobianMatrixInverse(:,5) * jacobianMatrixInverse(:,9)
+        this%gridSpacing(:,1) = abs(jacobianMatrixInverse(:,1))
+        this%gridSpacing(:,2) = abs(jacobianMatrixInverse(:,5))
+        this%gridSpacing(:,3) = abs(jacobianMatrixInverse(:,9))
      end if
 
      if (any(this%periodicityType == PLANE)) then
-
+        !TODO: gridSpacing is not determined for periodic domain.
         if (this%isCurvilinear) then
            this%metrics(:,1) = jacobianMatrixInverse(:,5) * jacobianMatrixInverse(:,9) -     &
                 jacobianMatrixInverse(:,8) * jacobianMatrixInverse(:,6)

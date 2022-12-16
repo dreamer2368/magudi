@@ -33,7 +33,6 @@ program adjoint
   type(t_Solver) :: solver
 
   ! << output variables >>
-  integer :: inputNumber, simulationNumber
   SCALAR_TYPE :: dummyValue = 0.0_wp
 
   ! Initialize MPI.

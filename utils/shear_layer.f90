@@ -12,7 +12,7 @@ program shear_layer
 
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
-  use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
+  use PLOT3DHelper, only : plot3dDetectFormat
 
   !> Generates the initial condition and target state for a shear layer.
 
@@ -20,9 +20,7 @@ program shear_layer
 
   integer :: i, ierror
   character(len = STRING_LENGTH) :: filename
-  logical :: success
   type(t_Region) :: region
-  integer, allocatable :: globalGridSizes(:,:)
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -294,7 +292,7 @@ contains
     type(t_State) :: state
 
     ! Local variables
-    integer :: i, j, k, ierror, procRank
+    integer :: i, j, ierror, procRank
     integer, parameter :: nkx = 10, nkz = 5
     integer, parameter :: wp = SCALAR_KIND
     real(SCALAR_KIND), parameter :: pi = 4.0_wp * atan(1.0_wp)

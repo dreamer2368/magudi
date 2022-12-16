@@ -8,6 +8,7 @@ program rhs
   use State_enum, only : QOI_FORWARD_STATE
 
   use Region_mod, only : t_Region
+  use Solver_mod, only : t_Solver
 
   use InputHelper, only : parseInputFile, getOption, getRequiredOption
   use ErrorHandler, only : writeAndFlush, gracefulExit
@@ -22,6 +23,7 @@ program rhs
   character(len = STRING_LENGTH) :: filename, outputPrefix
   logical :: success
   type(t_Region) :: region
+  type(t_Solver) :: solver
   integer, allocatable :: globalGridSizes(:,:)
 
   interface
@@ -71,30 +73,8 @@ program rhs
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
-  ! Setup boundary conditions.
-  call getRequiredOption("boundary_condition_file", filename)
-  call region%setupBoundaryConditions(filename)
-
-  ! Compute damping strength on sponge patches.
-  do i = 1, size(region%grids)
-     call computeSpongeStrengths(region%patchFactories, region%grids(i))
-  end do
-
-  ! Check continuity at block interfaces.
-  if (getOption("check_interface_continuity", .false.))                                      &
-       call checkFunctionContinuityAtInterfaces(region, epsilon(0.0_wp))
-
-  ! Update patches.
-  do i = 1, size(region%grids)
-     call updatePatchFactories(region%patchFactories, region%simulationFlags,                &
-          region%solverOptions, region%grids(i), region%states(i))
-  end do
-
-  ! Compute normalized metrics, norm matrix and Jacobian.
-  do i = 1, size(region%grids)
-     call region%grids(i)%update()
-  end do
-  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+  ! Initialize the solver.
+  call solver%setup(region, outputPrefix = outputPrefix)
 
   if (command_argument_count() >= 1) then !... only one solution file to process.
 
@@ -105,9 +85,9 @@ program rhs
      ! Save RHS
      i = len_trim(filename)
      if (filename(i-1:i) == ".q") then
-        filename = filename(:i-2) // ".rhs.q"
+        filename = filename(:i-2)
      else
-        filename = PROJECT_NAME // ".rhs.q"
+        filename = PROJECT_NAME
      end if
      call saveRhs(region, filename)
 
@@ -124,7 +104,7 @@ program rhs
         write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".q"
         call region%loadData(QOI_FORWARD_STATE, filename)
 
-        write(filename, '(2A,I8.8,A)') trim(outputPrefix), "-", i, ".rhs.q"
+        write(filename, '(2A,I8.8)') trim(outputPrefix), "-", i
         call saveRhs(region, filename)
 
      end do
@@ -144,10 +124,14 @@ subroutine saveRhs(region, filename)
 
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
+  use Patch_mod, only : t_Patch
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_DUMMY_FUNCTION
   use Region_enum, only : FORWARD
+
+  ! <<< External modules >>>
+  use InputHelper, only : getOption
 
   implicit none
 
@@ -156,12 +140,15 @@ subroutine saveRhs(region, filename)
   character(len = *), intent(in) :: filename
 
   ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer, save :: nDimensions = 0
+  integer :: i, j
+  character(len = STRING_LENGTH) :: patchFile
   type :: t_RhsInternal
      SCALAR_TYPE, pointer :: buffer(:,:) => null()
   end type t_RhsInternal
   type(t_RhsInternal), allocatable, save :: data_(:)
-  integer, save :: nDimensions = 0
-  integer :: i
+  class(t_Patch), pointer :: patch => null()
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -190,13 +177,57 @@ subroutine saveRhs(region, filename)
      end do
   end if
 
-  call region%computeRhs(FORWARD)
+  call region%computeRhs(FORWARD, region%timestep, 1)
 
   do i = 1, size(region%states)
      data_(i)%buffer = region%states(i)%rightHandSide
      region%states(i)%dummyFunction => data_(i)%buffer
   end do
 
-  call region%saveData(QOI_DUMMY_FUNCTION, filename)
+  call region%saveData(QOI_DUMMY_FUNCTION, trim(filename) // ".rhs.f")
+
+  if (getOption("rhs/save_patch_rhs", .false.) .and. (allocated(region%patchFactories))) then
+    ! Add patch penalties.
+    do i = 1, size(region%patchFactories)
+      ! Zero out the right-hand side.
+      do j = 1, size(region%states)
+        region%states(j)%rightHandSide = 0.0_wp
+      end do
+
+      call region%patchFactories(i)%connect(patch)
+      if (.not. associated(patch)) cycle
+      do j = 1, size(region%states)
+         if (patch%gridIndex /= region%grids(j)%index) cycle
+         call patch%updateRhs(FORWARD, region%simulationFlags, region%solverOptions,              &
+                              region%grids(j), region%states(j))
+      end do
+
+      do j = 1, size(region%states)
+         data_(j)%buffer = region%states(j)%rightHandSide
+         region%states(j)%dummyFunction => data_(j)%buffer
+      end do
+
+      write(patchFile, '(3A)') trim(filename) // ".", trim(patch%name), ".f"
+      call region%saveData(QOI_DUMMY_FUNCTION, patchFile)
+    end do
+  end if
+
+  if (getOption("enable_immersed_boundary", .false.)) then
+    ! resize the data buffer.
+    do i = 1, size(data_)
+      deallocate(data_(i)%buffer)
+      allocate(data_(i)%buffer(region%grids(i)%nGridPoints, 1 + 2 * region%grids(i)%nDimensions))
+    end do
+
+    do j = 1, size(region%states)
+       data_(j)%buffer(:, 1) = region%states(j)%levelset(:, 1)
+       data_(j)%buffer(:, 2:region%grids(j)%nDimensions + 1) = region%states(j)%levelsetNormal
+       data_(j)%buffer(:, region%grids(j)%nDimensions + 2 : 2 * region%grids(j)%nDimensions + 1) = region%states(j)%objectVelocity
+       region%states(j)%dummyFunction => data_(j)%buffer
+    end do
+
+    write(patchFile, '(A)') trim(filename) // ".levelset.f"
+    call region%saveData(QOI_DUMMY_FUNCTION, patchFile)
+  end if
 
 end subroutine saveRhs

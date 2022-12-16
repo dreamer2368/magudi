@@ -25,8 +25,8 @@ subroutine setupLighthillTensorComponent(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nDimensions, ierror
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
+  integer :: nDimensions
+  character(len = STRING_LENGTH) :: message
 
   assert(allocated(region%states))
   assert(size(region%states) > 0)
@@ -84,9 +84,6 @@ subroutine cleanupLighthillTensorComponent(this)
   ! <<< Arguments >>>
   class(t_LighthillTensorComponent) :: this
 
-  ! <<< Local variables >>>
-  integer :: i
-
   call this%cleanupBase()
 
 end subroutine cleanupLighthillTensorComponent
@@ -112,7 +109,7 @@ subroutine computeLighthillTensorComponentSpatialDistribution(this, grid, state,
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, ierror
+  integer :: i, k, nDimensions, nUnknowns
   logical :: computeViscousFlux = .false.
   SCALAR_TYPE, allocatable :: fluxes1(:,:,:), fluxes2(:,:,:)
 
@@ -199,10 +196,9 @@ function computeLighthillTensorComponent(this, region) result(instantaneousFunct
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns, ierror
+  integer :: i, ierror
   SCALAR_TYPE, allocatable :: F(:,:)
 
-  character(len=STRING_LENGTH) :: message
   real(wp) :: timeRampFactor
 
   assert(allocated(region%grids))
@@ -270,10 +266,9 @@ subroutine computeLighthillTensorComponentAdjointForcing(this, simulationFlags, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, nDimensions, nUnknowns, gridIndex, patchIndex
-  SCALAR_TYPE, allocatable :: temp1(:,:,:), temp2(:,:,:), localMetricsAlongDirection1(:),    &
-       localFluxJacobian1(:,:), localFluxJacobian2(:,:), localConservedVariables(:),         &
-       localVelocity(:), unitVector1(:), unitVector2(:),                                     &
-       localStressTensor(:), localHeatFlux(:), localAdjointDiffusion(:,:)
+  SCALAR_TYPE, allocatable :: localMetricsAlongDirection1(:),                                &
+       localFluxJacobian1(:,:), localConservedVariables(:),                                  &
+       localVelocity(:), unitVector2(:)
   SCALAR_TYPE, allocatable :: F(:)
   real(wp) :: timeRampFactor, const1
 
