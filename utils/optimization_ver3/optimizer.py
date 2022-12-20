@@ -150,7 +150,7 @@ class Optimizer:
                 self.lineStep += 1
                 self.stage, self.result = Stage.BRKT, Result.UNEXECUTED
         elif (self.stage is Stage.LNMN):
-            continueLinmin = self.nextLinmin(self.linminInitial)#, stop=linminStop)
+            continueLinmin = self.nextLinmin(self.linminInitial)
             self.linminInitial = False
             if (continueLinmin):
                 self.lineStep += 1
@@ -189,8 +189,7 @@ class Optimizer:
 
             if (self.cgStep > 0):
                 dsetName = "%s/%d/%d" % (self.fl.lineMinLog, self.hyperStep, self.cgStep - 1)
-                bIdx = f[dsetName].attrs['b']
-                self.lastStepSize = f[dsetName][bIdx, 0]
+                self.lastStepSize = f[dsetName].attrs['b']
         return
 
     def loadPreviousPenalty(self):
@@ -223,20 +222,24 @@ class Optimizer:
             fwHist = np.append(fwHist, np.loadtxt("x0/%s" % (self.fl.forwardHistoryFiles[k])), axis=0)
             adjHist = np.append(adjHist, np.loadtxt("x0/%s" % self.fl.gradientHistoryFiles[k]), axis=0)
 
-        if (self.cgStep > 0):
-            with h5py.File(self.logFile, 'a') as f:
-                dsetName = "%s/%d/%d" % (self.fl.forwardHistory, self.hyperStep, self.cgStep)
-                dset = f.create_dataset(dsetName, data=fwHist)
-                dsetName = "%s/%d/%d" % (self.fl.gradientHistory, self.hyperStep, self.cgStep)
-                dset = f.create_dataset(dsetName, data=adjHist)
+        with h5py.File(self.logFile, 'a') as f:
+            dsetName = "%s/%d/%d" % (self.fl.forwardHistory, self.hyperStep, self.cgStep)
+            dset = f.create_dataset(dsetName, data=fwHist)
+            dsetName = "%s/%d/%d" % (self.fl.gradientHistory, self.hyperStep, self.cgStep)
+            dset = f.create_dataset(dsetName, data=adjHist)
+        self.printAndLog("Succeeded.")
+        return
 
-                dsetName = "%s/%d/%d" % (self.fl.lineMinLog, self.hyperStep, self.cgStep)
-                df = pd.read_csv(self.fl.lineMinLogFile, sep='\t', header=0)
-                data = np.array(df.iloc[:, :2])
-                dset = f.create_dataset(dsetName, data=data)
-                for dir in ['a', 'b', 'c']:
-                    idx = np.array(df['step'][df['directory index']==dir])[0]
-                    dset.attrs[dir] = idx
+    def saveLineStepData(self):
+        self.printAndLog("Saving line-step data at cg step %d/%d.." % (self.hyperStep, self.cgStep))
+        with h5py.File(self.logFile, 'a') as f:
+            dsetName = "%s/%d/%d" % (self.fl.lineMinLog, self.hyperStep, self.cgStep)
+            df = pd.read_csv(self.fl.lineMinLogFile, sep='\t', header=0)
+            data = np.array(df.iloc[:, :2])
+            dset = f.create_dataset(dsetName, data=data)
+            for dir in ['a', 'b', 'c']:
+                idx = np.array(df['step'][df['directory index']==dir])[0]
+                dset.attrs[dir] = idx
         self.printAndLog("Succeeded.")
         return
 
@@ -595,6 +598,8 @@ class Optimizer:
             self.printAndLog('steps: %.16E %.16E %.16E' % (a,b,c))
             self.printAndLog('QoIs: %.16E %.16E %.16E' % (Ja,Jb,Jc))
             self.printAndLog('LINMIN: line minimization is finished.')
+
+            self.saveLineStepData()
 
             commandString = ''
 
