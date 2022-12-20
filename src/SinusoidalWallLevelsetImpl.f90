@@ -40,7 +40,8 @@ subroutine setupSinusoidalWallLevelset(this, grids, states)
     do i = 1, grids(n)%nGridPoints
       if ((grids(n)%coordinates(i, 1) < (this%levelsetLoc - 0.5_wp * this%levelsetWidth)) .or.  &
           (grids(n)%coordinates(i, 1) > (this%levelsetLoc + 0.5_wp * this%levelsetWidth))) cycle
-      this%wallShapes(n)%buffer(i) = 0.5_wp + 0.5_wp * cos(2.0_wp * pi * (grids(n)%coordinates(i, 1) - this%levelsetLoc) / this%levelsetWidth)
+      this%wallShapes(n)%buffer(i) = 0.5_wp + 0.5_wp                                              &
+         * cos(2.0_wp * pi * (grids(n)%coordinates(i, 1) - this%levelsetLoc) / this%levelsetWidth)
     end do
     this%wallShapes(n)%buffer = this%wallShapes(n)%buffer * this%levelsetAmp
   end do
@@ -101,7 +102,8 @@ subroutine updateSinusoidalWallLevelset(this, mode, grids, states)
   end if
 
   timeFactor = sin(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
-  timeDerivativeFactor = 2.0_wp * pi / this%levelsetPeriod * cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
+  timeDerivativeFactor = 2.0_wp * pi / this%levelsetPeriod                          &
+                         * cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
 
   do i = 1, size(states)
     if (.not. states(i)%ibmPatchExists) cycle
