@@ -6,14 +6,16 @@ import plot3dnasa as p3d
 def mapping_function(x, sigma):
     return np.sinh(sigma * x) / np.sinh(sigma)
 
-def grid(size, dip_range, mapping_type='sinh'):
+def grid(size, Lx, dip_range, mapping_type='sinh'):
+    dip_range /= Lx
+
     from scipy.optimize import fsolve
-    x_min =  -10.
-    x_max =  100.
-    y_min =    0.
-    y_max =   25.
-    z_min =  -40.
-    z_max =   40.
+    x_min =    0. / Lx
+    x_max =  180. / Lx
+    y_min =    0. / Lx
+    y_max =   30. / Lx
+    z_min =  -40. / Lx
+    z_max =   40. / Lx
     dy_min = 0.016
     num_uniform = 7
 
@@ -156,10 +158,49 @@ def initial_condition(g, mach_number=1.0 / 343.0, gamma=1.4, Re = 1.16e6):
     s.q[0][:,:,:,4] = p
     return s.fromprimitive()
 
+def initial_condition_from_exp(g, expFilename, Lx = 5.0, a0 = 343.0, gamma = 1.4, Re = 1.1588e+05):
+    x = g.xyz[0][:,:,:,0]
+    y = g.xyz[0][:,:,:,1]
+
+    expData = np.loadtxt(expFilename)
+    ymax = expData[-1, 0] / Lx
+    uFunc = cubicSplineInterp(expData[:, 0], expData[:, 1])
+    vtFunc = cubicSplineInterp(expData[:, 0], expData[:, 2])
+
+    u0 = uFunc(y * Lx) / a0
+    v0 = vtFunc(y * Lx) / a0
+    p = 1.0 / gamma
+
+    mask = (y < 0.0)
+    u0[mask] = 0.0
+    v0[mask] = 0.0
+
+    u0[u0 <= 0.0] = 0.0
+    v0[v0 <= 0.0] = 0.0
+    u0[y > ymax] = expData[-1, 1] / a0
+    v0[y > ymax] = expData[-1, 2] / a0
+
+    s = p3d.Solution().copy_from(g).quiescent(gamma)
+    s.q[0][:,:,:,0] = 1.0
+    s.q[0][:,:,:,1:4] = 0.0
+    s.q[0][:,:,:,1] = u0
+    s.q[0][:,:,:,2] = v0
+    s.q[0][:,:,:,4] = p
+    return s.fromprimitive()
+
 if __name__ == '__main__':
-    dip_range = [0.0, 15.0, 5.0]
-    g = grid([301, 201], dip_range, mapping_type='geom')
+    Lx = 5.0        # mm
+    a0 = 343.0      # m/s
+    gamma = 1.4
+    nu0 = 1.48e-5   # m2/s
+    Re = Lx * 1e-3 * a0 / nu0
+    print("Reynolds number: %.5E" % Re)
+    expFile = 'UV.4.5v_0msC.txt'
+
+    dip_range = np.array([0.0, 15.0, 7.5])
+    g = grid([501, 201], Lx, dip_range, mapping_type='geom')
     g.save('DeformingWall2D.xyz')
-    s = initial_condition(g, Re = 23175.7)
+    s = initial_condition_from_exp(g, expFile, Lx, a0, gamma, Re)
+    # s = initial_condition(g, mach_number = 0.1, Re = 23175.7)
     s.save('DeformingWall2D.ic.q')
     s.save('DeformingWall2D.target.q')

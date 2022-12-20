@@ -33,7 +33,7 @@ controller_buffer_size = 100
 check_gradient_accuracy = false
 
 # Physical constants
-Reynolds_number = 23175.7
+Reynolds_number = 115878.0
 Prandtl_number = 0.7
 viscosity_power_law_exponent = 0.0
 
@@ -42,9 +42,9 @@ defaults/discretization_scheme = "SBP 3-6"
 
 # Time stepping options
 time_step_size = 1.2e-2
-number_of_timesteps = 4000
-report_interval = 10
-save_interval = 200
+number_of_timesteps = 1000000
+report_interval = 1000
+save_interval = 5000
 
 # Artificial dissipation
 add_dissipation = true
@@ -76,9 +76,9 @@ enable_immersed_boundary = true
 immersed_boundary/levelset_type = "sinusoidal_wall"
 immersed_boundary/dissipation_amount = 1e-3
 immersed_boundary/regularization_parameter = 3.0
-immersed_boundary/period = 48.0
-immersed_boundary/location = 10.0
-immersed_boundary/width = 20.0
+immersed_boundary/period = 1372.0
+immersed_boundary/location = 8.5
+immersed_boundary/width = 9.0
 immersed_boundary/amplitude = 1.0
 
 
