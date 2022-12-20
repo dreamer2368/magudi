@@ -57,6 +57,8 @@ class Optimizer:
     zeroControlForcing = True   # control at the current CG step (directory x0)
     zeroLagrangian = True       # augmented_lagrangian at the current stage (root directory)
 
+    lastStepSize = -1.0         # step size of last cg step
+
     def __init__(self, config):
         self.config = config
         self.const = Constants(config)
@@ -184,6 +186,11 @@ class Optimizer:
             self.result = Result(f.attrs['result'])
             if (self.const.useLagrangian):
                 self.zeroLagrangian = f.attrs['lagrangian']
+
+            if (self.cgStep > 0):
+                dsetName = "%s/%d/%d" % (self.fl.lineMinLog, self.hyperStep, self.cgStep - 1)
+                bIdx = f[dsetName].attrs['b']
+                self.lastStepSize = f[dsetName][bIdx, 0]
         return
 
     def loadPreviousPenalty(self):
@@ -422,14 +429,9 @@ class Optimizer:
                 commands += ['cp x0/%s ./a/ ' % self.const.globalControlSpaceFiles[j]]
         commandString += self.scriptor.nonMPILoopCommand(commands,'copy_control_params')
 
-        numFiles = len(os.listdir(self.fl.LINMINDIR))
-        if (numFiles>0):
-            df_file = '%s/%d/%s' % (self.fl.LINMINDIR, numFiles-1, self.fl.lineMinLogFile)
-            df_temp = pd.read_csv(df_file, sep='\t', header=0)
-            lastStep = np.array(df_temp['step'][df_temp['directory index']=='b'])[0]
-
         steps, Js = np.zeros(2), np.zeros(2)
-        steps[1] = self.const.initial_step if numFiles==0 else lastStep
+        steps[1] = self.lastStepSize if (self.cgStep > 0) else self.const.initial_step
+        assert(steps[1] > 0.0)
         Js[0] = J0
 
         temp = ['x0/'+file for file in self.fl.globalControlSpaceFiles]
