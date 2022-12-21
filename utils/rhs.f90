@@ -122,6 +122,8 @@ end program rhs
 
 subroutine saveRhs(region, filename)
 
+  use MPI
+
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use Patch_mod, only : t_Patch
@@ -142,7 +144,7 @@ subroutine saveRhs(region, filename)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer, save :: nDimensions = 0
-  integer :: i, j
+  integer :: i, j, maxPatchSize, ierror
   character(len = STRING_LENGTH) :: patchFile
   type :: t_RhsInternal
      SCALAR_TYPE, pointer :: buffer(:,:) => null()
@@ -187,20 +189,27 @@ subroutine saveRhs(region, filename)
   call region%saveData(QOI_DUMMY_FUNCTION, trim(filename) // ".rhs.f")
 
   if (getOption("rhs/save_patch_rhs", .false.) .and. (allocated(region%patchFactories))) then
+    maxPatchSize = size(region%patchFactories)
+    call MPI_Allreduce(MPI_IN_PLACE, maxPatchSize, 1,                                           &
+                       MPI_INTEGER, MPI_MAX, region%comm, ierror)
+
     ! Add patch penalties.
-    do i = 1, size(region%patchFactories)
+    do i = 1, maxPatchSize
       ! Zero out the right-hand side.
       do j = 1, size(region%states)
         region%states(j)%rightHandSide = 0.0_wp
       end do
 
-      call region%patchFactories(i)%connect(patch)
-      if (.not. associated(patch)) cycle
-      do j = 1, size(region%states)
-         if (patch%gridIndex /= region%grids(j)%index) cycle
-         call patch%updateRhs(FORWARD, region%simulationFlags, region%solverOptions,              &
-                              region%grids(j), region%states(j))
-      end do
+      if (i .le. size(region%patchFactories)) then
+        call region%patchFactories(i)%connect(patch)
+        if (associated(patch)) then
+          do j = 1, size(region%states)
+            if (patch%gridIndex /= region%grids(j)%index) cycle
+            call patch%updateRhs(FORWARD, region%simulationFlags, region%solverOptions,              &
+                                 region%grids(j), region%states(j))
+          end do
+        end if
+      end if
 
       do j = 1, size(region%states)
          data_(j)%buffer = region%states(j)%rightHandSide
