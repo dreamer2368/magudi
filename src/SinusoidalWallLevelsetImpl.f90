@@ -106,7 +106,9 @@ subroutine updateSinusoidalWallLevelset(this, mode, grids, states)
                          * cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
 
   do i = 1, size(states)
-    if (.not. states(i)%ibmPatchExists) cycle
+    !NOTE: you cannot simply cycle here, since even in the same grid, some
+    !processors may not have ibm patch.
+    !if (.not. states(i)%ibmPatchExists) cycle
     
     assert(size(states(i)%levelset, 1) == size(states(i)%conservedVariables, 1))
     assert(size(states(i)%levelset, 2) == 1)
