@@ -36,8 +36,11 @@ class BaseCommanderExtended(BaseCommander):
             commandDir = '%s/%s' % (bdir, self.fl.directories[k])
             crashCheck = 'if [ -f "%s/%s-crashed.q" ]; then\n' % (commandDir, self.fl.prefixes[k])
             crashCheck += '   echo "%d-th forward run crashed. Retry with a smaller step."\n' % k
-            crashCheck += '   mv %s/%s-crashed.q %s/%s\n' % (commandDir, self.fl.prefixes[k],
-                                                             commandDir, self.fl.matchingForwardFiles[k])
+            if (k != self.const.Nsplit - 1):
+                # Just to continue the optimization seamlessly, copy the next initial condition.
+                # Due to the crashed forward run, the result QoI will be NaN anyway.
+                crashCheck += '   cp %s/%s %s/%s\n' % (bdir, self.fl.icFiles[k + 1],
+                                                       commandDir, self.fl.matchingForwardFiles[k])
             crashCheck += '   let "crash+=1"\n'
             crashCheck += 'fi\n\n'
             commandString += crashCheck
