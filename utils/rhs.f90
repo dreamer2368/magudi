@@ -122,6 +122,8 @@ end program rhs
 
 subroutine saveRhs(region, filename)
 
+  use MPI
+
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use Patch_mod, only : t_Patch
@@ -142,7 +144,8 @@ subroutine saveRhs(region, filename)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer, save :: nDimensions = 0
-  integer :: i, j
+  integer :: i, j, p, localPatchSize
+  logical :: savePatch
   character(len = STRING_LENGTH) :: patchFile
   type :: t_RhsInternal
      SCALAR_TYPE, pointer :: buffer(:,:) => null()
@@ -186,20 +189,31 @@ subroutine saveRhs(region, filename)
 
   call region%saveData(QOI_DUMMY_FUNCTION, trim(filename) // ".rhs.f")
 
-  if (getOption("rhs/save_patch_rhs", .false.) .and. (allocated(region%patchFactories))) then
+  ! Global patch data are stored in region%patchData (not patchFactories!)
+  savePatch = allocated(region%patchData) .and. getOption("rhs/save_patch_rhs", .false.)
+
+  if (savePatch) then
+    ! patch size in processor for update rhs
+    localPatchSize = 0
+    if (allocated(region%patchFactories)) localPatchSize = size(region%patchFactories)
+
     ! Add patch penalties.
-    do i = 1, size(region%patchFactories)
+    do i = 1, size(region%patchData)
       ! Zero out the right-hand side.
       do j = 1, size(region%states)
         region%states(j)%rightHandSide = 0.0_wp
       end do
 
-      call region%patchFactories(i)%connect(patch)
-      if (.not. associated(patch)) cycle
-      do j = 1, size(region%states)
-         if (patch%gridIndex /= region%grids(j)%index) cycle
-         call patch%updateRhs(FORWARD, region%simulationFlags, region%solverOptions,              &
-                              region%grids(j), region%states(j))
+      do p = 1, localPatchSize
+        if (region%localToGlobalPatchIndex(p) .ne. i) cycle
+        call region%patchFactories(p)%connect(patch)
+        if (associated(patch)) then
+          do j = 1, size(region%states)
+            if (patch%gridIndex /= region%grids(j)%index) cycle
+            call patch%updateRhs(FORWARD, region%simulationFlags, region%solverOptions,              &
+                                 region%grids(j), region%states(j))
+          end do
+        end if
       end do
 
       do j = 1, size(region%states)
@@ -207,7 +221,7 @@ subroutine saveRhs(region, filename)
          region%states(j)%dummyFunction => data_(j)%buffer
       end do
 
-      write(patchFile, '(3A)') trim(filename) // ".", trim(patch%name), ".f"
+      write(patchFile, '(3A)') trim(filename) // ".", trim(region%patchData(i)%name), ".f"
       call region%saveData(QOI_DUMMY_FUNCTION, patchFile)
     end do
   end if

@@ -30,15 +30,16 @@ module Region_mod
 
      type(t_Grid), allocatable :: grids(:)
      type(t_State), allocatable :: states(:)
-     type(t_PatchFactory), allocatable :: patchFactories(:)
+     type(t_PatchFactory), allocatable :: patchFactories(:) ! size of actually used patches in a processor.
      type(t_SolverOptions) :: solverOptions
      type(t_SimulationFlags) :: simulationFlags
-     type(t_PatchDescriptor), allocatable :: patchData(:)
+     type(t_PatchDescriptor), allocatable :: patchData(:)   ! size of total number of patches.
      class(t_LevelsetFactory), pointer :: levelsetFactory => null()
      integer :: comm = MPI_COMM_NULL, commGridMasters = MPI_COMM_NULL, timestep = 0
      integer, allocatable :: globalGridSizes(:,:), processDistributions(:,:),                &
           gridCommunicators(:), patchCommunicators(:), patchInterfaces(:),                   &
-          interfaceIndexReorderings(:,:), patchMasterRanks(:)
+          interfaceIndexReorderings(:,:), patchMasterRanks(:),                               &
+                             localToGlobalPatchIndex(:)     ! index mapping from patchFactories to patchData.
      logical :: outputOn = .true.
      SCALAR_TYPE :: initialXmomentum, oneOverVolume, momentumLossPerVolume,                  &
                     adjointMomentumLossPerVolume

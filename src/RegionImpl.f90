@@ -1170,6 +1170,7 @@ subroutine cleanupRegion(this)
   SAFE_DEALLOCATE(this%patchInterfaces)
   SAFE_DEALLOCATE(this%interfaceIndexReorderings)
   SAFE_DEALLOCATE(this%patchMasterRanks)
+  SAFE_DEALLOCATE(this%localToGlobalPatchIndex)
 
   if (this%comm /= MPI_COMM_NULL .and. this%comm /= MPI_COMM_WORLD)                          &
        call MPI_Comm_free(this%comm, ierror)
@@ -1210,7 +1211,6 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
   ! <<< Local variables >>>
   integer :: i, j, k, nPatches, ierror
   type(t_PatchDescriptor) :: p
-  integer, allocatable :: patchIndices(:)
   class(t_Patch), pointer :: patch => null()
 
   call startTiming("setupBoundaryConditions")
@@ -1226,8 +1226,8 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
        nPatches = count(this%patchCommunicators /= MPI_COMM_NULL)
   if (nPatches > 0) then
      allocate(this%patchFactories(nPatches))
-     allocate(patchIndices(nPatches))
-     patchIndices = 0
+     allocate(this%localToGlobalPatchIndex(nPatches))
+     this%localToGlobalPatchIndex = 0
   end if
 
   if (allocated(this%patchData)) then
@@ -1237,13 +1237,13 @@ subroutine setupBoundaryConditions(this, boundaryConditionFilename)
            if (p%gridIndex /= this%grids(k)%index) cycle
            if (allocated(this%patchFactories)) then
               do j = 1, size(this%patchFactories)
-                 if (patchIndices(j) /= 0 .or.                                               &
+                 if (this%localToGlobalPatchIndex(j) /= 0 .or.                               &
                       this%patchCommunicators(i) == MPI_COMM_NULL) cycle
                  call this%patchFactories(j)%connect(patch, trim(p%patchType))
                  assert(associated(patch))
                  call patch%setup(i, this%patchCommunicators(i), p, this%grids(k),           &
                       this%simulationFlags, this%solverOptions)
-                 patchIndices(j) = i
+                 this%localToGlobalPatchIndex(j) = i
                  exit
               end do
            end if

@@ -299,7 +299,7 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
     return
   end if
 
-  if (.not. this%ibmPatchExists) return
+  !if (.not. this%ibmPatchExists) return
 
   assert(size(this%levelset, 1) == size(this%conservedVariables, 1))
   assert(size(this%levelset, 2) == 1)
