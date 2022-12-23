@@ -38,7 +38,7 @@ class FWHSolver:
         pbar = None
         try:
             from progressbar import ProgressBar, Percentage, Bar, ETA
-            print('Processing FWH data...')
+            print 'Processing FWH data...'
             pbar = ProgressBar(widgets = [Percentage(), ' ', Bar(
                 '=', left = '[', right = ']'), ' ', ETA()],
                                maxval = self.nsamples).start()
@@ -152,10 +152,10 @@ class Mike:
     def _update_signal(self, sample_index, dp):
         a = np.trunc(self.advanced_offset + sample_index) - \
             self.signal_offset - 1
-        self.p[:-1] += np.histogram(a, list(range(self.p.size)),
+        self.p[:-1] += np.histogram(a, range(self.p.size),
                                     (0., self.p.size - 2.),
                                     weights=(1. - self.weights) * dp)[0]
-        self.p[1:] += np.histogram(a, list(range(self.p.size)),
+        self.p[1:] += np.histogram(a, range(self.p.size),
                                    (0., self.p.size - 2.),
                                    weights=self.weights * dp)[0]
         return self

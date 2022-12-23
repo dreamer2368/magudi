@@ -108,7 +108,7 @@ class MultiBlockObject(object):
 
     @nGrids.setter
     def nGrids(self, value):
-        if not isinstance(value, int):
+        if not isinstance(value, (int, long)):
             raise TypeError("Number of grids must be an integer")
         if value <= 0:
             raise ValueError("Number of grids must be positive")
@@ -123,14 +123,14 @@ class MultiBlockObject(object):
     def GetSize(self, gridIndex = None):
         if gridIndex is None:
             return self._size
-        if not isinstance(gridIndex, int):
+        if not isinstance(gridIndex, (int, long)):
             raise TypeError("Grid index must be an integer")
         if gridIndex < 0 or gridIndex >= self._nGrids:
             raise IndexError("Grid index out of range (expected a number in [%i,%i])" % (0, self._nGrids - 1))
         return self._size[gridIndex]
 
     def SetSize(self, gridIndex, size, allocate = True):
-        if not isinstance(gridIndex, int):
+        if not isinstance(gridIndex, (int, long)):
             raise TypeError("Grid index must be an integer")
         if gridIndex < 0 or gridIndex >= self._nGrids:
             raise IndexError("Grid index out of range (expected a number in [%i,%i])" % (0, self._nGrids - 1))
@@ -551,7 +551,7 @@ class Function(MultiBlockObject):
 
     @nComponents.setter
     def nComponents(self, value):
-        if not isinstance(value, int):
+        if not isinstance(value, (int, long)):
             raise TypeError("Number of components must be an integer")
         if value < 0:
             raise IndexError("Number of components must be positive")

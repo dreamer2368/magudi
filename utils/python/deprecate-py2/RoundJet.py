@@ -63,7 +63,7 @@ def getCenterlineRMSFluctuations(meanSolutionFile, solutionFileList, **kwargs):
     try:
         if kwargs.pop('showProgress', True) is True:
             from progressbar import ProgressBar, Percentage, Bar, ETA
-            print('Averaging in time:')
+            print 'Averaging in time:'
             p = ProgressBar(widgets = [Percentage(), ' ', Bar('=', left = '[', right = ']'), ' ', ETA()], maxval = len(solutionFileList)).start()
     except:
         pass
@@ -110,7 +110,7 @@ def interpolateSolutionAtConstantRadius(gridFile, solutionFile, radialCoordinate
     try:
         if showProgress is True:
             from progressbar import ProgressBar, Percentage, Bar, ETA
-            print('Interpolating at constant-radius surface:')
+            print 'Interpolating at constant-radius surface:'
             p = ProgressBar(widgets = [Percentage(), ' ', Bar('=', left = '[', right = ']'), ' ', ETA()], maxval = 28).start()
     except:
         pass
@@ -178,7 +178,7 @@ def getConstantRadiusRMSFluctuations(gridFile, meanSolutionFile, solutionFileLis
     try:
         if kwargs.pop('showProgress', True) is True:
             from progressbar import ProgressBar, Percentage, Bar, ETA
-            print('Averaging in time:')
+            print 'Averaging in time:'
             p = ProgressBar(widgets = [Percentage(), ' ', Bar('=', left = '[', right = ']'), ' ', ETA()], maxval = len(solutionFileList)).start()
     except:
         pass
@@ -341,7 +341,7 @@ def getAzimuthalAveragedGridAndSolution(gridFile, solutionFile, hasIBLANK = Fals
     try:
         if showProgress is True:
             from progressbar import ProgressBar, Percentage, Bar, ETA
-            print('Processing along streamwise direction:')
+            print 'Processing along streamwise direction:'
             p = ProgressBar(widgets = [Percentage(), ' ', Bar('=', left = '[', right = ']'), ' ', ETA()], maxval = Q.shape[1]).start()
     except:
         pass
@@ -402,7 +402,7 @@ def interpolateOnAnnularGrid(gridFile, solutionFile, hasIBLANK = False, showProg
     try:
         if showProgress is True:
             from progressbar import ProgressBar, Percentage, Bar, ETA
-            print('Processing along streamwise direction:')
+            print 'Processing along streamwise direction:'
             p = ProgressBar(widgets = [Percentage(), ' ', Bar('=', left = '[', right = ']'), ' ', ETA()], maxval = 5 * axialCoordinate.size).start()
     except:
         pass
