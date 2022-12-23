@@ -163,14 +163,14 @@ class FileFormat(object):
             self.real_dtype = self.real_dtype.newbyteorder(self.endianness)
 
     def _get_reclength(self, f, advance=False):
-        n, = unpack_from(self.reclength_dtype.str,
+        n, = unpack_from(self.reclength_dtype.str[:-1],
                          f.read(self.reclength_dtype.itemsize))
         if not advance:
             f.seek(-self.reclength_dtype.itemsize, 1)
         return n
 
     def _get_raw_bytes(self, f):
-        n, = unpack_from(self.reclength_dtype.str,
+        n, = unpack_from(self.reclength_dtype.str[:-1],
                          f.read(self.reclength_dtype.itemsize))
         s = f.read(n)
         f.seek(self.reclength_dtype.itemsize, 1)
@@ -283,17 +283,17 @@ class MultiBlockCommon(object):
 
     def write_header(self, f, form, ncomponents=0):
         if form == 'F':
-            f.write(pack(self._format.reclength_dtype.str, 4))
+            f.write(pack(self._format.reclength_dtype.str[:-1], 4))
         f.write(pack(self._format.endianness + 'i', self.nblocks))
         if form == 'F':
-            f.write(pack(self._format.reclength_dtype.str, 4))
+            f.write(pack(self._format.reclength_dtype.str[:-1], 4))
         if ncomponents == 0:
             if form == 'F':
-                f.write(pack(self._format.reclength_dtype.str,
+                f.write(pack(self._format.reclength_dtype.str[:-1],
                              4 * self.size.size))
             f.write(self.size.tostring())
             if form == 'F':
-                f.write(pack(self._format.reclength_dtype.str,
+                f.write(pack(self._format.reclength_dtype.str[:-1],
                              4 * self.size.size))
         else:
             s = np.empty([self.nblocks, 4], dtype=np.dtype(
@@ -301,10 +301,10 @@ class MultiBlockCommon(object):
             s[:,:-1] = self.size
             s[:,-1] = ncomponents
             if form == 'F':
-                f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
+                f.write(pack(self._format.reclength_dtype.str[:-1], 4 * s.size))
             f.write(s.tostring())
             if form == 'F':
-                f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
+                f.write(pack(self._format.reclength_dtype.str[:-1], 4 * s.size))
 
     def copy_from(self, a):
         self.filename = ''
@@ -385,12 +385,12 @@ class Grid(MultiBlockCommon):
                     s += self._format.integer_dtype.itemsize
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
                 f.write(self.xyz[i].tostring(order='F'))
                 if self.has_iblank:
                     f.write(self.iblank[i].tostring(order='F'))
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
         self.filename = filename
 
     def save_h5(self, filename=''):
@@ -409,7 +409,7 @@ class Grid(MultiBlockCommon):
                 grp.attrs[key] = d[key]
             for j in range(3):
                 dset = grp.require_dataset('XYZ'[j], tuple(self.size[i,:]),
-                                          dtype=self._format.real_dtype.str)
+                                          dtype=self._format.real_dtype.str[:-1])
                 dset[...] = self.xyz[i][:,:,:,j].flatten(order='F').reshape(
                     self.size[i,:], order='C')
             if self.has_iblank:
@@ -527,17 +527,17 @@ class Solution(MultiBlockCommon):
             for i in range(self.nblocks):
                 s = 4 * self._format.real_dtype.itemsize
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
                 f.write(aux_header.tostring())
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
                 s = 5 * self._format.real_dtype.itemsize
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
                 f.write(self.q[i].tostring(order='F'))
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
         self.filename = filename
 
     def save_h5(self, filename='', prefix='cv'):
@@ -559,7 +559,7 @@ class Solution(MultiBlockCommon):
             for k, j in enumerate([0] + list(range(1, nd + 1)) + [4]):
                 dset = grp.require_dataset('%s%02d' % (prefix, k + 1),
                                            tuple(self.size[i,:]),
-                                           dtype=self._format.real_dtype.str)
+                                           dtype=self._format.real_dtype.str[:-1])
                 dset[...] = self.q[i][:,:,:,j].ravel(order='F').reshape(
                     self.size[i,:], order='C')
         f.close()
@@ -689,10 +689,10 @@ class Function(MultiBlockCommon):
                 s = self.ncomponents * self._format.real_dtype.itemsize
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
                 f.write(self.f[i].tostring(order='F'))
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str, s))
+                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
         self.filename = filename
 
     def save_h5(self, filename='', prefix='f'):
@@ -714,7 +714,7 @@ class Function(MultiBlockCommon):
             for j in range(self.ncomponents):
                 dset = grp.require_dataset('%s%02d' % (prefix, j + 1),
                                            tuple(self.size[i,:nd]),
-                                           dtype=self._format.real_dtype.str)
+                                           dtype=self._format.real_dtype.str[:-1])
                 if nd == 3:
                     dset[...] = self.f[i][:,0,0,j]
                 elif nd == 2:
