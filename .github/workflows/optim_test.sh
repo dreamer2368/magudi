@@ -24,7 +24,7 @@ if [ $? -ne 0 ]; then exit -1; fi
 echo "Generating grid and solutions for ${EXAMPLE}"
 
 cd ${EXAMPLE}
-python2 config.py
+python3 config.py
 if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Generating links to executables in ${EXAMPLE}"

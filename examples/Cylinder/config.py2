@@ -54,8 +54,8 @@ def target_mollifier(g):
     for j in range(n[1]):
         f.f[0][:,j,0,0] *= p3d.cubic_bspline_support(r, r_min, r_max)
     imin, imax = p3d.find_extents(r, r_min, r_max)
-    print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-        'targetRegion', 'COST_TARGET', 1, 0, imin, imax, 1, -1, 1, -1))
+    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        'targetRegion', 'COST_TARGET', 1, 0, imin, imax, 1, -1, 1, -1)
     return f
 
 def control_mollifier(g):
@@ -69,8 +69,8 @@ def control_mollifier(g):
     f.f[0][:,:,0,0] *= p3d.tanh_support(r, r_min - (r_max - r_min),
                                         r_max, 20., 0.4, False)
     imin, imax = p3d.find_extents(r[:,0], r_min, r_max)
-    print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-        'controlRegion', 'ACTUATOR', 1, 0, imin, imax, 1, -1, 1, -1))
+    print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        'controlRegion', 'ACTUATOR', 1, 0, imin, imax, 1, -1, 1, -1)
     return f
 
 def mean_pressure(s):

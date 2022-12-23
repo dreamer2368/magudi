@@ -126,8 +126,8 @@ class InstabilityMode:
             y = self.newton_raphson_func(x)
             it = it + 1
         if it >= max_iterations:
-            print("Newton-Raphson failed: initial guess = ", initial_guess, \
-                ", current guess = ", x, ", current function = ", abs(y))
+            print "Newton-Raphson failed: initial guess = ", initial_guess, \
+                ", current guess = ", x, ", current function = ", abs(y)
         self.alpha = x.real - 1.j * abs(x.imag)
         return self
 
@@ -191,82 +191,82 @@ class InstabilityMode:
                          rho * u * u_hat_x])
 
 def draw_circular_arc(f, label, p1, p2, c):
-    print('gg::conBegin', file=f)
-    print('gg::segBegin -type CIRCULAR_ARC', file=f)
-    print('gg::segAddControlPt {%f %f %f}' % (p1[0], p1[1], p1[2]), file=f)
-    print('gg::segAddControlPt {%f %f %f}' % (p2[0], p2[1], p2[2]), file=f)
-    print('gg::segAddControlPt -alternate CENTER {%f %f %f}' % \
-        (c[0], c[1], c[2]), file=f)
-    print('gg::segEnd', file=f)
-    print('set %s [gg::conEnd]' % (label), file=f)
+    print >>f, 'gg::conBegin'
+    print >>f, 'gg::segBegin -type CIRCULAR_ARC'
+    print >>f, 'gg::segAddControlPt {%f %f %f}' % (p1[0], p1[1], p1[2])
+    print >>f, 'gg::segAddControlPt {%f %f %f}' % (p2[0], p2[1], p2[2])
+    print >>f, 'gg::segAddControlPt -alternate CENTER {%f %f %f}' % \
+        (c[0], c[1], c[2])
+    print >>f, 'gg::segEnd'
+    print >>f, 'set %s [gg::conEnd]' % (label)
     return None
 
 def draw_line3d(f, label, p1, p2):
-    print('gg::conBegin', file=f)
-    print('gg::segBegin -type 3D_LINE', file=f)
-    print('gg::segAddControlPt {%f %f %f}' % (p1[0], p1[1], p1[2]), file=f)
-    print('gg::segAddControlPt {%f %f %f}' % (p2[0], p2[1], p2[2]), file=f)
-    print('gg::segEnd', file=f)
-    print('set %s [gg::conEnd]' % (label), file=f)
+    print >>f, 'gg::conBegin'
+    print >>f, 'gg::segBegin -type 3D_LINE'
+    print >>f, 'gg::segAddControlPt {%f %f %f}' % (p1[0], p1[1], p1[2])
+    print >>f, 'gg::segAddControlPt {%f %f %f}' % (p2[0], p2[1], p2[2])
+    print >>f, 'gg::segEnd'
+    print >>f, 'set %s [gg::conEnd]' % (label)
     return None
 
 def rotate_copy_connector(f, label, p1, p2, angle, new_label=None,
                           replace=False):
     if replace is True:
-        print('gg::conTransformBegin $%s -maintain_linkage' % (label), file=f)
+        print >>f, 'gg::conTransformBegin $%s -maintain_linkage' % (label)
     else:
-        print('gg::conCopyBegin $%s' % (label), file=f)
-    print('gg::xformRotate {%f %f %f} {%f %f %f} %f' % \
-        (p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], angle), file=f)
+        print >>f, 'gg::conCopyBegin $%s' % (label)
+    print >>f, 'gg::xformRotate {%f %f %f} {%f %f %f} %f' % \
+        (p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], angle)
     if replace is True:
-        print('gg::conTransformEnd', file=f)
+        print >>f, 'gg::conTransformEnd'
     else:
-        print('set %s [gg::conCopyEnd]' % (new_label), file=f)
+        print >>f, 'set %s [gg::conCopyEnd]' % (new_label)
     return None
 
 def rotate_copy_domain(f, label, p1, p2, angle, new_label=None,
                        replace=False):
     if replace is True:
-        print('gg::domTransformBegin $%s -maintain_linkage' % (label), file=f)
+        print >>f, 'gg::domTransformBegin $%s -maintain_linkage' % (label)
     else:
-        print('gg::domCopyBegin $%s' % (label), file=f)
-    print('gg::xformRotate {%f %f %f} {%f %f %f} %f' % \
-        (p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], angle), file=f)
+        print >>f, 'gg::domCopyBegin $%s' % (label)
+    print >>f, 'gg::xformRotate {%f %f %f} {%f %f %f} %f' % \
+        (p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], angle)
     if replace is True:
-        print('gg::domTransformEnd', file=f)
+        print >>f, 'gg::domTransformEnd'
     else:
-        print('set %s [gg::domCopyEnd]' % (new_label), file=f)
+        print >>f, 'set %s [gg::domCopyEnd]' % (new_label)
     return None
 
 def rotate_copy_block(f, label, p1, p2, angle, new_label=None,
                       replace=False):
     if replace is True:
-        print('gg::blkTransformBegin $%s -maintain_linkage' % (label), file=f)
+        print >>f, 'gg::blkTransformBegin $%s -maintain_linkage' % (label)
     else:
-        print('gg::blkCopyBegin $%s' % (label), file=f)
-    print('gg::xformRotate {%f %f %f} {%f %f %f} %f' % \
-        (p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], angle), file=f)
+        print >>f, 'gg::blkCopyBegin $%s' % (label)
+    print >>f, 'gg::xformRotate {%f %f %f} {%f %f %f} %f' % \
+        (p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], angle)
     if replace is True:
-        print('gg::blkTransformEnd', file=f)
+        print >>f, 'gg::blkTransformEnd'
     else:
-        print('set %s [gg::blkCopyEnd]' % (new_label), file=f)
+        print >>f, 'set %s [gg::blkCopyEnd]' % (new_label)
     return None
 
 def domain(f, edge1, edge2, edge3, edge4, label):
-    print('gg::domBegin -type STRUCTURED', file=f)
-    print('gg::edgeBegin', file=f)
-    print('gg::edgeAddCon $%s' % (edge1), file=f)
-    print('gg::edgeEnd', file=f)
-    print('gg::edgeBegin', file=f)
-    print('gg::edgeAddCon $%s' % (edge2), file=f)
-    print('gg::edgeEnd', file=f)
-    print('gg::edgeBegin', file=f)
-    print('gg::edgeAddCon $%s' % (edge3), file=f)
-    print('gg::edgeEnd', file=f)
-    print('gg::edgeBegin', file=f)
-    print('gg::edgeAddCon $%s' % (edge4), file=f)
-    print('gg::edgeEnd', file=f)
-    print('set %s [gg::domEnd]' % (label), file=f)
+    print >>f, 'gg::domBegin -type STRUCTURED'
+    print >>f, 'gg::edgeBegin'
+    print >>f, 'gg::edgeAddCon $%s' % (edge1)
+    print >>f, 'gg::edgeEnd'
+    print >>f, 'gg::edgeBegin'
+    print >>f, 'gg::edgeAddCon $%s' % (edge2)
+    print >>f, 'gg::edgeEnd'
+    print >>f, 'gg::edgeBegin'
+    print >>f, 'gg::edgeAddCon $%s' % (edge3)
+    print >>f, 'gg::edgeEnd'
+    print >>f, 'gg::edgeBegin'
+    print >>f, 'gg::edgeAddCon $%s' % (edge4)
+    print >>f, 'gg::edgeEnd'
+    print >>f, 'set %s [gg::domEnd]' % (label)
     return None
 
 def write_glyph_file(filename, num_axial=1, num_radial=241, num_azimuthal=128,
@@ -283,28 +283,28 @@ def write_glyph_file(filename, num_axial=1, num_radial=241, num_azimuthal=128,
     dz_min = dz_min_fraction * dr_min
     # Write glyph file.
     with open(filename, 'w') as f:
-        print("""
+        print >>f, """
         gg::memClear
         gg::defReset
         gg::tolReset
         gg::dispViewReset
         gg::dispGlide FALSE
         set cwd [file dirname [info script]]
-        """, file=f)
+        """
         theta = np.linspace(-np.pi / 4., np.pi / 4., 201)
         if p_inner < 2.:
             theta += np.pi / 4.
-        print('gg::dbCurveBegin -type CUBIC', file=f)
+        print >>f, 'gg::dbCurveBegin -type CUBIC'
         for theta_ in theta:
             r = 0.5 * a_inner / \
                 (abs(np.cos(theta_)) ** p_inner +
                  abs(np.sin(theta_)) ** p_inner) ** (1. / p_inner)
-            print('gg::dbCurveAddPt {%.6f %.6f %.6f}' % \
-                (r * np.cos(theta_), r * np.sin(theta_), 0.), file=f)
-        print('set db_inner_block_E [gg::dbCurveEnd]', file=f)
-        print("""
+            print >>f, 'gg::dbCurveAddPt {%.6f %.6f %.6f}' % \
+                (r * np.cos(theta_), r * np.sin(theta_), 0.)
+        print >>f, 'set db_inner_block_E [gg::dbCurveEnd]'
+        print >>f, """
         set inner_block_E [gg::conOnDBEnt $db_inner_block_E]
-        """, file=f)
+        """
         rotate_copy_connector(f, 'inner_block_E', [0., 0., 0.], [0., 0., 1.],
                               90., 'inner_block_N')
         rotate_copy_connector(f, 'inner_block_N', [0., 0., 0.], [0., 0., 1.],
@@ -312,8 +312,8 @@ def write_glyph_file(filename, num_axial=1, num_radial=241, num_azimuthal=128,
         rotate_copy_connector(f, 'inner_block_W', [0., 0., 0.], [0., 0., 1.],
                               90., 'inner_block_S')
         # Dimension inner block and create domain.
-        print('gg::conDim [list $inner_block_E $inner_block_N ' \
-            '$inner_block_W $inner_block_S] %i' % (num_azimuthal / 4 + 1), file=f)
+        print >>f, 'gg::conDim [list $inner_block_E $inner_block_N ' \
+            '$inner_block_W $inner_block_S] %i' % (num_azimuthal / 4 + 1)
         domain(f, 'inner_block_S', 'inner_block_E', 'inner_block_N',
                'inner_block_W', 'dom_inner')
         if p_inner < 2.:
@@ -328,63 +328,63 @@ def write_glyph_file(filename, num_axial=1, num_radial=241, num_azimuthal=128,
                [r_se * np.cos(theta_se), r_se * np.sin(theta_se), 0.],
                [r_outer * np.cos(theta_se), r_outer * np.sin(theta_se), 0.])
         # Dimension south-east connector.
-        print('gg::conDim [list $tmp_extrusion_SE] %i' % (num_radial), file=f)
-        print('gg::conSetBreakPt $tmp_extrusion_SE {%f %f 0}' % \
+        print >>f, 'gg::conDim [list $tmp_extrusion_SE] %i' % (num_radial)
+        print >>f, 'gg::conSetBreakPt $tmp_extrusion_SE {%f %f 0}' % \
             ((r_se + num_const_dr * dr_interface) * np.cos(theta_se),
-             (r_se + num_const_dr * dr_interface) * np.sin(theta_se)), file=f)
-        print('gg::conSetBreakPt $tmp_extrusion_SE {%f %f 0}' % \
-            (r_nozzle * np.cos(theta_se), r_nozzle * np.sin(theta_se)), file=f)
-        print('gg::conSubConDim $tmp_extrusion_SE [list %i %i %i]' % \
+             (r_se + num_const_dr * dr_interface) * np.sin(theta_se))
+        print >>f, 'gg::conSetBreakPt $tmp_extrusion_SE {%f %f 0}' % \
+            (r_nozzle * np.cos(theta_se), r_nozzle * np.sin(theta_se))
+        print >>f, 'gg::conSubConDim $tmp_extrusion_SE [list %i %i %i]' % \
             (num_const_dr + 1, num_radial_inside_nozzle - num_const_dr + 1,
-             num_radial - num_radial_inside_nozzle), file=f)
-        print('gg::conBeginSpacing $tmp_extrusion_SE -sub 3 %f' % (dr_min), file=f)
-        print('gg::conBeginSpacing $tmp_extrusion_SE -sub 2 %f' % \
-            (dr_interface), file=f)
-        print('gg::conEndSpacing $tmp_extrusion_SE -sub 2 %f' % (dr_min), file=f)
-        print('gg::conBeginSpacing $tmp_extrusion_SE -sub 1 %f' % \
-            (dr_interface), file=f)
-        print('gg::conEndSpacing $tmp_extrusion_SE -sub 1 %f' % \
-            (dr_interface), file=f)
+             num_radial - num_radial_inside_nozzle)
+        print >>f, 'gg::conBeginSpacing $tmp_extrusion_SE -sub 3 %f' % (dr_min)
+        print >>f, 'gg::conBeginSpacing $tmp_extrusion_SE -sub 2 %f' % \
+            (dr_interface)
+        print >>f, 'gg::conEndSpacing $tmp_extrusion_SE -sub 2 %f' % (dr_min)
+        print >>f, 'gg::conBeginSpacing $tmp_extrusion_SE -sub 1 %f' % \
+            (dr_interface)
+        print >>f, 'gg::conEndSpacing $tmp_extrusion_SE -sub 1 %f' % \
+            (dr_interface)
         if p_inner < 2.:
             rotate_copy_connector(f, 'tmp_extrusion_SE', [0., 0., 0.],
                                   [0., 0., 1.], -45., replace=True)
         # Extrude to create the outer blocks.
-        print("""
+        print >>f, """
         gg::domExtrusionBegin [list $inner_block_E $inner_block_N \
         $inner_block_W $inner_block_S] -default HYPERBOLIC
         gg::domExtrusionAtt -flip
         gg::domExtrusionAtt -growth_subcon [list [list $tmp_extrusion_SE 1] \
         [list $tmp_extrusion_SE 2] [list $tmp_extrusion_SE 3]]
-        """, file=f)
-        print('gg::domExtrusionAtt -stop_height %f' % (r_outer), file=f)
-        print('gg::domExtrusionStep %i' % (num_radial), file=f)
-        print("""
+        """
+        print >>f, 'gg::domExtrusionAtt -stop_height %f' % (r_outer)
+        print >>f, 'gg::domExtrusionStep %i' % (num_radial)
+        print >>f, """
         set dom_outer_blocks [gg::domExtrusionEnd]
         set dom_outer_E [lindex $dom_outer_blocks 0]
         set dom_outer_N [lindex $dom_outer_blocks 1]
         set dom_outer_W [lindex $dom_outer_blocks 2]
         set dom_outer_S [lindex $dom_outer_blocks 3]
         unset dom_outer_blocks
-        """, file=f)
+        """
         if num_axial > 1:
             # Move domains to axial start coordinate.
-            print('gg::domTransformBegin [list $dom_inner $dom_outer_E ' \
-                '$dom_outer_N $dom_outer_W $dom_outer_S] -maintain_linkage', file=f)
-            print('gg::xformTranslate {0 0 %f}' % (z_min), file=f)
-            print('gg::domTransformEnd', file=f)
+            print >>f, 'gg::domTransformBegin [list $dom_inner $dom_outer_E ' \
+                '$dom_outer_N $dom_outer_W $dom_outer_S] -maintain_linkage'
+            print >>f, 'gg::xformTranslate {0 0 %f}' % (z_min)
+            print >>f, 'gg::domTransformEnd'
             # Create the axis connector.
             draw_line3d(f, 'axis', [0., 0., z_min], [0., 0., z_max])
-            print('gg::conDim [list $axis] %i' % (num_axial), file=f)
-            print('gg::conSetBreakPt $axis {0 0 %f}' % \
-                (potential_core_length), file=f)
-            print('gg::conBreakPtSpacing $axis -breakpt 1 %f' % (dz_min), file=f)
+            print >>f, 'gg::conDim [list $axis] %i' % (num_axial)
+            print >>f, 'gg::conSetBreakPt $axis {0 0 %f}' % \
+                (potential_core_length)
+            print >>f, 'gg::conBreakPtSpacing $axis -breakpt 1 %f' % (dz_min)
             # Extrude blocks.
-            print('gg::blkExtrusionBegin [list $dom_inner $dom_outer_E ' \
-                '$dom_outer_N $dom_outer_W $dom_outer_S] -default PATH', file=f)
-            print('gg::blkExtrusionAtt -path_connector ' \
-                '[list [list $axis 1] [list $axis 2]]', file=f)
-            print('gg::blkExtrusionStep %i' % (num_axial), file=f)
-            print("""
+            print >>f, 'gg::blkExtrusionBegin [list $dom_inner $dom_outer_E ' \
+                '$dom_outer_N $dom_outer_W $dom_outer_S] -default PATH'
+            print >>f, 'gg::blkExtrusionAtt -path_connector ' \
+                '[list [list $axis 1] [list $axis 2]]'
+            print >>f, 'gg::blkExtrusionStep %i' % (num_axial)
+            print >>f, """
             set all_blocks [gg::blkExtrusionEnd]
             set blk_inner [lindex $all_blocks 0]
             set blk_outer_E [lindex $all_blocks 1]
@@ -392,19 +392,19 @@ def write_glyph_file(filename, num_axial=1, num_radial=241, num_azimuthal=128,
             set blk_outer_W [lindex $all_blocks 3]
             set blk_outer_S [lindex $all_blocks 4]
             unset all_blocks
-            """, file=f)
+            """
             # Re-orient blocks.
-            print('gg::blkSpecifyIJK [list $blk_outer_E $blk_outer_N ' \
-                '$blk_outer_W $blk_outer_S] 5 4 1', file=f)
-            print('gg::dbDelete ALL', file=f)
+            print >>f, 'gg::blkSpecifyIJK [list $blk_outer_E $blk_outer_N ' \
+                '$blk_outer_W $blk_outer_S] 5 4 1'
+            print >>f, 'gg::dbDelete ALL'
             # Save PLOT3D grid file.
-            print('gg::blkExport ALL \"OSUMach1.3.xyz\" -style PLOT3D ' \
-                '-form UNFORMATTED -precision DOUBLE -endian NATIVE', file=f)
+            print >>f, 'gg::blkExport ALL \"OSUMach1.3.xyz\" -style PLOT3D ' \
+                '-form UNFORMATTED -precision DOUBLE -endian NATIVE'
         else:
-            print('gg::dbDelete ALL', file=f)
+            print >>f, 'gg::dbDelete ALL'
             # Save PLOT3D grid file.
-            print('gg::domExport ALL \"OSUMach1.3.xyz\" -style PLOT3D ' \
-                '-form UNFORMATTED -precision DOUBLE -endian NATIVE', file=f)
+            print >>f, 'gg::domExport ALL \"OSUMach1.3.xyz\" -style PLOT3D ' \
+                '-form UNFORMATTED -precision DOUBLE -endian NATIVE'
 
 def grid(**kwargs):
     if not os.path.isfile('OSUMach1.3.xyz'):
@@ -449,7 +449,7 @@ def eigenmodes(mach_number=1.3, theta_j=0.04, show_progress=True):
     modes = [[InstabilityMode() for n_ in n] for St_ in St]
     if show_progress:
         from progressbar import ProgressBar, Percentage, Bar, ETA
-        print('Computing eigenmodes:')
+        print 'Computing eigenmodes:'
         p = ProgressBar(widgets = [Percentage(), ' ',
                                    Bar('=', left = '[', right = ']'), ' ',
                                    ETA()], maxval = alpha.size).start()
@@ -534,9 +534,9 @@ def target_mollifier(g):
                 fi[:,k,j,0] *= p3d.cubic_bspline_support(r[:,k], r_min, r_max)
         kmin, kmax = p3d.find_extents(z, z_min, z_max)
         imin, imax = p3d.find_extents(np.mean(r, axis=1), r_min, r_max)
-        print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
             'targetRegion.' + block_code[i], 'COST_TARGET',
-            i + 1, 0, imin, imax, 1, -1, kmin, kmax))
+            i + 1, 0, imin, imax, 1, -1, kmin, kmax)
     return f
 
 def control_mollifier(g):
@@ -561,9 +561,9 @@ def control_mollifier(g):
                 fi[:,k,j,0] *= p3d.tanh_support(r[:,k], r_min, r_max, 10., 0.2)
         kmin, kmax = p3d.find_extents(z, z_min, z_max)
         imin, imax = p3d.find_extents(np.mean(r, axis=1), r_min, r_max)
-        print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
             'controlRegion.' + block_code[i], 'ACTUATOR',
-            i + 1, 0, imin, imax, 1, -1, kmin, kmax))
+            i + 1, 0, imin, imax, 1, -1, kmin, kmax)
     return f
 
 if __name__ == '__main__':

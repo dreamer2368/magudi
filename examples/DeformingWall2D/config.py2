@@ -33,7 +33,7 @@ def grid(size, Lx, dip_range, mapping_type='sinh'):
         sigma = fsolve(lambda x: (y_max - y_min) / dy_min - num_uniform + 1 -
                        (x ** (size[1] - num_uniform) - 1.) /
                        (x - 1.), 1.02)
-        print(100. * (sigma - 1.))
+        print 100. * (sigma - 1.)
         y = np.append([0.], np.cumsum(
                 [dy_min if r < num_uniform - 1
                  else dy_min * sigma ** (r - num_uniform + 1)
@@ -65,8 +65,8 @@ def grid(size, Lx, dip_range, mapping_type='sinh'):
 
     patchRange = int(1.5 * depthIdx)
     formatStr = '  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}'
-    print((formatStr.format('immersed1', 'IMMERSED_BOUNDARY',
-                           1, 0, 1, -1, 1, patchRange, 1, -1)))
+    print(formatStr.format('immersed1', 'IMMERSED_BOUNDARY',
+                           1, 0, 1, -1, 1, patchRange, 1, -1))
     # print(formatStr.format('interface.S1', 'SAT_BLOCK_INTERFACE',
     #                        1, 2, leftIdx, rightIdx, 1, 1, 1, -1))
     # print(formatStr.format('interface.N2', 'SAT_BLOCK_INTERFACE',
@@ -113,7 +113,7 @@ def solve_blasius(eta_max, Ng = 1001):
             fvHist[n] = np.copy(fv)
         res = fv[1] - 1.0
         if (abs(res) < threshold):
-            print((iter, abs(res)))
+            print(iter, abs(res))
             break
         else:
             fv0[-1] -= res / dfv[1]
@@ -135,7 +135,7 @@ def initial_condition(g, mach_number=1.0 / 343.0, gamma=1.4, Re = 1.16e6):
     xmin = np.amin(x)
     delta = np.sqrt((x - xmin) / Re / mach_number + 1.0)
     eta = y / delta
-    print((eta[0, 10, -1], eta[-1, 10, -1]))
+    print(eta[0, 10, -1], eta[-1, 10, -1])
     blasiusTable = solve_blasius(1.5 * np.amax(eta))
     uTable = mach_number * blasiusTable[:, 2]
     vtTable = 0.5 * (blasiusTable[:, 0] * blasiusTable[:, 2] - blasiusTable[:, 1])
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     gamma = 1.4
     nu0 = 1.48e-5   # m2/s
     Re = Lx * 1e-3 * a0 / nu0
-    print(("Reynolds number: %.5E" % Re))
+    print("Reynolds number: %.5E" % Re)
     expFile = 'UV.4.5v_0msC.txt'
 
     dip_range = np.array([0.0, 15.0, 7.5])

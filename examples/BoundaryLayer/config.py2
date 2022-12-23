@@ -30,7 +30,7 @@ def grid(size, mapping_type='sinh'):
         sigma = fsolve(lambda x: (y_max - y_min) / dy_min - num_uniform + 1 -
                        (x ** (g.size[0,1] - num_uniform) - 1.) /
                        (x - 1.), 1.02)
-        print(100. * (sigma - 1.))
+        print 100. * (sigma - 1.)
         y = np.append([0.], np.cumsum(
                 [dy_min if r < num_uniform - 1
                  else dy_min * sigma ** (r - num_uniform + 1)

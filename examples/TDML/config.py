@@ -16,14 +16,15 @@ def mapping_function(s, b, c, sigma):
                                 np.sqrt(np.pi) - ((0.5 - c) / sigma) *
                                 erf((0.5 - c) / sigma)))
 
-def grid(size):
-    x_min =  -60.
-    x_max =  160.
-    y_min = -100.
-    y_max =  100.
+def grid(size, N=16):
+    x_min =  0.
+    x_max =  7.0 * N
+    y_min = -3.5 * N
+    y_max =  3.5 * N
     g = p3d.Grid().set_size(size, True)
-    x = x_min + 0.5 * (x_max - x_min) * (1. + mapping_function(
-        np.linspace(0., 1., g.size[0,0]), 80., 0.58, 0.07))
+    # x = x_min + 0.5 * (x_max - x_min) * (1. + mapping_function(
+    #     np.linspace(0., 1., g.size[0,0]), 80., 0.58, 0.07))
+    x = np.linspace(x_min, x_max, g.size[0,0] + 1)[:-1]
     y = y_min + 0.5 * (y_max - y_min) * (1. + mapping_function(
         np.linspace(0., 1., g.size[0,1]), 20., 0.62, 0.2))
     g.xyz[0][:,:,0,:2] = np.transpose(np.meshgrid(x, y))
@@ -58,9 +59,9 @@ def target_mollifier(g):
         imin, imax = p3d.find_extents(xyz[:,0,0,0], x_min, x_max)
         jmin, jmax = p3d.find_extents(xyz[0,:,0,1], y_min, y_max)
         if imin and imax and jmin and jmax:
-            print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+            print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
                 'targetRegion', 'COST_TARGET', i + 1, 0,
-                imin, imax, jmin, jmax, 1, -1))
+                imin, imax, jmin, jmax, 1, -1)
     return f
 
 def control_mollifier(g):
@@ -76,9 +77,9 @@ def control_mollifier(g):
         imin, imax = p3d.find_extents(xyz[:,0,0,0], x_min, x_max)
         jmin, jmax = p3d.find_extents(xyz[0,:,0,1], y_min, y_max)
         if imin and imax and jmin and jmax:
-            print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+            print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
                 'controlRegion', 'ACTUATOR', i + 1, 0,
-                imin, imax, jmin, jmax, 1, -1))
+                imin, imax, jmin, jmax, 1, -1)
     return f
 
 def mean_pressure(s):
@@ -91,9 +92,7 @@ def mean_pressure(s):
 if __name__ == '__main__':
     g = grid([961, 641])
     g.save('WeiFreundSDML.xyz')
-    s = initial_condition(g, u1=0.9, u2=0.2)
-    s.save('WeiFreundSDML.ic.q')
+    initial_condition(g, u1=0.9, u2=0.2).save('WeiFreundSDML.ic.q')
     target_state(g, u1=0.9, u2=0.2, S=0.05).save('WeiFreundSDML.target.q')
     target_mollifier(g).save('WeiFreundSDML.target_mollifier.f')
     control_mollifier(g).save('WeiFreundSDML.control_mollifier.f')
-    mean_pressure(s).save('WeiFreundSDML.mean_pressure.f')
