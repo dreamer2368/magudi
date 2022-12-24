@@ -32,27 +32,27 @@ if (baseline):
     fQoI0 = open(forwardFile,'r')
     QoI0 = float(fQoI0.read())
     fQoI0.close()
-    print(("QoI0: %.15E" % QoI0))
+    print ("QoI0: %.15E" % QoI0)
 
     subprocess.check_call('./spatial_inner_product %s.linearized.q %s.linearized.q --output %s'                       \
                             %(filename,filename,deltaFile), shell=True)
     fGrad0 = open(deltaFile,'r')
     Grad0 = float(fGrad0.read())
     fGrad0.close()
-    print(("Grad0: %.15E" % Grad0))
+    print ("Grad0: %.15E" % Grad0)
 else:
     fQoI0 = open(forwardFile,'r')
     QoI0 = float(fQoI0.read())
     fQoI0.close()
-    print(("QoI0: %.15E" % QoI0))
+    print ("QoI0: %.15E" % QoI0)
 
     fGrad0 = open(deltaFile,'r')
     Grad0 = float(fGrad0.read())
     fGrad0.close()
-    print(("Grad0: %.15E" % Grad0))
+    print ("Grad0: %.15E" % Grad0)
 
     Nk = 10
-    Ak = 10.0**(-3.0-2.5-0.25*np.array(list(range(Nk))))
+    Ak = 10.0**(-3.0-2.5-0.25*np.array(range(Nk)))
     QoIk = np.zeros((Nk,),dtype=np.double)
     Gradk = np.zeros((Nk,),dtype=np.double)
     ek = np.zeros((Nk,),dtype=np.double)
@@ -75,6 +75,6 @@ else:
         Gradk[k] = (QoIk[k]-QoI0)/Ak[k]
         ek[k] = abs( (Gradk[k]-Grad0)/Grad0 )
         fId.write("%.16E\t%.16E\t%.16E\t%.16E\n"%(actuation_amount,QoIk[k],Gradk[k],ek[k]))
-        print(("%.16E %.16E %.16E %.16E"%(actuation_amount,QoIk[k],Gradk[k],ek[k])))
+        print ("%.16E %.16E %.16E %.16E"%(actuation_amount,QoIk[k],Gradk[k],ek[k]))
 
     fId.close()

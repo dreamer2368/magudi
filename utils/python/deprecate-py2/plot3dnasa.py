@@ -10,6 +10,7 @@ lengths and quad-precision floating-point (as supported natively)."""
 import sys
 import numpy as np
 from struct import pack, unpack_from
+from itertools import izip
 
 __all__ = ['Grid', 'Solution', 'Function', 'FileFormatError', 'fromfile',
            'cartesian_grid', 'cubic_bspline_support', 'tanh_support',
@@ -33,19 +34,19 @@ def fdmakeop(n, interior_accuracy=4, order=1,
     m = (interior_accuracy + order - 1) / 2
     s = np.arange(-m, m + 1)
     if periodic:
-        for k in range(n):
+        for k in xrange(n):
             c = fdcoeff(s, order)
-            for ck, sk in zip(c, s):
+            for ck, sk in izip(c, s):
                 a[k,(k+sk)%n] = ck
         return a.tocsr()
-    for k in range(m, n - m):
+    for k in xrange(m, n - m):
         c = fdcoeff(s, order)
-        for ck, sk in zip(c, s):
+        for ck, sk in izip(c, s):
             a[k,(k+sk)%n] = ck
     for k in range(m):
         s = np.arange(0, m + 1) - k
         c = fdcoeff(s, order)
-        for ck, sk in zip(c, s):
+        for ck, sk in izip(c, s):
             a[k,k+sk] = ck
             a[-(k+1),-(k+1+sk)] = (-1) ** order * ck
     return a.tocsr()
@@ -163,14 +164,14 @@ class FileFormat(object):
             self.real_dtype = self.real_dtype.newbyteorder(self.endianness)
 
     def _get_reclength(self, f, advance=False):
-        n, = unpack_from(self.reclength_dtype.str[:-1],
+        n, = unpack_from(self.reclength_dtype.str,
                          f.read(self.reclength_dtype.itemsize))
         if not advance:
             f.seek(-self.reclength_dtype.itemsize, 1)
         return n
 
     def _get_raw_bytes(self, f):
-        n, = unpack_from(self.reclength_dtype.str[:-1],
+        n, = unpack_from(self.reclength_dtype.str,
                          f.read(self.reclength_dtype.itemsize))
         s = f.read(n)
         f.seek(self.reclength_dtype.itemsize, 1)
@@ -283,17 +284,17 @@ class MultiBlockCommon(object):
 
     def write_header(self, f, form, ncomponents=0):
         if form == 'F':
-            f.write(pack(self._format.reclength_dtype.str[:-1], 4))
+            f.write(pack(self._format.reclength_dtype.str, 4))
         f.write(pack(self._format.endianness + 'i', self.nblocks))
         if form == 'F':
-            f.write(pack(self._format.reclength_dtype.str[:-1], 4))
+            f.write(pack(self._format.reclength_dtype.str, 4))
         if ncomponents == 0:
             if form == 'F':
-                f.write(pack(self._format.reclength_dtype.str[:-1],
+                f.write(pack(self._format.reclength_dtype.str,
                              4 * self.size.size))
             f.write(self.size.tostring())
             if form == 'F':
-                f.write(pack(self._format.reclength_dtype.str[:-1],
+                f.write(pack(self._format.reclength_dtype.str,
                              4 * self.size.size))
         else:
             s = np.empty([self.nblocks, 4], dtype=np.dtype(
@@ -301,10 +302,10 @@ class MultiBlockCommon(object):
             s[:,:-1] = self.size
             s[:,-1] = ncomponents
             if form == 'F':
-                f.write(pack(self._format.reclength_dtype.str[:-1], 4 * s.size))
+                f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
             f.write(s.tostring())
             if form == 'F':
-                f.write(pack(self._format.reclength_dtype.str[:-1], 4 * s.size))
+                f.write(pack(self._format.reclength_dtype.str, 4 * s.size))
 
     def copy_from(self, a):
         self.filename = ''
@@ -385,12 +386,12 @@ class Grid(MultiBlockCommon):
                     s += self._format.integer_dtype.itemsize
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
+                    f.write(pack(self._format.reclength_dtype.str, s))
                 f.write(self.xyz[i].tostring(order='F'))
                 if self.has_iblank:
                     f.write(self.iblank[i].tostring(order='F'))
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
+                    f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
     def save_h5(self, filename=''):
@@ -409,7 +410,7 @@ class Grid(MultiBlockCommon):
                 grp.attrs[key] = d[key]
             for j in range(3):
                 dset = grp.require_dataset('XYZ'[j], tuple(self.size[i,:]),
-                                          dtype=self._format.real_dtype.str[:-1])
+                                          dtype=self._format.real_dtype.str)
                 dset[...] = self.xyz[i][:,:,:,j].flatten(order='F').reshape(
                     self.size[i,:], order='C')
             if self.has_iblank:
@@ -431,17 +432,17 @@ class Grid(MultiBlockCommon):
 
     def minmax(self, block_index = None):
         if block_index is None:
-            print('Grid has %i block(s)\n' % self.nblocks)
+            print 'Grid has %i block(s)\n' % self.nblocks
             for i in range(self.nblocks):
-                print('Block %i:' % (i + 1))
+                print 'Block %i:' % (i + 1)
                 self.minmax(i)
         else:
             labels = ['x', 'y', 'z']
             for i in range(3):
-                print('min. {0} = {1:+10.4E}, max. {0} = {2:+10.4E}'.format(
+                print 'min. {0} = {1:+10.4E}, max. {0} = {2:+10.4E}'.format(
                     labels[i], self.xyz[block_index][:,:,:,i].min(),
-                    self.xyz[block_index][:,:,:,i].max()))
-            print('')
+                    self.xyz[block_index][:,:,:,i].max())
+            print ''
 
     def __getitem__(self, key):
         return self.xyz[key]
@@ -527,17 +528,17 @@ class Solution(MultiBlockCommon):
             for i in range(self.nblocks):
                 s = 4 * self._format.real_dtype.itemsize
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
+                    f.write(pack(self._format.reclength_dtype.str, s))
                 f.write(aux_header.tostring())
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
+                    f.write(pack(self._format.reclength_dtype.str, s))
                 s = 5 * self._format.real_dtype.itemsize
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
+                    f.write(pack(self._format.reclength_dtype.str, s))
                 f.write(self.q[i].tostring(order='F'))
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
+                    f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
     def save_h5(self, filename='', prefix='cv'):
@@ -556,10 +557,10 @@ class Solution(MultiBlockCommon):
                 grp.attrs[key] = d[key]
             nd = 1 if self.size[i,2] == 1 and self.size[i,1] == 1 else 2 \
                  if self.size[i,2] == 1 else 3
-            for k, j in enumerate([0] + list(range(1, nd + 1)) + [4]):
+            for k, j in enumerate([0] + range(1, nd + 1) + [4]):
                 dset = grp.require_dataset('%s%02d' % (prefix, k + 1),
                                            tuple(self.size[i,:]),
-                                           dtype=self._format.real_dtype.str[:-1])
+                                           dtype=self._format.real_dtype.str)
                 dset[...] = self.q[i][:,:,:,j].ravel(order='F').reshape(
                     self.size[i,:], order='C')
         f.close()
@@ -599,18 +600,18 @@ class Solution(MultiBlockCommon):
 
     def minmax(self, block_index=None):
         if block_index is None:
-            print('Solution has %i block(s)\n' % self.nblocks)
+            print 'Solution has %i block(s)\n' % self.nblocks
             for i in range(self.nblocks):
-                print('Block %i:' % (i + 1))
+                print 'Block %i:' % (i + 1)
                 self.minmax(i)
         else:
-            labels = ['ρ', 'ρu', 'ρv', 'ρw', 'e']
+            labels = [u'ρ', u'ρu', u'ρv', u'ρw', u'e']
             for i in range(5):
-                print('min. {0:<2} = {1:+10.4E}, ' \
-                    'max. {0:<2} = {2:+10.4E}'.format(
+                print u'min. {0:<2} = {1:+10.4E}, ' \
+                    u'max. {0:<2} = {2:+10.4E}'.format(
                     labels[i], self.q[block_index][:,:,:,i].min(),
-                    self.q[block_index][:,:,:,i].max()))
-            print('')
+                    self.q[block_index][:,:,:,i].max())
+            print ''
 
     def __getitem__(self, key):
         return self.q[key]
@@ -689,10 +690,10 @@ class Function(MultiBlockCommon):
                 s = self.ncomponents * self._format.real_dtype.itemsize
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
+                    f.write(pack(self._format.reclength_dtype.str, s))
                 f.write(self.f[i].tostring(order='F'))
                 if form == 'F':
-                    f.write(pack(self._format.reclength_dtype.str[:-1], s))
+                    f.write(pack(self._format.reclength_dtype.str, s))
         self.filename = filename
 
     def save_h5(self, filename='', prefix='f'):
@@ -714,7 +715,7 @@ class Function(MultiBlockCommon):
             for j in range(self.ncomponents):
                 dset = grp.require_dataset('%s%02d' % (prefix, j + 1),
                                            tuple(self.size[i,:nd]),
-                                           dtype=self._format.real_dtype.str[:-1])
+                                           dtype=self._format.real_dtype.str)
                 if nd == 3:
                     dset[...] = self.f[i][:,0,0,j]
                 elif nd == 2:
@@ -809,9 +810,9 @@ def sbp(n, interior_accuracy=4, order=1, periodic=False, dtype=np.float64):
     d = interior_accuracy if interior_accuracy != 2 else 1
     m = (interior_accuracy + order - 1) / 2
     s = np.arange(-m, m + 1)
-    for k in range(d, n - d):
+    for k in xrange(d, n - d):
         c = fdcoeff(s, order)
-        for ck, sk in zip(c, s):
+        for ck, sk in izip(c, s):
             a[k,(k+sk)%n] = ck
     if order == 1:
         if interior_accuracy == 4:
@@ -826,21 +827,21 @@ def sbp(n, interior_accuracy=4, order=1, periodic=False, dtype=np.float64):
     return a.tocsr()
 
 def mesh_stats(x, centered=False):
-    print('Number of grid points: %i' % x.size)
-    print('Grid extent: %+.4E, %+.4E' % (x[0], x[-1]))
+    print 'Number of grid points: %i' % x.size
+    print 'Grid extent: %+.4E, %+.4E' % (x[0], x[-1])
     if centered:
         dx = 0.5 * np.abs(x[2:] - x[:-2])
     else:
         dx = np.abs(x[1:] - x[:-1])
-    print('Minimum spacing: %+.4E at %+.4E' % (dx.min(), x[dx.argmin()]))
-    print('Maximum spacing: %+.4E at %+.4E' % (dx.max(), x[dx.argmax()]))
+    print 'Minimum spacing: %+.4E at %+.4E' % (dx.min(), x[dx.argmin()])
+    print 'Maximum spacing: %+.4E at %+.4E' % (dx.max(), x[dx.argmax()])
     if centered:
         s = np.abs(x[2:] - 2. * x[1:-1] + x[:-2]) / dx
     else:
         s = np.abs(dx[1:] - dx[:-1]) / dx[:-1]
     i = s.argmax()
-    print('Maximum point-to-point stretching: %g%% at %+.4E' % \
-        (s[i] * 100., x[i+1]))
+    print 'Maximum point-to-point stretching: %g%% at %+.4E' % \
+        (s[i] * 100., x[i+1])
     return dx, s
 
 def compute_jacobian(g, op_func=sbp, *op_func_args):

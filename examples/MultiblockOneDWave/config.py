@@ -67,8 +67,8 @@ def target_mollifier(g):
         else:
             imin, imax = p3d.find_extents(x, 0., x_max)
             jmin, jmax = p3d.find_extents(y, y_min, y_max)
-        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-            'targetRegion'+block_code[i], 'COST_TARGET', i+1, 0, imin, imax, jmin, jmax, 1, -1)
+        print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+            'targetRegion'+block_code[i], 'COST_TARGET', i+1, 0, imin, imax, jmin, jmax, 1, -1))
     return f
 
 def control_mollifier(g):
@@ -96,8 +96,8 @@ def control_mollifier(g):
         else:
             imin, imax = p3d.find_extents(x, 0., x_max)
             jmin, jmax = p3d.find_extents(y, y_min, y_max)
-        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
-            'controlRegion'+block_code[i], 'ACTUATOR', i+1, 0, imin, imax, jmin, jmax, 1, -1)
+        print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+            'controlRegion'+block_code[i], 'ACTUATOR', i+1, 0, imin, imax, jmin, jmax, 1, -1))
     return f
 
 def mean_pressure(s):

@@ -128,8 +128,8 @@ class InstabilityMode:
             y = self.newton_raphson_func(x)
             it = it + 1
         if it >= max_iterations:
-            print "Newton-Raphson failed: initial guess = ", initial_guess, \
-                ", current guess = ", x, ", current function = ", abs(y)
+            print("Newton-Raphson failed: initial guess = ", initial_guess, \
+                ", current guess = ", x, ", current function = ", abs(y))
         self.alpha = x.real - 1.j * abs(x.imag)
         return self
 
@@ -450,7 +450,7 @@ def eigenmodes(M1=1.5, M2=0.2, theta_j=0.04, show_progress=True):
     modes = [[InstabilityMode() for n_ in n] for St_ in St]
     if show_progress:
         from progressbar import ProgressBar, Percentage, Bar, ETA
-        print 'Computing eigenmodes:'
+        print('Computing eigenmodes:')
         p = ProgressBar(widgets = [Percentage(), ' ',
                                    Bar('=', left = '[', right = ']'), ' ',
                                    ETA()], maxval = alpha.size).start()
@@ -536,9 +536,9 @@ def target_mollifier(g):
                 fi[:,k,j,0] *= p3d.cubic_bspline_support(r[:,k], r_min, r_max)
         kmin, kmax = p3d.find_extents(z, z_min, z_max)
         imin, imax = p3d.find_extents(np.mean(r, axis=1), r_min, r_max)
-        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
             'targetRegion.' + block_code[i], 'COST_TARGET',
-            i + 1, 0, imin, imax, 1, -1, kmin, kmax)
+            i + 1, 0, imin, imax, 1, -1, kmin, kmax))
     return f
 
 def control_mollifier(g):
@@ -566,9 +566,9 @@ def control_mollifier(g):
                    for i in range(n[i][1]))
         imax = max(np.where(r[:,i] <= r_max)[0][-1] + 2
                    for i in range(n[i][1]))
-        print ('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
+        print(('  {:<20} {:<21} {:>4d} {:>7d}' + 6 * ' {:>4d}').format(
             'controlRegion.' + block_code[i], 'ACTUATOR',
-            i + 1, 0, imin, imax, 1, -1, kmin, kmax)
+            i + 1, 0, imin, imax, 1, -1, kmin, kmax))
     return f
 
 def axisymmetric_grid(num_axial=512, r_max=12.5):
