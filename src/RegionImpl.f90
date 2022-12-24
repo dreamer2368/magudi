@@ -2055,6 +2055,7 @@ subroutine connectLevelsetFactory(this)
   use ImmersedBoundaryPatch_mod, only : t_ImmersedBoundaryPatch
   use LevelsetFactory_mod, only : t_LevelsetFactory
   use SinusoidalWallLevelset_mod, only : t_SinusoidalWallLevelset
+  use StokesSecondWallLevelset_mod, only : t_StokesSecondWallLevelset
 
   ! <<< Internal modules >>>
   use InputHelper, only : getRequiredOption
@@ -2099,6 +2100,9 @@ subroutine connectLevelsetFactory(this)
 
   case ('sinusoidal_wall')
     allocate(t_SinusoidalWallLevelset :: this%levelsetFactory)
+
+  case ('stokes_second_wall')
+    allocate(t_StokesSecondWallLevelset :: this%levelsetFactory)
 
   case default
     this%levelsetType = ""
