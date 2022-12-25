@@ -14,7 +14,7 @@ WORKDIR /home/$USERNAME
 
 # install packages
 RUN sudo apt-get install -yq git
-RUN sudo apt-get install --no-install-recommends -yq make cmake gcc gfortran openmpi-bin openmpi-common libopenmpi-dev
+RUN sudo apt-get install -yq make cmake gcc gfortran libmpich-dev
 RUN sudo apt-get install -yq vim
 RUN sudo apt-get install -yq python python3
 RUN sudo apt-get install -yq python3-pip
@@ -39,7 +39,3 @@ RUN sudo pip3 install --upgrade pip
 RUN sudo pip3 install -r ./requirements.txt
 
 RUN sudo apt-get clean -q
-
-# get modern-fortran code
-#RUN git clone https://github.com/modern-fortran/tsunami
-
