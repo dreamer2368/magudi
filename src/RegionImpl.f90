@@ -2059,6 +2059,7 @@ subroutine connectLevelsetFactory(this)
 
   ! <<< Internal modules >>>
   use InputHelper, only : getRequiredOption
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -2066,7 +2067,7 @@ subroutine connectLevelsetFactory(this)
   class(t_Region) :: this
 
   ! <<< Local variables >>>
-  character(len = STRING_LENGTH) :: levelsetType
+  character(len = STRING_LENGTH) :: levelsetType, message
   integer :: i, j
   class(t_Patch), pointer :: patch => null()
 
@@ -2108,5 +2109,10 @@ subroutine connectLevelsetFactory(this)
     this%levelsetType = ""
 
   end select
+
+  if (.not. associated(this%levelsetFactory)) then
+    write(message, '(3A)') "'", trim(levelsetType), "'-type levelsetFactory does not exist!"
+    call gracefulExit(this%comm, message)
+  end if
 
 end subroutine connectLevelsetFactory
