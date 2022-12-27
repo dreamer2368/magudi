@@ -10,8 +10,8 @@ module StokesSecondWallLevelset_mod
 
     real(SCALAR_KIND), allocatable :: levelsetLoc(:),        & ! this point lies on level set plane.
                                       levelsetNormal(:),     & ! normal direction of the plane.
-                                      levelsetDirection(:),  & ! oscillation direction.
-                                      levelsetAmp,           & ! amplitude of oscillation.
+                                      levelsetDirection(:)     ! oscillation direction.
+    real(SCALAR_KIND) ::              levelsetAmp,           & ! amplitude of oscillation.
                                       levelsetPeriod           ! period of oscillation.
 
    contains
