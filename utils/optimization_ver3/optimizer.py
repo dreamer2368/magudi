@@ -429,7 +429,7 @@ class Optimizer:
             commands += ['cp x0/%s ./a/ ' % self.fl.icFiles[k]]
         if (not self.zeroControlForcing):
             for j in range(self.const.NcontrolRegion):
-                commands += ['cp x0/%s ./a/ ' % self.const.globalControlSpaceFiles[j]]
+                commands += ['cp x0/%s ./a/ ' % self.fl.globalControlSpaceFiles[j]]
         commandString += self.scriptor.nonMPILoopCommand(commands,'copy_control_params')
 
         steps, Js = np.zeros(2), np.zeros(2)
