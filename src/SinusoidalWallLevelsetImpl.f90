@@ -57,7 +57,7 @@ subroutine setupSinusoidalWallLevelset(this, grids, states)
     this%wallShapes(n)%buffer = this%wallShapes(n)%buffer * this%levelsetAmp
   end do
 
-  this%verticalOscillation = getOption("immersed_boundary/verticalOscillation", .false.)
+  this%verticalOscillation = getOption("immersed_boundary/vertical_oscillation", .false.)
 
 end subroutine setupSinusoidalWallLevelset
 
