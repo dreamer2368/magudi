@@ -707,7 +707,7 @@ class Optimizer:
             gamma = -gamma1
 
         commandString += self.base.zaxpyCommand(self.fl.globalConjugateGradientFiles, gamma,
-                                                self.base.previousCGFiles, self.base.globalGradFiles)
+                                                self.fl.previousCGFiles, self.fl.globalGradFiles)
         commandString += '\n'
         commandString += self.scriptor.parallelPurgeCommand(self.fl.previousCGFiles,'purge_prev_cg')
         self.writeCommandFile(commandString, self.fl.globalCommandFile)
