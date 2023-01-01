@@ -265,6 +265,58 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
   end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
 end subroutine addImmersedBoundaryPenalty
 
+subroutine computePenaltyWeight(this, grid, state, weight)
+  ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
+  use State_mod, only : t_State
+  use ImmersedBoundaryPatch_mod, only : t_ImmersedBoundaryPatch
+
+  ! <<< Internal module >>>
+  use ImmersedBoundaryImpl, only : regularizeHeaviside
+
+  implicit none
+
+  ! <<< Arguments >>>
+  class(t_ImmersedBoundaryPatch) :: this
+  class(t_Grid), intent(in) :: grid
+  class(t_State) :: state
+  real(SCALAR_KIND), dimension(:), intent(out) :: weight
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: nUnknowns, nDimensions
+  integer :: i, j, k, n, gridIndex, patchIndex
+  real(wp) :: localLevelsetNormal(grid%nDimensions)
+  real(wp) :: buf
+
+  assert(this%gridIndex == grid%index)
+  assert(all(grid%offset == this%gridOffset))
+  assert(all(grid%localSize == this%gridLocalSize))
+  assert(size(weight) == grid%nGridPoints)
+
+  ! Update the source terms and IBM forcing
+  do k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+    do j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+      do i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+        gridIndex = i - this%gridOffset(1) + this%gridLocalSize(1) *                      &
+             (j - 1 - this%gridOffset(2) + this%gridLocalSize(2) *                        &
+             (k - 1 - this%gridOffset(3)))
+        if (grid%iblank(gridIndex) == 0) cycle
+        patchIndex = i - this%offset(1) + this%localSize(1) *                             &
+             (j - 1 - this%offset(2) + this%localSize(2) *                                &
+             (k - 1 - this%offset(3)))
+
+        localLevelsetNormal = state%levelsetNormal(gridIndex, :)
+
+        ! Add the IBM contribution
+        buf = this%ibmEpsilon * sqrt(sum((localLevelsetNormal * grid%gridSpacing(gridIndex, :))**2))
+        weight(gridIndex) = 1.0_wp - regularizeHeaviside(state%levelset(gridIndex, 1), buf)
+
+      end do !... i = this%offset(1) + 1, this%offset(1) + this%localSize(1)
+    end do !... j = this%offset(2) + 1, this%offset(2) + this%localSize(2)
+  end do !... k = this%offset(3) + 1, this%offset(3) + this%localSize(3)
+end subroutine computePenaltyWeight
+
 ! t_State method
 subroutine updateIBMVariables(this, mode, grid, simulationFlags)
 
