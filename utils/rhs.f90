@@ -4,8 +4,8 @@ program rhs
 
   use MPI
 
-  use Grid_enum, only : QOI_GRID
-  use State_enum, only : QOI_FORWARD_STATE
+  use Grid_enum
+  use State_enum
 
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
@@ -73,6 +73,12 @@ program rhs
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
+  ! Save the Jacobian and normalized metrics.
+  write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
+  call region%saveData(QOI_JACOBIAN, filename)
+  write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
+  call region%saveData(QOI_METRICS, filename)
+
   ! Initialize the solver.
   call solver%setup(region, outputPrefix = outputPrefix)
 
@@ -127,6 +133,7 @@ subroutine saveRhs(region, filename)
   ! <<< Derived types >>>
   use Region_mod, only : t_Region
   use Patch_mod, only : t_Patch
+  use ImmersedBoundaryPatch_mod, only : t_ImmersedBoundaryPatch
 
   ! <<< Enumerations >>>
   use State_enum, only : QOI_DUMMY_FUNCTION
@@ -144,7 +151,7 @@ subroutine saveRhs(region, filename)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer, save :: nDimensions = 0
-  integer :: i, j, p, localPatchSize
+  integer :: i, j, p, localPatchSize, idx, nIBMvars
   logical :: savePatch
   character(len = STRING_LENGTH) :: patchFile
   type :: t_RhsInternal
@@ -179,6 +186,10 @@ subroutine saveRhs(region, filename)
         allocate(data_(i)%buffer(region%grids(i)%nGridPoints, region%solverOptions%nUnknowns))
      end do
   end if
+
+  do i = 1, size(region%states) !... update state
+    call region%states(i)%update(region%grids(i), region%simulationFlags, region%solverOptions)
+  end do
 
   call region%computeRhs(FORWARD, region%timestep, 1)
 
@@ -227,21 +238,71 @@ subroutine saveRhs(region, filename)
   end if
 
   if (getOption("enable_immersed_boundary", .false.)) then
+    idx = 0
+    nIBMvars = 2 + 2 * region%grids(1)%nDimensions + 2 + region%solverOptions%nUnknowns
+
     ! resize the data buffer.
     do i = 1, size(data_)
       deallocate(data_(i)%buffer)
-      allocate(data_(i)%buffer(region%grids(i)%nGridPoints, 1 + 2 * region%grids(i)%nDimensions))
+      allocate(data_(i)%buffer(region%grids(i)%nGridPoints, nIBMvars))
     end do
 
     do j = 1, size(region%states)
-       data_(j)%buffer(:, 1) = region%states(j)%levelset(:, 1)
-       data_(j)%buffer(:, 2:region%grids(j)%nDimensions + 1) = region%states(j)%levelsetNormal
-       data_(j)%buffer(:, region%grids(j)%nDimensions + 2 : 2 * region%grids(j)%nDimensions + 1) = region%states(j)%objectVelocity
+       data_(j)%buffer(:, idx + 1) = region%states(j)%levelset(:, 1)
+    end do
+    idx = idx + 1
+
+    do j = 1, size(region%states)
+       data_(j)%buffer(:, idx + 1) = 0.0_wp
+    end do
+    if (allocated(region%patchFactories)) then
+      do p = 1, size(region%patchFactories)
+        call region%patchFactories(p)%connect(patch)
+        if (.not. associated(patch)) cycle
+        do j = 1, size(region%states)
+          if (patch%gridIndex /= region%grids(j)%index) cycle
+          select type (patch)
+            class is (t_ImmersedBoundaryPatch)
+              call patch%computePenaltyWeight(region%grids(j), region%states(j),        &
+                                              data_(j)%buffer(:, idx + 1))
+          end select
+        end do
+      end do
+    end if
+    idx = idx + 1
+
+    do j = 1, size(region%states)
+       data_(j)%buffer(:, idx+1 : idx+region%grids(j)%nDimensions) = region%states(j)%levelsetNormal
+    end do
+    idx = idx + region%grids(1)%nDimensions
+
+    do j = 1, size(region%states)
+       data_(j)%buffer(:, idx+1 : idx+region%grids(j)%nDimensions) = region%states(j)%objectVelocity
+    end do
+    idx = idx + region%grids(1)%nDimensions
+
+    do j = 1, size(region%states)
+       data_(j)%buffer(:, idx + 1) = region%states(j)%nDotGradRho(:, 1)
+       data_(j)%buffer(:, idx + 2) = region%states(j)%uDotGradRho(:, 1)
+    end do
+    idx = idx + 2
+
+    do j = 1, size(region%states)
+       data_(j)%buffer(:, idx+1 : idx+region%solverOptions%nUnknowns) = region%states(j)%ibmDissipation
+    end do
+    idx = idx + region%solverOptions%nUnknowns
+
+    do j = 1, size(region%states)
        region%states(j)%dummyFunction => data_(j)%buffer
     end do
 
-    write(patchFile, '(A)') trim(filename) // ".levelset.f"
+    write(patchFile, '(A)') trim(filename) // ".ibm_variables.f"
     call region%saveData(QOI_DUMMY_FUNCTION, patchFile)
   end if
+
+  do i = 1, size(data_)
+    nullify(data_(i)%buffer)
+  end do
+  SAFE_DEALLOCATE(data_)
 
 end subroutine saveRhs

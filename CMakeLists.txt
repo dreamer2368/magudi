@@ -216,6 +216,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ImmersedBoundaryImpl.f90
   ${PROJECT_SOURCE_DIR}/include/SinusoidalWallLevelset.f90
   ${PROJECT_SOURCE_DIR}/src/SinusoidalWallLevelsetImpl.f90
+  ${PROJECT_SOURCE_DIR}/include/StokesSecondWallLevelset.f90
+  ${PROJECT_SOURCE_DIR}/src/StokesSecondWallLevelsetImpl.f90
 
   # C source files.
   ${PROJECT_SOURCE_DIR}/src/PLOT3DFormat.c

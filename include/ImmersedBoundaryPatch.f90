@@ -16,6 +16,7 @@ module ImmersedBoundaryPatch_mod
      procedure, pass :: cleanup => cleanupImmersedBoundaryPatch
      procedure, pass :: verifyUsage => verifyImmersedBoundaryPatchUsage
      procedure, pass :: updateRhs => addImmersedBoundaryPenalty
+     procedure, pass :: computePenaltyWeight
   end type t_ImmersedBoundaryPatch
 
   interface
@@ -74,6 +75,18 @@ module ImmersedBoundaryPatch_mod
       class(t_Grid), intent(in) :: grid
       class(t_State) :: state
     end subroutine addImmersedBoundaryPenalty
+  end interface
+
+  interface
+    subroutine computePenaltyWeight(this, grid, state, weight)
+      use Grid_mod, only : t_Grid
+      use State_mod, only : t_State
+      import :: t_ImmersedBoundaryPatch
+      class(t_ImmersedBoundaryPatch) :: this
+      class(t_Grid), intent(in) :: grid
+      class(t_State), intent(in) :: state
+      real(SCALAR_KIND), dimension(:), intent(out) :: weight
+    end subroutine computePenaltyWeight
   end interface
 
 end module ImmersedBoundaryPatch_mod

@@ -2055,9 +2055,11 @@ subroutine connectLevelsetFactory(this)
   use ImmersedBoundaryPatch_mod, only : t_ImmersedBoundaryPatch
   use LevelsetFactory_mod, only : t_LevelsetFactory
   use SinusoidalWallLevelset_mod, only : t_SinusoidalWallLevelset
+  use StokesSecondWallLevelset_mod, only : t_StokesSecondWallLevelset
 
   ! <<< Internal modules >>>
   use InputHelper, only : getRequiredOption
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -2065,7 +2067,7 @@ subroutine connectLevelsetFactory(this)
   class(t_Region) :: this
 
   ! <<< Local variables >>>
-  character(len = STRING_LENGTH) :: levelsetType
+  character(len = STRING_LENGTH) :: levelsetType, message
   integer :: i, j
   class(t_Patch), pointer :: patch => null()
 
@@ -2100,9 +2102,17 @@ subroutine connectLevelsetFactory(this)
   case ('sinusoidal_wall')
     allocate(t_SinusoidalWallLevelset :: this%levelsetFactory)
 
+  case ('stokes_second_wall')
+    allocate(t_StokesSecondWallLevelset :: this%levelsetFactory)
+
   case default
     this%levelsetType = ""
 
   end select
+
+  if (.not. associated(this%levelsetFactory)) then
+    write(message, '(3A)') "'", trim(levelsetType), "'-type levelsetFactory does not exist!"
+    call gracefulExit(this%comm, message)
+  end if
 
 end subroutine connectLevelsetFactory
