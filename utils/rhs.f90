@@ -4,8 +4,8 @@ program rhs
 
   use MPI
 
-  use Grid_enum, only : QOI_GRID
-  use State_enum, only : QOI_FORWARD_STATE
+  use Grid_enum
+  use State_enum
 
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
@@ -72,6 +72,12 @@ program rhs
 
   ! Write out some useful information.
   call region%reportGridDiagnostics()
+
+  ! Save the Jacobian and normalized metrics.
+  write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
+  call region%saveData(QOI_JACOBIAN, filename)
+  write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
+  call region%saveData(QOI_METRICS, filename)
 
   ! Initialize the solver.
   call solver%setup(region, outputPrefix = outputPrefix)
