@@ -327,7 +327,6 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
-  use CNSHelper, only : transformFluxes
 
   implicit none
 
@@ -341,10 +340,9 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  integer :: i, nUnknowns, nDimensions
+  integer :: i, nDimensions
   real(wp), dimension(:, :), allocatable :: densityGradient,      &
                                             temperatureGradient
-  real(wp), dimension(:, :, :), allocatable :: dissFlux1, dissFlux2
 
   call startTiming("updateIBMVariables")
 
@@ -357,13 +355,10 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
   assert(size(this%levelset, 1) == size(this%conservedVariables, 1))
   assert(size(this%levelset, 2) == 1)
 
-  nUnknowns = size(this%conservedVariables, 2)
   nDimensions = grid%nDimensions
 
   allocate(densityGradient(grid%nGridPoints, nDimensions))
   allocate(temperatureGradient(grid%nGridPoints, nDimensions))
-  allocate(dissFlux1(grid%nGridPoints, nUnknowns, nDimensions))
-  allocate(dissFlux2(grid%nGridPoints, nUnknowns, nDimensions))
 
   !NOTE: remnant from jcode.
   ! do i = 1, grid%nGridPoints
@@ -395,22 +390,10 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
   end do
 
   ! Laplacian term.
-  do i = 1, nDimensions + 2
-    call grid%computeGradient(this%conservedVariables(:,i), dissFlux1(:,i,:))
-  end do
-  call transformFluxes(nDimensions, dissFlux1, grid%metrics, dissFlux2)
-  do i = 1, nDimensions
-     call grid%firstDerivative(i)%apply(dissFlux2(:,:,i), grid%localSize)
-  end do
-  this%ibmDissipation = sum(dissFlux2, dim = 3)
-  do i = 1, nDimensions + 2
-    this%ibmDissipation(:, i) = this%ibmDissipation(:, i) * grid%jacobian(:, 1)
-  end do
+  call grid%computeLaplacian(this%conservedVariables, this%ibmDissipation)
 
   SAFE_DEALLOCATE(densityGradient)
   SAFE_DEALLOCATE(temperatureGradient)
-  SAFE_DEALLOCATE(dissFlux1)
-  SAFE_DEALLOCATE(dissFlux2)
 
   call endTiming("updateIBMVariables")
 
