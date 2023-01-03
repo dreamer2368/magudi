@@ -80,6 +80,7 @@ subroutine setupImmersedBoundaryPatch(this, index, comm, patchDescriptor,       
   this%dti = 1.0_wp / solverOptions%timeStepSize
 
   ! Set the diffusion amount based on the stability limit
+  assert(grid%minGridSpacing > 0.0_wp)
   this%dissipationAmount = getOption("immersed_boundary/dissipation_amount", 0.05_wp)
   this%dissipationAmount = this%dissipationAmount * grid%minGridSpacing**2 * this%dti / real(grid%nDimensions, wp)
 

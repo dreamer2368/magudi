@@ -437,9 +437,8 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  real(wp) :: minGridSpacing
   character(len = STRING_LENGTH) :: filename, message
-  integer :: i, j, ierror
+  integer :: i, j
   class(t_Patch), pointer :: patch => null()
   class(t_Controller), pointer :: controller => null()
   class(t_Functional), pointer :: functional => null()
@@ -509,6 +508,9 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
      end if
 
   end if
+
+  ! Get minimum spacing.
+  if (region%simulationFlags%enableIBM) call region%getMinimumSpacing()
 
   ! Setup boundary conditions.
   call getRequiredOption("boundary_condition_file", filename)
@@ -590,26 +592,6 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
     call region%connectLevelsetFactory()
 
     call region%levelsetFactory%setup(region%grids, region%states)
-
-    ! Determine minimum grid spacing (avoid holes)
-    do i = 1, size(region%grids)
-      minGridSpacing = huge(1.0_wp)
-      do j = 1, region%grids(i)%nGridPoints
-         minGridSpacing = min(minGridSpacing,                                   &
-         minval(region%grids(i)%gridSpacing(j,1:region%grids(i)%nDimensions)))
-      end do
-      call MPI_Allreduce(MPI_IN_PLACE, minGridSpacing, 1, REAL_TYPE_MPI,        &
-                         MPI_MIN, region%grids(i)%comm, ierror)
-    end do
-
-    if (region%commGridMasters /= MPI_COMM_NULL)                                &
-         call MPI_Allreduce(MPI_IN_PLACE, minGridSpacing, 1, REAL_TYPE_MPI,     &
-                            MPI_MIN, region%commGridMasters, ierror)
-
-    do i = 1, size(region%grids)
-       call MPI_Bcast(minGridSpacing, 1, REAL_TYPE_MPI, 0, region%grids(i)%comm, ierror)
-       region%grids(i)%minGridSpacing = minGridSpacing
-    end do
   end if
 
 end subroutine setupSolver

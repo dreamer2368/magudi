@@ -2122,3 +2122,41 @@ subroutine connectLevelsetFactory(this)
   end if
 
 end subroutine connectLevelsetFactory
+
+subroutine getMinimumSpacing(this)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Region_mod, only : t_Region
+
+  ! <<< Arguments >>>
+  class(t_Region) :: this
+
+  ! <<< Local variables >>>
+  integer, parameter :: wp = SCALAR_KIND
+  integer :: i, j, ierror
+  real(wp) :: minGridSpacing
+
+  ! Determine minimum grid spacing (avoid holes)
+  do i = 1, size(this%grids)
+    minGridSpacing = huge(1.0_wp)
+    do j = 1, this%grids(i)%nGridPoints
+       minGridSpacing = min(minGridSpacing,                                   &
+       minval(this%grids(i)%gridSpacing(j,1:this%grids(i)%nDimensions)))
+    end do
+    call MPI_Allreduce(MPI_IN_PLACE, minGridSpacing, 1, REAL_TYPE_MPI,        &
+                       MPI_MIN, this%grids(i)%comm, ierror)
+  end do
+
+  if (this%commGridMasters /= MPI_COMM_NULL)                                &
+       call MPI_Allreduce(MPI_IN_PLACE, minGridSpacing, 1, REAL_TYPE_MPI,     &
+                          MPI_MIN, this%commGridMasters, ierror)
+
+  do i = 1, size(this%grids)
+     call MPI_Bcast(minGridSpacing, 1, REAL_TYPE_MPI, 0, this%grids(i)%comm, ierror)
+     this%grids(i)%minGridSpacing = minGridSpacing
+  end do
+
+end subroutine getMinimumSpacing
