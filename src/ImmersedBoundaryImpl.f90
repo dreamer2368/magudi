@@ -81,8 +81,7 @@ subroutine setupImmersedBoundaryPatch(this, index, comm, patchDescriptor,       
 
   ! Set the diffusion amount based on the stability limit
   this%dissipationAmount = getOption("immersed_boundary/dissipation_amount", 0.05_wp)
-  ! this%dissipationAmount = this%dissipationAmount * grid%minGridSpacing * this%dti / real(grid%nDimensions, wp)
-  ! this%dissipationAmount = this%dissipationAmount * grid%minGridSpacing**2 * this%dti / real(grid%nDimensions, wp)
+  this%dissipationAmount = this%dissipationAmount * grid%minGridSpacing**2 * this%dti / real(grid%nDimensions, wp)
 
   this%ibmEpsilon = getOption("immersed_boundary/regularization_parameter", 1.0_wp)
 
@@ -328,6 +327,7 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
+  use CNSHelper, only : transformFluxes
 
   implicit none
 
@@ -341,10 +341,10 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  integer :: i, j, n, nUnknowns
+  integer :: i, nUnknowns, nDimensions
   real(wp), dimension(:, :), allocatable :: densityGradient,      &
-                                            temperatureGradient,  &
-                                            dissipationTerm
+                                            temperatureGradient
+  real(wp), dimension(:, :, :), allocatable :: dissFlux1, dissFlux2
 
   call startTiming("updateIBMVariables")
 
@@ -358,10 +358,12 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
   assert(size(this%levelset, 2) == 1)
 
   nUnknowns = size(this%conservedVariables, 2)
+  nDimensions = grid%nDimensions
 
-  allocate(densityGradient(grid%nGridPoints, grid%nDimensions))
-  allocate(temperatureGradient(grid%nGridPoints, grid%nDimensions))
-  allocate(dissipationTerm(grid%nGridPoints, nUnknowns))
+  allocate(densityGradient(grid%nGridPoints, nDimensions))
+  allocate(temperatureGradient(grid%nGridPoints, nDimensions))
+  allocate(dissFlux1(grid%nGridPoints, nUnknowns, nDimensions))
+  allocate(dissFlux2(grid%nGridPoints, nUnknowns, nDimensions))
 
   !NOTE: remnant from jcode.
   ! do i = 1, grid%nGridPoints
@@ -392,22 +394,23 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
     ! this%uDotGradRho(i, 1) = this%uDotGradRho(i, 1) + sum(this%objectVelocity(i, :) * densityGradient(i, :))
   end do
 
-  do n = 1, grid%nDimensions
-    ! Dissipation term.
-    dissipationTerm = this%conservedVariables
-    call grid%dissipation(n)%apply(dissipationTerm, grid%localSize)
-    if (.not. simulationFlags%compositeDissipation) then
-       do j = 1, nUnknowns
-          dissipationTerm(:,j) = grid%arcLengths(:,n) * dissipationTerm(:,j)
-       end do
-       call grid%dissipationTranspose(n)%apply(dissipationTerm, grid%localSize)
-       call grid%firstDerivative(n)%applyNormInverse(dissipationTerm, grid%localSize)
-    end if
-    this%ibmDissipation = this%ibmDissipation + dissipationTerm
+  ! Laplacian term.
+  do i = 1, nDimensions + 2
+    call grid%computeGradient(this%conservedVariables(:,i), dissFlux1(:,i,:))
+  end do
+  call transformFluxes(nDimensions, dissFlux1, grid%metrics, dissFlux2)
+  do i = 1, nDimensions
+     call grid%firstDerivative(i)%apply(dissFlux2(:,:,i), grid%localSize)
+  end do
+  this%ibmDissipation = sum(dissFlux2, dim = 3)
+  do i = 1, nDimensions + 2
+    this%ibmDissipation(:, i) = this%ibmDissipation(:, i) * grid%jacobian(:, 1)
   end do
 
   SAFE_DEALLOCATE(densityGradient)
-  SAFE_DEALLOCATE(dissipationTerm)
+  SAFE_DEALLOCATE(temperatureGradient)
+  SAFE_DEALLOCATE(dissFlux1)
+  SAFE_DEALLOCATE(dissFlux2)
 
   call endTiming("updateIBMVariables")
 
