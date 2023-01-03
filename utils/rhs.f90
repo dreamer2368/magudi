@@ -239,7 +239,7 @@ subroutine saveRhs(region, filename)
 
   if (getOption("enable_immersed_boundary", .false.)) then
     idx = 0
-    nIBMvars = 2 + 2 * region%grids(1)%nDimensions + 2 + region%solverOptions%nUnknowns
+    nIBMvars = 2 + 3 * region%grids(1)%nDimensions + 2 + region%solverOptions%nUnknowns
 
     ! resize the data buffer.
     do i = 1, size(data_)
@@ -282,8 +282,13 @@ subroutine saveRhs(region, filename)
     idx = idx + region%grids(1)%nDimensions
 
     do j = 1, size(region%states)
-       data_(j)%buffer(:, idx + 1) = region%states(j)%nDotGradRho(:, 1)
-       data_(j)%buffer(:, idx + 2) = region%states(j)%uDotGradRho(:, 1)
+       data_(j)%buffer(:, idx+1 : idx+region%grids(j)%nDimensions) = region%states(j)%objectAcceleration
+    end do
+    idx = idx + region%grids(1)%nDimensions
+
+    do j = 1, size(region%states)
+       data_(j)%buffer(:, idx + 1) = region%states(j)%densityPenalty(:, 1)
+       data_(j)%buffer(:, idx + 2) = region%states(j)%temperaturePenalty(:, 1)
     end do
     idx = idx + 2
 

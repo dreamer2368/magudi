@@ -61,9 +61,10 @@ contains
       ! allocate(this%levelsetCurvature(grid%nGridPoints, 1))
       ! allocate(this%indicatorFunction(grid%nGridPoints, 1))
       allocate(this%ibmDissipation(nGridPoints, solverOptions%nUnknowns))
-      allocate(this%nDotGradRho(nGridPoints, 1))
-      allocate(this%uDotGradRho(nGridPoints, 1))
+      allocate(this%densityPenalty(nGridPoints, 1))
+      allocate(this%temperaturePenalty(nGridPoints, 1))
       allocate(this%objectVelocity(nGridPoints, nDimensions))
+      allocate(this%objectAcceleration(nGridPoints, nDimensions))
     end if
 
   end subroutine allocateData
@@ -187,9 +188,10 @@ subroutine cleanupState(this)
   ! SAFE_DEALLOCATE(this%indicatorFunction)
   ! SAFE_DEALLOCATE(this%primitiveGridNorm)
   SAFE_DEALLOCATE(this%ibmDissipation)
-  SAFE_DEALLOCATE(this%nDotGradRho)
-  SAFE_DEALLOCATE(this%uDotGradRho)
+  SAFE_DEALLOCATE(this%densityPenalty)
+  SAFE_DEALLOCATE(this%temperaturePenalty)
   SAFE_DEALLOCATE(this%objectVelocity)
+  SAFE_DEALLOCATE(this%objectAcceleration)
 
   this%adjointForcingFactor = 1.0_wp
 

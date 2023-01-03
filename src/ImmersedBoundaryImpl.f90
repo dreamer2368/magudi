@@ -178,8 +178,9 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
   integer, parameter :: wp = SCALAR_KIND
   integer :: nUnknowns, nDimensions
   integer :: i, j, k, n, gridIndex, patchIndex
-  real(wp) :: localDensity, localVelocity(grid%nDimensions), localVelocitySquared,   &
-              localnDotGradRho, localuDotGradRho, localIbmDissipation(size(state%conservedVariables, 2)), &
+  real(wp) :: localDensity, localVelocity(grid%nDimensions),                    &
+              localDensityPenalty, localTemperaturePenalty, localEnergy,        &
+              localIbmDissipation(size(state%conservedVariables, 2)),           &
               localLevelsetNormal(grid%nDimensions)
   real(wp) :: objectVelocity(grid%nDimensions), source_(size(state%conservedVariables, 2)), velocityPenalty(grid%nDimensions)
   real(wp) :: buf, weight
@@ -209,21 +210,17 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
 
         localDensity = state%conservedVariables(gridIndex, 1)
         localVelocity = state%velocity(gridIndex, :)
-        localVelocitySquared = sum(localVelocity ** 2)
-        localnDotGradRho = state%nDotGradRho(gridIndex, 1)
-        localuDotGradRho = state%uDotGradRho(gridIndex, 1)
+        localEnergy = state%conservedVariables(gridIndex, grid%nDimensions + 2) /         &
+                      state%conservedVariables(gridIndex, 1)
+        localDensityPenalty = state%densityPenalty(gridIndex, 1)
+        localTemperaturePenalty = state%temperaturePenalty(gridIndex, 1)
+
+        ! localuDotGradRho = state%uDotGradRho(gridIndex, 1)
         localIbmDissipation = state%ibmDissipation(gridIndex, :)
         localLevelsetNormal = state%levelsetNormal(gridIndex, :)
 
         ! Get velocity of associated object
         objectVelocity = state%objectVelocity(gridIndex, :)
-     ! if (ibm_move) then
-     !    n = objectIndex(i)
-     !    objectVelocity = object(n)%velocity(1:nDimensions)
-     !    ibmVelocity(i,:) = objectVelocity
-     ! else
-     !    objectVelocity = 0.0_WP
-     ! end if
 
         ! Compute the velocity penalty
         velocityPenalty = objectVelocity - localVelocity
@@ -232,24 +229,25 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
         source_ = 0.0_WP
 
         ! Density treatment
-        source_(1) = this%maxSpeed * localnDotGradRho - localuDotGradRho            &
-                    + this%dissipationAmount * localIbmDissipation(1)
+        source_(1) = this%maxSpeed * localDensityPenalty +            &
+                    ! - localuDotGradRho            &
+                    this%dissipationAmount * localIbmDissipation(1)
 
         ! Momentum treatment
         do n = 1, nDimensions
-          source_(n+1) = localDensity * velocityPenalty(n) * this%dti +                                     &
-               localVelocity(n) * (this%maxSpeed * localnDotGradRho - localuDotGradRho) +                       &
+          source_(n+1) = localDensity * velocityPenalty(n) * this%dti +               &
+               localVelocity(n) * this%maxSpeed * localDensityPenalty +               &
                this%dissipationAmount * localIbmDissipation(n+1)
         end do
 
         ! Energy treatment
-        source_(nDimensions+2) = 0.5_wp * localVelocitySquared * (this%maxSpeed * localnDotGradRho -           &
-            localuDotGradRho) + this%dissipationAmount * localIbmDissipation(nDimensions+2) +   &
-            sum(state%conservedVariables(gridIndex, 2:nDimensions+1) * velocityPenalty(1:nDimensions)) * this%dti
+        source_(nDimensions+2) = localEnergy * this%maxSpeed * localDensityPenalty +                                &
+            sum(state%conservedVariables(gridIndex, 2:nDimensions+1) * velocityPenalty(1:nDimensions)) * this%dti + &
+            this%dissipationAmount * localIbmDissipation(nDimensions+2)
 
-        ! Isothermal
+        ! Adiabatic
         source_(nDimensions+2) = source_(nDimensions+2) +                                    &
-             localDensity * (this%ibmTemperature - state%temperature(gridIndex,1)) / this%ratioOfSpecificHeats * this%dti
+             localDensity / this%ratioOfSpecificHeats * this%maxSpeed * localTemperaturePenalty
 
         ! Add the IBM contribution
         buf = this%ibmEpsilon * sqrt(sum((localLevelsetNormal * grid%gridSpacing(gridIndex, :))**2))
@@ -284,8 +282,7 @@ subroutine computePenaltyWeight(this, grid, state, weight)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: nUnknowns, nDimensions
-  integer :: i, j, k, n, gridIndex, patchIndex
+  integer :: i, j, k, gridIndex, patchIndex
   real(wp) :: localLevelsetNormal(grid%nDimensions)
   real(wp) :: buf
 
@@ -318,12 +315,13 @@ subroutine computePenaltyWeight(this, grid, state, weight)
 end subroutine computePenaltyWeight
 
 ! t_State method
-subroutine updateIBMVariables(this, mode, grid, simulationFlags)
+subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
 
   ! <<< Derived types >>>
   use Grid_mod, only : t_Grid
   use State_mod, only : t_State
   use SimulationFlags_mod, only : t_SimulationFlags
+  use SolverOptions_mod, only : t_SolverOptions
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD
@@ -338,12 +336,15 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
   integer, intent(in) :: mode
   class(t_Grid), intent(in) :: grid
   type(t_SimulationFlags), intent(in) :: simulationFlags
+  type(t_SolverOptions), intent(in) :: solverOptions
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
   integer :: i, j, n, nUnknowns
-  real(wp), dimension(:, :), allocatable :: densityGradient, dissipationTerm
+  real(wp), dimension(:, :), allocatable :: densityGradient,      &
+                                            temperatureGradient,  &
+                                            dissipationTerm
 
   call startTiming("updateIBMVariables")
 
@@ -359,6 +360,7 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
   nUnknowns = size(this%conservedVariables, 2)
 
   allocate(densityGradient(grid%nGridPoints, grid%nDimensions))
+  allocate(temperatureGradient(grid%nGridPoints, grid%nDimensions))
   allocate(dissipationTerm(grid%nGridPoints, nUnknowns))
 
   !NOTE: remnant from jcode.
@@ -374,14 +376,20 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags)
      ! gridNorm(i, 1) = primitiveGridNorm(i, 1) * indicatorFunction(i, 1)
   ! end do
 
-  this%nDotGradRho = 0.0_wp
-  this%uDotGradRho = 0.0_wp
+  this%densityPenalty = 0.0_wp
+  this%temperaturePenalty = 0.0_wp
   this%ibmDissipation = 0.0_wp
   call grid%computeGradient(this%conservedVariables(:,1), densityGradient)
+  call grid%computeGradient(this%temperature(:,1), temperatureGradient)
 
   do i = 1, grid%nGridPoints
-    this%nDotGradRho(i, 1) = this%nDotGradRho(i, 1) + sum(this%levelsetNormal(i, :) * densityGradient(i, :))
-    this%uDotGradRho(i, 1) = this%uDotGradRho(i, 1) + sum(this%objectVelocity(i, :) * densityGradient(i, :))
+    this%densityPenalty(i, 1) = this%densityPenalty(i, 1) + sum(this%levelsetNormal(i, :) * densityGradient(i, :))
+    this%densityPenalty(i, 1) = this%densityPenalty(i, 1) +                                   &
+      solverOptions%ratioOfSpecificHeats / (solverOptions%ratioOfSpecificHeats - 1.0_wp) *    &
+      this%conservedVariables(i, 1) / this%temperature(i, 1) *                                &
+      sum(this%levelsetNormal(i, :) * this%objectAcceleration(i, :))
+    this%temperaturePenalty(i, 1) = this%temperaturePenalty(i, 1) + sum(this%levelsetNormal(i, :) * temperatureGradient(i, :))
+    ! this%uDotGradRho(i, 1) = this%uDotGradRho(i, 1) + sum(this%objectVelocity(i, :) * densityGradient(i, :))
   end do
 
   do n = 1, grid%nDimensions

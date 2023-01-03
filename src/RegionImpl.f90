@@ -1754,7 +1754,9 @@ subroutine computeRhs(this, mode, timeStep, stage)
   if (this%simulationFlags%enableIBM) then
     call this%levelsetFactory%updateLevelset(mode, this%grids, this%states)
     do i = 1, size(this%states)
-       call this%states(i)%updateIBMVariables(mode, this%grids(i), this%simulationFlags)
+       call this%states(i)%updateIBMVariables(mode, this%grids(i),              &
+                                              this%simulationFlags,             &
+                                              this%solverOptions)
     end do
   end if
 

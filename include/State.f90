@@ -62,11 +62,15 @@ module State_mod
          targetState, adjointVariables, timeAverage
 
     ! Variables for immersed boundary method.
-    real(SCALAR_KIND), dimension(:,:), allocatable :: levelset, levelsetNormal!, indicatorFunction,   &
+    real(SCALAR_KIND), dimension(:,:), allocatable :: levelset,           & ! level set defines the object surface.
+                                                      levelsetNormal,     & ! level set normal toward the object.
+                                                      objectVelocity,     & ! u_w, velocity boundary condition
+                                                      objectAcceleration, & ! Du_w / Dt (material derivative)
+                                                      ibmDissipation,     & ! dissipation for spurious modes.
+                                                      densityPenalty,     & ! c * (n \dot \Grad \rho - \Phi) - u \dot \Grad \rho
+                                                      temperaturePenalty    ! c * (n \dot \Grad T)
+                                                      !, indicatorFunction,   &
                                                       !primitiveGridNorm, levelsetCurvature
-    real(SCALAR_KIND), dimension(:,:), allocatable :: objectVelocity
-    real(SCALAR_KIND) :: levelsetLoc, levelsetWidth, levelsetAmp, levelsetPeriod
-    real(SCALAR_KIND), dimension(:,:), allocatable :: ibmDissipation, nDotGradRho, uDotGradRho
     logical :: ibmPatchExists = .false.
 
     SCALAR_TYPE, dimension(:,:), pointer :: dummyFunction => null()
@@ -263,14 +267,16 @@ module State_mod
   end interface
 
   interface
-    subroutine updateIBMVariables(this, mode, grid, simulationFlags)
+    subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
       use Grid_mod, only : t_Grid
       use SimulationFlags_mod, only : t_SimulationFlags
+      use SolverOptions_mod, only : t_SolverOptions
       import :: t_State
       class(t_State) :: this
       integer, intent(in) :: mode
       class(t_Grid), intent(in) :: grid
       type(t_SimulationFlags), intent(in) :: simulationFlags
+      type(t_SolverOptions), intent(in) :: solverOptions
     end subroutine updateIBMVariables
   end interface
 
