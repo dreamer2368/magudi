@@ -2058,6 +2058,7 @@ subroutine connectLevelsetFactory(this)
   use LevelsetFactory_mod, only : t_LevelsetFactory
   use SinusoidalWallLevelset_mod, only : t_SinusoidalWallLevelset
   use StokesSecondWallLevelset_mod, only : t_StokesSecondWallLevelset
+  use CylinderLevelset_mod, only : t_CylinderLevelset
 
   ! <<< Internal modules >>>
   use InputHelper, only : getRequiredOption
@@ -2106,6 +2107,9 @@ subroutine connectLevelsetFactory(this)
 
   case ('stokes_second_wall')
     allocate(t_StokesSecondWallLevelset :: this%levelsetFactory)
+
+  case ('cylinder')
+    allocate(t_CylinderLevelset :: this%levelsetFactory)
 
   case default
     this%levelsetType = ""
