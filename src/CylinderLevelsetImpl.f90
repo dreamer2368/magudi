@@ -89,7 +89,7 @@ subroutine updateCylinderLevelset(this, mode, grids, states)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  real(wp) :: timeFactor, timeDerivativeFactor, timeAccFactor
+  real(wp) :: timeFactor, timeDerivativeFactor, timeAccFactor, tmp
   real(wp), dimension(grids(1)%nDimensions) :: loc, vel, acc
   integer :: i, j
 
@@ -126,9 +126,9 @@ subroutine updateCylinderLevelset(this, mode, grids, states)
                                    (states(i)%levelsetNormal(:, j)) ** 2
     end do
 
-    do j = 1, 2
-      states(i)%levelsetNormal(:, j) = states(i)%levelsetNormal(:, j) /         &
-                                            sqrt(states(i)%levelset(:, 1))
+    do j = 1, grids(i)%nGridPoints
+      tmp = max(sqrt(states(i)%levelset(j, 1)), 0.25_wp * this%radius)
+      states(i)%levelsetNormal(j, :) = states(i)%levelsetNormal(j, :) / tmp
     end do
     states(i)%levelset = states(i)%levelset - this%radius * this%radius
 

@@ -1,0 +1,11 @@
+# Name                 Type                  Grid normDir iMin iMax jMin jMax kMin kMax
+# ==================== ===================== ==== ======= ==== ==== ==== ==== ==== ====
+  farField.E           SAT_FAR_FIELD            1       1    1    1    1   -1    1   -1
+  farField.W           SAT_FAR_FIELD            1      -1   -1   -1    1   -1    1   -1
+  farField.S           SAT_FAR_FIELD            1       2    1   -1    1    1    1   -1
+  farField.N           SAT_FAR_FIELD            1      -2    1   -1   -1   -1    1   -1
+  sponge.E             SPONGE                   1       1    1   29    1   -1    1   -1
+  sponge.W             SPONGE                   1      -1  -29   -1    1   -1    1   -1
+  sponge.S             SPONGE                   1       2    1   -1    1   29    1   -1
+  sponge.N             SPONGE                   1      -2    1   -1  -29   -1    1   -1
+  immersed             IMMERSED_BOUNDARY        1       0  901 1100  401  600    1   -1
