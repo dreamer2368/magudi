@@ -2,15 +2,12 @@
 # Written by Seung Whan Chung
 
 # Filenames, etc.
-output_prefix = "FlowPastCylinder"
-grid_file = "FlowPastCylinder.xyz"
-initial_condition_file = "FlowPastCylinder.ic.q"
-target_state_file = "FlowPastCylinder.target.q"
+output_prefix = "OscillatingCylinder"
+grid_file = "OscillatingCylinder.xyz"
 boundary_condition_file = "bc.dat"
 
 # Simulation flags
 include_viscous_terms = true
-use_target_state = true
 use_constant_CFL_mode = false
 curvilinear_domain = false
 compute_time_average = false
@@ -48,8 +45,8 @@ defaults/discretization_scheme = "SBP 3-6"
 # Time stepping options
 time_step_size = 0.003
 number_of_timesteps = 500000
-report_interval = 1000
-save_interval = 2000
+report_interval = 500
+save_interval = 2500
 
 # Artificial dissipation
 add_dissipation = true
@@ -74,10 +71,10 @@ enable_immersed_boundary = true
 immersed_boundary/levelset_type = "cylinder"
 immersed_boundary/dissipation_amount = 0.05
 immersed_boundary/regularization_parameter = 3.0
-immersed_boundary/period = 1372.0
-immersed_boundary/location1 = 10.0
+immersed_boundary/period = 314.1592
+immersed_boundary/location1 = 15.0
 immersed_boundary/location2 = 0.0
 immersed_boundary/oscillation_direction1 = 1.0
 immersed_boundary/oscillation_direction2 = 0.0
-immersed_boundary/amplitude = 0.0
+immersed_boundary/amplitude = 5.0
 immersed_boundary/radius = 0.5
