@@ -113,9 +113,9 @@ subroutine updateSinusoidalWallLevelset(this, mode, grids, states)
     return
   end if
 
-  timeFactor = sin(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
-  timeDerivativeFactor = 2.0_wp * pi / this%levelsetPeriod                          &
-                         * cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
+  timeFactor = cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
+  timeDerivativeFactor = -2.0_wp * pi / this%levelsetPeriod                          &
+                         * sin(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
   timeAccFactor = timeFactor * (-4.0_wp) * pi * pi / this%levelsetPeriod / this%levelsetPeriod
   verticalDirection = 0.0_wp
   verticalDirection(2) = 1.0_wp
