@@ -584,11 +584,6 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
   end if
 
   if (region%simulationFlags%enableIBM) then
-    if (.not. region%simulationFlags%dissipationOn) then
-      write(message, '(A)') "Immersed boundary requires artificial dissipation!"
-      call gracefulExit(region%comm, message)
-    end if
-
     call region%connectLevelsetFactory()
 
     call region%levelsetFactory%setup(region%grids, region%states)
