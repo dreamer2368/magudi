@@ -1,5 +1,16 @@
 #include "config.h"
 
+module IBM_enum
+
+  implicit none
+  public
+
+  integer, parameter ::                                                                    &
+       IBM_ADIABATIC          =  900,                                                      &
+       IBM_ISOTHERMAL         =  901
+
+end module IBM_enum
+
 module ImmersedBoundaryPatch_mod
 
   use Patch_mod, only : t_Patch

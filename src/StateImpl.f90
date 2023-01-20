@@ -14,6 +14,9 @@ contains
     use SolverOptions_mod, only : t_SolverOptions
     use SimulationFlags_mod, only : t_SimulationFlags
 
+    ! <<< Enumerations >>>
+    use IBM_enum
+
     ! <<< Arguments >>>
     class(t_State) :: this
     type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -62,9 +65,11 @@ contains
       ! allocate(this%indicatorFunction(grid%nGridPoints, 1))
       allocate(this%ibmDissipation(nGridPoints, solverOptions%nUnknowns))
       allocate(this%densityPenalty(nGridPoints, 1))
-      allocate(this%temperaturePenalty(nGridPoints, 1))
       allocate(this%objectVelocity(nGridPoints, nDimensions))
       allocate(this%objectAcceleration(nGridPoints, nDimensions))
+      if (solverOptions%ibmWallType == IBM_ADIABATIC) then
+        allocate(this%temperaturePenalty(nGridPoints, 1))
+      end if
     end if
 
   end subroutine allocateData

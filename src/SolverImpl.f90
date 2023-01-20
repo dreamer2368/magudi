@@ -437,7 +437,7 @@ subroutine setupSolver(this, region, restartFilename, outputPrefix)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: filename, message
+  character(len = STRING_LENGTH) :: filename
   integer :: i, j
   class(t_Patch), pointer :: patch => null()
   class(t_Controller), pointer :: controller => null()

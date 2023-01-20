@@ -160,6 +160,7 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
+  use IBM_enum
 
   ! <<< Internal module >>>
   use ImmersedBoundaryImpl, only : regularizeHeaviside
@@ -213,7 +214,6 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
         localEnergy = state%conservedVariables(gridIndex, grid%nDimensions + 2) /         &
                       state%conservedVariables(gridIndex, 1)
         localDensityPenalty = state%densityPenalty(gridIndex, 1)
-        localTemperaturePenalty = state%temperaturePenalty(gridIndex, 1)
 
         ! localuDotGradRho = state%uDotGradRho(gridIndex, 1)
         localIbmDissipation = state%ibmDissipation(gridIndex, :)
@@ -245,9 +245,21 @@ subroutine addImmersedBoundaryPenalty(this, mode, simulationFlags, solverOptions
             sum(state%conservedVariables(gridIndex, 2:nDimensions+1) * velocityPenalty(1:nDimensions)) * this%dti + &
             this%dissipationAmount * localIbmDissipation(nDimensions+2)
 
-        ! Adiabatic
-        source_(nDimensions+2) = source_(nDimensions+2) +                                    &
-             localDensity / this%ratioOfSpecificHeats * this%maxSpeed * localTemperaturePenalty
+        select case (solverOptions%ibmWallType)
+
+        case (IBM_ADIABATIC)
+
+          localTemperaturePenalty = state%temperaturePenalty(gridIndex, 1)
+          source_(nDimensions+2) = source_(nDimensions+2) +                                    &
+               localDensity / this%ratioOfSpecificHeats * this%maxSpeed * localTemperaturePenalty
+
+        case (IBM_ISOTHERMAL)
+
+          localTemperaturePenalty = this%ibmTemperature - state%temperature(gridIndex,1)
+          source_(nDimensions+2) = source_(nDimensions+2) +                                    &
+               localDensity / this%ratioOfSpecificHeats * this%dti * localTemperaturePenalty
+
+        end select
 
         ! Add the IBM contribution
         buf = this%ibmEpsilon * sqrt(sum((localLevelsetNormal * grid%gridSpacing(gridIndex, :))**2))
@@ -325,6 +337,7 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
 
   ! <<< Enumerations >>>
   use Region_enum, only : FORWARD
+  use IBM_enum
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -386,9 +399,25 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
       solverOptions%ratioOfSpecificHeats / (solverOptions%ratioOfSpecificHeats - 1.0_wp) *    &
       this%conservedVariables(i, 1) / this%temperature(i, 1) *                                &
       sum(this%levelsetNormal(i, :) * this%objectAcceleration(i, :))
-    this%temperaturePenalty(i, 1) = this%temperaturePenalty(i, 1) + sum(this%levelsetNormal(i, :) * temperatureGradient(i, :))
     ! this%uDotGradRho(i, 1) = this%uDotGradRho(i, 1) + sum(this%objectVelocity(i, :) * densityGradient(i, :))
   end do
+
+  select case (solverOptions%ibmWallType)
+
+  case (IBM_ADIABATIC)
+    assert(allocated(this%temperaturePenalty))
+    do i = 1, grid%nGridPoints
+      this%temperaturePenalty(i, 1) = this%temperaturePenalty(i, 1) + sum(this%levelsetNormal(i, :) * temperatureGradient(i, :))
+    end do
+
+  case (IBM_ISOTHERMAL)
+    do i = 1, grid%nGridPoints
+      this%densityPenalty(i, 1) = this%densityPenalty(i, 1) +                                   &
+        this%conservedVariables(i, 1) / this%temperature(i, 1) *                                &
+        sum(this%levelsetNormal(i, :) * temperatureGradient(i, :))
+    end do
+
+  end select
 
   ! Laplacian term.
   call grid%computeLaplacian(this%conservedVariables, this%ibmDissipation)

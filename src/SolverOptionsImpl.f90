@@ -19,6 +19,9 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   use InputHelper, only : getOption, getRequiredOption
   use ErrorHandler, only : gracefulExit
 
+  ! <<< Enumerations >>>
+  use IBM_enum
+
   implicit none
 
   ! <<< Arguments >>>
@@ -30,7 +33,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: comm_
-  character(len = STRING_LENGTH) :: message
+  character(len = STRING_LENGTH) :: message, ibmWallTypeStr
   type(t_TimeIntegratorFactory) :: timeIntegratorFactory
   class(t_TimeIntegrator), pointer :: dummyTimeIntegrator => null()
   type(t_ControllerFactory) :: controllerFactory
@@ -128,6 +131,23 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
 
   if (simulationFlags%enableAdjoint) then
      this%checkpointingScheme = getOption("checkpointing_scheme", "uniform checkpointing")
+  end if
+
+  if (simulationFlags%enableIBM) then
+    ibmWallTypeStr = getOption("immersed_boundary/wall_type", "adiabatic")
+    select case (trim(ibmWallTypeStr))
+
+    case ('adiabatic')
+      this%ibmWallType = IBM_ADIABATIC
+
+    case ('isothermal')
+      this%ibmWallType = IBM_ISOTHERMAL
+
+    case default
+      write(message, '(A)') "Invalid IBM wall type '", trim(ibmWallTypeStr), "'!"
+      call gracefulExit(comm_, message)
+
+    end select
   end if
 
   this%IsInitialized = .true.
