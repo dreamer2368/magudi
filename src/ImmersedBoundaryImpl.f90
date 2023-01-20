@@ -388,7 +388,6 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
   ! end do
 
   this%densityPenalty = 0.0_wp
-  this%temperaturePenalty = 0.0_wp
   this%ibmDissipation = 0.0_wp
   call grid%computeGradient(this%conservedVariables(:,1), densityGradient)
   call grid%computeGradient(this%temperature(:,1), temperatureGradient)
@@ -406,6 +405,7 @@ subroutine updateIBMVariables(this, mode, grid, simulationFlags, solverOptions)
 
   case (IBM_ADIABATIC)
     assert(allocated(this%temperaturePenalty))
+    this%temperaturePenalty = 0.0_wp
     do i = 1, grid%nGridPoints
       this%temperaturePenalty(i, 1) = this%temperaturePenalty(i, 1) + sum(this%levelsetNormal(i, :) * temperatureGradient(i, :))
     end do

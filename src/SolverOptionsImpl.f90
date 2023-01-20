@@ -144,7 +144,7 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
       this%ibmWallType = IBM_ISOTHERMAL
 
     case default
-      write(message, '(A)') "Invalid IBM wall type '", trim(ibmWallTypeStr), "'!"
+      write(message, '(3A)') "Invalid IBM wall type '", trim(ibmWallTypeStr), "'!"
       call gracefulExit(comm_, message)
 
     end select
