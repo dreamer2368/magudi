@@ -660,6 +660,18 @@ class Optimizer:
     def beforeLinmin(self):
         J0, subJ0 = self.base.QoI()
         gg, subgg = self.base.readInnerProduct(self.fl.ggFiles)
+
+        if (self.cgStep > 0):
+            with h5py.File(self.logFile, 'r') as f:
+                gg0 = f[adjDset][0, self.fl.gradientLogColumns['total']]
+
+        #reduction = gg/gg0
+        #if (reduction<=tol):
+        if (gg <= self.const.tol):
+            self.printAndLog('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
+            self.writeCommandFile('exit 1\n', self.fl.globalCommandFile)
+            return 0
+
         self.saveCGStepData()
 
         fwDset = "%s/%d" % (self.fl.forwardLog, self.hyperStep)
@@ -668,7 +680,6 @@ class Optimizer:
             with h5py.File(self.logFile, 'r') as f:
                 J1 = f[fwDset][-1, self.fl.forwardLogColumns['total']]
                 gg1 = f[adjDset][-1, self.fl.gradientLogColumns['total']]
-                gg0 = f[adjDset][0, self.fl.gradientLogColumns['total']]
 
         self.appendDataset(fwDset, np.array([[J0]+list(subJ0)]))
         self.appendDataset(adjDset, np.array([[gg]+list(subgg)]))
@@ -686,13 +697,6 @@ class Optimizer:
             self.writeCommandFile(commandString, self.fl.globalCommandFile)
 
             self.printAndLog('Initial line minimization is ready. Run mnbrak and linmin procedures.')
-            return 0
-
-        #reduction = gg/gg0
-        #if (reduction<=tol):
-        if (gg <= self.const.tol):
-            self.printAndLog('FRPRMN - after linmin: conjugate-gradient optimization is finished.')
-            self.writeCommandFile('exit 1\n', self.fl.globalCommandFile)
             return 0
 
         dgg, dummy = self.base.readInnerProduct(self.fl.dggFiles)
