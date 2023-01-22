@@ -138,6 +138,7 @@ subroutine saveRhs(region, filename)
   ! <<< Enumerations >>>
   use State_enum, only : QOI_DUMMY_FUNCTION
   use Region_enum, only : FORWARD
+  use IBM_enum
 
   ! <<< External modules >>>
   use InputHelper, only : getOption
@@ -239,7 +240,8 @@ subroutine saveRhs(region, filename)
 
   if (getOption("enable_immersed_boundary", .false.)) then
     idx = 0
-    nIBMvars = 2 + 3 * region%grids(1)%nDimensions + 2 + region%solverOptions%nUnknowns
+    nIBMvars = 2 + 3 * region%grids(1)%nDimensions + 1 + region%solverOptions%nUnknowns
+    if (region%solverOptions%ibmWallType == IBM_ADIABATIC) nIBMvars = nIBMvars + 1
 
     ! resize the data buffer.
     do i = 1, size(data_)
@@ -288,9 +290,12 @@ subroutine saveRhs(region, filename)
 
     do j = 1, size(region%states)
        data_(j)%buffer(:, idx + 1) = region%states(j)%densityPenalty(:, 1)
-       data_(j)%buffer(:, idx + 2) = region%states(j)%temperaturePenalty(:, 1)
+       if (region%solverOptions%ibmWallType == IBM_ADIABATIC)                           &
+         data_(j)%buffer(:, idx + 2) = region%states(j)%temperaturePenalty(:, 1)
     end do
-    idx = idx + 2
+    idx = idx + 1
+    if (region%solverOptions%ibmWallType == IBM_ADIABATIC)                           &
+      idx = idx + 1
 
     do j = 1, size(region%states)
        data_(j)%buffer(:, idx+1 : idx+region%solverOptions%nUnknowns) = region%states(j)%ibmDissipation
