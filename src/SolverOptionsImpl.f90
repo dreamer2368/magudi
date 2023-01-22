@@ -254,6 +254,9 @@ subroutine assignSolverOptions(this, solverOptions)
   end if
 
   this%checkpointingScheme = solverOptions%checkpointingScheme
+
+  this%ibmWallType = solverOptions%ibmWallType
+
   this%IsInitialized = solverOptions%IsInitialized
 
 end subroutine assignSolverOptions
