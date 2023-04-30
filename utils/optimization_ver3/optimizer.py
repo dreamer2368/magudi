@@ -661,6 +661,8 @@ class Optimizer:
         J0, subJ0 = self.base.QoI()
         gg, subgg = self.base.readInnerProduct(self.fl.ggFiles)
 
+        fwDset = "%s/%d" % (self.fl.forwardLog, self.hyperStep)
+        adjDset = "%s/%d" % (self.fl.gradientLog, self.hyperStep)
         if (self.cgStep > 0):
             with h5py.File(self.logFile, 'r') as f:
                 gg0 = f[adjDset][0, self.fl.gradientLogColumns['total']]
@@ -674,8 +676,6 @@ class Optimizer:
 
         self.saveCGStepData()
 
-        fwDset = "%s/%d" % (self.fl.forwardLog, self.hyperStep)
-        adjDset = "%s/%d" % (self.fl.gradientLog, self.hyperStep)
         if (self.cgStep > 0):
             with h5py.File(self.logFile, 'r') as f:
                 J1 = f[fwDset][-1, self.fl.forwardLogColumns['total']]
