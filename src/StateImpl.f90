@@ -14,6 +14,9 @@ contains
     use SolverOptions_mod, only : t_SolverOptions
     use SimulationFlags_mod, only : t_SimulationFlags
 
+    ! <<< Enumerations >>>
+    use IBM_enum
+
     ! <<< Arguments >>>
     class(t_State) :: this
     type(t_SimulationFlags), intent(in) :: simulationFlags
@@ -61,9 +64,12 @@ contains
       ! allocate(this%levelsetCurvature(grid%nGridPoints, 1))
       ! allocate(this%indicatorFunction(grid%nGridPoints, 1))
       allocate(this%ibmDissipation(nGridPoints, solverOptions%nUnknowns))
-      allocate(this%nDotGradRho(nGridPoints, 1))
-      allocate(this%uDotGradRho(nGridPoints, 1))
+      allocate(this%densityPenalty(nGridPoints, 1))
       allocate(this%objectVelocity(nGridPoints, nDimensions))
+      allocate(this%objectAcceleration(nGridPoints, nDimensions))
+      if (solverOptions%ibmWallType == IBM_ADIABATIC) then
+        allocate(this%temperaturePenalty(nGridPoints, 1))
+      end if
     end if
 
   end subroutine allocateData
@@ -187,9 +193,10 @@ subroutine cleanupState(this)
   ! SAFE_DEALLOCATE(this%indicatorFunction)
   ! SAFE_DEALLOCATE(this%primitiveGridNorm)
   SAFE_DEALLOCATE(this%ibmDissipation)
-  SAFE_DEALLOCATE(this%nDotGradRho)
-  SAFE_DEALLOCATE(this%uDotGradRho)
+  SAFE_DEALLOCATE(this%densityPenalty)
+  SAFE_DEALLOCATE(this%temperaturePenalty)
   SAFE_DEALLOCATE(this%objectVelocity)
+  SAFE_DEALLOCATE(this%objectAcceleration)
 
   this%adjointForcingFactor = 1.0_wp
 

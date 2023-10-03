@@ -27,8 +27,7 @@ contains
 #endif
 
     allocate(this%firstDerivative(this%nDimensions))
-    if (.not. simulationFlags%repeatFirstDerivative)                                         &
-         allocate(this%secondDerivative(this%nDimensions))
+    allocate(this%secondDerivative(this%nDimensions))
     if (simulationFlags%dissipationOn) then
        allocate(this%dissipation(this%nDimensions))
        if (.not. simulationFlags%compositeDissipation)                                       &
@@ -1409,6 +1408,300 @@ subroutine computeGradientOfVector(this, f, gradF)
   call endTiming("computeGradient")
 
 end subroutine computeGradientOfVector
+
+subroutine computeLaplacianOfScalar(this, f, lapF)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+  use ErrorHandler, only : gracefulExit
+
+  ! <<< Arguments >>>
+  class(t_Grid) :: this
+  SCALAR_TYPE, intent(in) :: f(:)
+  SCALAR_TYPE, intent(out) :: lapF(:)
+
+  ! <<< Local variables >>>
+  integer :: nDimensions
+  SCALAR_TYPE, allocatable :: temp(:,:), temp2(:,:,:)
+  character(len=STRING_LENGTH) :: message
+
+  call startTiming("computeLaplacian")
+
+  nDimensions = this%nDimensions
+  assert_key(nDimensions, (1, 2, 3))
+
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
+
+  assert(size(f) == this%nGridPoints)
+  assert(size(lapF) == size(f))
+
+  assert(allocated(this%firstDerivative))
+  assert(allocated(this%secondDerivative))
+  assert(size(this%firstDerivative) == nDimensions)
+  assert(allocated(this%metrics))
+  assert(size(this%metrics, 1) == this%nGridPoints)
+  assert(size(this%metrics, 2) == nDimensions ** 2)
+  assert(allocated(this%jacobian))
+  assert(size(this%jacobian) == this%nGridPoints)
+
+  if (this%isCurvilinear) then
+    write(message, '(A)') "Laplacian operator is not implemented for curvilinear grids!"
+    call gracefulExit(this%comm, message)
+  end if
+
+  allocate(temp(size(f,1), nDimensions))
+  allocate(temp2(size(f,1), 2, nDimensions))
+
+  select case (nDimensions)
+
+  case (1)
+
+     temp(:,1) = f
+     call this%secondDerivative(1)%apply(temp(:,1:1), this%localSize)
+
+     temp2(:,1,1) = f
+     temp2(:,2,1) = this%jacobian(:,1) * this%metrics(:,1)
+     call this%firstDerivative(1)%apply(temp2(:,:,1), this%localSize)
+
+     lapF = (this%jacobian(:,1)**2) * (this%metrics(:,1)**2) * temp(:,1) +      &
+            this%jacobian(:,1) * this%metrics(:,1) * temp2(:,1,1) * temp2(:,2,1)
+
+  case (2)
+
+     temp(:,1) = f
+     call this%secondDerivative(1)%apply(temp(:,1:1), this%localSize)
+
+     temp(:,2) = f
+     call this%secondDerivative(2)%apply(temp(:,2:2), this%localSize)
+
+     if (this%isCurvilinear) then
+       !TODO: implement laplacian operator for curvilinear grids.
+     else
+
+       temp2(:,1,1) = f
+       temp2(:,2,1) = this%jacobian(:,1) * this%metrics(:,1)
+       call this%firstDerivative(1)%apply(temp2(:,:,1), this%localSize)
+
+       temp2(:,1,2) = f
+       temp2(:,2,2) = this%jacobian(:,1) * this%metrics(:,4)
+       call this%firstDerivative(2)%apply(temp2(:,:,2), this%localSize)
+
+       lapF = (this%jacobian(:,1)**2) * ( (this%metrics(:,1)**2) * temp(:,1) +              &
+                                             (this%metrics(:,4)**2) * temp(:,2) ) +         &
+                  this%jacobian(:,1) * ( this%metrics(:,1) * temp2(:,1,1) * temp2(:,2,1) +  &
+                                         this%metrics(:,4) * temp2(:,1,2) * temp2(:,2,2) )
+
+     end if
+
+  case (3)
+
+     temp(:,1) = f
+     call this%secondDerivative(1)%apply(temp(:,1:1), this%localSize)
+
+     temp(:,2) = f
+     call this%secondDerivative(2)%apply(temp(:,2:2), this%localSize)
+
+     temp(:,3) = f
+     call this%secondDerivative(3)%apply(temp(:,3:3), this%localSize)
+
+     if (this%isCurvilinear) then
+       !TODO: implement laplacian operator for curvilinear grids.
+     else
+
+       temp2(:,1,1) = f
+       temp2(:,2,1) = this%jacobian(:,1) * this%metrics(:,1)
+       call this%firstDerivative(1)%apply(temp2(:,:,1), this%localSize)
+
+       temp2(:,1,2) = f
+       temp2(:,2,2) = this%jacobian(:,1) * this%metrics(:,5)
+       call this%firstDerivative(2)%apply(temp2(:,:,2), this%localSize)
+
+       temp2(:,1,3) = f
+       temp2(:,2,3) = this%jacobian(:,1) * this%metrics(:,9)
+       call this%firstDerivative(3)%apply(temp2(:,:,3), this%localSize)
+
+       lapF = (this%jacobian(:,1)**2) * (                                                      &
+            (this%metrics(:,1)**2) * temp(:,1) + (this%metrics(:,5)**2) * temp(:,2) +          &
+            (this%metrics(:,9)**2) * temp(:,3)) + this%jacobian(:,1) * (                       &
+            this%metrics(:,1) * temp2(:,1,1) * temp2(:,2,1) +                                  &
+            this%metrics(:,5) * temp2(:,1,2) * temp2(:,2,2) +                                  &
+            this%metrics(:,9) * temp2(:,1,3) * temp2(:,2,3))
+
+     end if
+
+  end select
+
+  SAFE_DEALLOCATE(temp)
+  SAFE_DEALLOCATE(temp2)
+
+  call endTiming("computeLaplacian")
+
+end subroutine computeLaplacianOfScalar
+
+subroutine computeLaplacianOfVector(this, f, lapF)
+
+  ! <<< External modules >>>
+  use MPI
+
+  ! <<< Derived types >>>
+  use Grid_mod, only : t_Grid
+
+  ! <<< Internal modules >>>
+  use MPITimingsHelper, only : startTiming, endTiming
+  use ErrorHandler, only : gracefulExit
+
+  ! <<< Arguments >>>
+  class(t_Grid) :: this
+  SCALAR_TYPE, intent(in) :: f(:,:)
+  SCALAR_TYPE, intent(out) :: lapF(:,:)
+
+  ! <<< Local variables >>>
+  integer :: i, nDimensions
+  SCALAR_TYPE, allocatable :: temp(:,:,:), temp2(:,:,:), temp3(:,:)
+  character(len=STRING_LENGTH) :: message
+
+  call startTiming("computeLaplacian")
+
+  nDimensions = this%nDimensions
+  assert_key(nDimensions, (1, 2, 3))
+
+  assert(this%nGridPoints > 0)
+  assert(all(this%localSize > 0) .and. product(this%localSize) == this%nGridPoints)
+
+  assert(size(f) == this%nGridPoints)
+  assert(size(lapF) == size(f))
+
+  assert(allocated(this%firstDerivative))
+  assert(allocated(this%secondDerivative))
+  assert(size(this%firstDerivative) == nDimensions)
+  assert(allocated(this%metrics))
+  assert(size(this%metrics, 1) == this%nGridPoints)
+  assert(size(this%metrics, 2) == nDimensions ** 2)
+  assert(allocated(this%jacobian))
+  assert(size(this%jacobian) == this%nGridPoints)
+
+  if (this%isCurvilinear) then
+    write(message, '(A)') "Laplacian operator is not implemented for curvilinear grids!"
+    call gracefulExit(this%comm, message)
+  end if
+
+  allocate(temp(size(f,1), size(f,2), nDimensions))
+  allocate(temp2(size(f,1), size(f,2), nDimensions))
+  allocate(temp3(size(f,1), nDimensions))
+
+  select case (nDimensions)
+
+  case (1)
+
+     temp(:,:,1) = f
+     call this%secondDerivative(1)%apply(temp(:,:,1), this%localSize)
+
+     temp2(:,:,1) = f
+     call this%firstDerivative(1)%apply(temp2(:,:,1), this%localSize)
+
+     temp3(:,1) = this%jacobian(:,1) * this%metrics(:,1)
+     call this%firstDerivative(1)%apply(temp3(:,1:1), this%localSize)
+
+     do i = 1, size(f, 2)
+        lapF(:,i) = this%jacobian(:,1)**2 * this%metrics(:,1)**2 * temp(:,i,1) +  &
+             this%jacobian(:,1) * this%metrics(:,1) * temp2(:,i,1) * temp3(:,1)
+     end do
+
+  case (2)
+
+     temp(:,:,1) = f
+     call this%secondDerivative(1)%apply(temp(:,:,1), this%localSize)
+
+     temp(:,:,2) = f
+     call this%secondDerivative(2)%apply(temp(:,:,2), this%localSize)
+
+     if (this%isCurvilinear) then
+       !TODO: implement laplacian operator for curvilinear grids.
+     else
+
+       temp2(:,:,1) = f
+       call this%firstDerivative(1)%apply(temp2(:,:,1), this%localSize)
+
+       temp2(:,:,2) = f
+       call this%firstDerivative(2)%apply(temp2(:,:,2), this%localSize)
+
+       temp3(:,1) = this%jacobian(:,1) * this%metrics(:,1)
+       call this%firstDerivative(1)%apply(temp3(:,1:1), this%localSize)
+
+       temp3(:,2) = this%jacobian(:,1) * this%metrics(:,4)
+       call this%firstDerivative(2)%apply(temp3(:,2:2), this%localSize)
+
+       do i = 1, size(f, 2)
+          lapF(:,i) = this%jacobian(:,1)**2 * (                                                &
+               this%metrics(:,1)**2 * temp(:,i,1) + this%metrics(:,4)**2 * temp(:,i,2)) +      &
+               this%jacobian(:,1) * (                                                          &
+               this%metrics(:,1) * temp2(:,i,1) * temp3(:,1) +                                 &
+               this%metrics(:,4) * temp2(:,i,2) * temp3(:,2))
+       end do
+
+     end if
+
+  case (3)
+
+     temp(:,:,1) = f
+     call this%secondDerivative(1)%apply(temp(:,:,1), this%localSize)
+
+     temp(:,:,2) = f
+     call this%secondDerivative(2)%apply(temp(:,:,2), this%localSize)
+
+     temp(:,:,3) = f
+     call this%secondDerivative(3)%apply(temp(:,:,3), this%localSize)
+
+     if (this%isCurvilinear) then
+       !TODO: implement laplacian operator for curvilinear grids.
+     else
+
+       temp2(:,:,1) = f
+       call this%firstDerivative(1)%apply(temp2(:,:,1), this%localSize)
+
+       temp2(:,:,2) = f
+       call this%firstDerivative(2)%apply(temp2(:,:,2), this%localSize)
+
+       temp2(:,:,3) = f
+       call this%firstDerivative(3)%apply(temp2(:,:,3), this%localSize)
+
+       temp3(:,1) = this%jacobian(:,1) * this%metrics(:,1)
+       call this%firstDerivative(1)%apply(temp3(:,1:1), this%localSize)
+
+       temp3(:,2) = this%jacobian(:,1) * this%metrics(:,5)
+       call this%firstDerivative(2)%apply(temp3(:,2:2), this%localSize)
+
+       temp3(:,3) = this%jacobian(:,1) * this%metrics(:,9)
+       call this%firstDerivative(3)%apply(temp3(:,3:3), this%localSize)
+
+       do i = 1, size(f, 2)
+          lapF(:,i) = this%jacobian(:,1)**2 * (                                                &
+               this%metrics(:,1)**2 * temp(:,i,1) + this%metrics(:,5)**2 * temp(:,i,2) +       &
+               this%metrics(:,9)**2 * temp(:,i,3)) +                                           &
+               this%jacobian(:,1) * (                                                          &
+               this%metrics(:,1) * temp2(:,i,1) * temp3(:,1) +                                 &
+               this%metrics(:,5) * temp2(:,i,2) * temp3(:,2) +                                 &
+               this%metrics(:,9) * temp2(:,i,3) * temp3(:,3))
+       end do
+
+     end if
+
+  end select
+
+  SAFE_DEALLOCATE(temp)
+  SAFE_DEALLOCATE(temp2)
+  SAFE_DEALLOCATE(temp3)
+
+  call endTiming("computeLaplacian")
+
+end subroutine computeLaplacianOfVector
 
 subroutine findMinimum(this, f, fMin, iMin, jMin, kMin)
 

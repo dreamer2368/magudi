@@ -59,6 +59,7 @@ module Grid_mod
      procedure, pass :: update => updateGrid
      generic :: computeInnerProduct => computeScalarInnerProduct, computeVectorInnerProduct
      generic :: computeGradient => computeGradientOfScalar, computeGradientOfVector
+     generic :: computeLaplacian => computeLaplacianOfScalar, computeLaplacianOfVector
      procedure, pass :: findMinimum
      procedure, pass :: findMaximum
      procedure, pass :: isVariableWithinRange
@@ -68,6 +69,8 @@ module Grid_mod
      procedure, private, pass :: computeVectorInnerProduct
      procedure, private, pass :: computeGradientOfScalar
      procedure, private, pass :: computeGradientOfVector
+     procedure, private, pass :: computeLaplacianOfScalar
+     procedure, private, pass :: computeLaplacianOfVector
 
   end type t_Grid
 
@@ -243,6 +246,30 @@ module Grid_mod
      end subroutine computeGradientOfVector
 
   end interface computeGradient
+
+  interface computeLaplacian
+
+     subroutine computeLaplacianOfScalar(this, f, lapF)
+
+       import :: t_Grid
+
+       class(t_Grid) :: this
+       SCALAR_TYPE, intent(in) :: f(:)
+       SCALAR_TYPE, intent(out) :: lapF(:)
+
+     end subroutine computeLaplacianOfScalar
+
+     subroutine computeLaplacianOfVector(this, f, lapF)
+
+       import :: t_Grid
+
+       class(t_Grid) :: this
+       SCALAR_TYPE, intent(in) :: f(:,:)
+       SCALAR_TYPE, intent(out) :: lapF(:,:)
+
+     end subroutine computeLaplacianOfVector
+
+  end interface computeLaplacian
 
   interface
 

@@ -10,6 +10,7 @@ module SolverOptions_mod
           powerLawExponent, bulkViscosityRatio, dissipationAmount, densityRange(2),          &
           temperatureRange(2), cfl, timeStepSize, controllerFactor
      integer :: nSpecies, nUnknowns
+     integer :: ibmWallType = -1
      character(len = STRING_LENGTH) :: discretizationType, timeintegratorType,               &
           costFunctionalType, controllerType, controllerNorm, checkpointingScheme
      logical :: IsInitialized = .false.
