@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 ENV USERNAME=test
 
@@ -16,19 +16,18 @@ WORKDIR /home/$USERNAME
 RUN sudo apt-get install -yq git
 RUN sudo apt-get install -yq make cmake gcc gfortran libmpich-dev
 RUN sudo apt-get install -yq vim
-RUN sudo apt-get install -yq python python3
-RUN sudo apt-get install -yq python3-pip
-RUN sudo apt-get install -yq curl
-RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
-RUN sudo python2 get-pip.py
+RUN sudo apt-get install -yq python3 python3-pip
+# RUN sudo apt-get install -yq curl
+# RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
+# RUN sudo python2 get-pip.py
 RUN sudo apt-get install -yq git-lfs
 RUN sudo apt-get install -yq valgrind
 RUN sudo apt-get install -yq hdf5-tools
 
 RUN echo "numpy" >> requirements.txt
 RUN echo "scipy" >> requirements.txt
-RUN cp requirements.txt requirements.2.txt
-RUN sudo pip install -r ./requirements.2.txt
+# RUN cp requirements.txt requirements.2.txt
+# RUN sudo pip install -r ./requirements.2.txt
 
 RUN echo "argparse" >> requirements.txt
 RUN echo "tables" >> requirements.txt

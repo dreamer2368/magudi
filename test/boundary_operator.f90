@@ -222,6 +222,7 @@ program boundary_operator
 
   call A%cleanup()
 
+  call cleanupErrorHandler()
   call MPI_Finalize(ierror)
   if (.not. success) stop -1
   stop 0
