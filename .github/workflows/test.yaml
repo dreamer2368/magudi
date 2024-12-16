@@ -10,7 +10,7 @@ jobs:
   docker-image:
     uses: ./.github/workflows/docker.yml
   magudi-unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: [docker-image]
     container:
       image: ghcr.io/dreamer2368/magudi/magudi_env:latest
@@ -37,7 +37,7 @@ jobs:
           cd build
           CTEST_OUTPUT_ON_FAILURE=TRUE make test
   optim-grad-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: [docker-image]
     container:
       image: ghcr.io/dreamer2368/magudi/magudi_env:latest
@@ -62,7 +62,7 @@ jobs:
       - name: Multi-point optimization gradient accuracy
         run: bash .github/workflows/optim_grad_test.sh
   optim-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs: [docker-image]
     container:
       image: ghcr.io/dreamer2368/magudi/magudi_env:latest
