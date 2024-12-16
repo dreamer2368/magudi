@@ -7,15 +7,17 @@ on:
   pull_request:
 
 jobs:
+  docker-image:
+    uses: ./.github/workflows/docker.yml
   magudi-unit:
     runs-on: ubuntu-20.04
     container:
-      image: dreamer2368/magudi_env:latest
+      image: ghcr.io/dreamer2368/magudi/magudi_env:latest
       options: --user 1001 --privileged
     name: CPU-test
     steps:
       - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.11.0
+        uses: styfle/cancel-workflow-action
         with:
           access_token: ${{ github.token }}
       - name: Checkout code
@@ -36,7 +38,7 @@ jobs:
   optim-grad-test:
     runs-on: ubuntu-20.04
     container:
-      image: dreamer2368/magudi_env:latest
+      image: ghcr.io/dreamer2368/magudi/magudi_env:latest
       options: --user 1001 --privileged
     name: Optimization-gradient-test
     steps:
@@ -60,7 +62,7 @@ jobs:
   optim-test:
     runs-on: ubuntu-20.04
     container:
-      image: dreamer2368/magudi_env:latest
+      image: ghcr.io/dreamer2368/magudi/magudi_env:latest
       options: --user 1001 --privileged
     name: Optimization-test
     steps:
