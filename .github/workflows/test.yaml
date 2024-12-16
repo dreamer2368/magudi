@@ -7,14 +7,14 @@ on:
   pull_request:
 
 jobs:
-  # docker-image:
-  #   uses: ./.github/workflows/docker.yml
+  docker-image:
+    uses: ./.github/workflows/docker.yml
   magudi-unit:
     runs-on: ubuntu-latest
-    # needs: [docker-image]
+    needs: [docker-image]
     container:
-      # image: ghcr.io/dreamer2368/magudi/magudi_env:latest
-      image: dreamer2368/magudi_env:latest
+      image: ghcr.io/dreamer2368/magudi/magudi_env:latest
+      # image: dreamer2368/magudi_env:latest
       options: --user 1001 --privileged
     name: CPU-test
     steps:
