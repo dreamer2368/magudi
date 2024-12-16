@@ -39,7 +39,7 @@ jobs:
           CTEST_OUTPUT_ON_FAILURE=TRUE make test
   optim-grad-test:
     runs-on: ubuntu-latest
-    # needs: [docker-image]
+    needs: [docker-image]
     container:
       image: ghcr.io/dreamer2368/magudi/magudi_env:latest
       # image: dreamer2368/magudi_env:latest
@@ -65,7 +65,7 @@ jobs:
         run: bash .github/workflows/optim_grad_test.sh
   optim-test:
     runs-on: ubuntu-latest
-    # needs: [docker-image]
+    needs: [docker-image]
     container:
       image: ghcr.io/dreamer2368/magudi/magudi_env:latest
       # image: dreamer2368/magudi_env:latest
