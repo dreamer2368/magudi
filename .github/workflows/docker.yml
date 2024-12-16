@@ -10,7 +10,7 @@ env:
 
 jobs:
   docker-ci:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     name: "docker env"
     env:
       DOCKERPATH: docker
