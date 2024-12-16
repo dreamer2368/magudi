@@ -15,6 +15,14 @@ __all__ = ['Grid', 'Solution', 'Function', 'FileFormatError', 'fromfile',
            'cartesian_grid', 'cubic_bspline_support', 'tanh_support',
            'find_extents']
 
+# scipy.signal.cubic is deprecated after scipy>=1.11.0.
+# equivalent function
+def cubic(x):
+    from scipy.interpolate import BSpline
+    out = BSpline.basis_element([-2, -1, 0, 1, 2])(x)
+    out[(x < -2) | (x > 2)] = 0.0
+    return out
+
 def fdcoeff(stencil, order=1):
     from scipy.linalg import solve
     from scipy.special import gamma
@@ -769,7 +777,7 @@ def cartesian_grid(filename, block_index=0):
     return x, y, z
 
 def cubic_bspline_support(x, x_min, x_max, strict=True):
-    from scipy.signal import cubic
+    # from scipy.signal import cubic
     if x.max() < x_min or x.min() > x_max:
         return np.zeros_like(x)
     if strict:
