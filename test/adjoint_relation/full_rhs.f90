@@ -100,11 +100,11 @@ program full_rhs
   ! Write out some useful information.
   call region%reportGridDiagnostics()
 
-  ! Save the Jacobian and normalized metrics.
-  write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
-  call region%saveData(QOI_JACOBIAN, filename)
-  write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
-  call region%saveData(QOI_METRICS, filename)
+  ! ! Save the Jacobian and normalized metrics.
+  ! write(filename, '(2A)') trim(outputPrefix), ".Jacobian.f"
+  ! call region%saveData(QOI_JACOBIAN, filename)
+  ! write(filename, '(2A)') trim(outputPrefix), ".metrics.f"
+  ! call region%saveData(QOI_METRICS, filename)
 
   ! Initialize the solver.
   call solver%setup(region, outputPrefix = outputPrefix)

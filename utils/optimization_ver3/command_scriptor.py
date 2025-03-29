@@ -14,12 +14,15 @@ class CommandScriptor:
         self.fl = filenamelist
 
         from copy import deepcopy
-        self.procedureSwitcher = deepcopy(config.getInput(['resource_distribution'], datatype=dict))
+        self.procedureSwitcher = deepcopy(config.getInput(['resource_distribution', 'jobs'], datatype=dict))
 
-        self.maxNodes, self.maxProcs = 0, 0
-        for key, val in self.procedureSwitcher.items():
-            self.maxNodes = max(self.maxNodes, val[0])
-            self.maxProcs = max(self.maxProcs, val[-1])
+        self.maxNodes = config.getInput(['resource_distribution', 'max_nodes'], fallback=-1)
+        self.maxProcs = config.getInput(['resource_distribution', 'max_processes'], fallback=-1)
+
+        if ((self.maxNodes < 0) and (self.maxProcs < 0)):
+            for key, val in self.procedureSwitcher.items():
+                self.maxNodes = max(self.maxNodes, val[0])
+                self.maxProcs = max(self.maxProcs, val[-1])
         return
 
     def singleJobCommand(self,commands,procedure,prefix='job',directories=None):
