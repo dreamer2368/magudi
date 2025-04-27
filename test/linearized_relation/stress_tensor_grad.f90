@@ -226,18 +226,19 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   real(wp) :: scalar1, scalar2, scalarHistory(32),                                    &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
   integer :: i, j, k, l, gridSize(nDimensions, 1), nUnknowns
-  real(SCALAR_KIND), allocatable :: F(:,:), stress0(:,:,:), stress1(:,:,:),           &
-                                    adjointStress(:,:,:),                             &
+  real(SCALAR_KIND), allocatable :: F(:,:), stress0(:,:), stress1(:,:),           &
+                                    adjointStress(:,:),                             &
                                     temp1(:,:,:), localFluxJacobian1(:,:),            &
                                     localConservedVariables(:), localVelocity(:),     &
                                     localMetricsAlongDirection1(:),                   &
                                     localMetricsAlongDirection2(:),                   &
-                                    linearizedStressTensor(:,:,:),                    &
+                                    linearizedStressTensor(:,:),                    &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     localFluxJacobian2(:,:), localStressTensor(:),    &
                                     localHeatFlux(:), localLinearizedDiffusion(:,:),     &
                                     temp2(:,:,:)
-  SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
+  SCALAR_TYPE :: mag
+  SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation, dir0
   character(len = STRING_LENGTH) :: errorMessage
 
   success = .true.
@@ -303,7 +304,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   call state0%update(grid,simulationFlags,solverOptions)
 
   ! Randomize adjoint stress variables.
-  allocate(adjointStress(grid%nGridPoints, nDimensions, nDimensions))
+  allocate(adjointStress(grid%nGridPoints, nDimensions))
   call random_number(adjointStress)
 
   ! Randomize delta conserved variables.
@@ -327,14 +328,26 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
        state0%conservedVariables(:,1) / solverOptions%ratioOfSpecificHeats *                               &
        deltaPrimitiveVariables(:,nDimensions+2)
 
+  ! Random direction of stress tensor
+  call random_number(dir0)
+  mag = 0.0_wp
+  do i = 1, nDimensions
+    mag = mag + dir0(i) * dir0(i)
+  end do
+  mag = sqrt(mag)
+  do i = 1, nDimensions
+    dir0(i) = dir0(i) / mag
+  end do
+
   ! Compute baseline stress tensor
   ! stress tensor needs to be transformed, to be represented on the computational surface.
-  allocate(stress0(grid%nGridPoints, nDimensions, nDimensions))
-  allocate(stress1(grid%nGridPoints, nDimensions, nDimensions))
+  allocate(stress0(grid%nGridPoints, nDimensions))
+  allocate(stress1(grid%nGridPoints, nDimensions))
   !   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
   do k = 1, nDimensions
+    stress0(:, k) = 0.0_wp
     do l = 1, nDimensions
-      stress0(:, l, k) =                                                           &
+      stress0(:, k) = stress0(:, k) + dir0(l) *                                    &
             sum(grid%metrics(:,1+nDimensions*(k-1):nDimensions*k) *                &
             state0%stressTensor(:,1+nDimensions*(l-1):nDimensions*l),              &
             dim = 2)
@@ -343,7 +356,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   ! Compute jacobian for stress tensor
   nUnknowns = solverOptions%nUnknowns
-  allocate(linearizedStressTensor(grid%nGridPoints, nDimensions, nDimensions))
+  allocate(linearizedStressTensor(grid%nGridPoints, nDimensions))
   linearizedStressTensor = 0.0_wp
   ! (1) D * C * dQ
   !! First row of Jacobian is not used, as first column of B is zero.
@@ -424,8 +437,11 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
            localFluxJacobian1 = + localFluxJacobian2
         end if
 
-        temp1(j,:,i) = temp1(j,:,i) +                                                         &
-                        matmul(localFluxJacobian1, deltaConservedVariables(j,:))
+        ! temp1(j,:,i) = temp1(j,:,i) +                                                         &
+        !                 matmul(localFluxJacobian1, deltaConservedVariables(j,:))
+        linearizedStressTensor(j, i) = linearizedStressTensor(j, i) +                          &
+                          sum(matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)), dir0) * &
+                              deltaConservedVariables(j, :))
      end do !... i = 1, nDimensions
   end do !... j = 1, grid%nGridPoints
 
@@ -435,6 +451,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   SAFE_DEALLOCATE(localStressTensor)
   SAFE_DEALLOCATE(localFluxJacobian2)
 
+  ! (2) B * D * C * dQ
   if (simulationFlags%viscosityOn) then
 
      allocate(localMetricsAlongDirection2(nDimensions))
@@ -500,10 +517,14 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 !     call grid%firstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
 !   end do
 !   linearizedRightHandSide = - sum(temp1, dim = 3) !... update RHS.
-  do i = 1, nDimensions
-    do j = 1, nDimensions
-      linearizedStressTensor(:, i, j) = temp1(:, i+1, j)
-    end do
+  do k = 1, grid%nGridPoints
+    ! do i = 1, nDimensions
+      do j = 1, nDimensions
+        ! linearizedStressTensor(:, i, j) = temp1(:, i+1, j)
+        linearizedStressTensor(k, j) = linearizedStressTensor(k, j) +                 &
+                                        sum(temp1(k, 2:nDimensions+1, j) * dir0)
+      end do
+    ! end do
   end do
 
   SAFE_DEALLOCATE(localVelocity)
@@ -517,11 +538,11 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   ! <u, \partial R\delta v>
   scalar1 = 0.0_wp
-  do i = 1, nDimensions
+  ! do i = 1, nDimensions
     do j = 1, nDimensions
-      scalar1 = scalar1 + grid%computeInnerProduct(adjointStress(:, i, j), linearizedStressTensor(:, i, j))
+      scalar1 = scalar1 + grid%computeInnerProduct(adjointStress(:, j), linearizedStressTensor(:, j))
     end do
-  end do
+  ! end do
   ! scalar1 = grid%computeInnerProduct(state0%adjointVariables,linearizedRightHandSide)
 
   ! <u, \delta R(v)>
@@ -556,8 +577,9 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     ! (2)Compute deviated stress
     !   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
     do i = 1, nDimensions
+      stress1(:, i) = 0.0_wp
       do j = 1, nDimensions
-        stress1(:, j, i) =                                                           &
+        stress1(:, i) = stress1(:, i) + dir0(j) *                                    &
               sum(grid%metrics(:,1+nDimensions*(i-1):nDimensions*i) *                &
               state1%stressTensor(:,1+nDimensions*(j-1):nDimensions*j),              &
               dim = 2)
@@ -566,11 +588,11 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
     ! (3) <u, \delta R(v)>
     scalar2 = 0.0_wp
-    do i = 1, nDimensions
+    ! do i = 1, nDimensions
       do j = 1, nDimensions
-        scalar2 = scalar2 + grid%computeInnerProduct(adjointStress(:, i, j), stress1(:, i, j) - stress0(:, i, j))
+        scalar2 = scalar2 + grid%computeInnerProduct(adjointStress(:, j), stress1(:, j) - stress0(:, j))
       end do
-    end do
+    ! end do
 
     scalarHistory(k) = scalar2/stepSizes(k)
     errorHistory(k) = abs( (scalar2/stepSizes(k) - scalar1)/scalar1 )
