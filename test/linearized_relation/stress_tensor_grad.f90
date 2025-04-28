@@ -236,7 +236,8 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     localFluxJacobian2(:,:), localStressTensor(:),    &
                                     localHeatFlux(:), localLinearizedDiffusion(:,:),     &
-                                    temp2(:,:,:)
+                                    localAdjointDiffusion(:,:,:), temp2(:,:,:),     &
+                                    temp3(:,:,:)
   SCALAR_TYPE :: mag
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation, dir0
   character(len = STRING_LENGTH) :: errorMessage
@@ -491,16 +492,20 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
                       localFluxJacobian2)
               end select !... nDimensions
 
-              localLinearizedDiffusion(:,i) = localLinearizedDiffusion(:,i) +                      &
-                                         matmul(localFluxJacobian2,temp2(k,:,j))
+              ! localLinearizedDiffusion(:,i) = localLinearizedDiffusion(:,i) +                      &
+              !                            matmul(localFluxJacobian2,temp2(k,:,j))
+
+              linearizedStressTensor(k, i) = linearizedStressTensor(k, i) +                          &
+                                  sum(matmul(transpose(localFluxJacobian2(1:nDimensions,:)), dir0) * &
+                                      temp2(k,:,j))
 
            end do !... j = 1, nDimensions
 
         end do !... i = 1, nDimensions
 
-        do i = 1, nDimensions
-           temp1(k,2:nUnknowns,i) = temp1(k,2:nUnknowns,i) + localLinearizedDiffusion(:,i)
-        end do
+        ! do i = 1, nDimensions
+        !    temp1(k,2:nUnknowns,i) = temp1(k,2:nUnknowns,i) + localLinearizedDiffusion(:,i)
+        ! end do
 
      end do !... k = 1, grid%nGridPoints
 
@@ -517,15 +522,15 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 !     call grid%firstDerivative(i)%apply(temp1(:,:,i), grid%localSize)
 !   end do
 !   linearizedRightHandSide = - sum(temp1, dim = 3) !... update RHS.
-  do k = 1, grid%nGridPoints
-    ! do i = 1, nDimensions
-      do j = 1, nDimensions
-        ! linearizedStressTensor(:, i, j) = temp1(:, i+1, j)
-        linearizedStressTensor(k, j) = linearizedStressTensor(k, j) +                 &
-                                        sum(temp1(k, 2:nDimensions+1, j) * dir0)
-      end do
-    ! end do
-  end do
+  ! do k = 1, grid%nGridPoints
+  !   ! do i = 1, nDimensions
+  !     do j = 1, nDimensions
+  !       ! linearizedStressTensor(:, i, j) = temp1(:, i+1, j)
+  !       linearizedStressTensor(k, j) = linearizedStressTensor(k, j) +                 &
+  !                                       sum(temp1(k, 2:nDimensions+1, j) * dir0)
+  !     end do
+  !   ! end do
+  ! end do
 
   SAFE_DEALLOCATE(localVelocity)
   SAFE_DEALLOCATE(localMetricsAlongDirection1)
