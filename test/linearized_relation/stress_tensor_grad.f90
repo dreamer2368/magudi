@@ -225,15 +225,15 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   integer, parameter :: wp = SCALAR_KIND
   real(wp) :: scalar1, scalar2, J0, J1, scalarHistory(32),                            &
               stepSizes(32), errorHistory(32), convergenceHistory(31)
-  integer :: i, j, k, l, gridSize(nDimensions, 1), nUnknowns
+  integer :: i, j, k, l, gridSize(nDimensions, 1), nUnknowns, normalDirection
   real(SCALAR_KIND), allocatable :: F(:,:), stress0(:,:), stress1(:,:),           &
                                     adjointStress(:,:),                             &
-                                    temp1(:,:,:), localFluxJacobian1(:,:),            &
+                                    temp1(:,:), localFluxJacobian1(:,:),            &
                                     localConservedVariables(:), localVelocity(:),     &
                                     localMetricsAlongDirection1(:),                   &
                                     localMetricsAlongDirection2(:),                   &
                                     linearizedStressTensor(:,:),                    &
-                                    BTd(:,:,:,:),                                     &
+                                    BTd(:,:,:),                                     &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     localFluxJacobian2(:,:), localStressTensor(:),    &
                                     localHeatFlux(:), localLinearizedDiffusion(:,:),     &
@@ -241,10 +241,11 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
                                     temp3(:,:,:), ones(:)
   SCALAR_TYPE :: mag
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
-  SCALAR_TYPE, dimension(nDimensions, nDimensions) :: dir0
+  SCALAR_TYPE, dimension(nDimensions) :: dir0
   character(len = STRING_LENGTH) :: errorMessage
 
   success = .true.
+  normalDirection = 1
 
   ! set up simulation flags
   call simulationFlags%initialize()
@@ -333,29 +334,26 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   ! Random direction of stress tensor
   call random_number(dir0)
-  do i = 1, nDimensions
-    mag = sqrt(sum(dir0(i,:)**2))
-    dir0(i,:) = dir0(i,:) / mag
-  end do
+  mag = sqrt(sum(dir0**2))
+  dir0 = dir0 / mag
 
   ! Compute baseline stress tensor
   ! stress tensor needs to be transformed, to be represented on the computational surface.
-  allocate(stress0(grid%nGridPoints, nDimensions))
-  allocate(stress1(grid%nGridPoints, nDimensions))
+  allocate(stress0(grid%nGridPoints, 1))
+  allocate(stress1(grid%nGridPoints, 1))
   allocate(ones(grid%nGridPoints))
   ones = 1.0_wp
   !   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
   J0 = 0.0_wp
-  do k = 1, nDimensions
-    stress0(:, k) = 0.0_wp
-    do l = 1, nDimensions
-      stress0(:, k) = stress0(:, k) + dir0(k,l) *                                  &
-            sum(grid%metrics(:,1+nDimensions*(k-1):nDimensions*k) *                &
-            state0%stressTensor(:,1+nDimensions*(l-1):nDimensions*l),              &
-            dim = 2)
-    end do
-    J0 = J0 + grid%computeInnerProduct(stress0(:,k), ones)
+  stress0 = 0.0_wp
+  k = normalDirection
+  do l = 1, nDimensions
+    stress0(:, 1) = stress0(:, 1) + dir0(l) *                                    &
+          sum(grid%metrics(:,1+nDimensions*(k-1):nDimensions*k) *                &
+          state0%stressTensor(:,1+nDimensions*(l-1):nDimensions*l),              &
+          dim = 2)
   end do
+  J0 = J0 + grid%computeInnerProduct(stress0(:,1), ones)
 
   ! Compute jacobian for stress tensor
   nUnknowns = solverOptions%nUnknowns
@@ -395,7 +393,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   end do
 
   ! (2) A * dQ
-  allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns, nDimensions))
+  allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns))
   temp1 = 0.0_wp
 
   allocate(localFluxJacobian1(nUnknowns, nUnknowns))
@@ -414,7 +412,8 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
         localStressTensor = state0%stressTensor(j,:)
         localHeatFlux = state0%heatFlux(j,:)
      end if
-     do i = 1, nDimensions
+    !  do i = 1, nDimensions
+     i = normalDirection
         localMetricsAlongDirection1 = grid%metrics(j,1+nDimensions*(i-1):nDimensions*i)
         if (simulationFlags%viscosityOn) then
            select case (nDimensions)
@@ -445,9 +444,9 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
         ! linearizedStressTensor(j, i) = linearizedStressTensor(j, i) +                          &
         !                   sum(matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)), dir0) * &
         !                       deltaConservedVariables(j, :))
-        temp1(j,:,i) = temp1(j,:,i) +                                                         &
-                        matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)), dir0(i,:))
-     end do !... i = 1, nDimensions
+        temp1(j,:) = temp1(j,:) +                                                         &
+                        matmul(transpose(localFluxJacobian1(2:nDimensions+1,:)), dir0)
+    !  end do !... i = 1, nDimensions
   end do !... j = 1, grid%nGridPoints
 
   SAFE_DEALLOCATE(localFluxJacobian1)
@@ -457,7 +456,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   SAFE_DEALLOCATE(localFluxJacobian2)
 
   ! (2) B * D * C * dQ
-  allocate(BTd(grid%nGridPoints, nUnknowns - 1, nDimensions, nDimensions))
+  allocate(BTd(grid%nGridPoints, nUnknowns - 1, nDimensions))
   BTd = 0.0_wp
   if (simulationFlags%viscosityOn) then
 
@@ -470,7 +469,8 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
         localVelocity = state0%velocity(k,:)
         localLinearizedDiffusion = 0.0_wp
 
-        do i = 1, nDimensions
+        ! do i = 1, nDimensions
+        i = normalDirection
 
            localMetricsAlongDirection1 = grid%metrics(k,1+nDimensions*(i-1):nDimensions*i)
 
@@ -505,12 +505,12 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
               !                     sum(matmul(transpose(localFluxJacobian2(1:nDimensions,:)), dir0) * &
               !                         temp2(k,:,j))
 
-              BTd(k,:,i,j) = BTd(k,:,i,j) +                                                     &
-                              matmul(transpose(localFluxJacobian2(1:nDimensions,:)), dir0(i,:))
+              BTd(k,:,j) = BTd(k,:,j) +                                                     &
+                              matmul(transpose(localFluxJacobian2(1:nDimensions,:)), dir0)
 
            end do !... j = 1, nDimensions
 
-        end do !... i = 1, nDimensions
+        ! end do !... i = 1, nDimensions
 
         ! do i = 1, nDimensions
         !    BTd(k,2:nUnknowns,i) = BTd(k,2:nUnknowns,i) + localLinearizedDiffusion(:,i)
@@ -550,13 +550,13 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   ! <u, \partial R\delta v>
   scalar1 = 0.0_wp
-  do i = 1, nDimensions
-    scalar1 = scalar1 + grid%computeInnerProduct(temp1(:,:,i), deltaConservedVariables)
+  ! do i = 1, nDimensions
+    scalar1 = scalar1 + grid%computeInnerProduct(temp1, deltaConservedVariables)
     do j = 1, nDimensions
       ! scalar1 = scalar1 + grid%computeInnerProduct(adjointStress(:, j), linearizedStressTensor(:, j))
-      scalar1 = scalar1 + grid%computeInnerProduct(BTd(:,:,i,j), temp2(:,:,j))
+      scalar1 = scalar1 + grid%computeInnerProduct(BTd(:,:,j), temp2(:,:,j))
     end do
-  end do
+  ! end do
   ! scalar1 = grid%computeInnerProduct(state0%adjointVariables,linearizedRightHandSide)
 
   SAFE_DEALLOCATE(temp1)
@@ -594,16 +594,17 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     ! (2)Compute deviated stress
     !   call transformFluxes(nDimensions, fluxes1, grid%metrics, fluxes2, grid%isCurvilinear)
     J1 = 0.0_wp
-    do i = 1, nDimensions
-      stress1(:, i) = 0.0_wp
+    ! do i = 1, nDimensions
+    i = normalDirection
+      stress1 = 0.0_wp
       do j = 1, nDimensions
-        stress1(:, i) = stress1(:, i) + dir0(i,j) *                                  &
+        stress1(:,1) = stress1(:,1) + dir0(j) *                                  &
               sum(grid%metrics(:,1+nDimensions*(i-1):nDimensions*i) *                &
               state1%stressTensor(:,1+nDimensions*(j-1):nDimensions*j),              &
               dim = 2)
       end do
-      J1 = J1 + grid%computeInnerProduct(stress1(:,i), ones)
-    end do
+      J1 = J1 + grid%computeInnerProduct(stress1(:,1), ones)
+    ! end do
 
     ! (3) <u, \delta R(v)>
     ! scalar2 = 0.0_wp
