@@ -551,7 +551,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   ! <u, \partial R\delta v>
   scalar1 = 0.0_wp
   ! do i = 1, nDimensions
-    scalar1 = scalar1 + grid%computeInnerProduct(temp1, deltaConservedVariables)
+    ! scalar1 = scalar1 + grid%computeInnerProduct(temp1, deltaConservedVariables)
     do j = 1, nDimensions
       ! scalar1 = scalar1 + grid%computeInnerProduct(adjointStress(:, j), linearizedStressTensor(:, j))
       scalar1 = scalar1 + grid%computeInnerProduct(BTd(:,:,j), temp2(:,:,j))
@@ -573,18 +573,18 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     state1%conservedVariables = state0%conservedVariables + stepSizes(k) * deltaConservedVariables
     assert(all(state1%conservedVariables(:,1) > 0.0_wp))
     ! Compute dependent variables.
-    call state1%update(grid,simulationFlags,solverOptions)
-    ! call computeDependentVariables(nDimensions, state1%conservedVariables,                    &
-    !      solverOptions%ratioOfSpecificHeats, state1%specificVolume(:,1), state1%velocity,       &
-    !      state1%pressure(:,1), state1%temperature(:,1))
-    ! call computeTransportVariables(state0%temperature(:,1), solverOptions%powerLawExponent,   &
-    !      solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
-    !      solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
-    !      state1%dynamicViscosity(:,1), state1%secondCoefficientOfViscosity(:,1),                &
-    !      state1%thermalDiffusivity(:,1))
-    ! call grid%computeGradient(state1%velocity, state1%stressTensor)
-    ! call computeStressTensor(nDimensions, state1%stressTensor, state1%dynamicViscosity(:,1), &
-    !      state1%secondCoefficientOfViscosity(:,1))
+    ! call state1%update(grid,simulationFlags,solverOptions)
+    call computeDependentVariables(nDimensions, state1%conservedVariables,                    &
+         solverOptions%ratioOfSpecificHeats, state1%specificVolume(:,1), state1%velocity,       &
+         state1%pressure(:,1), state1%temperature(:,1))
+    call computeTransportVariables(state0%temperature(:,1), solverOptions%powerLawExponent,   &
+         solverOptions%bulkViscosityRatio, solverOptions%ratioOfSpecificHeats,              &
+         solverOptions%reynoldsNumberInverse, solverOptions%prandtlNumberInverse,           &
+         state1%dynamicViscosity(:,1), state1%secondCoefficientOfViscosity(:,1),                &
+         state1%thermalDiffusivity(:,1))
+    call grid%computeGradient(state1%velocity, state1%stressTensor)
+    call computeStressTensor(nDimensions, state1%stressTensor, state1%dynamicViscosity(:,1), &
+         state1%secondCoefficientOfViscosity(:,1))
     !
     ! call grid%computeGradient(state1%temperature(:,1), state1%heatFlux)
     ! do i = 1, nDimensions
