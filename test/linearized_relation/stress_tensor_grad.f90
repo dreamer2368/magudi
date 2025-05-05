@@ -237,7 +237,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
                                     localFluxJacobian2(:,:), localStressTensor(:),    &
                                     localHeatFlux(:), localLinearizedDiffusion(:,:),     &
-                                    localAdjointDiffusion(:,:,:), temp2(:,:,:),     &
+                                    localAdjointDiffusion(:,:,:), temp2(:,:),     &
                                     temp3(:,:), temp4(:,:), ones(:)
   SCALAR_TYPE :: mag
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
@@ -371,36 +371,36 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   linearizedStressTensor = 0.0_wp
   ! (1) D * C * dQ
   !! First row of Jacobian is not used, as first column of B is zero.
-  allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns-1, nDimensions))
-  temp2 = 0.0_wp
-  !! - u_i * dQ_1 + dQ_{i+1}
-  do i = 1, nDimensions
-    temp2(:,i,1) = - state0%velocity(:,i) * deltaConservedVariables(:,1)        &
-                  + deltaConservedVariables(:,i+1)
-  end do
+  ! allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns-1, nDimensions))
+  ! temp2 = 0.0_wp
+  ! !! - u_i * dQ_1 + dQ_{i+1}
+  ! do i = 1, nDimensions
+  !   temp2(:,i,1) = - state0%velocity(:,i) * deltaConservedVariables(:,1)        &
+  !                 + deltaConservedVariables(:,i+1)
+  ! end do
 
-  !! - \rhoE / \rho * dQ_{nUnknowns}
-  temp2(:,nUnknowns-1,1) = - state0%specificVolume(:,1)                         &
-                           * state0%conservedVariables(:,nUnknowns)             &
-                           * deltaConservedVariables(:,1)
-  !! + u_i * u_i * dQ_1 - u_i * dQ_{i+1} + dQ_{nUnknowns}
-  temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1)                               &
-                  - sum(state0%velocity * temp2(:,1:nDimensions,1), dim=2)      &
-                  + deltaConservedVariables(:,nUnknowns)
+  ! !! - \rhoE / \rho * dQ_{nUnknowns}
+  ! temp2(:,nUnknowns-1,1) = - state0%specificVolume(:,1)                         &
+  !                          * state0%conservedVariables(:,nUnknowns)             &
+  !                          * deltaConservedVariables(:,1)
+  ! !! + u_i * u_i * dQ_1 - u_i * dQ_{i+1} + dQ_{nUnknowns}
+  ! temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1)                               &
+  !                 - sum(state0%velocity * temp2(:,1:nDimensions,1), dim=2)      &
+  !                 + deltaConservedVariables(:,nUnknowns)
 
-  !! * gamma
-  temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1)                                 &
-                             * solverOptions%ratioOfSpecificHeats
-  do i = 1, nUnknowns-1
-    temp2(:,i,1) = temp2(:,i,1) * state0%specificVolume(:,1)
-  end do
+  ! !! * gamma
+  ! temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1)                                 &
+  !                            * solverOptions%ratioOfSpecificHeats
+  ! do i = 1, nUnknowns-1
+  !   temp2(:,i,1) = temp2(:,i,1) * state0%specificVolume(:,1)
+  ! end do
 
-  allocate(temp4(grid%nGridPoints,nUnknowns-1))
-  ! temp4 = temp2(:,:,1)
+  ! allocate(temp4(grid%nGridPoints,nUnknowns-1))
+  ! ! temp4 = temp2(:,:,1)
 
-  do i = 2, nDimensions
-    temp2(:,:,i) = temp2(:,:,1)
-  end do
+  ! do i = 2, nDimensions
+  !   temp2(:,:,i) = temp2(:,:,1)
+  ! end do
   ! do i = 1, nDimensions
   !   call grid%firstDerivative(i)%apply(temp2(:,:,i), grid%localSize)
   ! end do
@@ -567,6 +567,28 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   end do
   temp4 = sum(BTd, dim=3)
 
+  ! C_T * D_j * B_{ij}^T * d
+  allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns))
+  temp2 = 0.0_wp
+
+  temp4(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                           &
+                            state0%specificVolume(:,1) * temp4(:,nDimensions+1)
+  do i = 1, nDimensions
+    temp4(:,i) = state0%specificVolume(:,1) * temp4(:,i) -                                &
+                  state0%velocity(:,i) * temp4(:,nDimensions+1)
+  end do
+
+  temp2(:,2:nUnknowns) = temp2(:,2:nUnknowns) - temp4
+  temp2(:,1) = temp2(:,1) +                                   &
+    state0%specificVolume(:,1) * state0%conservedVariables(:,nDimensions+2) *            &
+    temp4(:,nDimensions+1) + sum(state0%velocity * temp4(:,1:nDimensions), dim = 2)
+
+  ! do i = 1, nDimensions
+  !   temp2(:,i+1,1) = temp4(:,i) * state0%specificVolume(:,1)
+  ! end do
+  ! temp2(:,1,1) = - sum(state0%velocity * temp2(:,2:nDimensions+1,1))
+  temp1 = temp1 - temp2
+
   ! <u, \partial R\delta v>
   scalar1 = 0.0_wp
   do k = 1, size(temp1, 2)
@@ -577,12 +599,12 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     ! do j = 1, nDimensions
       ! scalar1 = scalar1 + grid%computeInnerProduct(adjointStress(:, j), linearizedStressTensor(:, j))
       ! mag = grid%computeInnerProduct(BTd(:,:,j), temp2(:,:,j))
-      mag = 0.0_wp
-      do k = 1, size(temp2, 2)
-        ! mag = mag + sum(BTd(:,k,j) * patchNorm(:,1) * temp2(:,k,j))
-        mag = mag + sum(temp4(:,k) * patchNorm(:,1) * temp2(:,k,1))
-      end do
-      scalar1 = scalar1 + mag
+      ! mag = 0.0_wp
+      ! do k = 1, size(temp2, 2)
+      !   ! mag = mag + sum(BTd(:,k,j) * patchNorm(:,1) * temp2(:,k,j))
+      !   mag = mag + sum(temp4(:,k) * patchNorm(:,1) * temp2(:,k,1))
+      ! end do
+      ! scalar1 = scalar1 + mag
       ! print *, 'scalar 1, ', j, ': ', mag
     ! end do
   ! end do
