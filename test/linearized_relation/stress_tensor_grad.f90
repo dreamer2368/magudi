@@ -571,23 +571,11 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns))
   temp2 = 0.0_wp
 
-  temp4(:,nDimensions+1) = solverOptions%ratioOfSpecificHeats *                           &
-                            state0%specificVolume(:,1) * temp4(:,nDimensions+1)
   do i = 1, nDimensions
-    temp4(:,i) = state0%specificVolume(:,1) * temp4(:,i) -                                &
-                  state0%velocity(:,i) * temp4(:,nDimensions+1)
+    temp2(:,i+1) = temp4(:,i) * state0%specificVolume(:,1)
   end do
-
-  temp2(:,2:nUnknowns) = temp2(:,2:nUnknowns) - temp4
-  temp2(:,1) = temp2(:,1) +                                   &
-    state0%specificVolume(:,1) * state0%conservedVariables(:,nDimensions+2) *            &
-    temp4(:,nDimensions+1) + sum(state0%velocity * temp4(:,1:nDimensions), dim = 2)
-
-  ! do i = 1, nDimensions
-  !   temp2(:,i+1,1) = temp4(:,i) * state0%specificVolume(:,1)
-  ! end do
-  ! temp2(:,1,1) = - sum(state0%velocity * temp2(:,2:nDimensions+1,1))
-  temp1 = temp1 - temp2
+  temp2(:,1) = - sum(state0%velocity * temp2(:,2:nDimensions+1), dim=2)
+  temp1 = temp1 + temp2
 
   ! <u, \partial R\delta v>
   scalar1 = 0.0_wp
