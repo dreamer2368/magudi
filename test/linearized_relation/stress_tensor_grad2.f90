@@ -228,25 +228,25 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   integer :: i, j, k, l, gridSize(nDimensions, 1), nUnknowns, &
              normalDirection, forceDirection
   real(SCALAR_KIND), allocatable :: F(:,:), stress0(:,:), stress1(:,:),           &
-                                    adjointStress(:,:),                             &
-                                    temp1(:,:), localFluxJacobian1(:,:),            &
-                                    localConservedVariables(:), localVelocity(:),     &
-                                    localMetricsAlongDirection1(:),                   &
-                                    localMetricsAlongDirection2(:),                   &
-                                    BTd(:,:,:),                                     &
+                                    temp1(:,:), temp2(:,:),                       &
                                     deltaConservedVariables(:,:), deltaPrimitiveVariables(:,:),&
-                                    localFluxJacobian2(:,:), localStressTensor(:),    &
-                                    localHeatFlux(:), localLinearizedDiffusion(:,:),     &
-                                    localAdjointDiffusion(:,:,:), temp2(:,:),     &
-                                    temp3(:,:), temp4(:,:), ones(:)
-  SCALAR_TYPE :: mag
+                                    ones(:)
+  SCALAR_TYPE :: tmp
   SCALAR_TYPE, dimension(nDimensions) :: h, gridPerturbation
   real(SCALAR_KIND), allocatable :: patchNorm(:,:)
   character(len = STRING_LENGTH) :: errorMessage
 
   success = .true.
-  normalDirection = 1
-  forceDirection = 2
+
+  ! decide stress direction
+  call random_number(tmp)
+  normalDirection = 1 + FLOOR(nDimensions * tmp)
+  ! select force direction perpendicular to normal direction.
+  forceDirection = normalDirection
+  do while (forceDirection .eq. normalDirection)
+    call random_number(tmp)
+    forceDirection = 1 + FLOOR(nDimensions * tmp)
+  end do
 
   ! set up simulation flags
   call simulationFlags%initialize()
@@ -310,10 +310,6 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   ! Compute dependent variables.
   call state0%update(grid,simulationFlags,solverOptions)
 
-  ! Randomize adjoint stress variables.
-  allocate(adjointStress(grid%nGridPoints, nDimensions))
-  call random_number(adjointStress)
-
   ! Randomize delta conserved variables.
   allocate(deltaConservedVariables(grid%nGridPoints, solverOptions%nUnknowns))
   allocate(deltaPrimitiveVariables(grid%nGridPoints, solverOptions%nUnknowns))
@@ -362,42 +358,6 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
   ! Compute jacobian for stress tensor
   nUnknowns = solverOptions%nUnknowns
 
-  ! (1) D * C * dQ
-  !! First row of Jacobian is not used, as first column of B is zero.
-  ! allocate(temp2(grid%nGridPoints, solverOptions%nUnknowns-1, nDimensions))
-  ! temp2 = 0.0_wp
-  ! !! - u_i * dQ_1 + dQ_{i+1}
-  ! do i = 1, nDimensions
-  !   temp2(:,i,1) = - state0%velocity(:,i) * deltaConservedVariables(:,1)        &
-  !                 + deltaConservedVariables(:,i+1)
-  ! end do
-
-  ! !! - \rhoE / \rho * dQ_{nUnknowns}
-  ! temp2(:,nUnknowns-1,1) = - state0%specificVolume(:,1)                         &
-  !                          * state0%conservedVariables(:,nUnknowns)             &
-  !                          * deltaConservedVariables(:,1)
-  ! !! + u_i * u_i * dQ_1 - u_i * dQ_{i+1} + dQ_{nUnknowns}
-  ! temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1)                               &
-  !                 - sum(state0%velocity * temp2(:,1:nDimensions,1), dim=2)      &
-  !                 + deltaConservedVariables(:,nUnknowns)
-
-  ! !! * gamma
-  ! temp2(:,nUnknowns-1,1) = temp2(:,nUnknowns-1,1)                                 &
-  !                            * solverOptions%ratioOfSpecificHeats
-  ! do i = 1, nUnknowns-1
-  !   temp2(:,i,1) = temp2(:,i,1) * state0%specificVolume(:,1)
-  ! end do
-
-  ! allocate(temp4(grid%nGridPoints,nUnknowns-1))
-  ! ! temp4 = temp2(:,:,1)
-
-  ! do i = 2, nDimensions
-  !   temp2(:,:,i) = temp2(:,:,1)
-  ! end do
-  ! do i = 1, nDimensions
-  !   call grid%firstDerivative(i)%apply(temp2(:,:,i), grid%localSize)
-  ! end do
-
   ! (2) A * dQ
   allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns))
   temp1 = 0.0_wp
@@ -422,45 +382,27 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
                     state0%temperature(:, 1)
   end do
 
+  ! (3) B * D * C * dQ
+  allocate(temp2(grid%nGridPoints, 1))
+  i = normalDirection
+  j = forceDirection
+
+  temp2(:, 1) = state0%dynamicViscosity(:, 1) *                     &
+                  grid%metrics(:, i+nDimensions*(i-1))**2 *         &
+                  grid%jacobian(:, 1)
+  call grid%adjointFirstDerivative(i)%apply(temp2, grid%localSize)
+
+  temp1(:, 1) = temp1(:, 1) - state0%velocity(:, j) * state0%specificVolume(:, 1) * temp2(:, 1)
+  temp1(:, j+1) = temp1(:, j+1) + state0%specificVolume(:, 1) * temp2(:, 1)
+
   ! <u, \partial R\delta v>
   scalar1 = 0.0_wp
   do k = 1, size(temp1, 2)
     scalar1 = scalar1 + sum(temp1(:,k) * patchNorm(:,1) * deltaConservedVariables(:,k))
   end do
-  ! do i = 1, nDimensions
-    ! scalar1 = scalar1 + grid%computeInnerProduct(temp1, deltaConservedVariables)
-    ! do j = 1, nDimensions
-      ! scalar1 = scalar1 + grid%computeInnerProduct(adjointStress(:, j), linearizedStressTensor(:, j))
-      ! mag = grid%computeInnerProduct(BTd(:,:,j), temp2(:,:,j))
-      ! mag = 0.0_wp
-      ! do k = 1, size(temp2, 2)
-      !   ! mag = mag + sum(BTd(:,k,j) * patchNorm(:,1) * temp2(:,k,j))
-      !   mag = mag + sum(temp4(:,k) * patchNorm(:,1) * temp2(:,k,1))
-      ! end do
-      ! scalar1 = scalar1 + mag
-      ! print *, 'scalar 1, ', j, ': ', mag
-    ! end do
-  ! end do
-  ! scalar1 = grid%computeInnerProduct(state0%adjointVariables,linearizedRightHandSide)
-
-  ! do i = 1, nDimensions
-  !   call grid%adjointFirstDerivative(i)%apply(BTd(:,:,i), grid%localSize)
-  !   ! mag = grid%computeInnerProduct(BTd(:,:,i), temp4)
-  !   mag = 0.0_wp
-  !   do k = 1, size(BTd, 2)
-  !     mag = mag + sum(BTd(:,k,i) * patchNorm(:,1) * temp4(:,k))
-  !   end do
-  !   ! print *, 'scalar 2, ', i, ': ', mag
-  ! end do
-  ! allocate(temp3(grid%nGridPoints,nUnknowns-1))
-  ! temp3 = sum(BTd, dim=3)
-  ! scalar2 = grid%computeInnerProduct(temp3, temp4)
-  ! print *, "scalar1: ", scalar1, ", scalar2: ", scalar2
 
   SAFE_DEALLOCATE(temp1)
-  ! SAFE_DEALLOCATE(temp2)
-  ! SAFE_DEALLOCATE(temp3)
-  ! SAFE_DEALLOCATE(temp4)
+  SAFE_DEALLOCATE(temp2)
 
   ! <u, \delta R(v)>
   ! Prepare step sizes
@@ -492,7 +434,7 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
     j = forceDirection
     stress1(:, 1) = grid%metrics(:,i+nDimensions*(i-1)) *                           &
                     state1%dynamicViscosity(:,1) *                                  &
-                    state0%velocityGradient(:,i+nDimensions*(j-1))
+                    state1%velocityGradient(:,i+nDimensions*(j-1))
     J1 = sum(stress1(:,1) * patchNorm(:,1) * ones)
 
     scalar2 = J1 - J0
