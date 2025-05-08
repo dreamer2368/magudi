@@ -360,7 +360,9 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   ! (2) A * dQ
   allocate(temp1(grid%nGridPoints, solverOptions%nUnknowns))
+  allocate(temp2(grid%nGridPoints, 1))
   temp1 = 0.0_wp
+  temp2 = 0.0_wp
 
   temp1(:, nUnknowns) = solverOptions%ratioOfSpecificHeats * state0%specificVolume(:, 1)
   do i = 1, nDimensions
@@ -373,17 +375,16 @@ subroutine testLinearizedRelation(identifier, nDimensions, success, isPeriodic, 
 
   i = normalDirection
   j = forceDirection
+  temp2(:, 1) = grid%metrics(:,i+nDimensions*(i-1)) *                             &
+                  state0%dynamicViscosity(:,1) *                                  &
+                  state0%velocityGradient(:,i+nDimensions*(j-1)) *                &
+                  solverOptions%powerLawExponent /                                &
+                  state0%temperature(:, 1)
   do k = 1, nUnknowns
-    temp1(:, k) = temp1(:, k) *                                                     &
-                    grid%metrics(:,i+nDimensions*(i-1)) *                           &
-                    state0%dynamicViscosity(:,1) *                                  &
-                    state0%velocityGradient(:,i+nDimensions*(j-1)) *                &
-                    solverOptions%powerLawExponent /                                &
-                    state0%temperature(:, 1)
+    temp1(:, k) = temp1(:, k) * temp2(:, 1)
   end do
 
   ! (3) B * D * C * dQ
-  allocate(temp2(grid%nGridPoints, 1))
   i = normalDirection
   j = forceDirection
 
