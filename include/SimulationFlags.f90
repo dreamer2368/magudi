@@ -27,7 +27,8 @@ module SimulationFlags_mod
                 enableBodyForce       = .false., &
                 checkConservation     = .false., &
                 IsInitialized         = .false., &
-                enableIBM             = .false.
+                enableIBM             = .false., &
+                storeVelocityGradient = .false.
 
    contains
 

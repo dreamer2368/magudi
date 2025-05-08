@@ -41,6 +41,7 @@ subroutine initializeSimulationFlags(this)
   this%enableBodyForce       = getOption("enable_body_force", .false.)
   this%checkConservation     = getOption("check_conservation", .false.)
   this%enableIBM             = getOption("enable_immersed_boundary", .false.)
+  this%storeVelocityGradient = getOption("store_velocity_gradient", .false.)
 
   this%computeTimeAverage = .false.
   if (.not. this%useConstantCfl)                                                             &
@@ -108,6 +109,7 @@ subroutine assignSimulationFlags(this, simulationFlags)
   this%enableBodyForce       = simulationFlags%enableBodyForce
   this%checkConservation     = simulationFlags%checkConservation
   this%enableIBM             = simulationFlags%enableIBM
+  this%storeVelocityGradient = simulationFlags%storeVelocityGradient
 
   this%computeTimeAverage    = simulationFlags%computeTimeAverage
 
