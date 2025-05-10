@@ -29,6 +29,7 @@ add_script_test(SAT_block_interface)
 add_script_test(control_functional)
 add_script_test(initial_condition)
 add_script_test(full_rhs)
+add_executable_simple(adjoint_forcing)
 
 # MPI tests
 set(numProcs 1 2)
