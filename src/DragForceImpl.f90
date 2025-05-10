@@ -69,8 +69,6 @@ subroutine setupDragForce(this, region)
          select type (patch)
             class is (t_CostTargetPatch)
 
-               assert(patch%normalDirection .ne. 0)
-
                if (this%direction .eq. abs(patch%normalDirection)) then
                   write(message, '(A)')                                                                   &
                         "DragForce cost functional only supports shear stress. Use drag_direction perpendicular to patch normal direction!"
@@ -119,7 +117,7 @@ function computeDragForce(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, sgn, nPatches, nDimensions, ierror
   class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: F(:,:)
+  SCALAR_TYPE, allocatable :: F(:,:), ones(:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -166,12 +164,16 @@ function computeDragForce(this, region) result(instantaneousFunctional)
         class is (t_CostTargetPatch)
 
            k = abs(patch%normalDirection)
+         !   k = 2
            l = this%direction
            sgn = this%sign * SIGN(1, patch%normalDirection)
+         !   sgn = 1
            assert(allocated(region%grids(i)%firstDerivative(k)%normBoundary))
            assert(size(region%grids(i)%firstDerivative(k)%normBoundary) > 0)
 
            allocate(F(region%grids(i)%nGridPoints, 1))
+           allocate(ones(region%grids(i)%nGridPoints))
+           ones = 1.0_wp
 
            F(:, 1) = sgn * region%grids(i)%metrics(:,k+nDimensions*(k-1)) *                  &
                         region%states(i)%dynamicViscosity(:,1) *                             &
@@ -179,9 +181,11 @@ function computeDragForce(this, region) result(instantaneousFunctional)
 
            instantaneousFunctional = instantaneousFunctional +                               &
                 patch%computeInnerProduct(region%grids(i), F(:,1),                           &
-                region%grids(i)%targetMollifier(:,1))
+               !  region%grids(i)%targetMollifier(:,1))
+                ones)
 
            SAFE_DEALLOCATE(F)
+           SAFE_DEALLOCATE(ones)
 
         end select
 
@@ -246,14 +250,19 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, sgn, nDimensions, nUnknowns
-  SCALAR_TYPE, allocatable :: temp1(:,:), temp2(:,:)
+  real(SCALAR_KIND) :: normBoundaryFactor
+  SCALAR_TYPE, allocatable :: temp1(:,:), temp2(:,:), ones(:)
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   i = abs(patch%normalDirection)
+!   i = 2
   j = this%direction
-  sgn = this%sign * SIGN(1, patch%normalDirection)
+  sgn = this%sign !* SIGN(1, patch%normalDirection)
+!   sgn = 1
+  normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(patch%normalDirection)%normBoundary(1),        &
+                        real(patch%normalDirection, wp))
 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns >= nDimensions + 2)
@@ -264,7 +273,9 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
      allocate(temp2(grid%nGridPoints, 1))
      temp1 = 0.0_wp
 
-     temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                             &
+   !   temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                             &
+     temp2(:, 1) = - sgn * normBoundaryFactor *                                     &
+                     grid%jacobian(:, 1) *                                          &
                      grid%metrics(:,i+nDimensions*(i-1)) *                          &
                      state%dynamicViscosity(:,1) *                                  &
                      state%velocityGradient(:,i+nDimensions*(j-1)) *                &
@@ -283,14 +294,15 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
      temp1(:, 1) = temp1(:, 1) * temp2(:, 1) -                                         &
                      sum(state%velocity * temp1(:, 2:nDimensions+1), dim=2)
 
-     temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                 &
-                     state%dynamicViscosity(:, 1) *                     &
-                     grid%metrics(:, i+nDimensions*(i-1))**2 *          &
-                     grid%jacobian(:, 1)
-     call grid%adjointFirstDerivative(i)%apply(temp2, grid%localSize)
+   ! !   temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                 &
+   !   temp2(:, 1) = -                                                    &
+   !                   state%dynamicViscosity(:, 1) *                     &
+   !                   grid%metrics(:, i+nDimensions*(i-1))**2 *          &
+   !                   grid%jacobian(:, 1)
+   !   call grid%adjointFirstDerivative(i)%apply(temp2, grid%localSize)
    
-     temp1(:, 1) = temp1(:, 1) - state%velocity(:, j) * state%specificVolume(:, 1) * temp2(:, 1)
-     temp1(:, j+1) = temp1(:, j+1) + state%specificVolume(:, 1) * temp2(:, 1)
+   !   temp1(:, 1) = temp1(:, 1) - state%velocity(:, j) * state%specificVolume(:, 1) * temp2(:, 1)
+   !   temp1(:, j+1) = temp1(:, j+1) + state%specificVolume(:, 1) * temp2(:, 1)
 
      call patch%collect(temp1, patch%adjointForcing)
 

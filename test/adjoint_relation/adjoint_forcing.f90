@@ -433,6 +433,9 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
       call region%states(i)%update(region%grids(i),region%simulationFlags,region%solverOptions)
       assert(all(region%states(i)%specificVolume(:,1) > 0.0_wp))
       assert(all(region%states(i)%temperature(:,1) > 0.0_wp))
+
+      ! No deviation from second jacobian of viscous flux
+      region%states(i)%velocityGradient = state0(i)%velocityGradient
     end do
 
     ! (2)Compute deviated J
