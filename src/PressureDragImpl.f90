@@ -80,7 +80,6 @@ function computePressureDrag(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, nDimensions, ierror
   class(t_Patch), pointer :: patch => null()
-  real(SCALAR_KIND) :: normBoundaryFactor
   SCALAR_TYPE, allocatable :: F(:,:)
 
   instantaneousFunctional = 0.0_wp
@@ -102,13 +101,14 @@ function computePressureDrag(this, region) result(instantaneousFunctional)
         class is (t_CostTargetPatch)
 
            k = abs(patch%normalDirection)
-           normBoundaryFactor = 1.0_wp / region%grids(i)%firstDerivative(k)%normBoundary(1)
+           ! Patch inner product is already 2d surface integral.
+          !  normBoundaryFactor = 1.0_wp / region%grids(i)%firstDerivative(k)%normBoundary(1)
 
            allocate(F(region%grids(i)%nGridPoints, 2))
            F(:,1) = - (region%states(i)%pressure(:,1) -                                      &
                 1.0_wp / region%solverOptions%ratioOfSpecificHeats)
            F(:,2) = matmul(region%grids(i)%metrics(:,1+nDimensions*(k-1):nDimensions*k),     &
-                this%direction(1:nDimensions)) * normBoundaryFactor
+                              this%direction(1:nDimensions))
            instantaneousFunctional = instantaneousFunctional +                               &
                 patch%computeInnerProduct(region%grids(i), F(:,1), F(:,2))
            SAFE_DEALLOCATE(F)
@@ -186,6 +186,8 @@ subroutine computePressureDragAdjointForcing(this, simulationFlags, solverOption
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns >= nDimensions + 2)
 
+  ! by converting 2d surface integral to 3d volume integral,
+  ! a boundary factor is introduced for adjoint forcing.
   normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(direction)%normBoundary(1),        &
        real(patch%normalDirection, wp))
 
