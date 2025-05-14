@@ -227,6 +227,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   use Solver_mod, only : t_Solver
   use State_mod, only : t_State
   use Functional_mod, only : t_Functional
+  use DragForce_mod, only : t_DragForce
   use Patch_mod, only : t_Patch
   use CostTargetPatch_mod, only : t_CostTargetPatch
 
@@ -238,6 +239,7 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
   use PLOT3DHelper
   use InputHelper, only : getOption
   use RegionImpl, only : computeRegionIntegral
+  use RhsHelperImpl, only : addDragForceAdjointPenalty
 
   ! <<< Arguments >>>
   class(t_Solver) :: solver
@@ -388,6 +390,15 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
     end do
   end do
 
+  select type (functional)
+  class is (t_DragForce)
+    do i = 1, size(state0)
+      call addDragForceAdjointPenalty(region%simulationFlags, region%solverOptions,   &
+                                      region%grids(i), region%states(i),              &
+                                      region%patchFactories)
+    end do
+  end select
+
   ! <R^{\dagger}u, \delta v>
   scalar1 = 0.0_wp
   do i = 1, size(state0)
@@ -434,8 +445,10 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
       assert(all(region%states(i)%specificVolume(:,1) > 0.0_wp))
       assert(all(region%states(i)%temperature(:,1) > 0.0_wp))
 
-      ! No deviation from second jacobian of viscous flux
-      region%states(i)%velocityGradient = state0(i)%velocityGradient
+      ! ! No deviation from second jacobian of viscous flux
+      ! region%states(i)%velocityGradient = state0(i)%velocityGradient
+      ! ! No deviation from dynamic viscosity
+      ! region%states(i)%dynamicViscosity = state0(i)%dynamicViscosity
     end do
 
     ! (2)Compute deviated J
