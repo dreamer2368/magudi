@@ -241,54 +241,63 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, nDimensions, nUnknowns
+  integer :: i, j, k, l, m, nDimensions, nUnknowns,            &
+               gridIndex, patchIndex
   real(SCALAR_KIND) :: normBoundaryFactor
-  SCALAR_TYPE, allocatable :: temp1(:,:), temp2(:,:)
+  SCALAR_TYPE, allocatable :: localAdjointForcing(:)
+  SCALAR_TYPE :: F
+
+  if (patch%nPatchPoints == 0) return
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-  i = abs(patch%normalDirection)
-  j = abs(this%direction)
+  l = abs(patch%normalDirection)
+  m = abs(this%direction)
   normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1), &
                               real(this%direction * patch%normalDirection, wp))
 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns >= nDimensions + 2)
+  allocate(localAdjointForcing(nUnknowns))
 
-  if (patch%nPatchPoints > 0) then
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+      do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+         do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+            gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *                    &
+               (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *                      &
+               (k - 1 - patch%gridOffset(3)))
+            if (grid%iblank(gridIndex) == 0) cycle
+            patchIndex = i - patch%offset(1) + patch%localSize(1) *                           &
+               (j - 1 - patch%offset(2) + patch%localSize(2) *                              &
+               (k - 1 - patch%offset(3)))
 
-     allocate(temp1(grid%nGridPoints, nUnknowns))
-     allocate(temp2(grid%nGridPoints, 1))
-     temp1 = 0.0_wp
+            F = - normBoundaryFactor *                                        &
+                  grid%targetMollifier(gridIndex, 1) *                        &
+                  grid%jacobian(gridIndex, 1) *                               &
+                  grid%metrics(gridIndex,l+nDimensions*(l-1)) *               &
+                  state%dynamicViscosity(gridIndex,1) *                       &
+                  state%velocityGradient(gridIndex,l+nDimensions*(m-1)) *     &
+                  solverOptions%powerLawExponent /                            &
+                  state%temperature(gridIndex, 1)
 
-     temp2(:, 1) = - normBoundaryFactor *                                           &
-                     grid%targetMollifier(:, 1) *                                   &
-                     grid%jacobian(:, 1) *                                          &
-                     grid%metrics(:,i+nDimensions*(i-1)) *                          &
-                     state%dynamicViscosity(:,1) *                                  &
-                     state%velocityGradient(:,i+nDimensions*(j-1)) *                &
-                     solverOptions%powerLawExponent /                               &
-                     state%temperature(:, 1)
+            localAdjointForcing(nUnknowns) = F * solverOptions%ratioOfSpecificHeats *  &
+                                             state%specificVolume(gridIndex, 1)
+            localAdjointForcing(2:nDimensions+1) = - state%velocity(gridIndex, :) *    &
+                                                   localAdjointForcing(nUnknowns)
+            localAdjointForcing(1) = - F * solverOptions%ratioOfSpecificHeats *        &
+                                    state%specificVolume(gridIndex, 1)**2 *            &
+                                    state%conservedVariables(gridIndex, nUnknowns)
+            localAdjointForcing(1) = localAdjointForcing(1) -                          &
+               sum(state%velocity(gridIndex,:) * localAdjointForcing(2:nDimensions+1))
 
-     temp1(:, nUnknowns) = temp2(:, 1) *                                   &
-                           solverOptions%ratioOfSpecificHeats *            &
-                           state%specificVolume(:, 1)
-     do k = 1, nDimensions
-         temp1(:, k+1) = - state%velocity(:, k) * temp1(:, nUnknowns)
-     end do
-     temp1(:, 1) = - solverOptions%ratioOfSpecificHeats *                              &
-                        state%specificVolume(:, 1) * state%specificVolume(:, 1) *      &
-                        state%conservedVariables(:, nUnknowns)
-     temp1(:, 1) = temp1(:, 1) * temp2(:, 1) -                                         &
-                     sum(state%velocity * temp1(:, 2:nDimensions+1), dim=2)
+            patch%adjointForcing(patchIndex, :) = localAdjointForcing
 
-     call patch%collect(temp1, patch%adjointForcing)
+         end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+      end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+   end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
-     SAFE_DEALLOCATE(temp2)
-     SAFE_DEALLOCATE(temp1)
-
-  end if
+   SAFE_DEALLOCATE(localAdjointForcing)
 
 end subroutine computeDragForceAdjointForcing
 
