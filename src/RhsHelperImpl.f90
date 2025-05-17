@@ -282,7 +282,8 @@ contains
       integer, parameter :: wp = SCALAR_KIND
       logical :: dragForcePatchesExist
       integer :: i, j, k, l, m, sgn, direction, iPatchFactory, nDimensions, nUnknowns,                            &
-         normBoundaryFactor, gridIndex, patchIndex, ierror
+                  gridIndex, patchIndex, ierror
+      SCALAR_TYPE :: normBoundaryFactor
       SCALAR_TYPE, allocatable :: temp2(:,:)
       class(t_Patch), pointer :: patch => null()
 
@@ -324,7 +325,6 @@ contains
                m = abs(direction)
                sgn = SIGN(1, direction * patch%normalDirection)
                normBoundaryFactor = 1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
-               ! normBoundaryFactor = 1.0_wp
 
                do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
                   do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)

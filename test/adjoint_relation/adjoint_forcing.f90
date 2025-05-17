@@ -384,8 +384,8 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
       if (patch%gridIndex /= region%grids(j)%index) cycle
       select type (patch)
       class is (t_CostTargetPatch)
-        ! call patch%updateRhs(ADJOINT, region%simulationFlags, region%solverOptions,              &
-        !                       region%grids(j), region%states(j))
+        call patch%updateRhs(ADJOINT, region%simulationFlags, region%solverOptions,              &
+                              region%grids(j), region%states(j))
       end select
     end do
   end do
@@ -405,19 +405,6 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
     scalar1 = scalar1 + region%grids(i)%computeInnerProduct(region%states(i)%rightHandSide,         &
                                                             deltaState(i)%conservedVariables)
   end do
-  ! do i = 1, size(region%patchFactories)
-  !   call region%patchFactories(i)%connect(patch)
-  !   if (.not. associated(patch)) cycle
-  !   do j = 1, size(region%states)
-  !     if (patch%gridIndex /= region%grids(j)%index) cycle
-  !     select type (patch)
-  !     class is (t_CostTargetPatch)
-  !       scalar1 = scalar1 + patch%computeInnerProduct(region%grids(j),                      &
-  !                                                     region%states(j)%rightHandSide,       &
-  !                                                     deltaState(j)%conservedVariables)
-  !     end select
-  !   end do
-  ! end do
   if (region%commGridMasters /= MPI_COMM_NULL)                                               &
        call MPI_Allreduce(MPI_IN_PLACE, scalar1, 1,                          &
        SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
@@ -447,8 +434,8 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
 
       ! ! No deviation from second jacobian of viscous flux
       ! region%states(i)%velocityGradient = state0(i)%velocityGradient
-      ! No deviation from dynamic viscosity
-      region%states(i)%dynamicViscosity = state0(i)%dynamicViscosity
+      ! ! No deviation from dynamic viscosity
+      ! region%states(i)%dynamicViscosity = state0(i)%dynamicViscosity
     end do
 
     ! (2)Compute deviated J
