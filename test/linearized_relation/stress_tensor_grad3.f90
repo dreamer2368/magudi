@@ -307,20 +307,20 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
   ! setup patch
   allocate(patchFactories(1))
-  normalDirection = min(2, nDimensions)
-  forceDirection = 1
-  ! normalDirection = direction
-  ! forceDirection = random(1, nDimensions)
+  ! normalDirection = min(2, nDimensions)
+  ! forceDirection = 1
+  normalDirection = direction
+  forceDirection = random(1, nDimensions)
   extent(1::2) = 1
   extent(2::2) = -1
-  ! if (random(0, 1) == 0) then
-  !    extent(1+2*(normalDirection-1)) = 1
-  !    extent(2+2*(normalDirection-1)) = 1
-  ! else
-  !    extent(1+2*(normalDirection-1)) = gridSize(normalDirection, 1)
-  !    extent(2+2*(normalDirection-1)) = gridSize(normalDirection, 1)
-  !    normalDirection = -normalDirection
-  ! end if
+  if (random(0, 1) == 0) then
+     extent(1+2*(normalDirection-1)) = 1
+     extent(2+2*(normalDirection-1)) = 1
+  else
+     extent(1+2*(normalDirection-1)) = gridSize(normalDirection, 1)
+     extent(2+2*(normalDirection-1)) = gridSize(normalDirection, 1)
+     normalDirection = -normalDirection
+  end if
   ! patchDescriptor = t_PatchDescriptor("testPatch", "COST_TARGET", 1, normalDirection,     &
                       ! extent(1), extent(2), extent(3), extent(4), extent(5), extent(6))
   patchDescriptor = t_PatchDescriptor("testPatch", "COST_TARGET", 1, 0,     &
@@ -386,9 +386,10 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   ones = 1.0_wp
   J0 = 0.0_wp
   stress0 = 0.0_wp
-  i = normalDirection
+  i = abs(normalDirection)
   j = forceDirection
-  stress0(:, 1) = grid%metrics(:,i+nDimensions*(i-1)) *                           &
+  sgn = SIGN(1, normalDirection)
+  stress0(:, 1) = sgn * grid%metrics(:,i+nDimensions*(i-1)) *                     &
                   state0%dynamicViscosity(:,1) *                                  &
                   state0%velocityGradient(:,i+nDimensions*(j-1))
   select type (patch)
@@ -403,6 +404,8 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   temp1 = 0.0_wp
   temp2 = 0.0_wp
 
+  i = abs(normalDirection)
+  j = forceDirection
   sgn = SIGN(1, normalDirection)
   normBoundaryFactor = 1.0_wp
   temp2(:, 1) = - sgn * normBoundaryFactor *                                     &
@@ -426,8 +429,9 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
                 sum(state0%velocity * temp1(:, 2:nDimensions+1), dim=2)
 
   !! This part is moved to addDragForceAdjointPenalty.
-  i = normalDirection
+  i = abs(normalDirection)
   j = forceDirection
+  sgn = SIGN(1, normalDirection)
   temp2(:, 1) = - sgn *                                              &
                   state0%dynamicViscosity(:, 1) *                     &
                   grid%metrics(:, i+nDimensions*(i-1))**2 *          &
@@ -476,9 +480,10 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
     ! (2) Compute baseline SAT far-field
     stress1 = 0.0_wp
-    i = normalDirection
+    i = abs(normalDirection)
     j = forceDirection
-    stress1(:, 1) = grid%metrics(:,i+nDimensions*(i-1)) *                           &
+    sgn = SIGN(1, normalDirection)
+    stress1(:, 1) = sgn * grid%metrics(:,i+nDimensions*(i-1)) *                     &
                     state1%dynamicViscosity(:,1) *                                  &
                     state1%velocityGradient(:,i+nDimensions*(j-1))
     select type (patch)
