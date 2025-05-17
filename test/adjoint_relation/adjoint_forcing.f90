@@ -285,6 +285,11 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
 
   nDimensions = size(region%globalGridSizes,1)
 
+  ! Randomize target mollifiers
+  do i = 1, size(region%grids)
+    call random_number(region%grids(i)%targetMollifier)
+  end do
+
   ! initialize states
   do i = 1, size(state0)
      call state0(i)%setup(region%grids(i), region%simulationFlags, region%solverOptions)

@@ -115,7 +115,7 @@ function computeDragForce(this, region) result(instantaneousFunctional)
   integer, parameter :: wp = SCALAR_KIND
   integer :: i, j, k, l, sgn, nPatches, nDimensions, ierror
   class(t_Patch), pointer :: patch => null()
-  SCALAR_TYPE, allocatable :: F(:,:), ones(:)
+  SCALAR_TYPE, allocatable :: F(:,:)
 
   assert(allocated(region%grids))
   assert(allocated(region%states))
@@ -168,8 +168,6 @@ function computeDragForce(this, region) result(instantaneousFunctional)
            assert(size(region%grids(i)%firstDerivative(k)%normBoundary) > 0)
 
            allocate(F(region%grids(i)%nGridPoints, 1))
-           allocate(ones(region%grids(i)%nGridPoints))
-           ones = 1.0_wp
 
            F(:, 1) = sgn * region%grids(i)%metrics(:,k+nDimensions*(k-1)) *                  &
                         region%states(i)%dynamicViscosity(:,1) *                             &
@@ -177,11 +175,9 @@ function computeDragForce(this, region) result(instantaneousFunctional)
 
            instantaneousFunctional = instantaneousFunctional +                               &
                 patch%computeInnerProduct(region%grids(i), F(:,1),                           &
-               !  region%grids(i)%targetMollifier(:,1))
-                ones)
+                region%grids(i)%targetMollifier(:,1))
 
            SAFE_DEALLOCATE(F)
-           SAFE_DEALLOCATE(ones)
 
         end select
 
@@ -245,17 +241,17 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, k, sgn, nDimensions, nUnknowns
+  integer :: i, j, k, nDimensions, nUnknowns
   real(SCALAR_KIND) :: normBoundaryFactor
-  SCALAR_TYPE, allocatable :: temp1(:,:), temp2(:,:), ones(:)
+  SCALAR_TYPE, allocatable :: temp1(:,:), temp2(:,:)
 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
   i = abs(patch%normalDirection)
   j = abs(this%direction)
-  sgn = SIGN(1, this%direction * patch%normalDirection)
-  normBoundaryFactor = 1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
+  normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1), &
+                              real(this%direction * patch%normalDirection, wp))
 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns >= nDimensions + 2)
@@ -266,8 +262,8 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
      allocate(temp2(grid%nGridPoints, 1))
      temp1 = 0.0_wp
 
-   !   temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                             &
-     temp2(:, 1) = - sgn * normBoundaryFactor *                                     &
+     temp2(:, 1) = - normBoundaryFactor *                                           &
+                     grid%targetMollifier(:, 1) *                                   &
                      grid%jacobian(:, 1) *                                          &
                      grid%metrics(:,i+nDimensions*(i-1)) *                          &
                      state%dynamicViscosity(:,1) *                                  &
@@ -320,16 +316,16 @@ function isDragForcePatchValid(this, patchDescriptor, gridSize, normalDirection,
   integer :: i
 
   isPatchValid = .false.
-!   if (normalDirection > size(gridSize) .or. normalDirection == 0) then
-!      write(message, '(A)') "Normal direction is invalid!"
-!      return
-!   end if
+  if (normalDirection > size(gridSize) .or. normalDirection == 0) then
+     write(message, '(A)') "Normal direction is invalid!"
+     return
+  end if
 
-!   i = abs(normalDirection)
-!   if (extent((i-1)*2+1) /= extent((i-1)*2+2)) then
-!      write(message, '(A)') "Extends more than 1 grid point along normal direction!"
-!      return
-!   end if
+  i = abs(normalDirection)
+  if (extent((i-1)*2+1) /= extent((i-1)*2+2)) then
+     write(message, '(A)') "Extends more than 1 grid point along normal direction!"
+     return
+  end if
 
   isPatchValid = .true.
 

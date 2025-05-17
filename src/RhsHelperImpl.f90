@@ -281,7 +281,7 @@ contains
       ! <<< Local variables >>>
       integer, parameter :: wp = SCALAR_KIND
       logical :: dragForcePatchesExist
-      integer :: i, j, k, l, m, sgn, direction, iPatchFactory, nDimensions, nUnknowns,                            &
+      integer :: i, j, k, l, m, direction, iPatchFactory, nDimensions, nUnknowns,                            &
                   gridIndex, patchIndex, ierror
       SCALAR_TYPE :: normBoundaryFactor
       SCALAR_TYPE, allocatable :: temp2(:,:)
@@ -323,8 +323,8 @@ contains
 
                l = abs(patch%normalDirection)
                m = abs(direction)
-               sgn = SIGN(1, direction * patch%normalDirection)
-               normBoundaryFactor = 1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
+               normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1), &
+                                          real(direction * patch%normalDirection, wp))
 
                do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
                   do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
@@ -337,11 +337,11 @@ contains
                            (j - 1 - patch%offset(2) + patch%localSize(2) *                   &
                            (k - 1 - patch%offset(3)))
 
-                        !   temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                 &
-                        temp2(gridIndex, 1) = temp2(gridIndex, 1) -                               &
-                                                sgn * normBoundaryFactor *                        &
-                                                state%dynamicViscosity(gridIndex, 1) *            &
-                                                grid%metrics(gridIndex, l+nDimensions*(l-1))**2 * &
+                        temp2(gridIndex, 1) = temp2(gridIndex, 1) -                                &
+                                                normBoundaryFactor *                               &
+                                                grid%targetMollifier(gridIndex, 1) *               &
+                                                state%dynamicViscosity(gridIndex, 1) *             &
+                                                grid%metrics(gridIndex, l+nDimensions*(l-1))**2 *  &
                                                 grid%jacobian(gridIndex, 1)
 
                      end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
