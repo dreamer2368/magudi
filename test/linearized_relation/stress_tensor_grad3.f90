@@ -303,6 +303,8 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   ! print *, 'Jacobian range: (', minval(grid%jacobian), ', ', maxval(grid%jacobian), ')'
   ! print *, 'Metrics range: (', minval(grid%metrics), ', ', maxval(grid%metrics), ')'
 
+  call random_number(grid%targetMollifier)
+
   call state0%setup(grid, simulationFlags, solverOptions)
   call state1%setup(grid, simulationFlags, solverOptions)
 
@@ -385,8 +387,8 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   ! stress tensor needs to be transformed, to be represented on the computational surface.
   allocate(stress0(grid%nGridPoints, 1))
   allocate(stress1(grid%nGridPoints, 1))
-  allocate(ones(grid%nGridPoints))
-  ones = 1.0_wp
+  ! allocate(ones(grid%nGridPoints))
+  ! ones = 1.0_wp
   J0 = 0.0_wp
   stress0 = 0.0_wp
   i = abs(normalDirection)
@@ -397,7 +399,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
                   state0%velocityGradient(:,i+nDimensions*(j-1))
   select type (patch)
     class is (t_CostTargetPatch)
-      J0 = patch%computeInnerProduct(grid, stress0(:,1), ones)
+      J0 = patch%computeInnerProduct(grid, stress0(:,1), grid%targetMollifier(:,1))
   end select
 
   ! Compute adjoint rhs for viscous flux
@@ -412,13 +414,14 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   sgn = SIGN(1, forceDirection * normalDirection)
   ! normBoundaryFactor = 1.0_wp
   normBoundaryFactor = 1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
-  temp2(:, 1) = - sgn * normBoundaryFactor *                                     &
-                     grid%jacobian(:, 1) *                                          &
-                     grid%metrics(:,i+nDimensions*(i-1)) *                          &
-                     state0%dynamicViscosity(:,1) *                                  &
-                     state0%velocityGradient(:,i+nDimensions*(j-1)) *                &
-                     solverOptions%powerLawExponent /                               &
-                     state0%temperature(:, 1)
+  temp2(:, 1) = - sgn * normBoundaryFactor *                                      &
+                    grid%targetMollifier(:, 1) *                                  &
+                    grid%jacobian(:, 1) *                                          &
+                    grid%metrics(:,i+nDimensions*(i-1)) *                          &
+                    state0%dynamicViscosity(:,1) *                                  &
+                    state0%velocityGradient(:,i+nDimensions*(j-1)) *                &
+                    solverOptions%powerLawExponent /                               &
+                    state0%temperature(:, 1)
 
   temp1(:, nUnknowns) = temp2(:, 1) *                                   &
                      solverOptions%ratioOfSpecificHeats *            &
@@ -462,9 +465,9 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
               (j - 1 - patch%offset(2) + patch%localSize(2) *                   &
               (k - 1 - patch%offset(3)))
 
-          !   temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                 &
           temp2(gridIndex, 1) = temp2(gridIndex, 1) -                               &
                                   sgn * normBoundaryFactor *                        &
+                                  grid%targetMollifier(gridIndex, 1) *              &
                                   state0%dynamicViscosity(gridIndex, 1) *            &
                                   grid%metrics(gridIndex, l+nDimensions*(l-1))**2 * &
                                   grid%jacobian(gridIndex, 1)
@@ -515,7 +518,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
                     state1%velocityGradient(:,i+nDimensions*(j-1))
     select type (patch)
       class is (t_CostTargetPatch)
-        J1 = patch%computeInnerProduct(grid, stress1(:,1), ones)
+        J1 = patch%computeInnerProduct(grid, stress1(:,1), grid%targetMollifier(:,1))
     end select
 
     ! (3) <u, \delta R(v)>
