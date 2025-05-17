@@ -280,6 +280,7 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
 
   ! initialize solver option, grid, and states
   call solverOptions%initialize(nDimensions, simulationFlags)
+  solverOptions%costFunctionalType = "DRAG"
   solverOptions%discretizationType = trim(identifier)
   solverOptions%reynoldsNumberInverse = 1.0_wp / random(5.0_wp,100.0_wp)
   solverOptions%prandtlNumberInverse = 1.0_wp / random(0.1_wp,5.0_wp)
@@ -322,9 +323,10 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
      normalDirection = -normalDirection
   end if
   ! patchDescriptor = t_PatchDescriptor("testPatch", "COST_TARGET", 1, normalDirection,     &
-                      ! extent(1), extent(2), extent(3), extent(4), extent(5), extent(6))
   patchDescriptor = t_PatchDescriptor("testPatch", "COST_TARGET", 1, 0,     &
-                                      1, -1, 1, -1, 1, -1)
+                      extent(1), extent(2), extent(3), extent(4), extent(5), extent(6))
+  ! patchDescriptor = t_PatchDescriptor("testPatch", "COST_TARGET", 1, 0,     &
+  !                                     1, -1, 1, -1, 1, -1)
   call patchDescriptor%validate(gridSize, simulationFlags,                             &
                                 solverOptions, errorCode, errorMessage)
   if (errorCode .ne. 0) then
@@ -428,20 +430,6 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
   temp1(:, 1) = temp1(:, 1) * temp2(:, 1) -                                         &
                 sum(state0%velocity * temp1(:, 2:nDimensions+1), dim=2)
 
-  !! This part is moved to addDragForceAdjointPenalty.
-  i = abs(normalDirection)
-  j = forceDirection
-  sgn = SIGN(1, normalDirection)
-  temp2(:, 1) = - sgn *                                              &
-                  state0%dynamicViscosity(:, 1) *                     &
-                  grid%metrics(:, i+nDimensions*(i-1))**2 *          &
-                  grid%jacobian(:, 1)
-  call grid%adjointFirstDerivative(i)%apply(temp2, grid%localSize)
-  temp2(:, 1) = temp2(:, 1) * grid%jacobian(:, 1)! * normBoundaryFactor
-
-  temp1(:, 1) = temp1(:, 1) - state0%velocity(:, j) * state0%specificVolume(:, 1) * temp2(:, 1)
-  temp1(:, j+1) = temp1(:, j+1) + state0%specificVolume(:, 1) * temp2(:, 1)
-
   select type (patch)
     class is (t_CostTargetPatch)
       call patch%collect(temp1, patch%adjointForcing)
@@ -453,6 +441,45 @@ subroutine testAdjointRelation(identifier, nDimensions, success, isPeriodic, dir
     class is (t_CostTargetPatch)
       call patch%updateRhs(ADJOINT, simulationFlags, solverOptions, grid, state0)
   end select
+
+  !! This part is moved to addDragForceAdjointPenalty.
+  l = abs(normalDirection)
+  m = forceDirection
+  sgn = SIGN(1, normalDirection)
+  ! temp2(:, 1) = - sgn *                                              &
+  !                 state0%dynamicViscosity(:, 1) *                     &
+  !                 grid%metrics(:, i+nDimensions*(i-1))**2 *          &
+  !                 grid%jacobian(:, 1)
+  temp2 = 0.0_wp
+  do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+    do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+        do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+          gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *         &
+              (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *           &
+              (k - 1 - patch%gridOffset(3)))
+          if (grid%iblank(gridIndex) == 0) cycle
+          patchIndex = i - patch%offset(1) + patch%localSize(1) *                &
+              (j - 1 - patch%offset(2) + patch%localSize(2) *                   &
+              (k - 1 - patch%offset(3)))
+
+          !   temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                 &
+          temp2(gridIndex, 1) = temp2(gridIndex, 1) -                               &
+                                  sgn * normBoundaryFactor *                        &
+                                  state0%dynamicViscosity(gridIndex, 1) *            &
+                                  grid%metrics(gridIndex, l+nDimensions*(l-1))**2 * &
+                                  grid%jacobian(gridIndex, 1)
+
+        end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+    end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+  end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+
+  call grid%adjointFirstDerivative(l)%apply(temp2, grid%localSize)
+  temp2(:, 1) = temp2(:, 1) * grid%jacobian(:, 1)! * normBoundaryFactor
+
+  state0%rightHandSide(:, 1) = state0%rightHandSide(:, 1) -                               &
+                        state0%velocity(:, m) * state0%specificVolume(:, 1) * temp2(:, 1)
+  state0%rightHandSide(:, m+1) = state0%rightHandSide(:, m+1) +                           &
+                                  state0%specificVolume(:, 1) * temp2(:, 1)
 
   SAFE_DEALLOCATE(temp1)
   SAFE_DEALLOCATE(temp2)
