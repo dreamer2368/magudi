@@ -340,16 +340,16 @@ function isDragForcePatchValid(this, patchDescriptor, gridSize, normalDirection,
   integer :: i
 
   isPatchValid = .false.
-!   if (normalDirection > size(gridSize) .or. normalDirection == 0) then
-!      write(message, '(A)') "Normal direction is invalid!"
-!      return
-!   end if
+  if (normalDirection > size(gridSize) .or. normalDirection == 0) then
+     write(message, '(A)') "Normal direction is invalid!"
+     return
+  end if
 
-!   i = abs(normalDirection)
-!   if (extent((i-1)*2+1) /= extent((i-1)*2+2)) then
-!      write(message, '(A)') "Extends more than 1 grid point along normal direction!"
-!      return
-!   end if
+  i = abs(normalDirection)
+  if (extent((i-1)*2+1) /= extent((i-1)*2+2)) then
+     write(message, '(A)') "Extends more than 1 grid point along normal direction!"
+     return
+  end if
 
   isPatchValid = .true.
 
