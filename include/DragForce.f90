@@ -8,7 +8,7 @@ module DragForce_mod
 
   type, extends(t_Functional), public :: t_DragForce
 
-     integer :: direction, sign
+     integer :: direction
 
    contains
 

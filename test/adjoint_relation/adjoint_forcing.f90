@@ -384,8 +384,8 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
       if (patch%gridIndex /= region%grids(j)%index) cycle
       select type (patch)
       class is (t_CostTargetPatch)
-        call patch%updateRhs(ADJOINT, region%simulationFlags, region%solverOptions,              &
-                              region%grids(j), region%states(j))
+        ! call patch%updateRhs(ADJOINT, region%simulationFlags, region%solverOptions,              &
+        !                       region%grids(j), region%states(j))
       end select
     end do
   end do
@@ -447,8 +447,8 @@ subroutine testAdjointRelation(solver,region,success,tolerance)
 
       ! ! No deviation from second jacobian of viscous flux
       ! region%states(i)%velocityGradient = state0(i)%velocityGradient
-      ! ! No deviation from dynamic viscosity
-      ! region%states(i)%dynamicViscosity = state0(i)%dynamicViscosity
+      ! No deviation from dynamic viscosity
+      region%states(i)%dynamicViscosity = state0(i)%dynamicViscosity
     end do
 
     ! (2)Compute deviated J

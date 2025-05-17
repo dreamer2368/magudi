@@ -281,7 +281,7 @@ contains
       ! <<< Local variables >>>
       integer, parameter :: wp = SCALAR_KIND
       logical :: dragForcePatchesExist
-      integer :: i, j, k, l, m, sgn, sgn0, iPatchFactory, nDimensions, nUnknowns,                            &
+      integer :: i, j, k, l, m, sgn, direction, iPatchFactory, nDimensions, nUnknowns,                            &
          normBoundaryFactor, gridIndex, patchIndex, ierror
       SCALAR_TYPE, allocatable :: temp2(:,:)
       class(t_Patch), pointer :: patch => null()
@@ -306,8 +306,7 @@ contains
 
       !! DragForce HACK: copy the direction setup in setupDragForce.
       !! Cannot use functional class all the way here in this routine.
-      m = ABS(getOption('drag_direction', 0))
-      sgn0 = SIGN(1, getOption('drag_direction', 0))
+      direction = getOption('drag_direction', 0)
 
       if (allocated(patchFactories)) then
          do iPatchFactory = 1, size(patchFactories)
@@ -321,13 +320,11 @@ contains
             select type (patch)
                class is (t_CostTargetPatch)
 
-               ! l = abs(patch%normalDirection)
-               l = 2
-               ! sgn = sgn0 * SIGN(1, patch%normalDirection)
-               sgn = 1
-               ! normBoundaryFactor = sign(1.0_wp / grid%firstDerivative((patch%normalDirection))%normBoundary(1),        &
-               !                      real(patch%normalDirection, wp))
-               normBoundaryFactor = 1.0_wp
+               l = abs(patch%normalDirection)
+               m = abs(direction)
+               sgn = SIGN(1, direction * patch%normalDirection)
+               normBoundaryFactor = 1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
+               ! normBoundaryFactor = 1.0_wp
 
                do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
                   do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)

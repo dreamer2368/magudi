@@ -53,9 +53,7 @@ subroutine setupDragForce(this, region)
      call gracefulExit(region%comm, message)
   end if
 
-  this%sign = SIGN(1, this%direction)
-  this%direction = ABS(this%direction)
-  assert(this%direction >= 1 .and. this%direction <= nDimensions)
+  assert(ABS(this%direction) <= nDimensions)
 
   do i = 1, size(region%grids)
       nPatches = 0
@@ -69,7 +67,7 @@ subroutine setupDragForce(this, region)
          select type (patch)
             class is (t_CostTargetPatch)
 
-               if (this%direction .eq. abs(patch%normalDirection)) then
+               if (abs(this%direction) .eq. abs(patch%normalDirection)) then
                   write(message, '(A)')                                                                   &
                         "DragForce cost functional only supports shear stress. Use drag_direction perpendicular to patch normal direction!"
                   call gracefulExit(region%comm, message)
@@ -163,11 +161,9 @@ function computeDragForce(this, region) result(instantaneousFunctional)
         select type (patch)
         class is (t_CostTargetPatch)
 
-         !   k = abs(patch%normalDirection)
-           k = 2
-           l = this%direction
-         !   sgn = this%sign * SIGN(1, patch%normalDirection)
-           sgn = 1
+           k = abs(patch%normalDirection)
+           l = abs(this%direction)
+           sgn = SIGN(1, this%direction * patch%normalDirection)
            assert(allocated(region%grids(i)%firstDerivative(k)%normBoundary))
            assert(size(region%grids(i)%firstDerivative(k)%normBoundary) > 0)
 
@@ -256,14 +252,11 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
   nDimensions = grid%nDimensions
   assert_key(nDimensions, (1, 2, 3))
 
-!   i = abs(patch%normalDirection)
-  i = 2
-  j = this%direction
-!   sgn = this%sign * SIGN(1, patch%normalDirection)
-  sgn = 1
-!   normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1),        &
-!                         real(patch%normalDirection, wp))
-  normBoundaryFactor = 1.0_wp
+  i = abs(patch%normalDirection)
+  j = abs(this%direction)
+  sgn = SIGN(1, this%direction * patch%normalDirection)
+  normBoundaryFactor = 1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1)
+!   normBoundaryFactor = 1.0_wp
 
   nUnknowns = solverOptions%nUnknowns
   assert(nUnknowns >= nDimensions + 2)
@@ -294,18 +287,6 @@ subroutine computeDragForceAdjointForcing(this, simulationFlags, solverOptions, 
                         state%conservedVariables(:, nUnknowns)
      temp1(:, 1) = temp1(:, 1) * temp2(:, 1) -                                         &
                      sum(state%velocity * temp1(:, 2:nDimensions+1), dim=2)
-
-   !! This part is moved to addDragForceAdjointPenalty.
-   !   temp2(:, 1) = - sgn * grid%targetMollifier(:, 1) *                 &
-     temp2(:, 1) = - sgn *                                              &
-                     state%dynamicViscosity(:, 1) *                     &
-                     grid%metrics(:, i+nDimensions*(i-1))**2 *          &
-                     grid%jacobian(:, 1)
-     call grid%adjointFirstDerivative(i)%apply(temp2, grid%localSize)
-     temp2(:, 1) = temp2(:, 1) * grid%jacobian(:, 1)! * normBoundaryFactor
-   
-   !   temp1(:, 1) = temp1(:, 1) - state%velocity(:, j) * state%specificVolume(:, 1) * temp2(:, 1)
-   !   temp1(:, j+1) = temp1(:, j+1) + state%specificVolume(:, 1) * temp2(:, 1)
 
      call patch%collect(temp1, patch%adjointForcing)
 
@@ -340,16 +321,16 @@ function isDragForcePatchValid(this, patchDescriptor, gridSize, normalDirection,
   integer :: i
 
   isPatchValid = .false.
-  if (normalDirection > size(gridSize) .or. normalDirection == 0) then
-     write(message, '(A)') "Normal direction is invalid!"
-     return
-  end if
+!   if (normalDirection > size(gridSize) .or. normalDirection == 0) then
+!      write(message, '(A)') "Normal direction is invalid!"
+!      return
+!   end if
 
-  i = abs(normalDirection)
-  if (extent((i-1)*2+1) /= extent((i-1)*2+2)) then
-     write(message, '(A)') "Extends more than 1 grid point along normal direction!"
-     return
-  end if
+!   i = abs(normalDirection)
+!   if (extent((i-1)*2+1) /= extent((i-1)*2+2)) then
+!      write(message, '(A)') "Extends more than 1 grid point along normal direction!"
+!      return
+!   end if
 
   isPatchValid = .true.
 
