@@ -78,7 +78,7 @@ if __name__ == '__main__':
     g = grid([201, 201])
     g.save('AcousticMonopole.xyz')
     gamma = 1.4
-    s = p3d.Solution().copy_from(g).quiescent(gamma)
+    s = p3d.Solution().copy_from(g).quiescent(gamma).fromprimitive(gamma)
     s.save('AcousticMonopole.ic.q')
     mean_pressure(s).save('AcousticMonopole.mean_pressure.f')
 
