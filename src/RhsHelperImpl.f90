@@ -303,8 +303,6 @@ contains
 
       allocate(temp2(grid%nGridPoints, 1))
 
-      temp2 = 0.0_wp
-
       !! DragForce HACK: copy the direction setup in setupDragForce.
       !! Cannot use functional class all the way here in this routine.
       direction = getOption('drag_direction', 0)
@@ -320,6 +318,8 @@ contains
 
             select type (patch)
                class is (t_CostTargetPatch)
+
+               temp2 = 0.0_wp
 
                l = abs(patch%normalDirection)
                m = abs(direction)
@@ -348,18 +348,18 @@ contains
                   end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
                end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
+               call grid%adjointFirstDerivative(l)%apply(temp2, grid%localSize)
+               temp2(:, 1) = temp2(:, 1) * grid%jacobian(:, 1)
+
+               state%rightHandSide(:, 1) = state%rightHandSide(:, 1) -                                      &
+                                             state%velocity(:, m) * state%specificVolume(:, 1) * temp2(:, 1)
+               state%rightHandSide(:, m+1) = state%rightHandSide(:, m+1) +                                      &
+                                             state%specificVolume(:, 1) * temp2(:, 1)
+
             end select !... type (patch)
 
          end do !... iPatchFactory = 1, size(patchFactories)
       end if !... allocated(patchFactories)
-
-      call grid%adjointFirstDerivative(l)%apply(temp2, grid%localSize)
-      temp2(:, 1) = temp2(:, 1) * grid%jacobian(:, 1)
-
-      state%rightHandSide(:, 1) = state%rightHandSide(:, 1) -                                      &
-                                    state%velocity(:, m) * state%specificVolume(:, 1) * temp2(:, 1)
-      state%rightHandSide(:, m+1) = state%rightHandSide(:, m+1) +                                      &
-                                    state%specificVolume(:, 1) * temp2(:, 1)
 
       SAFE_DEALLOCATE(temp2)
 
