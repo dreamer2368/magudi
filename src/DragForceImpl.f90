@@ -20,7 +20,7 @@ subroutine setupDragForce(this, region)
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, j, nPatches, nDimensions
+  integer :: i, j, nDimensions, normalDirection
   character(len = STRING_LENGTH) :: message
   class(t_Patch), pointer :: patch => null()
 
@@ -55,26 +55,24 @@ subroutine setupDragForce(this, region)
 
   assert(ABS(this%direction) <= nDimensions)
 
-  do i = 1, size(region%grids)
-      nPatches = 0
-      if (allocated(region%patchFactories)) nPatches = size(region%patchFactories)
+  normalDirection = -99
+  do i = 1, size(region%patchData)
+      if (region%patchData(i)%patchType .ne. "COST_TARGET") cycle
 
-      do j = 1, nPatches
-         call region%patchFactories(j)%connect(patch)
-         if (.not. associated(patch)) cycle
-         if (patch%gridIndex /= region%grids(i)%index) cycle
+      if ((normalDirection > 0) .and.                                               &
+          (normalDirection .ne. abs(region%patchData(i)%normalDirection))) then
+         write(message, '(A)')                                                                   &
+            "DragForce cost functional: all COST_TARGET patches must have the same abs(normalDirection)!"
+         call gracefulExit(region%comm, message)
+      end if
 
-         select type (patch)
-            class is (t_CostTargetPatch)
+      if (abs(this%direction) .eq. abs(region%patchData(i)%normalDirection)) then
+         write(message, '(A)')                                                                   &
+               "DragForce cost functional only supports shear stress. Use drag_direction perpendicular to patch normal direction!"
+         call gracefulExit(region%comm, message)
+      end if
 
-               if (abs(this%direction) .eq. abs(patch%normalDirection)) then
-                  write(message, '(A)')                                                                   &
-                        "DragForce cost functional only supports shear stress. Use drag_direction perpendicular to patch normal direction!"
-                  call gracefulExit(region%comm, message)
-               end if
-
-         end select
-      end do
+      normalDirection = abs(region%patchData(i)%normalDirection)
   end do
 
 end subroutine setupDragForce

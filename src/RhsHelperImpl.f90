@@ -280,20 +280,20 @@ contains
 
       ! <<< Local variables >>>
       integer, parameter :: wp = SCALAR_KIND
-      logical :: dragForcePatchesExist
+      logical :: costTargetPatchesExist
       integer :: i, j, k, l, m, direction, iPatchFactory, nDimensions, nUnknowns,                            &
                   gridIndex, patchIndex, ierror
       SCALAR_TYPE :: normBoundaryFactor
       SCALAR_TYPE, allocatable :: temp2(:,:)
       class(t_Patch), pointer :: patch => null()
 
-      dragForcePatchesExist = queryPatchTypeExists(patchFactories,                              &
-                                                   'COST_TARGET', grid%index)
-      dragForcePatchesExist = dragForcePatchesExist .and.                              &
-                              (trim(solverOptions%costFunctionalType) .eq. 'DRAG')
-      call MPI_Allreduce(MPI_IN_PLACE, dragForcePatchesExist, 1, MPI_LOGICAL,                   &
+      if (trim(solverOptions%costFunctionalType) .ne. 'DRAG') return
+
+      costTargetPatchesExist = queryPatchTypeExists(patchFactories,                              &
+                                                    'COST_TARGET', grid%index)
+      call MPI_Allreduce(MPI_IN_PLACE, costTargetPatchesExist, 1, MPI_LOGICAL,                   &
          MPI_LOR, grid%comm, ierror) !... reduce across grid-level processes.
-      if (.not. dragForcePatchesExist) return
+      if (.not. costTargetPatchesExist) return
 
       nDimensions = grid%nDimensions
       assert_key(nDimensions, (1, 2, 3))
@@ -302,10 +302,13 @@ contains
       assert(nUnknowns >= nDimensions + 2)
 
       allocate(temp2(grid%nGridPoints, 1))
+      temp2 = 0.0_wp
 
       !! DragForce HACK: copy the direction setup in setupDragForce.
       !! Cannot use functional class all the way here in this routine.
       direction = getOption('drag_direction', 0)
+      m = abs(direction)
+      l = -1
 
       if (allocated(patchFactories)) then
          do iPatchFactory = 1, size(patchFactories)
@@ -319,10 +322,7 @@ contains
             select type (patch)
                class is (t_CostTargetPatch)
 
-               temp2 = 0.0_wp
-
                l = abs(patch%normalDirection)
-               m = abs(direction)
                normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1), &
                                           real(direction * patch%normalDirection, wp))
 
@@ -348,18 +348,21 @@ contains
                   end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
                end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
 
-               call grid%adjointFirstDerivative(l)%apply(temp2, grid%localSize)
-               temp2(:, 1) = temp2(:, 1) * grid%jacobian(:, 1)
-
-               state%rightHandSide(:, 1) = state%rightHandSide(:, 1) -                                      &
-                                             state%velocity(:, m) * state%specificVolume(:, 1) * temp2(:, 1)
-               state%rightHandSide(:, m+1) = state%rightHandSide(:, m+1) +                                      &
-                                             state%specificVolume(:, 1) * temp2(:, 1)
-
             end select !... type (patch)
 
          end do !... iPatchFactory = 1, size(patchFactories)
       end if !... allocated(patchFactories)
+
+      ! It is assumed that all cost target patches have the same abs(normalDirection).
+      call MPI_Allreduce(MPI_IN_PLACE, l, 1, MPI_INTEGER, MPI_MAX, grid%comm, ierror)
+
+      call grid%adjointFirstDerivative(l)%apply(temp2, grid%localSize)
+      temp2(:, 1) = temp2(:, 1) * grid%jacobian(:, 1)
+
+      state%rightHandSide(:, 1) = state%rightHandSide(:, 1) -                                      &
+                                    state%velocity(:, m) * state%specificVolume(:, 1) * temp2(:, 1)
+      state%rightHandSide(:, m+1) = state%rightHandSide(:, m+1) +                                      &
+                                    state%specificVolume(:, 1) * temp2(:, 1)
 
       SAFE_DEALLOCATE(temp2)
 
