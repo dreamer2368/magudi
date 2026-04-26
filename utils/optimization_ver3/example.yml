@@ -45,14 +45,15 @@ penalty_norm:
   augmented_lagrangian: false
 
 resource_distribution:
-  forward:      [6, 216]
-  adjoint:      [6, 216]
-  zaxpy:        [2, 72]
-  qfile-zaxpy:  [1, 5]
-  zxdoty:       [2, 72]
-  qfile-zxdoty: [1, 5]
-  paste:        [1, 5]
-  slice:        [1, 5]
+  jobs:
+    forward:      [6, 216]
+    adjoint:      [6, 216]
+    zaxpy:        [2, 72]
+    qfile-zaxpy:  [1, 5]
+    zxdoty:       [2, 72]
+    qfile-zxdoty: [1, 5]
+    paste:        [1, 5]
+    slice:        [1, 5]
 
 command_scriptor:
   type: base

@@ -53,14 +53,15 @@ penalty_norm:
   augmented_lagrangian: false
 
 resource_distribution:
-  forward:      [60, 2112]
-  adjoint:      [60, 2112]
-  zaxpy:        [10, 360]
-  qfile-zaxpy:  [1, 36]
-  zxdoty:       [10, 360]
-  qfile-zxdoty: [1, 36]
-  paste:        [1, 36]
-  slice:        [1, 36]
+  jobs:
+    forward:      [60, 2112]
+    adjoint:      [60, 2112]
+    zaxpy:        [10, 360]
+    qfile-zaxpy:  [1, 36]
+    zxdoty:       [10, 360]
+    qfile-zxdoty: [1, 36]
+    paste:        [1, 36]
+    slice:        [1, 36]
 
 command_scriptor:
   type: flux
