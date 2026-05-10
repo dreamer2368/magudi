@@ -1,9 +1,11 @@
 """optim_ver4 Phase 1 strawman driver.
 
-Drives PETSc/TAO L-BFGS on the OneDWave example with Nsplit=1 (single time
-window). The objective and gradient come from the existing `forward` and
-`adjoint` binaries via subprocess; the variable transformation `y = D x`
-(with D = diag(sqrt(M_diag))) lives in this callback.
+Drives PETSc/TAO BQNLS (Bound-constrained Quasi-Newton with Line Search; the
+L-BFGS-style replacement for the deprecated LMVM solver) on the OneDWave
+example with Nsplit=1 (single time window). The objective and gradient come
+from the existing `forward` and `adjoint` binaries via subprocess; the
+variable transformation `y = D x` (with D = diag(sqrt(M_diag))) lives in
+this callback.
 
 Pin to a single MPI rank: the actuator `.dat` files written by the Fortran
 exes use MPI_File_write_all with per-rank slabs concatenated. Phase 1 keeps
@@ -125,7 +127,7 @@ def main():
         PETSc.Sys.Print(f"  iter {it:4d}  J = {f_val: .6e}  |g_y| = {gnorm: .6e}")
 
     tao = PETSc.TAO().create(comm=PETSc.COMM_SELF)
-    tao.setType("lmvm")
+    tao.setType("bqnls")
     tao.setObjectiveGradient(fg, g_y_template)
     tao.setMaximumIterations(5)
     tao.setTolerances(grtol=1.0e-6)
