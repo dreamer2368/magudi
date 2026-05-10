@@ -12,6 +12,7 @@ exes use MPI_File_write_all with per-rank slabs concatenated. Phase 1 keeps
 np=1 so numpy.fromfile reads the file as a single contiguous real64 buffer.
 """
 import argparse
+import os
 import subprocess
 import sys
 
@@ -48,6 +49,46 @@ def parse_actuators(bc_path="./bc.dat"):
     return actuators
 
 
+def save_tao_state(tao, path):
+    """Persist TAO's current solution to `path` as a PETSc binary Vec.
+
+    Uses tao.getSolution() — the canonical TAO accessor for the iterate — so
+    `tao.setSolution(y)` (or a completed `tao.solve(y)`) must have run first.
+    Iterate only; L-BFGS curvature warm-start is not persisted in Phase 1
+    because PETSc 3.25's MatLMVM binary view raises PETSC_ERR_PLIB.
+    """
+    x = tao.getSolution()
+    viewer = PETSc.Viewer().createBinary(path, mode="w", comm=x.getComm())
+    x.view(viewer)
+    viewer.destroy()
+    PETSc.Sys.Print(f"Saved {path}: |y| = {x.norm():.6e}")
+
+
+def load_tao_state(tao, path):
+    """Resume TAO's solution Vec from `path`. Returns True iff `path` existed.
+
+    Caller must have already called `tao.setSolution(y)` so that
+    `tao.getSolution()` returns the Vec to write into. The load goes through
+    `x.copy(...)`, a value-copy into the existing buffer — preserving any
+    `createWithArray` aliasing on the caller side.
+    """
+    if not os.path.exists(path):
+        PETSc.Sys.Print(f"No checkpoint at {path}; starting from current y")
+        return False
+    x = tao.getSolution()
+    viewer = PETSc.Viewer().createBinary(path, mode="r", comm=x.getComm())
+    x_loaded = PETSc.Vec().load(viewer)
+    viewer.destroy()
+    if x_loaded.getSize() != x.getSize():
+        raise SystemExit(
+            f"{path} size {x_loaded.getSize()} != expected {x.getSize()}"
+        )
+    x_loaded.copy(x)
+    x_loaded.destroy()
+    PETSc.Sys.Print(f"Resumed from {path}: |y| = {x.norm():.6e}")
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("config", help="Path to optim.single.yml")
@@ -74,6 +115,7 @@ def main():
     control_path = f"{prefix}.control_forcing_{actuator}.dat"
     gradient_path = f"{prefix}.gradient_{actuator}.dat"
     j_path = f"{prefix}.forward_run.txt"
+    checkpoint_path = "y.petsc"  # TAO iterate, in y-coordinates (DESIGN.md §4)
 
     M_diag = np.fromfile(norm_path, dtype="<f8")
     if M_diag.size == 0:
@@ -90,11 +132,6 @@ def main():
     g_y_template = PETSc.Vec().createWithArray(g_arr, comm=PETSc.COMM_SELF)
 
     iter_log = []
-
-    # Write zero controlForcing.dat so any forward call (including the first TAO
-    # callback's, before x.tofile() runs) finds the file. TAO callbacks overwrite it.
-    # This is strawman-example-specific command.
-    np.zeros_like(M_diag).tofile(control_path)
 
     def fg(tao, y_vec, g_vec):
         # TAO marks the input vec read-only inside the callback; getArray() with
@@ -142,7 +179,19 @@ def main():
     PETSc.Sys.Print(
         f"Phase 1 strawman: prefix={prefix} actuator={actuator} N={M_diag.size}"
     )
+
+    # Bind y so tao.getSolution() returns it inside the save/load helpers.
+    tao.setSolution(y)
+    resumed = load_tao_state(tao, checkpoint_path)
+    if not resumed:
+        # First run: pre-seed a zero controlForcing.dat so the first TAO
+        # callback's ./forward call finds the file. Subsequent callbacks
+        # (and resumed runs) overwrite it from x = y * D_inv.
+        np.zeros_like(M_diag).tofile(control_path)
+
     tao.solve(y)
+
+    save_tao_state(tao, checkpoint_path)
 
     reason = tao.getConvergedReason()
     final_J = iter_log[-1] if iter_log else float("nan")
