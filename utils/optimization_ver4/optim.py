@@ -17,6 +17,17 @@ import numpy as np
 import yaml
 from petsc4py import PETSc
 
+def _run_silent(cmd):
+    """Run a subprocess silently. On failure, print its captured output and raise."""
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        sys.stderr.write(f"FAILED ({exc.returncode}): {' '.join(exc.cmd)}\n")
+        if exc.stdout:
+            sys.stderr.write(exc.stdout)
+        if exc.stderr:
+            sys.stderr.write(exc.stderr)
+        raise
 
 def parse_actuators(bc_path="./bc.dat"):
     """Return list of actuator patch names from bc.dat (rows with type ACTUATOR).
@@ -89,8 +100,8 @@ def main():
         x = y_vec.getArray(readonly=True) * D_inv
         x.tofile(control_path)
 
-        subprocess.run(["./forward", "--input", "magudi.inp"], check=True)
-        subprocess.run(["./adjoint", "--input", "magudi.inp"], check=True)
+        _run_silent(["./forward", "--input", "magudi.inp"])
+        _run_silent(["./adjoint", "--input", "magudi.inp"])
 
         with open(j_path) as f:
             J = float(f.read().strip())
@@ -116,7 +127,7 @@ def main():
     tao = PETSc.TAO().create(comm=PETSc.COMM_SELF)
     tao.setType("lmvm")
     tao.setObjectiveGradient(fg, g_y_template)
-    tao.setMaximumIterations(50)
+    tao.setMaximumIterations(5)
     tao.setTolerances(grtol=1.0e-6)
     try:
         tao.setMonitor(monitor)
