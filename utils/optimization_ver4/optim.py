@@ -52,28 +52,6 @@ def parse_actuators(bc_path="./bc.dat"):
     return actuators
 
 
-def _make_capture(snapshots):
-    """Return a `tao.setUpdate` callback that appends (x_k, g_k) snapshots.
-
-    setUpdate fires once per accepted TAO iter, matching the count of
-    TAO's internal MatLMVMUpdate calls — capturing (x_0, g_0) through
-    (x_{N-1}, g_{N-1}). Monitor-based capture would over-collect by one
-    (it also fires at iter N AFTER the last MatLMVMUpdate); the extra
-    replay call forms a spurious BFGS pair on resume.
-
-    Arrays are copied because the Vec storage aliases TAO's internals
-    and mutates on the next iteration.
-    """
-    def capture(tao, _it):
-        x_vec = tao.getSolution()
-        g_vec, _ = tao.getGradient()
-        snapshots.append((
-            x_vec.getArray(readonly=True).copy(),
-            g_vec.getArray(readonly=True).copy(),
-        ))
-    return capture
-
-
 def save_tao_state(tao, checkpoint_path, history_path, snapshots, N):
     """Persist iterate, replay-buffer snapshots, and J0 diagonal.
 
@@ -168,6 +146,8 @@ def load_tao_state(tao, checkpoint_path, history_path, N):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("config", help="Path to optim.single.yml")
+    parser.add_argument("--max-iter", type=int, default=5,
+                        help="iterations this run (added to loaded iter if resuming)")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -210,6 +190,9 @@ def main():
 
     iter_log = []
     snapshots = deque(maxlen=LMVM_DEPTH + 1)
+    fg_count = [0]        # every fg call (including line-search probes)
+    n_run_silent = [0]    # every ./forward or ./adjoint subprocess invocation
+    pending = [None]      # deferred-commit slot for monitor snapshot capture
 
     def fg(tao, y_vec, g_vec):
         # TAO marks the input vec read-only inside the callback; getArray() with
@@ -218,7 +201,9 @@ def main():
         x.tofile(control_path)
 
         _run_silent(["./forward", "--input", "magudi.inp"])
+        n_run_silent[0] += 1
         _run_silent(["./adjoint", "--input", "magudi.inp"])
+        n_run_silent[0] += 1
 
         with open(j_path) as f:
             J = float(f.read().strip())
@@ -229,6 +214,7 @@ def main():
                 f"gradient size {raw_grad.size} != M_diag size {M_diag.size}"
             )
         g_vec.setArray(raw_grad * D_inv)
+        fg_count[0] += 1
         iter_log.append(J)
         return J
 
@@ -240,11 +226,23 @@ def main():
             f_val = iter_log[-1] if iter_log else float("nan")
             gnorm = float("nan")
         PETSc.Sys.Print(f"  iter {it:4d}  J = {f_val: .6e}  |g_y| = {gnorm: .6e}")
+        # Deferred-commit snapshot capture: monitor fires N+1 times for N TAO
+        # iters (initial at niter=0 via bnk.c:72, then after each ++niter at
+        # bnls.c:167). The final fire's (x_N, g_N) was never fed to TAO's
+        # internal MatLMVMUpdate, so we must drop it. Defer committing each
+        # fire's data until the NEXT fire confirms it wasn't the last;
+        # the unconfirmed trailing entry is silently discarded on solve exit.
+        if pending[0] is not None:
+            snapshots.append(pending[0])
+        pending[0] = (
+            tao.getSolution().getArray(readonly=True).copy(),
+            tao.getGradient()[0].getArray(readonly=True).copy(),
+        )
 
     tao = PETSc.TAO().create(comm=PETSc.COMM_SELF)
     tao.setType("bqnls")
     tao.setObjectiveGradient(fg, g_y_template)
-    tao.setMaximumIterations(5)
+    tao.setMaximumIterations(args.max_iter)
     tao.setTolerances(grtol=1.0e-6)
     PETSc.Options().setValue("tao_recycle_history", True)
     try:
@@ -253,7 +251,6 @@ def main():
         # petsc4py monitor signature varies across versions; fall back to the
         # built-in PETSc monitor via options.
         PETSc.Options().setValue("tao_monitor", "")
-    tao.setUpdate(_make_capture(snapshots))
     tao.setFromOptions()
 
     PETSc.Sys.Print(
@@ -283,8 +280,9 @@ def main():
     PETSc.Sys.Print(f"Converged reason: {reason}")
     PETSc.Sys.Print(f"Initial J = {initial_J: .6e}")
     PETSc.Sys.Print(f"Final   J = {final_J: .6e}")
-    PETSc.Sys.Print(f"Iterations evaluated: {len(iter_log)}")
-    print(iter_log)
+    PETSc.Sys.Print(
+        f"fg calls = {fg_count[0]};  _run_silent calls = {n_run_silent[0]}"
+    )
 
     return 0
 
