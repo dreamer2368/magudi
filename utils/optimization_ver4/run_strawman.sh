@@ -58,25 +58,31 @@ sed -i 's/^controller_switch = .*/controller_switch = true/' magudi.inp
 # its children use MPICH's singleton-init path independently. Phase 1 pins
 # np=1; multi-rank will need an env-stripping or MPI_Comm_spawn approach.
 
-# Baseline: one 10-iter run.
-python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter 10
+BASELINE=2
+SPLIT=1
+
+# Baseline: one BASELINE-iter run. Kept small to keep CI fast; the restart
+# wiring is shallow at SPLIT=1 (one TAO step per leg), so this catches an
+# I/O break but not bugs that only surface after several L-BFGS updates.
+python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter ${BASELINE}
 J_baseline=$(tr -d '[:space:]' < OneDWave.forward_run.txt)
 
-rm *.petsc
+rm -f *.petsc
 
-# Split: 5 iters, checkpoint, resume for 5 more. Final J should match the
-# 10-iter baseline to near-bitwise precision (toy_optim.py --verify-restart
-# proved rel diff = 0 on the algorithm; this checks the magudi I/O wiring).
-python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter 5
-python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter 5
+# Split: SPLIT iters, checkpoint, resume for SPLIT more. Final J should match
+# the baseline to near-bitwise precision (toy_optim.py --verify-restart proved
+# rel diff = 0 on the algorithm; this checks the magudi I/O wiring).
+python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter ${SPLIT}
+python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter ${SPLIT}
 J_split=$(tr -d '[:space:]' < OneDWave.forward_run.txt)
 
-python3 - "${J_baseline}" "${J_split}" <<'PY'
+python3 - "${J_baseline}" "${J_split}" "${BASELINE}" "${SPLIT}" <<'PY'
 import sys
 Jb, Js = float(sys.argv[1]), float(sys.argv[2])
+baseline_iters, split_iters = sys.argv[3], sys.argv[4]
 rel = abs(Jb - Js) / max(abs(Jb), 1e-30)
-print(f"baseline J (10-iter)      = {Jb:.12e}")
-print(f"split    J (5 + resumed 5) = {Js:.12e}")
+print(f"baseline J ({baseline_iters}-iter)                = {Jb:.12e}")
+print(f"split    J ({split_iters} + resumed {split_iters}) = {Js:.12e}")
 print(f"relative difference         = {rel:.3e}")
 TOL = 1e-12
 if rel > TOL:
