@@ -51,16 +51,37 @@ mpirun -n 1 ./control_space_norm
 # and J.txt), then ./adjoint (which consumes the just-written snapshots).
 sed -i 's/^controller_switch = .*/controller_switch = true/' magudi.inp
 
-python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter 10
-
-rm *.petsc
-
 # Run python3 directly (NOT under mpirun). If we wrap it in `mpirun -n 1`,
 # the MPICH PMI env vars (PMI_FD, PMI_RANK, ...) leak into the subprocess
 # environment of ./forward and ./adjoint, and their MPI_Init fails trying to
 # register with the parent PMI manager. Without mpirun, both this process and
 # its children use MPICH's singleton-init path independently. Phase 1 pins
 # np=1; multi-rank will need an env-stripping or MPI_Comm_spawn approach.
-python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml
 
-python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml
+# Baseline: one 10-iter run.
+python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter 10
+J_baseline=$(tr -d '[:space:]' < OneDWave.forward_run.txt)
+
+rm *.petsc
+
+# Split: 5 iters, checkpoint, resume for 5 more. Final J should match the
+# 10-iter baseline to near-bitwise precision (toy_optim.py --verify-restart
+# proved rel diff = 0 on the algorithm; this checks the magudi I/O wiring).
+python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter 5
+python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml --max-iter 5
+J_split=$(tr -d '[:space:]' < OneDWave.forward_run.txt)
+
+python3 - "${J_baseline}" "${J_split}" <<'PY'
+import sys
+Jb, Js = float(sys.argv[1]), float(sys.argv[2])
+rel = abs(Jb - Js) / max(abs(Jb), 1e-30)
+print(f"baseline J (10-iter)      = {Jb:.12e}")
+print(f"split    J (5 + resumed 5) = {Js:.12e}")
+print(f"relative difference         = {rel:.3e}")
+TOL = 1e-12
+if rel > TOL:
+    print(f"FAIL: rel diff {rel:.3e} exceeds tolerance {TOL:.0e}",
+          file=sys.stderr)
+    sys.exit(1)
+print(f"OK: restart equivalence within {TOL:.0e}")
+PY
