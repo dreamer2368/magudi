@@ -59,4 +59,4 @@ sed -i 's/^controller_switch = .*/controller_switch = true/' magudi.inp
 # np=1; multi-rank will need an env-stripping or MPI_Comm_spawn approach.
 python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml
 
-python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml
+# python3 "${REPO_ROOT}/utils/optimization_ver4/optim.py" optim.single.yml
