@@ -55,30 +55,6 @@ def rosenbrock(x):
     return float(J), g
 
 
-def _make_capture(snapshots):
-    """Return a `tao.setUpdate` callback that appends (x_k, g_k) snapshots.
-
-    The setUpdate hook fires N times for N TAO iterations — once per
-    internal MatLMVMUpdate call — capturing (x_0, g_0) through
-    (x_{N-1}, g_{N-1}). Crucially this matches TAO's own update count;
-    the monitor would over-capture by one (it also fires at iter N
-    AFTER the last MatLMVMUpdate has fired) and a spurious replay
-    M_b.updateLMVM call would form an extra BFGS pair that M_ref
-    doesn't have.
-
-    Arrays are copied because the Vec storage aliases TAO's internal
-    state and mutates on the next iteration.
-    """
-    def capture(tao, _it):
-        x_vec = tao.getSolution()
-        g_vec, _ = tao.getGradient()
-        snapshots.append((
-            x_vec.getArray(readonly=True).copy(),
-            g_vec.getArray(readonly=True).copy(),
-        ))
-    return capture
-
-
 def save_tao_state(tao, checkpoint_path, history_path, snapshots, N):
     """Persist iterate, replay-buffer snapshots, and J0 diagonal.
 
@@ -165,12 +141,18 @@ def load_tao_state(tao, checkpoint_path, history_path, N):
     return True
 
 
-def _build_tao(N, max_iter, x0_value, snapshots=None, log=None, grtol=1.0e-8):
+def _build_tao(N, max_iter, x0_value, snapshots=None, log=None,
+               fg_count=None, grtol=1.0e-8):
     """Construct a BQNLS TAO with capture/monitor wired in.
 
     Returns (tao, x_vec). The numpy arrays backing the createWithArray
     Vecs need no explicit keepalive — petsc4py's createWithArray holds a
     Python reference to the underlying numpy buffer for the Vec's lifetime.
+
+    `fg_count`, if provided, is a 1-element list that fg increments on
+    every call. Lets the caller distinguish outer iters from total
+    objective+gradient evaluations (the setUpdate-triggered
+    TaoComputeObjective after each iter adds one extra).
     """
     x_arr = np.ones(N, dtype=np.float64)
     x_arr[0] = x0_value
@@ -181,7 +163,19 @@ def _build_tao(N, max_iter, x0_value, snapshots=None, log=None, grtol=1.0e-8):
     def fg(_tao, x_vec, g_vec):
         J, grad = rosenbrock(x_vec.getArray(readonly=True))
         g_vec.setArray(grad)
+        if fg_count is not None:
+            fg_count[0] += 1
         return J
+
+    # Deferred-commit slot for snapshot capture. Monitor fires N+1 times for
+    # N TAO iterations (once at niter=0 with the initial iterate via
+    # bnk.c:72, then once per accepted iter after ++tao->niter at
+    # bnls.c:167). We want the first N captures (x_0..x_{N-1}) which match
+    # TAO's internal MatLMVMUpdate inputs; the final fire's (x_N, g_N) was
+    # never fed to any MatLMVMUpdate. Defer committing each fire's data
+    # until the NEXT fire confirms it wasn't the last; the unconfirmed
+    # trailing entry is discarded when solve() returns.
+    pending = [None]
 
     def monitor(tao):
         it = tao.getIterationNumber()
@@ -193,6 +187,13 @@ def _build_tao(N, max_iter, x0_value, snapshots=None, log=None, grtol=1.0e-8):
         if log is not None:
             log.append((it, f_val, gnorm))
         PETSc.Sys.Print(f"  iter {it:4d}  J = {f_val: .6e}  |g| = {gnorm: .6e}")
+        if snapshots is not None:
+            if pending[0] is not None:
+                snapshots.append(pending[0])
+            pending[0] = (
+                tao.getSolution().getArray(readonly=True).copy(),
+                tao.getGradient()[0].getArray(readonly=True).copy(),
+            )
 
     tao = PETSc.TAO().create(comm=PETSc.COMM_SELF)
     tao.setType("bqnls")
@@ -204,8 +205,6 @@ def _build_tao(N, max_iter, x0_value, snapshots=None, log=None, grtol=1.0e-8):
         tao.setMonitor(monitor)
     except (AttributeError, TypeError):
         PETSc.Options().setValue("tao_monitor", "")
-    if snapshots is not None:
-        tao.setUpdate(_make_capture(snapshots))
     tao.setFromOptions()
     return tao, x
 
@@ -351,9 +350,10 @@ def main():
                 PETSc.Sys.Print(f"Removed {p}")
 
     snapshots = deque(maxlen=LMVM_DEPTH + 1)
+    fg_count = [0]
     tao, x = _build_tao(
         args.dim, args.max_iter, args.x0,
-        snapshots=snapshots, grtol=args.grtol,
+        snapshots=snapshots, fg_count=fg_count, grtol=args.grtol,
     )
     PETSc.Sys.Print(
         f"Toy optim: N={args.dim} max_iter={args.max_iter} "
@@ -371,6 +371,7 @@ def main():
 
     PETSc.Sys.Print("")
     PETSc.Sys.Print(f"Converged reason: {tao.getConvergedReason()}")
+    PETSc.Sys.Print(f"fg calls = {fg_count[0]}")
     PETSc.Sys.Print(
         f"|x - 1| = {np.linalg.norm(x.getArray(readonly=True) - 1.0):.6e}"
     )
