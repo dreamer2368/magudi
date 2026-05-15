@@ -72,6 +72,21 @@ module MPIHelper
 
   interface
 
+     subroutine disconnectParentIfSpawned()
+
+       !> If this process was launched via `MPI_Comm_spawn`, perform a collective
+       !> `MPI_Comm_disconnect` on the parent inter-communicator so that the parent's
+       !> matching `MPI_Comm_disconnect` returns only after all child-side MPI activity
+       !> (including MPI-IO flushes) is complete. When launched normally,
+       !> `MPI_Comm_get_parent` returns `MPI_COMM_NULL` and the routine is a no-op,
+       !> keeping the binary backward-compatible with plain `mpirun` invocations.
+
+     end subroutine disconnectParentIfSpawned
+
+  end interface
+
+  interface
+
      subroutine gatherAlongDirection(cartesianCommunicator, localArray,                      &
           localSize, direction, offsetAlongDirection, gatheredArray)
 
