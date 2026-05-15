@@ -89,14 +89,14 @@ jobs:
           make -j 16
       - name: Multi-point optimization framework test
         run: bash .github/workflows/optim_test.sh
-  optim-strawman:
+  optim-parallel:
     runs-on: ubuntu-latest
     needs: [docker-image]
     container:
       image: ghcr.io/dreamer2368/magudi/magudi_env:latest
       # image: dreamer2368/magudi_env:latest
       options: --user 1001 --privileged
-    name: Optimization-strawman
+    name: Optimization-parallel
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.11.0
@@ -113,7 +113,7 @@ jobs:
         run: |
           cd build
           make -j 16
-      - name: optim_ver4 strawman restart-equivalence test
+      - name: optim_ver4 parallel restart-equivalence test
         run: |
           cd build
-          bash ../utils/optimization_ver4/run_strawman.sh
+          bash ../utils/optimization_ver4/run_parallel.sh
