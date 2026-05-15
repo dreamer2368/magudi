@@ -49,8 +49,8 @@ penalty_norm:
 # MPI_Comm_spawn. Do not change N_petsc mid-optimization: history.petsc is layout-bound.
 resource_distribution:
   jobs:
-    forward:      [1, 2]
-    adjoint:      [1, 2]
+    forward:      [1, 4]
+    adjoint:      [1, 4]
     petsc:        [1, 2]
 
 command_scriptor:

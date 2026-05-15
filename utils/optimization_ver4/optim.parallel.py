@@ -27,6 +27,7 @@ according to the saving run's rank count.
 """
 import argparse
 import os
+import shlex
 import sys
 from collections import deque
 
@@ -46,6 +47,18 @@ def _spawn_and_wait(executable, args, n):
     All N_petsc parent ranks must call this with identical arguments. Only one
     set of `n` children is launched (not N_petsc * n).
 
+    Child stdout/stderr go to ./out/<basename(executable)>.out; rank 0
+    truncates the file before each call so every spawn overwrites the
+    previous log, then the n child ranks append-write to that single file.
+    On failure the log persists for postmortem inspection.
+
+    Suppression uses /bin/bash -c "exec <bin> ... >> log 2>&1": the shell
+    exec replaces itself with the real binary, preserving the PID and PMI
+    env vars so MPI_Init in the child still completes the spawn handshake.
+    MPICH routes child stdout through its launcher (not through this parent
+    process), so Python-side os.dup2 wouldn't reach the children -- the
+    redirection has to happen inside the child process image.
+
     Sync is via an inter-communicator `Barrier()`, NOT `Disconnect()`.
     Per the MPI standard, MPI_Comm_disconnect only waits for pending traffic on
     the inter-comm to finish; since we never send/recv on it, both sides
@@ -56,9 +69,24 @@ def _spawn_and_wait(executable, args, n):
     MPI_Finalize -- so the parent's Barrier() returns only after the child has
     finished all its work.
     """
+    comm = MPI.COMM_WORLD
+    log_path = os.path.abspath(
+        os.path.join("out", os.path.basename(executable) + ".out")
+    )
+    if comm.Get_rank() == 0:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        open(log_path, "w").close()
+    comm.Barrier()
+
+    quoted_args = " ".join(shlex.quote(a) for a in args)
+    redir_cmd = (
+        f"exec {shlex.quote(executable)} {quoted_args} "
+        f">> {shlex.quote(log_path)} 2>&1"
+    )
+
     inter = MPI.COMM_WORLD.Spawn(
-        executable,
-        args=args,
+        "/bin/bash",
+        args=["-c", redir_cmd],
         maxprocs=n,
         info=MPI.INFO_NULL,
         root=0,
