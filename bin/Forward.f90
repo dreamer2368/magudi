@@ -15,6 +15,7 @@ program forward
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
+  use MPIHelper, only : disconnectParentIfSpawned
 
   implicit none
 
@@ -178,6 +179,7 @@ program forward
 
   ! Finalize MPI.
   call cleanupErrorHandler()
+  call disconnectParentIfSpawned()
   call MPI_Finalize(ierror)
 
 end program forward

@@ -548,3 +548,27 @@ subroutine gatherAlongDirection(cartesianCommunicator, localArray,              
   SAFE_DEALLOCATE(localSizes)
 
 end subroutine gatherAlongDirection
+
+subroutine disconnectParentIfSpawned()
+
+  ! <<< External modules >>>
+  use MPI
+
+  implicit none
+
+  ! <<< Local variables >>>
+  integer :: parentComm, ierror
+
+  call MPI_Comm_get_parent(parentComm, ierror)
+  if (parentComm /= MPI_COMM_NULL) then
+     ! Inter-comm barrier is collective over the union of parent+child groups
+     ! and provides the actual rendezvous synchronization. MPI_Comm_disconnect
+     ! alone is not synchronous when no traffic ever flowed on the inter-comm:
+     ! it returns as soon as both sides call it, with no wait. The Barrier
+     ! anchors the parent's Disconnect to a point AFTER all child-side work
+     ! (including MPI_File_close) has completed.
+     call MPI_Barrier(parentComm, ierror)
+     call MPI_Comm_disconnect(parentComm, ierror)
+  end if
+
+end subroutine disconnectParentIfSpawned
