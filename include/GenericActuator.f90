@@ -154,7 +154,8 @@ module GenericActuator_mod
 
   interface
 
-     subroutine hookGenericActuatorBeforeTimemarch(this, region, mode, referenceTimestep)
+     subroutine hookGenericActuatorBeforeTimemarch(this, region, mode, referenceTimestep,   &
+                                                   deleteGradientFile)
 
        use Region_mod, only : t_Region
 
@@ -164,6 +165,7 @@ module GenericActuator_mod
        class(t_Region) :: region
        integer, intent(in) :: mode
        integer, intent(in), optional :: referenceTimestep
+       logical, intent(in), optional :: deleteGradientFile
 
      end subroutine hookGenericActuatorBeforeTimemarch
 

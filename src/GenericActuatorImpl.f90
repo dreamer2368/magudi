@@ -416,7 +416,8 @@ function isGenericActuatorPatchValid(this, patchDescriptor, gridSize,           
 
 end function isGenericActuatorPatchValid
 
-subroutine hookGenericActuatorBeforeTimemarch(this, region, mode, referenceTimestep)
+subroutine hookGenericActuatorBeforeTimemarch(this, region, mode, referenceTimestep,        &
+                                              deleteGradientFile)
 
   ! <<< External modules >>>
   use MPI
@@ -441,6 +442,7 @@ subroutine hookGenericActuatorBeforeTimemarch(this, region, mode, referenceTimes
   class(t_Region) :: region
   integer, intent(in) :: mode
   integer, intent(in), optional :: referenceTimestep
+  logical, intent(in), optional :: deleteGradientFile
 
   ! <<< Local variables >>>
   integer :: i, stat, fileUnit, mpiFileHandle, procRank, ierror
@@ -448,10 +450,17 @@ subroutine hookGenericActuatorBeforeTimemarch(this, region, mode, referenceTimes
   integer(kind = MPI_OFFSET_KIND) :: referenceOffset
   class(t_Patch), pointer :: patch => null()
   logical :: fileExists
+  logical :: deleteGradientFile_
   character(len = STRING_LENGTH) :: message
 
   referenceTimestep_ = -1
   if (PRESENT(referenceTimestep)) referenceTimestep_ = referenceTimestep
+
+  ! Default: delete the existing gradient file (preserves legacy behavior for the
+  ! referenceTimestep_ <= 0 branch). Multi-segment drivers that explicitly manage
+  ! the gradient file lifetime pass deleteGradientFile = .false.
+  deleteGradientFile_ = .true.
+  if (PRESENT(deleteGradientFile)) deleteGradientFile_ = deleteGradientFile
 
   if (.not. allocated(region%patchFactories)) return
 
@@ -483,7 +492,7 @@ subroutine hookGenericActuatorBeforeTimemarch(this, region, mode, referenceTimes
            patch%controlForcingFileSize = patch%controlForcingFileOffset
            if (PRESENT(referenceTimestep)) then
              patch%forwardReferenceTimestep = referenceTimestep
-             assert(patch%forwardReferenceTimestep>0)
+             assert(patch%forwardReferenceTimestep.ge.0)
              referenceOffset = SIZEOF_SCALAR * product(int(patch%globalSize, MPI_OFFSET_KIND)) *            &
                                   size(patch%controlForcingBuffer, 2) * (4*referenceTimestep)
              patch%controlForcingFileOffset = patch%controlForcingFileOffset - referenceOffset
@@ -500,7 +509,7 @@ subroutine hookGenericActuatorBeforeTimemarch(this, region, mode, referenceTimes
                call gracefulExit(patch%comm, message)
             end if
           else
-            if (procRank == 0) then
+            if (deleteGradientFile_ .and. procRank == 0) then
               open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
                    iostat = stat, status = 'old')
               if (stat == 0) close(fileUnit, status = 'delete')

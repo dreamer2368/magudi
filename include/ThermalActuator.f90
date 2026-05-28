@@ -158,7 +158,8 @@ module ThermalActuator_mod
 
   interface
 
-     subroutine hookThermalActuatorBeforeTimemarch(this, region, mode, referenceTimestep)
+     subroutine hookThermalActuatorBeforeTimemarch(this, region, mode, referenceTimestep,    &
+                                                   deleteGradientFile)
 
        use Region_mod, only : t_Region
 
@@ -168,6 +169,7 @@ module ThermalActuator_mod
        class(t_Region) :: region
        integer, intent(in) :: mode
        integer, intent(in), optional :: referenceTimestep
+       logical, intent(in), optional :: deleteGradientFile
 
      end subroutine hookThermalActuatorBeforeTimemarch
 
