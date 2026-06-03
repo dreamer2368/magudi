@@ -241,7 +241,7 @@ program msadjoint
       dict(nonzeroDictIndex)%val = "true"
     end if
 
-    dummyValue = solver%runAdjoint(region, referenceTimestep = k * Nts,                     &
+    dummyValue = solver%runAdjoint(region, controlTimestepOffset = k * Nts,                     &
                                    deleteGradientFile = .false.)
 
     ! Save the IC-side adjoint (= dJ_time_integral_via_segment_k / d(ic_k); the matching

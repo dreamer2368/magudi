@@ -630,7 +630,7 @@ subroutine cleanupSolver(this)
 
 end subroutine cleanupSolver
 
-function runForward(this, region, restartFilename, referenceTimestep) result(costFunctional)
+function runForward(this, region, restartFilename, controlTimestepOffset) result(costFunctional)
 
   ! <<< External modules >>>
   use iso_fortran_env, only : output_unit
@@ -668,7 +668,7 @@ function runForward(this, region, restartFilename, referenceTimestep) result(cos
   class(t_Solver) :: this
   class(t_Region) :: region
   character(len = *), intent(in), optional :: restartFilename
-  integer, intent(in), optional :: referenceTimestep
+  integer, intent(in), optional :: controlTimestepOffset
 
   ! <<< Result >>>
   SCALAR_TYPE :: costFunctional
@@ -743,8 +743,8 @@ function runForward(this, region, restartFilename, referenceTimestep) result(cos
     if (controller%controllerSwitch) then
        controller%onsetTime = startTime
        controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
-       if (PRESENT(referenceTimestep)) then
-         call controller%hookBeforeTimemarch(region, FORWARD, referenceTimestep)
+       if (PRESENT(controlTimestepOffset)) then
+         call controller%hookBeforeTimemarch(region, FORWARD, controlTimestepOffset)
        else
          call controller%hookBeforeTimemarch(region, FORWARD)
        end if
@@ -855,7 +855,7 @@ function runForward(this, region, restartFilename, referenceTimestep) result(cos
 
 end function runForward
 
-function runAdjoint(this, region, referenceTimestep, deleteGradientFile)                    &
+function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)                    &
      result(costSensitivity)
 
   ! <<< External modules >>>
@@ -893,7 +893,7 @@ function runAdjoint(this, region, referenceTimestep, deleteGradientFile)        
   ! <<< Arguments >>>
   class(t_Solver) :: this
   class(t_Region) :: region
-  integer, intent(in), optional :: referenceTimestep
+  integer, intent(in), optional :: controlTimestepOffset
   logical, intent(in), optional :: deleteGradientFile
 
   ! <<< Result >>> - This value is currently not meaningful. left for future purpose.
@@ -1018,15 +1018,15 @@ function runAdjoint(this, region, referenceTimestep, deleteGradientFile)        
   end if
 
   ! Call controller hooks before time marching starts.
-  ! When the caller supplies referenceTimestep, it drives both ADJOINT and FORWARD hooks
+  ! When the caller supplies controlTimestepOffset, it drives both ADJOINT and FORWARD hooks
   ! (overrides the magudi.inp adjoint_restart/accumulated_timesteps mechanism) and the
   ! caller is also responsible for the deleteGradientFile policy.
-  if (PRESENT(referenceTimestep)) then
+  if (PRESENT(controlTimestepOffset)) then
     if (PRESENT(deleteGradientFile)) then
       call controller%hookBeforeTimemarch(region, ADJOINT,                                  &
-           referenceTimestep=referenceTimestep, deleteGradientFile=deleteGradientFile)
+           controlTimestepOffset=controlTimestepOffset, deleteGradientFile=deleteGradientFile)
     else
-      call controller%hookBeforeTimemarch(region, ADJOINT, referenceTimestep=referenceTimestep)
+      call controller%hookBeforeTimemarch(region, ADJOINT, controlTimestepOffset=controlTimestepOffset)
     end if
   else if (adjointRestart) then
     call controller%hookBeforeTimemarch(region, ADJOINT, accumulatedNTimesteps)
@@ -1037,8 +1037,8 @@ function runAdjoint(this, region, referenceTimestep, deleteGradientFile)        
   if (controller%controllerSwitch) then
     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
     controller%onsetTime = startTime - controller%duration
-    if (PRESENT(referenceTimestep)) then
-      call controller%hookBeforeTimemarch(region, FORWARD, referenceTimestep)
+    if (PRESENT(controlTimestepOffset)) then
+      call controller%hookBeforeTimemarch(region, FORWARD, controlTimestepOffset)
     else
       call controller%hookBeforeTimemarch(region, FORWARD)
     end if

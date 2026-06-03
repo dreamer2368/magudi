@@ -208,7 +208,7 @@ program msforward
     end if
 
     segmentCost(k) = solver%runForward(region, restartFilename = icFilename,                &
-                                       referenceTimestep = k * Nts)
+                                       controlTimestepOffset = k * Nts)
 
     ! Save the end-of-segment snapshot for msadjoint to consume.
     write(endFilename, '(2A,I8.8,A)') trim(outputPrefix), "-", region%timestep, ".q"

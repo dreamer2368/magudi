@@ -150,7 +150,7 @@ module Controller_mod
 
   abstract interface
 
-     subroutine hookBeforeTimemarch(this, region, mode, referenceTimestep, deleteGradientFile)
+     subroutine hookBeforeTimemarch(this, region, mode, controlTimestepOffset, deleteGradientFile)
 
        use Region_mod, only : t_Region
 
@@ -159,7 +159,7 @@ module Controller_mod
        class(t_Controller) :: this
        class(t_Region) :: region
        integer, intent(in) :: mode
-       integer, intent(in), optional :: referenceTimestep
+       integer, intent(in), optional :: controlTimestepOffset
        logical, intent(in), optional :: deleteGradientFile
 
      end subroutine hookBeforeTimemarch

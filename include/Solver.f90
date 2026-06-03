@@ -61,7 +61,7 @@ module Solver_mod
 
   interface
 
-     function runForward(this, region, restartFilename, referenceTimestep) result(costFunctional)
+     function runForward(this, region, restartFilename, controlTimestepOffset) result(costFunctional)
 
        use Region_mod, only : t_Region
 
@@ -71,7 +71,7 @@ module Solver_mod
        class(t_Region) :: region
 
        character(len = *), intent(in), optional :: restartFilename
-       integer, intent(in), optional :: referenceTimestep
+       integer, intent(in), optional :: controlTimestepOffset
 
        SCALAR_TYPE :: costFunctional
 
@@ -81,7 +81,7 @@ module Solver_mod
 
   interface
 
-     function runAdjoint(this, region, referenceTimestep, deleteGradientFile)               &
+     function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)               &
           result(costSensitivity)
 
        use Region_mod, only : t_Region
@@ -91,7 +91,7 @@ module Solver_mod
        class(t_Solver) :: this
        class(t_Region) :: region
 
-       integer, intent(in), optional :: referenceTimestep
+       integer, intent(in), optional :: controlTimestepOffset
        logical, intent(in), optional :: deleteGradientFile
 
        SCALAR_TYPE :: costSensitivity
