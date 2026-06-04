@@ -30,8 +30,10 @@ program msadjoint
   integer :: i, k, dictIndex, icDictIndex, nonzeroDictIndex, stat, fileUnit
   integer :: procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
-  logical :: lookForInput = .false., inputFlag = .false., saveMetricsFlag = .false.
-  character(len = STRING_LENGTH) :: argument, inputFilename
+  logical :: lookForInput = .false., lookForOutput = .false., lookForSubOutput = .false.,   &
+              inputFlag = .false., outputFlag = .false., subOutputFlag = .false.,           &
+              saveMetricsFlag = .false.
+  character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, subOutputFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, message
   character(len = STRING_LENGTH) :: icFilename, endFilename, terminalFilename, icAdjointFilename
   logical :: fileExists, success
@@ -45,6 +47,12 @@ program msadjoint
   ! << time-splitting parameters >>
   integer :: Nsplit, Nts, startTimestep
   real(wp) :: penaltyWeight
+
+  ! << per-segment gradient inner-product accumulators >>
+  ! segmentCtrlIP(k) = <g_ctrl, g_ctrl>_M restricted to segment k's time window (from runAdjoint).
+  ! segmentICIP(k)   = <g_ic_k, g_ic_k>_SBP; left at 0 for k=0 since ic_0 is not optimized.
+  SCALAR_TYPE, allocatable :: segmentCtrlIP(:), segmentICIP(:)
+  SCALAR_TYPE :: L2sq
 
   SCALAR_TYPE :: dummyValue = 0.0_wp
 
@@ -61,6 +69,10 @@ program msadjoint
     select case(trim(adjustl(argument)))
     case("--input")
       lookForInput = .true.
+    case("--output")
+      lookForOutput = .true.
+    case("--segments-output")
+      lookForSubOutput = .true.
     case("--save_metrics")
       saveMetricsFlag = .true.
     case default
@@ -74,6 +86,14 @@ program msadjoint
         end if
         lookForInput = .false.
         inputFlag = .true.
+      elseif (lookForOutput) then
+        outputFilename = trim(adjustl(argument))
+        lookForOutput = .false.
+        outputFlag = .true.
+      elseif (lookForSubOutput) then
+        subOutputFilename = trim(adjustl(argument))
+        lookForSubOutput = .false.
+        subOutputFlag = .true.
       else
         write(message, '(3A)') "option ", trim(argument), " unknown!"
         call gracefulExit(MPI_COMM_WORLD, message)
@@ -108,7 +128,14 @@ program msadjoint
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
+  if ( .not. outputFlag )    outputFilename    = trim(outputPrefix) // ".adjoint_run.txt"
+  if ( .not. subOutputFlag ) subOutputFilename = trim(outputPrefix) // ".sub_adjoint_run.txt"
+
   write(message, '(2A)') "Input file: ", trim(inputFilename)
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  write(message, '(2A)') "Output file (total inner product): ", trim(outputFilename)
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  write(message, '(2A)') "Per-segment output file: ", trim(subOutputFilename)
   call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
   ! Time-splitting parameters.
@@ -119,6 +146,10 @@ program msadjoint
   assert(Nsplit >= 1)
   assert(Nts >= 1)
   assert(startTimestep >= 0)
+
+  ! Per-segment gradient inner-product accumulators (segmentICIP(0) stays 0; ic_0 is fixed).
+  allocate(segmentCtrlIP(0:Nsplit-1)); segmentCtrlIP = 0.0_wp
+  allocate(segmentICIP  (0:Nsplit-1)); segmentICIP   = 0.0_wp
 
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions.
   call getRequiredOption("grid_file", filename)
@@ -241,8 +272,8 @@ program msadjoint
       dict(nonzeroDictIndex)%val = "true"
     end if
 
-    dummyValue = solver%runAdjoint(region, controlTimestepOffset = k * Nts,                     &
-                                   deleteGradientFile = .false.)
+    segmentCtrlIP(k) = solver%runAdjoint(region, controlTimestepOffset = k * Nts,           &
+                                         deleteGradientFile = .false.)
 
     ! Save the IC-side adjoint (= dJ_time_integral_via_segment_k / d(ic_k); the matching
     ! penalty's direct contribution to ic_k is added in the post-pass below).
@@ -273,6 +304,20 @@ program msadjoint
            penaltyWeight * (scratch(i)%F - region%states(i)%conservedVariables)
     end do
 
+    ! Spatial inner product <g_ic_k, g_ic_k>_SBP of the finalized IC gradient, before save.
+    L2sq = 0.0_wp
+    do i = 1, size(region%states)
+      L2sq = L2sq + region%grids(i)%computeInnerProduct(                                    &
+           region%states(i)%adjointVariables, region%states(i)%adjointVariables)
+    end do
+    if (region%commGridMasters /= MPI_COMM_NULL)                                            &
+         call MPI_Allreduce(MPI_IN_PLACE, L2sq, 1, SCALAR_TYPE_MPI, MPI_SUM,                &
+                            region%commGridMasters, ierror)
+    do i = 1, size(region%grids)
+      call MPI_Bcast(L2sq, 1, SCALAR_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+    end do
+    segmentICIP(k) = L2sq
+
     call region%saveData(QOI_ADJOINT_STATE, icAdjointFilename)
   end do
 
@@ -281,7 +326,39 @@ program msadjoint
   end do
   SAFE_DEALLOCATE(scratch)
 
+  ! Aggregate gradient inner product across segments:
+  !   total = sum_k (control_forcing_IP_k + ic_IP_k); ic_IP_0 = 0 since ic_0 is not optimized.
+  dummyValue = 0.0_wp
+  do k = 0, Nsplit-1
+    dummyValue = dummyValue + segmentCtrlIP(k) + segmentICIP(k)
+  end do
+
+  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                     &
+       'msadjoint: total gradient inner product = ', dummyValue
+  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
+  if (procRank == 0) then
+    open(unit = getFreeUnit(fileUnit), file = trim(outputFilename), action='write',         &
+         iostat = stat, status = 'replace')
+    write(fileUnit, '(1X,SP,' // SCALAR_FORMAT // ')') dummyValue
+    close(fileUnit)
+
+    open(unit = getFreeUnit(fileUnit), file = trim(subOutputFilename), action='write',      &
+         iostat = stat, status = 'replace')
+    write(fileUnit, '(A)') "# segment  control_forcing_inner_product   ic_inner_product"
+    do k = 0, Nsplit-1
+      write(fileUnit, '(I8,2(1X,SP,' // SCALAR_FORMAT // '))')                              &
+           k, segmentCtrlIP(k), segmentICIP(k)
+    end do
+    close(fileUnit)
+  end if
+
+  call MPI_Barrier(MPI_COMM_WORLD, ierror)
+
+  SAFE_DEALLOCATE(segmentCtrlIP)
+  SAFE_DEALLOCATE(segmentICIP)
 
   call solver%cleanup()
   call region%cleanup()
