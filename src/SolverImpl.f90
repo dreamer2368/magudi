@@ -930,6 +930,13 @@ function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)    
   ! Connect to the previously allocated controller.
   call this%controllerFactory%connect(controller)
   assert(associated(controller))
+  ! Reset the per-call cost-sensitivity accumulator. Without this, multiple
+  ! runAdjoint calls within one process (e.g. msadjoint's segment loop) double-
+  ! count: each call would return runningTimeQuadrature seeded by the previous
+  ! call's final value, so segmentCtrlIP(k) carries leftover contributions from
+  ! later segments. Mirrors functional%runningTimeQuadrature = 0 at line 705 in
+  ! runForward.
+  controller%runningTimeQuadrature = 0.0_wp
 
   ! Connect to the previously allocated functional.
   call this%functionalFactory%connect(functional)

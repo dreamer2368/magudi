@@ -207,53 +207,52 @@ program msadjoint
     allocate(scratch(i)%F(region%grids(i)%nGridPoints, region%solverOptions%nUnknowns))
   end do
 
-  ! Pre-compute matching adjoint terminals: for k = 0..Nsplit-2, save
-  !   matching_k = penaltyWeight * (end_k - ic_{k+1})
-  ! as an adjoint q-file at <prefix>-<startTs + (k+1)*Nts:08d>.adjoint.q. runAdjoint
-  ! will load this as the adjoint terminal when adjoint_nonzero_initial_condition = "true".
-  do k = 0, Nsplit-2
-    ! Load end_k.
-    write(endFilename, '(2A,I8.8,A)') trim(outputPrefix), "-",                              &
-         startTimestep + (k+1) * Nts, ".q"
-    if (procRank == 0) inquire(file = endFilename, exist = fileExists)
-    call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
-    if (.not. fileExists) then
-      write(message, '(3A)') "End-of-segment snapshot ", trim(endFilename),                 &
-           " missing (run msforward first)."
-      call gracefulExit(MPI_COMM_WORLD, message)
-    end if
-    call region%loadData(QOI_FORWARD_STATE, endFilename)
-    do i = 1, size(region%states)
-      scratch(i)%F = region%states(i)%conservedVariables
-    end do
-
-    ! Load ic_{k+1}, form matching_k = w * (end_k - ic_{k+1}) into adjointVariables.
-    write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k+1, ".ic.q"
-    if (procRank == 0) inquire(file = icFilename, exist = fileExists)
-    call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
-    if (.not. fileExists) then
-      write(message, '(3A)') "Per-segment IC file ", trim(icFilename), " does not exist!"
-      call gracefulExit(MPI_COMM_WORLD, message)
-    end if
-    call region%loadData(QOI_FORWARD_STATE, icFilename)
-    do i = 1, size(region%states)
-      region%states(i)%adjointVariables = penaltyWeight *                                   &
-           (scratch(i)%F - region%states(i)%conservedVariables)
-    end do
-
-    ! Save as adjoint state at the segment-boundary timestep. region%timestep is now
-    ! startTs + (k+1)*Nts (from the ic_{k+1} load? actually ic_{k+1}'s embedded timestep
-    ! should match startTs + (k+1)*Nts since it's the IC at start of segment k+1).
-    ! Build the filename explicitly to match runAdjoint's loadInitialCondition convention.
-    write(terminalFilename, '(2A,I8.8,A)') trim(outputPrefix), "-",                         &
-         startTimestep + (k+1) * Nts, ".adjoint.q"
-    call region%saveData(QOI_ADJOINT_STATE, terminalFilename)
-  end do
-
-  ! Adjoint segment loop: process segments in reverse order.
+  ! Adjoint segment loop: process segments in reverse order. The matching adjoint
+  ! terminal for each segment's right boundary is (re)written immediately before
+  ! that segment's runAdjoint call — it CANNOT be done as a one-shot pre-pass
+  ! because runAdjoint's internal showProgress save (src/SolverImpl.f90:128-140)
+  ! overwrites <prefix>-<ts:08d>.adjoint.q at every save_interval boundary,
+  ! including the segment boundaries pre-pass writes target.
   do k = Nsplit-1, 0, -1
     write(message, '(A,I0,A,I0,A)') "=== msadjoint: segment ", k, " of ", Nsplit, " ==="
     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+
+    ! Re-write the matching adjoint terminal at startTs + (k+1)*Nts:
+    !   matching_k = penaltyWeight * (end_k - ic_{k+1})
+    ! runAdjoint will load this when adjoint_nonzero_initial_condition = "true".
+    ! Skip for k=Nsplit-1 (no right neighbor; runAdjoint synthesizes zero terminal).
+    if (k < Nsplit - 1) then
+      write(endFilename, '(2A,I8.8,A)') trim(outputPrefix), "-",                            &
+           startTimestep + (k+1) * Nts, ".q"
+      if (procRank == 0) inquire(file = endFilename, exist = fileExists)
+      call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+      if (.not. fileExists) then
+        write(message, '(3A)') "End-of-segment snapshot ", trim(endFilename),               &
+             " missing (run msforward first)."
+        call gracefulExit(MPI_COMM_WORLD, message)
+      end if
+      call region%loadData(QOI_FORWARD_STATE, endFilename)
+      do i = 1, size(region%states)
+        scratch(i)%F = region%states(i)%conservedVariables
+      end do
+
+      write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k+1, ".ic.q"
+      if (procRank == 0) inquire(file = icFilename, exist = fileExists)
+      call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+      if (.not. fileExists) then
+        write(message, '(3A)') "Per-segment IC file ", trim(icFilename), " does not exist!"
+        call gracefulExit(MPI_COMM_WORLD, message)
+      end if
+      call region%loadData(QOI_FORWARD_STATE, icFilename)
+      do i = 1, size(region%states)
+        region%states(i)%adjointVariables = penaltyWeight *                                 &
+             (scratch(i)%F - region%states(i)%conservedVariables)
+      end do
+
+      write(terminalFilename, '(2A,I8.8,A)') trim(outputPrefix), "-",                       &
+           startTimestep + (k+1) * Nts, ".adjoint.q"
+      call region%saveData(QOI_ADJOINT_STATE, terminalFilename)
+    end if
 
     write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.q"
     if (procRank == 0) inquire(file = icFilename, exist = fileExists)
@@ -268,7 +267,7 @@ program msadjoint
       ! No segment to the right -> zero adjoint terminal (runAdjoint synthesizes it).
       dict(nonzeroDictIndex)%val = "false"
     else
-      ! Load the matching adjoint terminal pre-computed above.
+      ! Load the matching adjoint terminal just written above.
       dict(nonzeroDictIndex)%val = "true"
     end if
 
