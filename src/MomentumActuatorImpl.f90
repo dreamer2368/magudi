@@ -452,7 +452,8 @@ function isMomentumActuatorPatchValid(this, patchDescriptor, gridSize,          
 
 end function isMomentumActuatorPatchValid
 
-subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, referenceTimestep)
+subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, controlTimestepOffset,       &
+                                               deleteGradientFile)
 
   ! <<< External modules >>>
   use MPI
@@ -476,18 +477,26 @@ subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, referenceTime
   class(t_Controller) :: this
   class(t_Region) :: region
   integer, intent(in) :: mode
-  integer, intent(in), optional :: referenceTimestep
+  integer, intent(in), optional :: controlTimestepOffset
+  logical, intent(in), optional :: deleteGradientFile
 
   ! <<< Local variables >>>
   integer :: i, stat, fileUnit, mpiFileHandle, procRank, ierror
-  integer :: referenceTimestep_
+  integer :: controlTimestepOffset_
   integer(kind = MPI_OFFSET_KIND) :: referenceOffset
   class(t_Patch), pointer :: patch => null()
   logical :: fileExists
+  logical :: deleteGradientFile_
   character(len = STRING_LENGTH) :: message
 
-  referenceTimestep_ = -1
-  if (PRESENT(referenceTimestep)) referenceTimestep_ = referenceTimestep
+  controlTimestepOffset_ = -1
+  if (PRESENT(controlTimestepOffset)) controlTimestepOffset_ = controlTimestepOffset
+
+  ! Default: delete the existing gradient file (preserves legacy behavior for the
+  ! controlTimestepOffset_ <= 0 branch). Multi-segment drivers that explicitly manage
+  ! the gradient file lifetime pass deleteGradientFile = .false.
+  deleteGradientFile_ = .true.
+  if (PRESENT(deleteGradientFile)) deleteGradientFile_ = deleteGradientFile
 
   if (.not. allocated(region%patchFactories)) return
 
@@ -517,15 +526,15 @@ subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, referenceTime
            call MPI_File_close(mpiFileHandle, ierror)
 
            patch%controlForcingFileSize = patch%controlForcingFileOffset
-           if (PRESENT(referenceTimestep)) then
-             patch%forwardReferenceTimestep = referenceTimestep
-             assert(patch%forwardReferenceTimestep>0)
+           if (PRESENT(controlTimestepOffset)) then
+             patch%forwardReferenceTimestep = controlTimestepOffset
+             assert(patch%forwardReferenceTimestep.ge.0)
              referenceOffset = SIZEOF_SCALAR * product(int(patch%globalSize, MPI_OFFSET_KIND)) *            &
-                                  size(patch%controlForcingBuffer, 2) * (4*referenceTimestep)
+                                  size(patch%controlForcingBuffer, 2) * (4*controlTimestepOffset)
              patch%controlForcingFileOffset = patch%controlForcingFileOffset - referenceOffset
            end if
         case (ADJOINT)
-          if (referenceTimestep_>0) then
+          if (controlTimestepOffset_>0) then
             if (procRank == 0) then
                inquire(file = trim(patch%gradientFilename), exist = fileExists)
             end if
@@ -536,11 +545,11 @@ subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, referenceTime
                call gracefulExit(patch%comm, message)
             end if
           else
-            if (procRank == 0) then
-              open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
+            if (deleteGradientFile_ .and. procRank == 0) then
+              open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),          &
                    iostat = stat, status = 'old')
               if (stat == 0) close(fileUnit, status = 'delete')
-              open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),        &
+              open(unit = getFreeUnit(fileUnit), file = trim(patch%gradientFilename),          &
                    action = 'write', status = 'unknown')
               close(fileUnit)
             end if
@@ -549,11 +558,11 @@ subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, referenceTime
            patch%iGradientBuffer = 0
            patch%gradientFileOffset = int(0, MPI_OFFSET_KIND)
 
-           if (PRESENT(referenceTimestep)) then
-             patch%adjointReferenceTimestep = referenceTimestep
+           if (PRESENT(controlTimestepOffset)) then
+             patch%adjointReferenceTimestep = controlTimestepOffset
              assert(patch%adjointReferenceTimestep.ge.0)
              referenceOffset = SIZEOF_SCALAR * product(int(patch%globalSize, MPI_OFFSET_KIND)) *            &
-                                  size(patch%gradientBuffer, 2) * (4*referenceTimestep)
+                                  size(patch%gradientBuffer, 2) * (4*controlTimestepOffset)
              patch%gradientFileOffset = patch%gradientFileOffset + referenceOffset
            end if
 
@@ -575,11 +584,11 @@ subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, referenceTime
                call MPI_File_close(mpiFileHandle, ierror)
 
                patch%gradientFileSize = patch%gradientFileOffset
-               if (PRESENT(referenceTimestep)) then
-                 patch%forwardReferenceTimestep = referenceTimestep
+               if (PRESENT(controlTimestepOffset)) then
+                 patch%forwardReferenceTimestep = controlTimestepOffset
                  assert(patch%forwardReferenceTimestep.ge.0)
                  referenceOffset = SIZEOF_SCALAR * product(int(patch%globalSize, MPI_OFFSET_KIND)) *            &
-                                      size(patch%gradientBuffer, 2) * (4*referenceTimestep)
+                                      size(patch%gradientBuffer, 2) * (4*controlTimestepOffset)
                  patch%gradientFileOffset = patch%gradientFileOffset - referenceOffset
                end if
             end if
