@@ -1,28 +1,31 @@
-"""optim_ver4 Phase 3 MPI-parallel TAO driver.
+"""Frozen Phase 1/2 strawman driver — kept for regression vs the Phase 3 rewrite.
 
-Wraps `./msforward` and `./msadjoint` (bin/msforward.f90, bin/msadjoint.f90)
-inside a TAO L-BFGS outer loop. Layout + parallel I/O live in
-ParallelIOHandler (parallel_io.py); this file owns the optimizer state,
-spawn coordination, and resume/checkpoint logic.
+optim_ver4 MPI-parallel TAO driver.
 
-Run:
-    mpirun -n N_petsc python3 optim.parallel.py optim.parallel.yml \\
-                                                [--max-iter K]
+Standalone parallel counterpart to optim.py. Run with:
 
-N_petsc satisfies the ParallelIOHandler policy:
-  N_petsc == 1  (serial fallback)
-or
-  N_petsc = n_ic + n_actuator * nprocs_per_actuator     (nprocs_per_actuator >= 1)
+    mpirun -n N_petsc python3 optim.parallel.py optim.parallel.yml [--max-iter K]
 
-The schema is parsed from <prefix>.layout.txt (written by bin/compute_norm).
-M_diag is loaded from per-actuator .norm_<name>.dat plus the shared
-<prefix>.norm_ic.q file (the same file fed to every ic slot of M_diag).
+N_petsc is the rank count of this Python driver itself; PETSc Vec/Mat ops live
+on its COMM_WORLD. The driver spawns ./forward and ./adjoint via MPI_Comm_spawn
+at N_forward and N_adjoint ranks respectively (read from resource_distribution.
+jobs.{forward,adjoint,petsc} in the YAML).
 
-State persists across allocations the same way as the strawman:
-  y.petsc        TAO iterate in y-space
-  history.petsc  replay-buffer (snapshot Vecs) + J0 diagonal
-Do not change N_petsc between a save and a resume: the layout (and thus
-the Vec's local sizes per rank) is layout-bound.
+Sync mechanism: forward/adjoint call `disconnectParentIfSpawned` (see
+include/MPIHelper.f90) immediately before MPI_Finalize. That makes the parent's
+inter.Disconnect() return only after the child has done a collective
+MPI_Comm_disconnect, which in turn happens only after all child MPI_File_close
+calls have flushed. The same binaries work under plain mpirun -- get_parent
+returns MPI_COMM_NULL and the disconnect is skipped.
+
+The actuator .dat files (norm, control_forcing, gradient) are flat real64
+streams. As long as control_space_norm, forward, and adjoint all run at the
+same N_forward, the element ordering is consistent across the three files and
+PETSc pointwise multiplies / norms are valid even though Python distributes
+the data over a different rank count (N_petsc).
+
+Do not change N_petsc between a save and a resume: history.petsc is laid out
+according to the saving run's rank count.
 """
 import argparse
 import os
@@ -30,12 +33,12 @@ import shlex
 import sys
 from collections import deque
 
+import numpy as np
+import yaml
+
 # mpi4py MUST import before petsc4py so PETSc binds to MPI.COMM_WORLD.
 from mpi4py import MPI  # noqa: F401  (import-order side effect)
 from petsc4py import PETSc
-
-from inputs import InputParser
-from parallel_io import ParallelIOHandler, parse_layout
 
 LMVM_DEPTH = 5  # matches BQNLS default Max. storage = 5
 
@@ -47,20 +50,26 @@ def _spawn_and_wait(executable, args, n):
     set of `n` children is launched (not N_petsc * n).
 
     Child stdout/stderr go to ./out/<basename(executable)>.out; rank 0
-    truncates the file before each call. Suppression uses
-    /bin/bash -c "exec <bin> ... >> log 2>&1": the shell exec replaces
-    itself with the real binary, preserving the PID and PMI env vars so
-    MPI_Init in the child still completes the spawn handshake.
+    truncates the file before each call so every spawn overwrites the
+    previous log, then the n child ranks append-write to that single file.
+    On failure the log persists for postmortem inspection.
+
+    Suppression uses /bin/bash -c "exec <bin> ... >> log 2>&1": the shell
+    exec replaces itself with the real binary, preserving the PID and PMI
+    env vars so MPI_Init in the child still completes the spawn handshake.
+    MPICH routes child stdout through its launcher (not through this parent
+    process), so Python-side os.dup2 wouldn't reach the children -- the
+    redirection has to happen inside the child process image.
 
     Sync is via an inter-communicator `Barrier()`, NOT `Disconnect()`.
-    Per the MPI standard, MPI_Comm_disconnect only waits for pending traffic
-    on the inter-comm to finish; since we never send/recv on it, both sides
+    Per the MPI standard, MPI_Comm_disconnect only waits for pending traffic on
+    the inter-comm to finish; since we never send/recv on it, both sides
     disconnect immediately and no rendezvous occurs. MPI_Barrier on the
     inter-comm IS a true rendezvous over the union of parent+child groups.
     The child calls a matching MPI_Barrier(parent) from disconnectParentIfSpawned
     in MPIHelperImpl.f90, placed immediately before MPI_Comm_disconnect and
-    MPI_Finalize -- so the parent's Barrier() returns only after the child
-    has finished all its work.
+    MPI_Finalize -- so the parent's Barrier() returns only after the child has
+    finished all its work.
     """
     comm = MPI.COMM_WORLD
     log_path = os.path.abspath(
@@ -86,16 +95,67 @@ def _spawn_and_wait(executable, args, n):
     )
     inter.Barrier()
     inter.Disconnect()
+    # Parent-only barrier for filesystem cache visibility before the next
+    # collective MPI-IO read of the child's output.
     MPI.COMM_WORLD.Barrier()
+
+
+def parse_actuators(bc_path="./bc.dat"):
+    """Return list of actuator patch names from bc.dat (rows with type ACTUATOR).
+
+    Every rank parses independently; results are assumed identical. bc.dat is
+    whitespace-delimited (Name Type ...); '#' marks an inline comment.
+    """
+    actuators = []
+    with open(bc_path) as f:
+        for line in f:
+            line = line.split("#", 1)[0]
+            tokens = line.split()
+            if len(tokens) >= 2 and tokens[1] == "ACTUATOR":
+                actuators.append(tokens[0])
+    return actuators
+
+
+def _read_flat_dat(path, total_size, comm, vec=None):
+    """Collectively read a flat real64 file into a distributed PETSc Vec.
+
+    The file is treated as a contiguous stream of `total_size` little-endian
+    real64 values (the layout written by Fortran's MPI_File_write_all). Each
+    rank reads its PETSc-default slab via MPI-IO collective Read_at_all.
+    """
+    if vec is None:
+        vec = PETSc.Vec().createMPI(total_size, comm=comm)
+    lo, hi = vec.getOwnershipRange()
+    local_n = hi - lo
+    buf = np.empty(local_n, dtype="<f8")
+    fh = MPI.File.Open(comm, path, MPI.MODE_RDONLY)
+    fh.Set_view(0, etype=MPI.DOUBLE, filetype=MPI.DOUBLE, datarep="native")
+    fh.Read_at_all(lo, buf)
+    fh.Close()
+    vec.setArray(buf)
+    vec.assemble()
+    return vec
+
+
+def _write_flat_dat(path, vec, comm):
+    """Collectively write a distributed PETSc Vec to a flat real64 file."""
+    lo, hi = vec.getOwnershipRange()
+    arr = np.ascontiguousarray(vec.getArray(readonly=True), dtype="<f8")
+    fh = MPI.File.Open(
+        comm, path, MPI.MODE_WRONLY | MPI.MODE_CREATE
+    )
+    fh.Set_view(0, etype=MPI.DOUBLE, filetype=MPI.DOUBLE, datarep="native")
+    fh.Write_at_all(lo, arr)
+    fh.Close()
 
 
 def save_tao_state(tao, checkpoint_path, history_path, snapshots, N, comm):
     """Persist iterate + replay-buffer + J0 diagonal collectively on `comm`.
 
-    `snapshots` is a deque of (vx, vg) tuples of distributed PETSc Vecs
-    with the file-aligned layout. See optim.py for why J0 must be persisted
-    explicitly -- M.updateLMVM replay reconstructs (s_k, y_k) but not the
-    nested MATLMVMDIAGBRDN diagonal.
+    `snapshots` is a deque of (vx, vg) tuples of distributed PETSc Vecs (each
+    on `comm`, size N). See optim.py for why J0 must be persisted explicitly --
+    M.updateLMVM replay reconstructs (s_k, y_k) but not the nested
+    MATLMVMDIAGBRDN diagonal.
     """
     x = tao.getSolution()
     viewer = PETSc.Viewer().createBinary(checkpoint_path, mode="w", comm=comm)
@@ -104,6 +164,8 @@ def save_tao_state(tao, checkpoint_path, history_path, snapshots, N, comm):
     PETSc.Sys.Print(f"Saved {checkpoint_path}: |y| = {x.norm():.6e}")
 
     viewer = PETSc.Viewer().createBinary(history_path, mode="w", comm=comm)
+    # Header: 3-element distributed Vec, all elements pinned to rank 0 so the
+    # layout is well-defined regardless of comm size.
     local_size = 3 if comm.Get_rank() == 0 else 0
     hdr = PETSc.Vec().createMPI((local_size, 3), comm=comm)
     if comm.Get_rank() == 0:
@@ -161,6 +223,9 @@ def load_tao_state(tao, checkpoint_path, history_path, N, comm):
 
     viewer = PETSc.Viewer().createBinary(history_path, mode="r", comm=comm)
     hdr = PETSc.Vec().load(viewer)
+    # Header is laid out with all 3 elements on rank 0; allgather to make all
+    # ranks see (iter_no, n_snap, n_dim) consistently. comm is a PETSc.Comm;
+    # tompi4py() returns the underlying mpi4py communicator for allgather().
     local_vals = list(hdr.getArray(readonly=True))
     gathered = comm.tompi4py().allgather(local_vals)
     flat = [v for sub in gathered for v in sub]
@@ -185,63 +250,20 @@ def load_tao_state(tao, checkpoint_path, history_path, N, comm):
     return True
 
 
-def _seed_zero_actuator_files(schema, prefix, comm):
-    """Rank 0 creates zero-filled .control_forcing_<name>.dat for each actuator
-    slot, sized to its layout entry. Idempotent: skipped when the file already
-    exists at the expected size. Needed only on the first run, before the very
-    first io.read for the baseline x -- subsequent iterations overwrite the
-    file via io.write.
-    """
-    if comm.Get_rank() == 0:
-        for s in schema:
-            if s.kind != "actuator":
-                continue
-            path = f"{prefix}.control_forcing_{s.identifier}.dat"
-            expected = s.size * 8
-            actual = os.path.getsize(path) if os.path.exists(path) else -1
-            if actual != expected:
-                with open(path, "wb") as fh:
-                    fh.write(b"\x00" * expected)
-    comm.Barrier()
-
-
-def _build_paths(schema, prefix, mode, ic_norm_q_path=None):
-    """Construct one path per slot for a given access mode.
-
-    mode = 'x'      -> x slabs (read by msforward, written by Python)
-                       actuator -> .control_forcing_<name>.dat
-                       ic       -> -<k>.ic.q
-    mode = 'grad'   -> raw_grad slabs (written by msadjoint, read by Python)
-                       actuator -> .gradient_<name>.dat
-                       ic       -> -<k>.ic.adjoint.q
-    mode = 'metric' -> M_diag slabs (written by compute_norm, read once at startup)
-                       actuator -> .norm_<name>.dat
-                       ic       -> <ic_norm_q_path>  (shared across all ic slots)
-    """
-    paths = []
-    for s in schema:
-        if s.kind == "actuator":
-            if mode == "x":
-                paths.append(f"{prefix}.control_forcing_{s.identifier}.dat")
-            elif mode == "grad":
-                paths.append(f"{prefix}.gradient_{s.identifier}.dat")
-            elif mode == "metric":
-                paths.append(f"{prefix}.norm_{s.identifier}.dat")
-            else:
-                raise ValueError(f"unknown mode {mode!r}")
-        else:  # kind == "ic"
-            k = int(s.identifier)
-            if mode == "x":
-                paths.append(f"{prefix}-{k}.ic.q")
-            elif mode == "grad":
-                paths.append(f"{prefix}-{k}.ic.adjoint.q")
-            elif mode == "metric":
-                if ic_norm_q_path is None:
-                    raise ValueError("metric mode requires ic_norm_q_path")
-                paths.append(ic_norm_q_path)
-            else:
-                raise ValueError(f"unknown mode {mode!r}")
-    return paths
+def _read_jobs_procs(cfg, key):
+    """Extract `procs` (index 1) from resource_distribution.jobs[<key>] = [N,P]."""
+    try:
+        nodes_procs = cfg["resource_distribution"]["jobs"][key]
+    except (KeyError, TypeError) as exc:
+        raise SystemExit(
+            f"resource_distribution.jobs.{key} missing from config"
+        ) from exc
+    if not (isinstance(nodes_procs, list) and len(nodes_procs) == 2):
+        raise SystemExit(
+            f"resource_distribution.jobs.{key} must be [nodes, procs]; "
+            f"got {nodes_procs!r}"
+        )
+    return int(nodes_procs[1])
 
 
 def main():
@@ -256,53 +278,68 @@ def main():
     comm = MPI.COMM_WORLD
     pcomm = PETSc.COMM_WORLD
 
-    cfg = InputParser(args.config)
-    N_forward = int(cfg.getInput(
-        ["resource_distribution", "jobs", "forward"], datatype=list)[1])
-    N_adjoint = int(cfg.getInput(
-        ["resource_distribution", "jobs", "adjoint"], datatype=list)[1])
-    N_petsc = int(cfg.getInput(
-        ["resource_distribution", "jobs", "petsc"], datatype=list)[1])
+    with open(args.config) as f:
+        cfg = yaml.safe_load(f)
+
+    N_forward = _read_jobs_procs(cfg, "forward")
+    N_adjoint = _read_jobs_procs(cfg, "adjoint")
+    N_petsc = _read_jobs_procs(cfg, "petsc")
     if comm.Get_size() != N_petsc:
         raise SystemExit(
             f"mpirun -n mismatch: launched with {comm.Get_size()} ranks but "
             f"resource_distribution.jobs.petsc requests {N_petsc}"
         )
 
-    prefix = cfg.getInput(["global_prefix"], datatype=str)
-    layout_path = f"{prefix}.layout.txt"
-    ic_norm_q_path = f"{prefix}.norm_ic.q"
+    prefix = cfg["global_prefix"]
+    actuators = parse_actuators("./bc.dat")
+    if len(actuators) != 1:
+        raise SystemExit(
+            "optim.parallel.py supports a single actuator; "
+            f"got {len(actuators)} from ./bc.dat: {actuators}"
+        )
+    actuator = actuators[0]
+
+    norm_path = f"{prefix}.norm_{actuator}.dat"
+    control_path = f"{prefix}.control_forcing_{actuator}.dat"
+    gradient_path = f"{prefix}.gradient_{actuator}.dat"
+    j_path = f"{prefix}.forward_run.txt"
     checkpoint_path = "y.petsc"
     history_path = "history.petsc"
-    j_path = f"{prefix}.forward_run.txt"
 
-    schema = parse_layout(layout_path)
-    io = ParallelIOHandler(schema, ic_norm_q_path, comm=comm)
-    io.report_balance()
+    # Total size of M_diag in real64 elements -- rank 0 stats, then bcast.
+    if comm.Get_rank() == 0:
+        size_bytes = os.path.getsize(norm_path)
+        if size_bytes == 0 or size_bytes % 8 != 0:
+            N_total = -1
+        else:
+            N_total = size_bytes // 8
+    else:
+        N_total = None
+    N_total = comm.bcast(N_total, root=0)
+    if N_total <= 0:
+        raise SystemExit(f"{norm_path} is empty or not a multiple of 8 bytes")
 
-    N_total = io.global_size
-
-    # Load M_diag (per-actuator norm files + shared .norm_ic.q) and form D_inv.
-    M_diag = io.create_vec()
-    io.read(M_diag, _build_paths(schema, prefix, "metric", ic_norm_q_path))
-    local_min = (
-        float(M_diag.getArray(readonly=True).min())
-        if M_diag.getLocalSize() > 0 else float("inf")
-    )
+    M_diag = _read_flat_dat(norm_path, N_total, comm)
+    # Collective non-positive check.
+    local_min = float(M_diag.getArray(readonly=True).min()) if M_diag.getLocalSize() > 0 else float("inf")
     global_min = comm.allreduce(local_min, op=MPI.MIN)
     if global_min <= 0.0:
         raise SystemExit(
-            f"M_diag has non-positive entries (min={global_min}); cannot form sqrt(M). "
-            f"Check controller mollifier coverage and state_controllability."
+            f"{norm_path} has non-positive entries (min={global_min}); "
+            "cannot form sqrt(M)."
         )
+
+    # D_inv = 1 / sqrt(M_diag) on COMM_WORLD.
     D_inv = M_diag.duplicate()
     M_diag.copy(D_inv)
     D_inv.sqrtabs()
     D_inv.reciprocal()
 
-    # Optimization iterate and gradient template.
-    y = io.create_vec()
-    g_y_template = y.duplicate(); g_y_template.set(0.0)
+    # Optimization iterate and gradient template, both distributed.
+    y = PETSc.Vec().createMPI(N_total, comm=pcomm)
+    y.set(0.0)
+    g_y_template = y.duplicate()
+    g_y_template.set(0.0)
 
     iter_log = []
     snapshots = deque(maxlen=LMVM_DEPTH + 1)
@@ -310,23 +347,20 @@ def main():
     n_spawn = [0]
     pending = [None]
 
-    x_paths = _build_paths(schema, prefix, "x")
-    grad_paths = _build_paths(schema, prefix, "grad")
-
     def fg(tao, y_vec, g_vec):
+        # x = y * D_inv  (distributed); write to control_forcing.dat
         x_dist = y_vec.duplicate()
         x_dist.pointwiseMult(y_vec, D_inv)
-        io.write(x_dist, x_paths)
+        _write_flat_dat(control_path, x_dist, comm)
         x_dist.destroy()
         comm.Barrier()
 
-        _spawn_and_wait("./msforward", ["--input", "magudi.inp"], N_forward)
+        _spawn_and_wait("./forward", ["--input", "magudi.inp"], N_forward)
         n_spawn[0] += 1
-        _spawn_and_wait("./msadjoint", ["--input", "magudi.inp"], N_adjoint)
+        _spawn_and_wait("./adjoint", ["--input", "magudi.inp"], N_adjoint)
         n_spawn[0] += 1
 
-        # J: scalar, read on rank 0, bcast. msforward folds the matching-condition
-        # penalty into the total before writing (bin/msforward.f90:237).
+        # J: scalar, read on rank 0, bcast.
         if comm.Get_rank() == 0:
             with open(j_path) as fh:
                 J_local = float(fh.read().strip())
@@ -334,8 +368,12 @@ def main():
             J_local = None
         J = comm.bcast(J_local, root=0)
 
-        raw_grad = io.create_vec()
-        io.read(raw_grad, grad_paths)
+        # Gradient: collective read, then g_y = raw_grad * D_inv.
+        raw_grad = _read_flat_dat(gradient_path, N_total, comm)
+        if raw_grad.getSize() != N_total:
+            raise SystemExit(
+                f"gradient size {raw_grad.getSize()} != expected {N_total}"
+            )
         g_vec.pointwiseMult(raw_grad, D_inv)
         raw_grad.destroy()
         fg_count[0] += 1
@@ -352,6 +390,9 @@ def main():
         PETSc.Sys.Print(
             f"  iter {it:4d}  J = {f_val: .6e}  |g_y| = {gnorm: .6e}"
         )
+        # Deferred-commit snapshot capture: monitor fires N+1 times for N TAO
+        # iters; drop the trailing fire because its (x_N, g_N) was never fed
+        # to MatLMVMUpdate. See optim.py:229-240 for the full rationale.
         if pending[0] is not None:
             snapshots.append(pending[0])
         x_now = tao.getSolution()
@@ -373,8 +414,7 @@ def main():
     tao.setFromOptions()
 
     PETSc.Sys.Print(
-        f"optim.parallel: prefix={prefix} N_total={N_total} "
-        f"n_actuator={io.n_actuator} n_ic={io.n_ic} "
+        f"optim.parallel: prefix={prefix} actuator={actuator} N={N_total} "
         f"N_petsc={N_petsc} N_forward={N_forward} N_adjoint={N_adjoint}"
     )
 
@@ -382,15 +422,11 @@ def main():
     tao.setUp()
     resumed = load_tao_state(tao, checkpoint_path, history_path, N_total, pcomm)
     if not resumed:
-        # Initial x = (zero control, baseline IC). The baseline IC slabs were staged
-        # from a controller-off forward run by run_parallel.sh as <prefix>-<k>.ic.q.
-        # .control_forcing_<name>.dat doesn't exist yet -- rank 0 seeds zero files
-        # so io.read can stitch them into baseline_x. Then y_init = D * x_init.
-        _seed_zero_actuator_files(schema, prefix, comm)
-        baseline_x = io.create_vec()
-        io.read(baseline_x, x_paths)
-        y.pointwiseDivide(baseline_x, D_inv)   # y = baseline_x / D_inv = D * baseline_x
-        baseline_x.destroy()
+        # First run: pre-seed a zero control_forcing.dat so the first TAO
+        # callback's ./forward finds the file. Collective write.
+        zero_x = y.duplicate(); zero_x.set(0.0)
+        _write_flat_dat(control_path, zero_x, comm)
+        zero_x.destroy()
         comm.Barrier()
 
     tao.solve(y)

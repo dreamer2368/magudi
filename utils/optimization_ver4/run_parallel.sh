@@ -1,50 +1,28 @@
 #!/usr/bin/env bash
-# optim_ver4 MPI-parallel driver: stage OneDWave, run TAO L-BFGS with
+# optim_ver4 Phase 3 driver: stage OneDWave, run baseline forward to seed the
+# per-segment ICs, then drive TAO L-BFGS via msforward / msadjoint with
 # N_petsc Python ranks spawning N_forward / N_adjoint child workers.
 #
 # All three rank counts come from optim.parallel.yml's resource_distribution.
-# jobs.{forward,adjoint,petsc} block. control_space_norm runs at N_forward
-# so the .dat layout matches what forward/adjoint will read/write.
+# jobs.{forward,adjoint,petsc} block. compute_norm runs at N_forward so the
+# .norm_<actuator>.dat layout matches what msforward/msadjoint will produce.
 #
-# Child binaries are launched via MPI_Comm_spawn from inside Python -- no
-# env-stripping, no PMI leak, and no modification to forward/adjoint. If the
-# pre-flight Spawn check below fails, the host's MPI runtime does not support
-# dynamic process management (most likely SLURM srun) and the only paths
-# forward are env-stripping or running mpirun inside the SLURM allocation.
-#
-# Run from the build/ directory after `make -j` has produced bin/forward,
-# bin/adjoint, bin/control_space_norm.
+# Run from the build/ directory after `make -j` has produced
+#   bin/forward bin/msforward bin/msadjoint bin/compute_norm
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$(pwd)}"
-WORK_DIR="${BUILD_DIR}/OneDWave_parallel"
+WORK_DIR="${BUILD_DIR}/OneDWave_msparallel"
 CFG="optim.parallel.yml"
 
-if [ ! -x "${BUILD_DIR}/bin/forward" ]; then
-    echo "error: ${BUILD_DIR}/bin/forward not found; run cmake + make first" >&2
-    exit 1
-fi
-
-# # Pre-flight: does this MPI runtime support Comm_spawn with a child that
-# # only calls MPI_Init/MPI_Finalize (no MPI_Comm_disconnect on the parent)?
-# # That's exactly forward/adjoint's lifecycle. Catch hangs/errors here rather
-# # than mid-optimization. Note: child must call MPI_Init, so /bin/echo would
-# # hang -- use a python child that calls MPI_Init via mpi4py import.
-# echo "Pre-flight: MPI_Comm_spawn smoke test"
-# SPAWN_CHILD=$(sudo mktemp /tmp/spawn_child.XXXX.py)
-# cat > "${SPAWN_CHILD}" <<'PY'
-# from mpi4py import MPI
-# # import triggers MPI_Init; module finalizer calls MPI_Finalize.
-# PY
-# mpirun -n 2 python3 - "${SPAWN_CHILD}" <<'PY'
-# import sys
-# from mpi4py import MPI
-# inter = MPI.COMM_WORLD.Spawn("python3", args=[sys.argv[1]], maxprocs=1)
-# inter.Disconnect()
-# PY
-# rm -f "${SPAWN_CHILD}"
+for bin in forward msforward msadjoint compute_norm; do
+    if [ ! -x "${BUILD_DIR}/bin/${bin}" ]; then
+        echo "error: ${BUILD_DIR}/bin/${bin} not found; run cmake + make first" >&2
+        exit 1
+    fi
+done
 
 rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}"
@@ -56,31 +34,76 @@ cd "${WORK_DIR}"
 python3 config.py
 
 ln -sf "${BUILD_DIR}/bin/forward" .
-ln -sf "${BUILD_DIR}/bin/adjoint" .
-ln -sf "${BUILD_DIR}/bin/control_space_norm" .
+ln -sf "${BUILD_DIR}/bin/msforward" .
+ln -sf "${BUILD_DIR}/bin/msadjoint" .
+ln -sf "${BUILD_DIR}/bin/compute_norm" .
 
-# Parse N_forward and N_petsc from the YAML once -- bash invocations below
-# need them as integers.
-N_FORWARD=$(python3 -c "
+# Parse rank counts and the time-splitting layout from optim.parallel.yml once.
+read N_FORWARD N_PETSC NSPLIT NTS START_TS PENALTY_WEIGHT STATE_CTRL PREFIX <<EOF
+$(python3 - <<PY
 import yaml
-with open('${CFG}') as f: c = yaml.safe_load(f)
-print(c['resource_distribution']['jobs']['forward'][1])
-")
-N_PETSC=$(python3 -c "
-import yaml
-with open('${CFG}') as f: c = yaml.safe_load(f)
-print(c['resource_distribution']['jobs']['petsc'][1])
-")
-echo "N_forward = ${N_FORWARD}, N_petsc = ${N_PETSC}"
+with open("${CFG}") as f: c = yaml.safe_load(f)
+print(
+    c["resource_distribution"]["jobs"]["forward"][1],
+    c["resource_distribution"]["jobs"]["petsc"][1],
+    c["time_splitting"]["number_of_segments"],
+    c["time_splitting"]["segment_length"],
+    c["time_splitting"]["start_timestep"],
+    c["time_splitting"]["penalty_weight"],
+    c["time_splitting"]["state_controllability"],
+    c["global_prefix"],
+)
+PY
+)
+EOF
+echo "N_forward=${N_FORWARD} N_petsc=${N_PETSC} Nsplit=${NSPLIT} Nts=${NTS} start_ts=${START_TS} prefix=${PREFIX}"
 
-# Patch magudi.inp for the Nsplit=1 layout, matching run_strawman.sh:
-sed -i 's/^save_interval = .*/save_interval = 480/' magudi.inp
+# Patch magudi.inp for the multi-segment layout. The baseline forward runs with
+# controller_switch=false; controller_switch=true is set later for compute_norm
+# and the optim run.
+sed -i "s/^number_of_timesteps = .*/number_of_timesteps = $((NSPLIT * NTS))/" magudi.inp
+sed -i "s/^save_interval = .*/save_interval = ${NTS}/" magudi.inp
 sed -i 's/^baseline_prediction_available = .*/baseline_prediction_available = true/' magudi.inp
+sed -i 's/^controller_switch = .*/controller_switch = false/' magudi.inp
 
-# control_space_norm at N_forward so the .dat ordering matches forward/adjoint.
-mpirun -n "${N_FORWARD}" ./control_space_norm
+# msadjoint requires adjoint_nonzero_initial_condition in the dict (it mutates the
+# value per segment). Add a placeholder line if it isn't already there.
+if ! grep -q '^adjoint_nonzero_initial_condition' magudi.inp; then
+    echo 'adjoint_nonzero_initial_condition = false' >> magudi.inp
+fi
 
+# msforward / msadjoint / compute_norm read time_splitting/* via getRequiredOption.
+# magudi.inp uses literal flat keys, so write the slash-style names directly.
+# Replace any pre-existing entries with the YAML-driven values.
+sed -i '/^time_splitting\//d' magudi.inp
+cat >> magudi.inp <<EOF
+time_splitting/number_of_segments = ${NSPLIT}
+time_splitting/segment_length = ${NTS}
+time_splitting/start_timestep = ${START_TS}
+time_splitting/penalty_weight = ${PENALTY_WEIGHT}
+time_splitting/state_controllability = ${STATE_CTRL}
+EOF
+
+# 1. Baseline forward run with controller_switch=false: produces snapshots
+#    at every segment boundary (ts = NTS, 2*NTS, ..., NSPLIT*NTS).
+mpirun -n "${N_FORWARD}" ./forward
+
+# 2. Stage per-segment IC files. Segment 0 IC is the canonical initial state
+#    (read from the .ic.q produced by config.py). Segments 1..NSPLIT-1 take the
+#    baseline snapshot at the corresponding timestep.
+cp "${PREFIX}.ic.q" "${PREFIX}-0.ic.q"
+for k in $(seq 1 $((NSPLIT - 1))); do
+    ts=$(printf "%08d" $((START_TS + k * NTS)))
+    cp "${PREFIX}-${ts}.q" "${PREFIX}-${k}.ic.q"
+done
+
+# 3. Flip controller_switch=true so compute_norm (and the optim run) see the
+#    actuator patch with its controlForcing buffer allocated.
 sed -i 's/^controller_switch = .*/controller_switch = true/' magudi.inp
+
+# 4. compute_norm writes .norm_<actuator>.dat (5D-subarray), .norm_ic.q (PLOT3D
+#    solution, shared across all ic slabs of M_diag), and .layout.txt for Python.
+mpirun -n "${N_FORWARD}" ./compute_norm --input magudi.inp
 
 BASELINE=2
 SPLIT=1
@@ -89,20 +112,20 @@ SPLIT=1
 mpirun -n "${N_PETSC}" python3 \
     "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
     "${CFG}" --max-iter "${BASELINE}"
-J_baseline=$(tr -d '[:space:]' < OneDWave.forward_run.txt)
+J_baseline=$(tr -d '[:space:]' < "${PREFIX}.forward_run.txt")
 
 rm -f *.petsc
 
 # Split: SPLIT iters, checkpoint, resume for SPLIT more. Final J should match
-# the baseline to near-bitwise precision (toy_optim.py --verify-restart proved
-# rel diff = 0 on the algorithm; this checks the parallel-I/O wiring).
+# the baseline to near-bitwise precision; this checks the parallel-I/O wiring
+# under Phase 3's file-aligned layout.
 mpirun -n "${N_PETSC}" python3 \
     "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
     "${CFG}" --max-iter "${SPLIT}"
 mpirun -n "${N_PETSC}" python3 \
     "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
     "${CFG}" --max-iter "${SPLIT}"
-J_split=$(tr -d '[:space:]' < OneDWave.forward_run.txt)
+J_split=$(tr -d '[:space:]' < "${PREFIX}.forward_run.txt")
 
 python3 - "${J_baseline}" "${J_split}" "${BASELINE}" "${SPLIT}" <<'PY'
 import sys
