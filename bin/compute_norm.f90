@@ -161,6 +161,22 @@ program compute_norm
   ! Initialize the solver.
   call solver%setup(region, outputPrefix = outputPrefix)
 
+  ! collectControlSpaceNorm marches solver%nTimesteps timesteps and accumulates
+  ! one norm frame per (timestep, stage). msforward / msadjoint share the same
+  ! .control_forcing_<actuator>.dat file but iterate Nsplit segments of size
+  ! Nts each, so the file -- and the norm collection -- must span the full
+  ! Nts*Nsplit trajectory. magudi.inp's number_of_timesteps must therefore be
+  ! Nts*Nsplit when compute_norm runs (run_parallel.sh sets it back to Nts
+  ! before the optim run). Refuse to proceed if the caller misconfigured it,
+  ! rather than silently writing a half-sized file.
+  if (solver%nTimesteps /= Nts * Nsplit) then
+    write(message, '(A,I0,A,I0,A,I0,A)')                                                     &
+         "magudi.inp number_of_timesteps = ", solver%nTimesteps,                             &
+         " but compute_norm requires Nts * Nsplit = ", Nts, " * ", Nsplit,                   &
+         ". Set number_of_timesteps accordingly before running compute_norm."
+    call gracefulExit(MPI_COMM_WORLD, message)
+  end if
+
   ! Save the control and target mollifier if using code-generated values.
   if (region%simulationFlags%enableController) then
      filename = getOption("control_mollifier_file", "")
