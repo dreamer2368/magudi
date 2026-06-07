@@ -424,6 +424,28 @@ class ParallelIOHandler:
         sizes_2d = np.array([list(s) for s in self.grid_sizes], dtype=np.int32)
         sol = plot3dnasa.Solution()
         sol.set_size(sizes_2d, allocate=True)
+        # ParallelIOHandler only supports OVERWRITING an existing .q file. The
+        # PLOT3D aux header (timestep + time) is copied from that file so the
+        # rewritten .q preserves it -- magudi reads auxiliaryData[0] as the
+        # starting timestep and auxiliaryData[3] as the simulation time
+        # (src/RegionImpl.f90:1381-1383), so a fresh zero header would put the
+        # controller buffer at the wrong frame offset in subsequent segments.
+        # Callers must pre-stage the target .q files (run_parallel.sh copies the
+        # baseline snapshots into <prefix>-<k>.ic.q before optim.parallel.py
+        # starts).
+        if not os.path.exists(path):
+            raise RuntimeError(
+                f"ParallelIOHandler._write_one_q requires {path} to exist so the "
+                "PLOT3D aux header can be copied from it. Stage the baseline "
+                ".q files before invoking the driver."
+            )
+        existing = plot3dnasa.FileFormat(path)
+        if existing.aux_header is None:
+            raise RuntimeError(
+                f"{path}: expected a PLOT3D aux header to copy; got None."
+            )
+        sol._format.aux_header = existing.aux_header.copy()
+        sol.time = float(existing.aux_header[-1])
         cursor = 0
         for b in range(self.q_nblocks):
             Nx, Ny, Nz = self.grid_sizes[b]
@@ -551,6 +573,23 @@ def _selftest():
     for i, s in enumerate(schema):
         ext = "dat" if s.kind == "actuator" else "q"
         paths.append(os.path.join(workdir, f"{s.kind}_{s.identifier}.{ext}"))
+
+    # _write_one_q requires the target file to exist so it can copy the aux
+    # header. Pre-stage each ic slot path with a zero-valued .q at the right
+    # geometry. Done on rank 0; barrier so every rank sees the files.
+    if comm.Get_rank() == 0:
+        for i, s in enumerate(schema):
+            if s.kind != "ic":
+                continue
+            template = plot3dnasa.Solution()
+            template.set_size(
+                np.array([list(g) for g in io.grid_sizes], dtype=np.int32),
+                allocate=True,
+            )
+            for b in range(io.q_nblocks):
+                template.q[b][...] = 0.0
+            template.save(paths[i])
+    comm.Barrier()
 
     io.write(v, paths)
 
