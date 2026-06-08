@@ -40,9 +40,9 @@ PENALTY_WEIGHT="${PENALTY_WEIGHT:-1.0e-2}"
 MODE="${MODE:-full}"
 TOTAL_TS=$(( NSPLIT * NTS ))
 
-N_FORWARD="${N_FORWARD:-8}"
-N_ADJOINT="${N_ADJOINT:-8}"
-N_PETSC="${N_PETSC:-8}"
+N_FORWARD="${N_FORWARD:-4}"
+N_ADJOINT="${N_ADJOINT:-4}"
+N_PETSC="${N_PETSC:-4}"
 
 for b in forward msforward msadjoint zaxpy qfile_zaxpy compute_norm; do
     if [ ! -x "${BUILD_DIR}/bin/${b}" ]; then

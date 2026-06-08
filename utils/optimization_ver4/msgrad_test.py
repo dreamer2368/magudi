@@ -67,7 +67,7 @@ def _spawn_and_wait(executable, args, n):
     quoted_args = " ".join(shlex.quote(a) for a in args)
     redir_cmd = (
         f"exec {shlex.quote(executable)} {quoted_args} "
-        # f">> {shlex.quote(log_path)} 2>&1"
+        f">> {shlex.quote(log_path)} 2>&1"
     )
 
     inter = MPI.COMM_WORLD.Spawn(

@@ -37,6 +37,7 @@ Wire format follows schema kind unambiguously:
                      loading M_diag)
 """
 
+import glob
 import os
 import sys
 from collections import namedtuple
@@ -356,6 +357,64 @@ class ParallelIOHandler:
         """Allocate and return a Vec populated from M_diag slabs
         (.norm_<name>.dat + shared .norm_ic.q)."""
         return self.read(self.metric_paths)
+
+    def cleanup_iteration_artifacts(self) -> None:
+        """Remove per-iteration files produced by msforward / msadjoint.
+
+        Every rank independently builds the same `targets` list (the glob
+        runs on a shared filesystem and `targets` is sorted so the round-robin
+        partition is identical across ranks). Rank r then unlinks
+        targets[r::N_petsc]; we end on Barrier so the next spawn sees a clean
+        filesystem.
+
+        Inputs that the driver itself writes (.ic.q baseline ICs and
+        .control_forcing_<name>.dat) are preserved.
+
+        Targets (driven by self.schema + self.prefix):
+          - <prefix>-<ts:08d>.q          per-segment forward snapshots (glob)
+          - <prefix>-<ts:08d>.adjoint.q  per-segment adjoint snapshots (glob)
+          - <prefix>-<k>.ic.adjoint.q    per-IC adjoint state (grad_paths ic entries)
+          - <prefix>.gradient_<name>.dat per-actuator gradient (grad_paths actuator entries)
+          - <prefix>.cost_functional.txt
+          - <prefix>.cost_sensitivity.txt
+          - <prefix>.forward_run.txt
+          - <prefix>.adjoint_run.txt
+          - <prefix>.sub_J.txt
+          - <prefix>.sub_adjoint_run.txt
+        """
+        targets = []
+        # Per-segment .q snapshots: <prefix>-<8-digit-ts>.q and the matching
+        # .adjoint.q. The glob is filtered to skip the .ic.q baseline ICs
+        # (driver-owned inputs) and the .ic.adjoint.q files (covered via
+        # self.grad_paths below).
+        stem_lo = len(self.prefix) + 1  # strip "<prefix>-"
+        for path in glob.glob(f"{self.prefix}-*.q"):
+            base = os.path.basename(path)
+            stem = base[stem_lo:-2]  # strip "<prefix>-" prefix and ".q" suffix
+            if stem.endswith(".ic") or stem.endswith(".ic.adjoint"):
+                continue
+            if stem.isdigit() and len(stem) == 8:
+                targets.append(path)
+            elif stem.endswith(".adjoint") and stem[:-len(".adjoint")].isdigit():
+                targets.append(path)
+        # Slot-level outputs (one per actuator / ic in schema order).
+        targets.extend(self.grad_paths)
+        # Fixed text artifacts.
+        for name in ("cost_functional.txt", "cost_sensitivity.txt",
+                     "forward_run.txt", "adjoint_run.txt",
+                     "sub_J.txt", "sub_adjoint_run.txt"):
+            targets.append(f"{self.prefix}.{name}")
+
+        # Sort so the round-robin partition agrees across ranks regardless of
+        # glob.glob() order (which is OS-dependent and not guaranteed across
+        # nodes on a shared FS).
+        targets.sort()
+        for path in targets[self.rank::self.size]:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+        self.comm.Barrier()
 
     def _build_paths(self, mode: str) -> List[str]:
         """One path per slot for a given access mode.

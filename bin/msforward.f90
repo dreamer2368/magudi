@@ -176,12 +176,18 @@ program msforward
 
   ! Segment loop: forward solve + on-the-fly matching-condition penalty.
   do k = 0, Nsplit-1
-    write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.q"
-    if (procRank == 0) inquire(file = icFilename, exist = fileExists)
-    call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
-    if (.not. fileExists) then
-      write(message, '(3A)') "Per-segment IC file ", trim(icFilename), " does not exist!"
-      call gracefulExit(MPI_COMM_WORLD, message)
+    ! k=0: defer to runForward's internal IC loading (initial_condition_file in magudi.inp).
+    !       runForward also writes <prefix>-<startTimestep:08d>.q as part of its
+    !       "save the initial condition" path (src/SolverImpl.f90:730-734).
+    ! k>0: per-segment IC file <prefix>-<k>.ic.q is required.
+    if (k > 0) then
+      write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.q"
+      if (procRank == 0) inquire(file = icFilename, exist = fileExists)
+      call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+      if (.not. fileExists) then
+        write(message, '(3A)') "Per-segment IC file ", trim(icFilename), " does not exist!"
+        call gracefulExit(MPI_COMM_WORLD, message)
+      end if
     end if
 
     write(message, '(A,I0,A,I0,A)') "=== msforward: segment ", k, " of ", Nsplit, " ==="
@@ -207,8 +213,12 @@ program msforward
       segmentPenalty(k) = 0.5_wp * penaltyWeight * L2sq
     end if
 
-    segmentCost(k) = solver%runForward(region, restartFilename = icFilename,                &
-                                       controlTimestepOffset = k * Nts)
+    if (k == 0) then
+      segmentCost(k) = solver%runForward(region, controlTimestepOffset = k * Nts)
+    else
+      segmentCost(k) = solver%runForward(region, restartFilename = icFilename,              &
+                                         controlTimestepOffset = k * Nts)
+    end if
 
     ! Save the end-of-segment snapshot for msadjoint to consume.
     write(endFilename, '(2A,I8.8,A)') trim(outputPrefix), "-", region%timestep, ".q"

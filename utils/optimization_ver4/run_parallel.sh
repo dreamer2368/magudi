@@ -58,9 +58,13 @@ PY
 EOF
 echo "N_forward=${N_FORWARD} N_petsc=${N_PETSC} Nsplit=${NSPLIT} Nts=${NTS} start_ts=${START_TS} prefix=${PREFIX}"
 
-# Patch magudi.inp for the multi-segment layout. The baseline forward runs with
-# controller_switch=false; controller_switch=true is set later for compute_norm
-# and the optim run.
+# Patch magudi.inp for the multi-segment layout. solver%setup reads
+# number_of_timesteps for the *per-segment* step count -- runAdjoint at
+# src/SolverImpl.f90:988 uses (region%timestep + this%nTimesteps) to find the
+# terminal forward snapshot, which only matches msforward's output if
+# nTimesteps == segment_length. The baseline forward below needs to span all
+# segments, so we set number_of_timesteps = Nts there and lift it temporarily
+# to NSPLIT*NTS just for the baseline run.
 sed -i "s/^number_of_timesteps = .*/number_of_timesteps = $((NSPLIT * NTS))/" magudi.inp
 sed -i "s/^save_interval = .*/save_interval = ${NTS}/" magudi.inp
 sed -i 's/^baseline_prediction_available = .*/baseline_prediction_available = true/' magudi.inp
@@ -98,15 +102,38 @@ for k in $(seq 1 $((NSPLIT - 1))); do
 done
 
 # 3. Flip controller_switch=true so compute_norm (and the optim run) see the
-#    actuator patch with its controlForcing buffer allocated.
+#    actuator patch with its controlForcing buffer allocated. Leave
+#    number_of_timesteps at NSPLIT*NTS so compute_norm collects norm frames
+#    for the full trajectory (compute_norm gracefulExits otherwise).
 sed -i 's/^controller_switch = .*/controller_switch = true/' magudi.inp
 
-# 4. compute_norm writes .norm_<actuator>.dat (5D-subarray), .norm_ic.q (PLOT3D
-#    solution, shared across all ic slabs of M_diag), and .layout.txt for Python.
+# 4. compute_norm writes .norm_<actuator>.dat (5D-subarray, NSPLIT*NTS frames),
+#    .norm_ic.q (PLOT3D solution, shared across all ic slabs of M_diag), and
+#    .layout.txt for Python.
 mpirun -n "${N_FORWARD}" ./compute_norm --input magudi.inp
+
+# 5. Drop number_of_timesteps to NTS for the optim run -- msforward / msadjoint
+#    iterate Nsplit segments of NTS steps each via runForward / runAdjoint,
+#    which use solver%nTimesteps as the per-segment count.
+sed -i "s/^number_of_timesteps = .*/number_of_timesteps = ${NTS}/" magudi.inp
 
 BASELINE=2
 SPLIT=1
+
+# Snapshot the pristine baseline ICs (and the .control_forcing_*.dat seed if
+# Python created one) before any optim run mutates them. Both the baseline-run
+# and the split-run start by reading these to initialize y, so we must reset
+# them between runs to compare apples to apples.
+for k in $(seq 0 $((NSPLIT - 1))); do
+    cp "${PREFIX}-${k}.ic.q" "${PREFIX}-${k}.ic.q.bak"
+done
+
+restore_baseline_inputs() {
+    rm -f *.petsc "${PREFIX}.control_forcing_"*.dat
+    for k in $(seq 0 $((NSPLIT - 1))); do
+        cp "${PREFIX}-${k}.ic.q.bak" "${PREFIX}-${k}.ic.q"
+    done
+}
 
 # Baseline: BASELINE iters in one go.
 mpirun -n "${N_PETSC}" python3 \
@@ -114,7 +141,7 @@ mpirun -n "${N_PETSC}" python3 \
     "${CFG}" --max-iter "${BASELINE}"
 J_baseline=$(tr -d '[:space:]' < "${PREFIX}.forward_run.txt")
 
-rm -f *.petsc
+restore_baseline_inputs
 
 # Split: SPLIT iters, checkpoint, resume for SPLIT more. Final J should match
 # the baseline to near-bitwise precision; this checks the parallel-I/O wiring

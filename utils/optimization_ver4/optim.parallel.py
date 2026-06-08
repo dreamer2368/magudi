@@ -236,6 +236,7 @@ def main():
     checkpoint_path = "y.petsc"
     history_path = "history.petsc"
     j_path = f"{prefix}.forward_run.txt"
+    gg_path = f"{prefix}.adjoint_run.txt"
 
     schema = parse_layout(layout_path)
     io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm)
@@ -271,6 +272,10 @@ def main():
     pending = [None]
 
     def fg(tao, y_vec, g_vec):
+        # Wipe per-iteration artifacts from the previous msforward/msadjoint
+        # run so this evaluation starts on a clean filesystem (barrier inside).
+        io.cleanup_iteration_artifacts()
+
         x_dist = y_vec.duplicate()
         x_dist.pointwiseMult(y_vec, D_inv)
         io.write_x(x_dist)
@@ -284,13 +289,19 @@ def main():
 
         # J: scalar, read on rank 0, bcast. msforward folds the matching-condition
         # penalty into the total before writing (bin/msforward.f90:237).
+        # gg: <g,g>_M scalar from msadjoint (.sub_adjoint_run.txt sum).
         if comm.Get_rank() == 0:
             with open(j_path) as fh:
                 J_local = float(fh.read().strip())
-            print("fwd eval: %.5e" % J_local, flush=True)
+            with open(gg_path) as fh:
+                gg_local = float(fh.read().strip())
+            print("fwd eval: J = %.5e   <g,g>_M = %.5e" % (J_local, gg_local),
+                  flush=True)
         else:
             J_local = None
+            gg_local = None
         J = comm.bcast(J_local, root=0)
+        comm.bcast(gg_local, root=0)
 
         raw_grad = io.read_grad()
         g_vec.pointwiseMult(raw_grad, D_inv)
