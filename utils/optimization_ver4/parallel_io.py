@@ -109,24 +109,39 @@ class ParallelIOHandler:
         slice_of(slot_index)   -> (lo, hi) global-index range
     """
 
-    def __init__(self, schema: List[FileSpec], ic_norm_q_path: Optional[str],
+    def __init__(self, schema: List[FileSpec], prefix: str,
+                 ic_norm_q_path: Optional[str] = None,
                  comm: MPI.Comm = MPI.COMM_WORLD):
-        """ic_norm_q_path: path to <prefix>.norm_ic.q (compute_norm's output).
+        """prefix: the canonical file-name prefix (e.g. "OneDWave") used by
+        _build_paths to derive .control_forcing_<name>.dat / -<k>.ic.q /
+        .gradient_<name>.dat / -<k>.ic.adjoint.q / .norm_<name>.dat paths.
+        ic_norm_q_path: path to <prefix>.norm_ic.q (compute_norm's output).
         Inspected once at init to learn (nblocks, per-block sizes, nUnknowns).
-        Optional if the schema has no ic slots.
+        Optional only if the schema has no ic slots.
         """
         if not schema:
             raise ValueError("ParallelIOHandler: empty schema")
         self.schema = list(schema)
+        self.prefix = prefix
+        self.ic_norm_q_path = ic_norm_q_path
         self.comm = comm
         self.rank = comm.Get_rank()
         self.size = comm.Get_size()
 
         self._classify_slots()
+        if self.n_ic > 0 and self.ic_norm_q_path is None:
+            raise RuntimeError(
+                "ParallelIOHandler: ic_norm_q_path is required when the schema "
+                f"has ic slots (n_ic={self.n_ic})."
+            )
         self._assign_ownership()
         self._build_dat_subcomm()
         self._cache_q_geometry(ic_norm_q_path)
         self._validate_ic_geometry()
+
+        self.x_paths = self._build_paths("x")
+        self.grad_paths = self._build_paths("grad")
+        self.metric_paths = self._build_paths("metric")
 
     # ------------------------------------------------------------------ layout
 
@@ -304,8 +319,10 @@ class ParallelIOHandler:
                 self._write_owned_ic(local_arr, paths)
         self.comm.Barrier()
 
-    def read(self, vec: PETSc.Vec, paths: List[str]) -> None:
+    def read(self, paths: List[str]) -> PETSc.Vec:
+        """Allocate a fresh file-aligned Vec, populate it from `paths`, return it."""
         self._check_paths(paths)
+        vec = self.create_vec()
         local_arr = np.empty(self.local_size, dtype="<f8")
         if self.size == 1:
             self._serial_read(local_arr, paths)
@@ -317,6 +334,64 @@ class ParallelIOHandler:
         self.comm.Barrier()
         vec.setArray(local_arr)
         vec.assemble()
+        return vec
+
+    # ---- convenience wrappers using cached schema/prefix/ic_norm_q_path ----
+
+    def read_x(self) -> PETSc.Vec:
+        """Allocate and return a Vec populated from x slabs
+        (.control_forcing_<name>.dat + -<k>.ic.q)."""
+        return self.read(self.x_paths)
+
+    def write_x(self, vec: PETSc.Vec) -> None:
+        """Write vec into x slabs (.control_forcing_<name>.dat + -<k>.ic.q)."""
+        self.write(vec, self.x_paths)
+
+    def read_grad(self) -> PETSc.Vec:
+        """Allocate and return a Vec populated from raw gradient slabs
+        (.gradient_<name>.dat + -<k>.ic.adjoint.q)."""
+        return self.read(self.grad_paths)
+
+    def read_metric(self) -> PETSc.Vec:
+        """Allocate and return a Vec populated from M_diag slabs
+        (.norm_<name>.dat + shared .norm_ic.q)."""
+        return self.read(self.metric_paths)
+
+    def _build_paths(self, mode: str) -> List[str]:
+        """One path per slot for a given access mode.
+
+        mode = 'x'      -> control vector slabs
+                           actuator -> <prefix>.control_forcing_<name>.dat
+                           ic       -> <prefix>-<k>.ic.q
+        mode = 'grad'   -> raw gradient slabs (msadjoint outputs)
+                           actuator -> <prefix>.gradient_<name>.dat
+                           ic       -> <prefix>-<k>.ic.adjoint.q
+        mode = 'metric' -> M_diag slabs (compute_norm outputs)
+                           actuator -> <prefix>.norm_<name>.dat
+                           ic       -> self.ic_norm_q_path (shared)
+        """
+        paths = []
+        for s in self.schema:
+            if s.kind == "actuator":
+                if mode == "x":
+                    paths.append(f"{self.prefix}.control_forcing_{s.identifier}.dat")
+                elif mode == "grad":
+                    paths.append(f"{self.prefix}.gradient_{s.identifier}.dat")
+                elif mode == "metric":
+                    paths.append(f"{self.prefix}.norm_{s.identifier}.dat")
+                else:
+                    raise ValueError(f"unknown mode {mode!r}")
+            else:  # kind == "ic"
+                k = int(s.identifier)
+                if mode == "x":
+                    paths.append(f"{self.prefix}-{k}.ic.q")
+                elif mode == "grad":
+                    paths.append(f"{self.prefix}-{k}.ic.adjoint.q")
+                elif mode == "metric":
+                    paths.append(self.ic_norm_q_path)
+                else:
+                    raise ValueError(f"unknown mode {mode!r}")
+        return paths
 
     # --------------------------------------------------------------- internals
 
@@ -560,7 +635,11 @@ def _selftest():
         else:
             ic_norm_q = args.ic_norm_q
 
-    io = ParallelIOHandler(schema, ic_norm_q, comm)
+    # Synthetic prefix; the selftest uses its own paths via the low-level
+    # write(vec, paths) / read(vec, paths) API, so prefix is only used to populate
+    # self.x_paths / self.grad_paths / self.metric_paths (unused here).
+    selftest_prefix = os.path.join(workdir, "selftest")
+    io = ParallelIOHandler(schema, selftest_prefix, ic_norm_q, comm)
     io.report_balance()
 
     v = io.create_vec()
@@ -593,8 +672,7 @@ def _selftest():
 
     io.write(v, paths)
 
-    v2 = io.create_vec()
-    io.read(v2, paths)
+    v2 = io.read(paths)
 
     diff = v.duplicate()
     v.copy(diff)

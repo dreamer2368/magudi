@@ -111,45 +111,6 @@ def _read_sub_adjoint(path, comm):
     return comm.bcast(out, root=0)
 
 
-def _build_paths(schema, prefix, mode, ic_norm_q_path=None):
-    """One path per slot for a given access mode.
-
-    mode = 'x'      -> control vector slabs read by msforward / written by Python
-                       actuator -> .control_forcing_<name>.dat
-                       ic       -> -<k>.ic.q
-    mode = 'grad'   -> raw_grad slabs (written by msadjoint, read by Python)
-                       actuator -> .gradient_<name>.dat
-                       ic       -> -<k>.ic.adjoint.q
-    mode = 'metric' -> M_diag slabs (written by compute_norm)
-                       actuator -> .norm_<name>.dat
-                       ic       -> <ic_norm_q_path>  (shared)
-    """
-    paths = []
-    for s in schema:
-        if s.kind == "actuator":
-            if mode == "x":
-                paths.append(f"{prefix}.control_forcing_{s.identifier}.dat")
-            elif mode == "grad":
-                paths.append(f"{prefix}.gradient_{s.identifier}.dat")
-            elif mode == "metric":
-                paths.append(f"{prefix}.norm_{s.identifier}.dat")
-            else:
-                raise ValueError(f"unknown mode {mode!r}")
-        else:  # ic
-            k = int(s.identifier)
-            if mode == "x":
-                paths.append(f"{prefix}-{k}.ic.q")
-            elif mode == "grad":
-                paths.append(f"{prefix}-{k}.ic.adjoint.q")
-            elif mode == "metric":
-                if ic_norm_q_path is None:
-                    raise ValueError("metric mode requires ic_norm_q_path")
-                paths.append(ic_norm_q_path)
-            else:
-                raise ValueError(f"unknown mode {mode!r}")
-    return paths
-
-
 def _mask_g_by_mode(g, mode, io):
     """Zero out g-slabs of the slot kind NOT covered by `mode`.
 
@@ -271,19 +232,12 @@ def main():
     layout_path = f"{prefix}.layout.txt"
     ic_norm_q_path = f"{prefix}.norm_ic.q"
     schema = parse_layout(layout_path)
-    io = ParallelIOHandler(schema, ic_norm_q_path, comm=comm)
+    io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm)
     io.report_balance()
 
-    x_paths = _build_paths(schema, prefix, "x")
-    grad_paths = _build_paths(schema, prefix, "grad")
-    metric_paths = _build_paths(schema, prefix, "metric", ic_norm_q_path)
-
-    x_base = io.create_vec()
-    io.read(x_base, x_paths)
-    g = io.create_vec()
-    io.read(g, grad_paths)
-    M_diag = io.create_vec()
-    io.read(M_diag, metric_paths)
+    x_base = io.read_x()
+    g = io.read_grad()
+    M_diag = io.read_metric()
 
     # ParallelIOHandler cross-check; aborts on mismatch.
     _check_gg_against_msadjoint(M_diag, g, gg_total)
@@ -325,7 +279,7 @@ def main():
         for h in h_list:
             x_base.copy(x_new)
             x_new.axpy(h, g_mode)        # x_new = x_base + h * g_mode
-            io.write(x_new, x_paths)
+            io.write_x(x_new)
 
             _spawn_and_wait(
                 "./msforward",
@@ -388,7 +342,7 @@ def main():
         # each .ic.q's PLOT3D aux header (the existing file's header is
         # carried over -- see ParallelIOHandler._write_one_q), so msforward /
         # msadjoint see the original timestep and time after the test exits.
-        io.write(x_base, x_paths)
+        io.write_x(x_base)
         x_base.destroy()
         g_mode.destroy()
 

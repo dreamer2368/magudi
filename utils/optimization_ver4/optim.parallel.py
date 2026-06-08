@@ -205,45 +205,6 @@ def _seed_zero_actuator_files(schema, prefix, comm):
     comm.Barrier()
 
 
-def _build_paths(schema, prefix, mode, ic_norm_q_path=None):
-    """Construct one path per slot for a given access mode.
-
-    mode = 'x'      -> x slabs (read by msforward, written by Python)
-                       actuator -> .control_forcing_<name>.dat
-                       ic       -> -<k>.ic.q
-    mode = 'grad'   -> raw_grad slabs (written by msadjoint, read by Python)
-                       actuator -> .gradient_<name>.dat
-                       ic       -> -<k>.ic.adjoint.q
-    mode = 'metric' -> M_diag slabs (written by compute_norm, read once at startup)
-                       actuator -> .norm_<name>.dat
-                       ic       -> <ic_norm_q_path>  (shared across all ic slots)
-    """
-    paths = []
-    for s in schema:
-        if s.kind == "actuator":
-            if mode == "x":
-                paths.append(f"{prefix}.control_forcing_{s.identifier}.dat")
-            elif mode == "grad":
-                paths.append(f"{prefix}.gradient_{s.identifier}.dat")
-            elif mode == "metric":
-                paths.append(f"{prefix}.norm_{s.identifier}.dat")
-            else:
-                raise ValueError(f"unknown mode {mode!r}")
-        else:  # kind == "ic"
-            k = int(s.identifier)
-            if mode == "x":
-                paths.append(f"{prefix}-{k}.ic.q")
-            elif mode == "grad":
-                paths.append(f"{prefix}-{k}.ic.adjoint.q")
-            elif mode == "metric":
-                if ic_norm_q_path is None:
-                    raise ValueError("metric mode requires ic_norm_q_path")
-                paths.append(ic_norm_q_path)
-            else:
-                raise ValueError(f"unknown mode {mode!r}")
-    return paths
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("config", help="Path to optim.parallel.yml")
@@ -277,14 +238,13 @@ def main():
     j_path = f"{prefix}.forward_run.txt"
 
     schema = parse_layout(layout_path)
-    io = ParallelIOHandler(schema, ic_norm_q_path, comm=comm)
+    io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm)
     io.report_balance()
 
     N_total = io.global_size
 
     # Load M_diag (per-actuator norm files + shared .norm_ic.q) and form D_inv.
-    M_diag = io.create_vec()
-    io.read(M_diag, _build_paths(schema, prefix, "metric", ic_norm_q_path))
+    M_diag = io.read_metric()
     local_min = (
         float(M_diag.getArray(readonly=True).min())
         if M_diag.getLocalSize() > 0 else float("inf")
@@ -310,13 +270,10 @@ def main():
     n_spawn = [0]
     pending = [None]
 
-    x_paths = _build_paths(schema, prefix, "x")
-    grad_paths = _build_paths(schema, prefix, "grad")
-
     def fg(tao, y_vec, g_vec):
         x_dist = y_vec.duplicate()
         x_dist.pointwiseMult(y_vec, D_inv)
-        io.write(x_dist, x_paths)
+        io.write_x(x_dist)
         x_dist.destroy()
         comm.Barrier()
 
@@ -330,12 +287,12 @@ def main():
         if comm.Get_rank() == 0:
             with open(j_path) as fh:
                 J_local = float(fh.read().strip())
+            print("fwd eval: %.5e" % J_local, flush=True)
         else:
             J_local = None
         J = comm.bcast(J_local, root=0)
 
-        raw_grad = io.create_vec()
-        io.read(raw_grad, grad_paths)
+        raw_grad = io.read_grad()
         g_vec.pointwiseMult(raw_grad, D_inv)
         raw_grad.destroy()
         fg_count[0] += 1
@@ -387,8 +344,7 @@ def main():
         # .control_forcing_<name>.dat doesn't exist yet -- rank 0 seeds zero files
         # so io.read can stitch them into baseline_x. Then y_init = D * x_init.
         _seed_zero_actuator_files(schema, prefix, comm)
-        baseline_x = io.create_vec()
-        io.read(baseline_x, x_paths)
+        baseline_x = io.read_x()
         y.pointwiseDivide(baseline_x, D_inv)   # y = baseline_x / D_inv = D * baseline_x
         baseline_x.destroy()
         comm.Barrier()
