@@ -11,15 +11,14 @@ magudi:
 
 optimization:
   log_file: OneDWave.optim.h5
-  initial:
-    zero_control: True
-    zero_lagrangian: True
-  tolerance: 1.0e+9
-  line_minimization:
-    initial_step_size: 3.0e+1
-    safe_zone: 1.0e+4
-    tolerance: 1.0e-1
-    number_of_searches: 50
+  tolerance: 1.0e-9
+  line_search:
+    type: "more-thuente"      # default for TAO BQNLS
+    initial_step_size: 1.0e+1
+    max_step: 1.0e+4
+    min_step: 1.0e-5
+    bracket_tol: 1.0e-1
+    max_funcs: 30
 
 objective:
   include_time_integral: true

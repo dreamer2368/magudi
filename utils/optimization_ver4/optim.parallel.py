@@ -238,6 +238,24 @@ def main():
     j_path = f"{prefix}.forward_run.txt"
     gg_path = f"{prefix}.adjoint_run.txt"
 
+    # Optimization tolerance: TAO's relative gradient-norm test (grtol).
+    grtol = cfg.getInput(["optimization", "tolerance"], fallback=1.0e-8)
+    # Line-search overrides. Each fallback matches the TAO documented default
+    # so that an absent YAML entry leaves the line search at its built-in
+    # configuration (setting a PETSc option to its default is a no-op).
+    ls_type       = cfg.getInput(
+        ["optimization", "line_search", "type"], fallback="more-thuente")
+    ls_init_step  = cfg.getInput(
+        ["optimization", "line_search", "initial_step_size"], fallback=1.0)
+    ls_step_max   = cfg.getInput(
+        ["optimization", "line_search", "max_step"], fallback=1.0e+15)
+    ls_step_min   = cfg.getInput(
+        ["optimization", "line_search", "min_step"], fallback=1.0e-20)
+    ls_stol       = cfg.getInput(
+        ["optimization", "line_search", "bracket_tol"], fallback=1.0e-4)
+    ls_max_funcs  = cfg.getInput(
+        ["optimization", "line_search", "max_funcs"], fallback=30)
+
     schema = parse_layout(layout_path)
     io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm)
     io.report_balance()
@@ -256,10 +274,17 @@ def main():
             f"M_diag has non-positive entries (min={global_min}); cannot form sqrt(M). "
             f"Check controller mollifier coverage and state_controllability."
         )
-    D_inv = M_diag.duplicate()
-    M_diag.copy(D_inv)
-    D_inv.sqrtabs()
-    D_inv.reciprocal()
+    # Preconditioning: y = D * x with D = M^(1/2), so that the y-space
+    # Hessian D_inv * H_x * D_inv ≈ I (assuming H_x ≈ M). msadjoint returns
+    # the M-Riesz gradient g (defined by J(x+ah) ≈ J(x) + a * g^T M h), so
+    # the chain-rule gives g_y = D * g. Mind the asymmetry between the
+    # iterate (x = D_inv * y) and the gradient (g_y = D * g).
+    D = M_diag.duplicate()
+    M_diag.copy(D)
+    D.sqrtabs()                 # D = sqrt(M_diag) = M^(1/2)
+    D_inv = D.duplicate()
+    D.copy(D_inv)
+    D_inv.reciprocal()          # D_inv = D^(-1) = M^(-1/2)
 
     # Optimization iterate and gradient template.
     y = io.create_vec()
@@ -304,7 +329,10 @@ def main():
         comm.bcast(gg_local, root=0)
 
         raw_grad = io.read_grad()
-        g_vec.pointwiseMult(raw_grad, D_inv)
+        # raw_grad is the M-Riesz gradient g (msadjoint convention); the
+        # y-space gradient is g_y = D * g, NOT D_inv * g. See the comment
+        # at the D / D_inv definition above for the chain-rule derivation.
+        g_vec.pointwiseMult(raw_grad, D)
         raw_grad.destroy()
         fg_count[0] += 1
         iter_log.append(J)
@@ -332,13 +360,38 @@ def main():
     tao.setType("bqnls")
     tao.setObjectiveGradient(fg, g_y_template)
     tao.setMaximumIterations(args.max_iter)
-    tao.setTolerances(grtol=1.0e-6)
+    tao.setTolerances(grtol=grtol)
     PETSc.Options().setValue("tao_recycle_history", True)
+    # Canonical option names per PETSc/src/tao/linesearch/interface/taolinesearch.c:497-503.
+    # NOTE: stepinit / stepmax / stepmin are one word (no underscore); the
+    # bracket relative tolerance is tao_ls_rtol (tao_ls_stol does not exist in
+    # this PETSc release).
+    PETSc.Options().setValue("tao_ls_type", ls_type)
+    PETSc.Options().setValue("tao_ls_stepinit", ls_init_step)
+    PETSc.Options().setValue("tao_ls_stepmax",  ls_step_max)
+    PETSc.Options().setValue("tao_ls_stepmin",  ls_step_min)
+    PETSc.Options().setValue("tao_ls_rtol",     ls_stol)
+    PETSc.Options().setValue("tao_ls_max_funcs", ls_max_funcs)
+    # Per-trial line-search log -- prints "LS step <alpha> f <f(alpha)>" for
+    # every Wolfe trial inside an outer iteration. Useful for diagnosing -6
+    # (TAO_DIVERGED_LS_FAILURE) without re-running.
+    PETSc.Options().setValue("tao_ls_monitor", "")
+    # Surface any options the user set that PETSc never consumed (typically
+    # a spelling mistake against the PETSc option registry).
+    PETSc.Options().setValue("options_left", True)
     try:
         tao.setMonitor(monitor)
     except (AttributeError, TypeError):
         PETSc.Options().setValue("tao_monitor", "")
     tao.setFromOptions()
+
+    # Dump the resolved TAO config (type, tolerances, line search subtype +
+    # its parameters) so the run log records the actual setting picked up from
+    # the YAML / command-line overlay. Equivalent to passing -tao_view, but
+    # always-on so it shows up in run_parallel.log regardless of CLI flags.
+    PETSc.Sys.Print("--- TAO configuration ---")
+    tao.view()
+    PETSc.Sys.Print("-------------------------")
 
     PETSc.Sys.Print(
         f"optim.parallel: prefix={prefix} N_total={N_total} "
@@ -356,7 +409,7 @@ def main():
         # so io.read can stitch them into baseline_x. Then y_init = D * x_init.
         _seed_zero_actuator_files(schema, prefix, comm)
         baseline_x = io.read_x()
-        y.pointwiseDivide(baseline_x, D_inv)   # y = baseline_x / D_inv = D * baseline_x
+        y.pointwiseMult(baseline_x, D)         # y_init = D * baseline_x
         baseline_x.destroy()
         comm.Barrier()
 

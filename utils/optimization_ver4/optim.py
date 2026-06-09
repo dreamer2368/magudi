@@ -179,7 +179,12 @@ def main():
         raise SystemExit(f"{norm_path} is empty; run control_space_norm first.")
     if np.any(M_diag <= 0.0):
         raise SystemExit(f"{norm_path} has non-positive entries; cannot form sqrt(M).")
-    D_inv = 1.0 / np.sqrt(M_diag)
+    # Preconditioning: y = D * x with D = sqrt(M_diag) = M^(1/2). msadjoint
+    # returns the M-Riesz gradient g (J(x+ah) ≈ J(x) + a * g^T M h), so by
+    # chain rule g_y = D * g (NOT D_inv * g). The iterate uses x = D_inv * y
+    # -- note the asymmetry between the iterate and the gradient.
+    D = np.sqrt(M_diag)
+    D_inv = 1.0 / D
 
     # Backing arrays: PETSc Vecs alias these via createWithArray, so they must
     # outlive tao.solve(). Declare at module scope of main() to keep them alive.
@@ -213,7 +218,10 @@ def main():
             raise SystemExit(
                 f"gradient size {raw_grad.size} != M_diag size {M_diag.size}"
             )
-        g_vec.setArray(raw_grad * D_inv)
+        # raw_grad is the M-Riesz gradient (msadjoint convention); the
+        # y-space gradient is g_y = D * raw_grad. See the comment at D / D_inv
+        # for the chain-rule derivation.
+        g_vec.setArray(raw_grad * D)
         fg_count[0] += 1
         iter_log.append(J)
         return J

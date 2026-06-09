@@ -329,11 +329,16 @@ def main():
             "cannot form sqrt(M)."
         )
 
-    # D_inv = 1 / sqrt(M_diag) on COMM_WORLD.
-    D_inv = M_diag.duplicate()
-    M_diag.copy(D_inv)
-    D_inv.sqrtabs()
-    D_inv.reciprocal()
+    # Preconditioning: y = D * x with D = sqrt(M_diag) = M^(1/2). msadjoint
+    # returns the M-Riesz gradient g (J(x+ah) ≈ J(x) + a * g^T M h), so by
+    # chain rule g_y = D * g (NOT D_inv * g). The iterate uses x = D_inv * y
+    # — note the asymmetry between the iterate and the gradient.
+    D = M_diag.duplicate()
+    M_diag.copy(D)
+    D.sqrtabs()                 # D = sqrt(M_diag) = M^(1/2)
+    D_inv = D.duplicate()
+    D.copy(D_inv)
+    D_inv.reciprocal()          # D_inv = D^(-1) = M^(-1/2)
 
     # Optimization iterate and gradient template, both distributed.
     y = PETSc.Vec().createMPI(N_total, comm=pcomm)
@@ -368,13 +373,15 @@ def main():
             J_local = None
         J = comm.bcast(J_local, root=0)
 
-        # Gradient: collective read, then g_y = raw_grad * D_inv.
+        # Gradient: collective read, then g_y = D * raw_grad.
+        # raw_grad is the M-Riesz gradient (msadjoint convention); see the
+        # comment at D / D_inv for the chain-rule derivation.
         raw_grad = _read_flat_dat(gradient_path, N_total, comm)
         if raw_grad.getSize() != N_total:
             raise SystemExit(
                 f"gradient size {raw_grad.getSize()} != expected {N_total}"
             )
-        g_vec.pointwiseMult(raw_grad, D_inv)
+        g_vec.pointwiseMult(raw_grad, D)
         raw_grad.destroy()
         fg_count[0] += 1
         iter_log.append(J)
