@@ -34,7 +34,7 @@ program msadjoint
               inputFlag = .false., outputFlag = .false., subOutputFlag = .false.,           &
               saveMetricsFlag = .false.
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, subOutputFilename
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
+  character(len = STRING_LENGTH) :: filename, outputPrefix, segPrefix, message
   character(len = STRING_LENGTH) :: icFilename, endFilename, terminalFilename, icAdjointFilename
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
@@ -222,7 +222,9 @@ program msadjoint
     ! runAdjoint will load this when adjoint_nonzero_initial_condition = "true".
     ! Skip for k=Nsplit-1 (no right neighbor; runAdjoint synthesizes zero terminal).
     if (k < Nsplit - 1) then
-      write(endFilename, '(2A,I8.8,A)') trim(outputPrefix), "-",                            &
+      ! end_k lives under segment k's prefix (msforward wrote it via showProgress
+      ! after running with solver%outputPrefix = <prefix>-<k>).
+      write(endFilename, '(2A,I0,A,I8.8,A)') trim(outputPrefix), "-", k, "-",               &
            startTimestep + (k+1) * Nts, ".q"
       if (procRank == 0) inquire(file = endFilename, exist = fileExists)
       call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
@@ -249,7 +251,10 @@ program msadjoint
              (scratch(i)%F - region%states(i)%conservedVariables)
       end do
 
-      write(terminalFilename, '(2A,I8.8,A)') trim(outputPrefix), "-",                       &
+      ! Terminal file must live under segment k's prefix so runAdjoint
+      ! (with solver%outputPrefix = <prefix>-<k> below) picks it up via its
+      ! "<this%outputPrefix>-<region%timestep>.adjoint.q" path.
+      write(terminalFilename, '(2A,I0,A,I8.8,A)') trim(outputPrefix), "-", k, "-",          &
            startTimestep + (k+1) * Nts, ".adjoint.q"
       call region%saveData(QOI_ADJOINT_STATE, terminalFilename)
     end if
@@ -270,6 +275,22 @@ program msadjoint
       ! Load the matching adjoint terminal just written above.
       dict(nonzeroDictIndex)%val = "true"
     end if
+
+    ! Mutate solver%outputPrefix to <prefix>-<k> so runAdjoint, showProgress, and
+    ! the reverse-time migrator all key their I/O off segment k's namespace.
+    ! That makes the migrator's "<prefix>-<startTimestep>.q" read pick up ic_k
+    ! (written by msforward's segment k via runForward's IC-save) instead of
+    ! end_{k-1} (which used to live at <prefix>-<k*Nts>.q under the global prefix).
+    !
+    ! Mutating solver%outputPrefix here does NOT change the actuator's
+    ! .control_forcing_<name>.dat / .gradient_<name>.dat paths -- those were
+    ! resolved once during setupActuatorPatch (src/ActuatorPatchImpl.f90:52,68)
+    ! via getOption("output_prefix", PROJECT_NAME) and cached on the patch as
+    ! controlForcingFilename / gradientFilename. They stay under the global
+    ! prefix, so segments keep reading/writing one shared .dat with
+    ! controlTimestepOffset = k*Nts selecting the segment's window.
+    write(segPrefix, '(2A,I0)') trim(outputPrefix), "-", k
+    solver%outputPrefix = trim(segPrefix)
 
     segmentCtrlIP(k) = solver%runAdjoint(region, controlTimestepOffset = k * Nts,           &
                                          deleteGradientFile = .false.)
@@ -295,7 +316,8 @@ program msadjoint
       scratch(i)%F = region%states(i)%conservedVariables
     end do
 
-    write(endFilename, '(2A,I8.8,A)') trim(outputPrefix), "-",                              &
+    ! end_{k-1} lives under segment (k-1)'s prefix.
+    write(endFilename, '(2A,I0,A,I8.8,A)') trim(outputPrefix), "-", k-1, "-",               &
          startTimestep + k * Nts, ".q"
     call region%loadData(QOI_FORWARD_STATE, endFilename)
     do i = 1, size(region%states)

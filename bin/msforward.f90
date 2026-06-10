@@ -12,6 +12,7 @@ program msforward
   use State_enum
 
   use InputHelper, only : parseInputFile, getFreeUnit, getOption, getRequiredOption
+  use InputHelperImpl, only: dict, find
   use ErrorHandler
   use PLOT3DHelper, only : plot3dDetectFormat, plot3dErrorMessage
   use MPITimingsHelper, only : startTiming, endTiming, reportTimings, cleanupTimers
@@ -24,14 +25,14 @@ program msforward
   end type t_StateBuffer
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, k, stat, fileUnit, procRank, numProcs, ierror
+  integer :: i, k, icDictIndex, stat, fileUnit, procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., lookForOutput = .false., lookForSubOutput = .false.,   &
               inputFlag = .false., outputFlag = .false., subOutputFlag = .false.,           &
               saveMetricsFlag = .false.
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, subOutputFilename
-  character(len = STRING_LENGTH) :: filename, outputPrefix, message
-  character(len = STRING_LENGTH) :: icFilename, endFilename
+  character(len = STRING_LENGTH) :: filename, outputPrefix, segPrefix, message
+  character(len = STRING_LENGTH) :: icFilename
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
@@ -96,6 +97,17 @@ program msforward
 
   if ( .not. inputFlag ) inputFilename = PROJECT_NAME // ".inp"
   call parseInputFile(inputFilename)
+
+  ! Per-segment dict mutation: ic file is rewritten each iteration so runForward's
+  ! built-in loadInitialCondition path picks up ic_k. The segment-prefixed
+  ! solver%outputPrefix makes runForward save ic_k as <prefix>-<k>-<k*Nts>.q,
+  ! which the reverse-time migrator inside msadjoint later loads as the
+  ! segment start state.
+  call find("initial_condition_file", icDictIndex)
+  if (icDictIndex < 0) then
+    call gracefulExit(MPI_COMM_WORLD,                                                       &
+         "magudi.inp must contain 'initial_condition_file' (placeholder ok) for msforward.")
+  end if
 
   outputPrefix = getOption("output_prefix", PROJECT_NAME)
 
@@ -176,18 +188,15 @@ program msforward
 
   ! Segment loop: forward solve + on-the-fly matching-condition penalty.
   do k = 0, Nsplit-1
-    ! k=0: defer to runForward's internal IC loading (initial_condition_file in magudi.inp).
-    !       runForward also writes <prefix>-<startTimestep:08d>.q as part of its
-    !       "save the initial condition" path (src/SolverImpl.f90:730-734).
-    ! k>0: per-segment IC file <prefix>-<k>.ic.q is required.
-    if (k > 0) then
-      write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.q"
-      if (procRank == 0) inquire(file = icFilename, exist = fileExists)
-      call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
-      if (.not. fileExists) then
-        write(message, '(3A)') "Per-segment IC file ", trim(icFilename), " does not exist!"
-        call gracefulExit(MPI_COMM_WORLD, message)
-      end if
+    ! Per-segment IC file: <prefix>-<k>.ic.q. ic_0.ic.q must be staged
+    ! (run_msgrad.sh copies the original .ic.q into it); ic_k for k>=1 comes
+    ! from the warmup trajectory or msgrad_test's perturbation.
+    write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.q"
+    if (procRank == 0) inquire(file = icFilename, exist = fileExists)
+    call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
+    if (.not. fileExists) then
+      write(message, '(3A)') "Per-segment IC file ", trim(icFilename), " does not exist!"
+      call gracefulExit(MPI_COMM_WORLD, message)
     end if
 
     write(message, '(A,I0,A,I0,A)') "=== msforward: segment ", k, " of ", Nsplit, " ==="
@@ -213,18 +222,29 @@ program msforward
       segmentPenalty(k) = 0.5_wp * penaltyWeight * L2sq
     end if
 
-    if (k == 0) then
-      segmentCost(k) = solver%runForward(region, controlTimestepOffset = k * Nts)
-    else
-      segmentCost(k) = solver%runForward(region, restartFilename = icFilename,              &
-                                         controlTimestepOffset = k * Nts)
-    end if
+    ! Route runForward through its own loadInitialCondition path (dict mutation
+    ! instead of restartFilename) and mutate solver%outputPrefix so all .q
+    ! snapshots are written under <prefix>-<k>-<ts:08d>.q. This isolates each
+    ! segment's start and end-of-segment files so the reverse-time migrator
+    ! inside msadjoint loads ic_k -- not end_{k-1} from the previous segment --
+    ! when it re-runs forward over segment k.
+    !
+    ! Mutating solver%outputPrefix here does NOT change the actuator's
+    ! .control_forcing_<name>.dat / .gradient_<name>.dat paths -- those were
+    ! resolved once during setupActuatorPatch (src/ActuatorPatchImpl.f90:52,68)
+    ! via getOption("output_prefix", PROJECT_NAME) and cached on the patch as
+    ! controlForcingFilename / gradientFilename. They stay under the global
+    ! prefix, so msforward/msadjoint can keep accumulating into a single .dat
+    ! across segments via controlTimestepOffset = k*Nts.
+    dict(icDictIndex)%val = trim(icFilename)
+    write(segPrefix, '(2A,I0)') trim(outputPrefix), "-", k
+    solver%outputPrefix = trim(segPrefix)
 
-    ! Save the end-of-segment snapshot for msadjoint to consume.
-    write(endFilename, '(2A,I8.8,A)') trim(outputPrefix), "-", region%timestep, ".q"
-    call region%saveData(QOI_FORWARD_STATE, endFilename)
+    segmentCost(k) = solver%runForward(region, controlTimestepOffset = k * Nts)
 
     ! Cache the end-state in scratch for the next segment's penalty computation.
+    ! The end-of-segment snapshot has already been written by showProgress under
+    ! the segment-scoped prefix at <prefix>-<k>-<(k+1)*Nts>.q.
     do i = 1, size(region%states)
       scratch(i)%F = region%states(i)%conservedVariables
     end do

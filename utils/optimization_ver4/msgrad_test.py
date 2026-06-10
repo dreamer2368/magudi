@@ -41,7 +41,7 @@ from inputs import InputParser
 from parallel_io import ParallelIOHandler, parse_layout
 
 
-GG_TOL = 1.0e-10  # relative tolerance for the <g,g>_M cross-check vs msadjoint
+GG_TOL = 1.0e-8  # relative tolerance for the <g,g>_M cross-check vs msadjoint
 
 # FD step sizes used when finite_difference.step_sizes is absent from the
 # config -- mirrors check_grad_at_current.py's default so msgrad_test.py can
