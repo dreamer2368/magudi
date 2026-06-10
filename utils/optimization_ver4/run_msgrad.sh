@@ -20,6 +20,10 @@
 #                                      ic   = perturb only ICs (k>=1),
 #                                             reference = sum ic IPs.
 #                                      full = perturb both, reference = total <g,g>.
+#   ADD_IC_NOISE    (default unset)    if non-empty, pass --add-ic-noise to
+#                                      msgrad_test.py: pointwise uniform
+#                                      [-1e-4, 1e-4] noise on intermediate
+#                                      ic slabs before the baseline pass.
 #   N_FORWARD       (default 2)        msforward child rank count
 #   N_ADJOINT       (default 2)        msadjoint child rank count
 #   N_PETSC         (default NSPLIT)   Python driver rank count; must satisfy
@@ -38,11 +42,17 @@ NSPLIT="${NSPLIT:-4}"
 NTS="${NTS:-120}"
 PENALTY_WEIGHT="${PENALTY_WEIGHT:-1.0e-2}"
 MODE="${MODE:-full}"
+ADD_IC_NOISE="${ADD_IC_NOISE:-}"
 TOTAL_TS=$(( NSPLIT * NTS ))
 
-N_FORWARD="${N_FORWARD:-4}"
-N_ADJOINT="${N_ADJOINT:-4}"
-N_PETSC="${N_PETSC:-4}"
+NOISE_FLAG=""
+if [ -n "${ADD_IC_NOISE}" ]; then
+    NOISE_FLAG="--add-ic-noise"
+fi
+
+N_FORWARD="${N_FORWARD:-7}"
+N_ADJOINT="${N_ADJOINT:-7}"
+N_PETSC="${N_PETSC:-1}"
 
 for b in forward msforward msadjoint zaxpy qfile_zaxpy compute_norm; do
     if [ ! -x "${BUILD_DIR}/bin/${b}" ]; then
@@ -142,4 +152,4 @@ EOF
 # rank-portable; perturbation is O(N) memory work).
 mpirun -n "${N_PETSC}" python3 \
     "${REPO_ROOT}/utils/optimization_ver4/msgrad_test.py" \
-    msgrad.yml --mode "${MODE}"
+    msgrad.yml --mode "${MODE}" ${NOISE_FLAG}

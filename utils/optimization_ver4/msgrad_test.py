@@ -31,6 +31,8 @@ import os
 import shlex
 import sys
 
+import numpy as np
+
 # mpi4py MUST import before petsc4py so PETSc binds to MPI.COMM_WORLD.
 from mpi4py import MPI  # noqa: F401  (import-order side effect)
 from petsc4py import PETSc
@@ -40,6 +42,13 @@ from parallel_io import ParallelIOHandler, parse_layout
 
 
 GG_TOL = 1.0e-10  # relative tolerance for the <g,g>_M cross-check vs msadjoint
+
+# FD step sizes used when finite_difference.step_sizes is absent from the
+# config -- mirrors check_grad_at_current.py's default so msgrad_test.py can
+# also run from any pre-staged optim-parallel directory with no extra YAML.
+DEFAULT_H_LIST = [1.0e-1, 3.0e-2, 1.0e-2, 3.0e-3, 1.0e-3,
+                  3.0e-4, 1.0e-4, 3.0e-5, 1.0e-5, 3.0e-6,
+                  1.0e-6, 3.0e-7, 1.0e-7]
 
 
 def _spawn_and_wait(executable, args, n):
@@ -111,6 +120,33 @@ def _read_sub_adjoint(path, comm):
     return comm.bcast(out, root=0)
 
 
+def _add_noise_to_ic(vec, io, amplitude, seed):
+    """Add uniform [-amplitude, amplitude] noise in place to ic slabs of vec.
+
+    Only ranks owning an ic slot mutate their local slab; the actuator
+    sub-comm ranks leave theirs untouched. The schema only contains
+    intermediate ICs (k >= 1) -- ic_0 is the fixed baseline and is not part
+    of the optimization vector -- so masking by kind=='ic' gives exactly
+    the intermediate-IC perturbation the caller asked for.
+
+    Seed is offset by io.rank so each rank's slab gets an independent draw
+    (reproducible for fixed seed + N_petsc).
+    """
+    rng = np.random.default_rng(seed + io.rank)
+    arr = vec.getArray()
+    if io.size == 1:
+        cursor = 0
+        for s in io.schema:
+            if s.kind == "ic":
+                arr[cursor:cursor + s.size] += rng.uniform(
+                    -amplitude, amplitude, size=s.size)
+            cursor += s.size
+    else:
+        if io.is_ic_rank:
+            arr[:] += rng.uniform(-amplitude, amplitude, size=arr.size)
+    vec.assemble()
+
+
 def _mask_g_by_mode(g, mode, io):
     """Zero out g-slabs of the slot kind NOT covered by `mode`.
 
@@ -165,18 +201,31 @@ def _check_gg_against_msadjoint(M_diag, g, gg_total):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("config", help="Path to msgrad.yml")
+    parser.add_argument("config", help="Path to msgrad.yml or optim.parallel.yml")
     parser.add_argument("--mode", choices=("full", "ctrl", "ic"), default="full",
                         help="full: perturb control+IC, reference = msadjoint <g,g> total. "
                              "ctrl: perturb only control, reference = sum control IPs. "
                              "ic:   perturb only IC (k>=1), reference = sum ic IPs.")
+    parser.add_argument("--add-ic-noise", action="store_true",
+                        help="Before the baseline pass, add pointwise uniform "
+                             "[-1e-4, 1e-4] noise to the intermediate ic slabs "
+                             "(k >= 1). The FD test then runs at the perturbed "
+                             "operating point. Original on-disk state is restored "
+                             "at exit, so the probe is non-invasive.")
     args = parser.parse_args()
 
     comm = MPI.COMM_WORLD
     cfg = InputParser(args.config)
 
-    prefix = cfg.getInput(["output_prefix"], datatype=str)
-    h_list = cfg.getInput(["finite_difference", "step_sizes"], datatype=list)
+    # Accept both naming conventions: production configs use "global_prefix"
+    # (optim.parallel.yml), the per-test msgrad.yml historically used
+    # "output_prefix". Fall through silently to the other key.
+    try:
+        prefix = cfg.getInput(["global_prefix"], datatype=str)
+    except RuntimeError:
+        prefix = cfg.getInput(["output_prefix"], datatype=str)
+    h_list = cfg.getInput(
+        ["finite_difference", "step_sizes"], fallback=DEFAULT_H_LIST)
     order_threshold = cfg.getInput(
         ["finite_difference", "order_threshold"], fallback=0.5)
     max_bad_orders = cfg.getInput(
@@ -206,9 +255,37 @@ def main():
             f"got {state_ctrl}."
         )
 
-    # Baseline pass: msforward then msadjoint. msforward reads the staged
-    # .control_forcing.dat + .ic.q files; msadjoint writes .gradient.dat +
-    # .ic.adjoint.q. After this, both x_base and g exist on disk.
+    # One ParallelIOHandler drives both the cross-check and the FD perturbation
+    # loop. With it we replace ./zaxpy / ./qfile_zaxpy (which don't call
+    # disconnectParentIfSpawned and hang the parent's inter-comm Barrier) by
+    # PETSc.Vec.axpy on the host-side and a single io.write per h.
+    # Built BEFORE the baseline pass so --add-ic-noise can mutate the on-disk
+    # state before msforward reads it.
+    layout_path = f"{prefix}.layout.txt"
+    ic_norm_q_path = f"{prefix}.norm_ic.q"
+    schema = parse_layout(layout_path)
+    io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm)
+    io.report_balance()
+
+    # Snapshot the on-disk state so we can restore it in the finally block,
+    # regardless of whether --add-ic-noise mutates the ic slabs below.
+    x_disk_original = io.read_x()
+
+    if args.add_ic_noise:
+        x_perturbed = x_disk_original.duplicate()
+        x_disk_original.copy(x_perturbed)
+        _add_noise_to_ic(x_perturbed, io, amplitude=1.0e-4, seed=0)
+        io.write_x(x_perturbed)
+        x_perturbed.destroy()
+        PETSc.Sys.Print(
+            "--add-ic-noise: injected uniform [-1e-4, 1e-4] noise into "
+            "intermediate ic slabs; FD operating point = x_disk + noise."
+        )
+        comm.Barrier()
+
+    # Baseline pass: msforward then msadjoint. msforward reads the (possibly
+    # noised) .control_forcing.dat + .ic.q files; msadjoint writes .gradient.dat
+    # + .ic.adjoint.q. After this, both the operating point and g exist on disk.
     _spawn_and_wait(
         "./msforward",
         ["--input", "magudi.inp", "--output", "J0.txt"],
@@ -224,16 +301,6 @@ def main():
     ctrl_sum, ic_sum = _read_sub_adjoint(
         f"{prefix}.sub_adjoint_run.txt", comm)
     gg_total = _read_scalar("gg.txt", comm)
-
-    # One ParallelIOHandler drives both the cross-check and the FD perturbation
-    # loop. With it we replace ./zaxpy / ./qfile_zaxpy (which don't call
-    # disconnectParentIfSpawned and hang the parent's inter-comm Barrier) by
-    # PETSc.Vec.axpy on the host-side and a single io.write per h.
-    layout_path = f"{prefix}.layout.txt"
-    ic_norm_q_path = f"{prefix}.norm_ic.q"
-    schema = parse_layout(layout_path)
-    io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm)
-    io.report_balance()
 
     x_base = io.read_x()
     g = io.read_grad()
@@ -338,11 +405,11 @@ def main():
         return 1
 
     finally:
-        # Restore the base point regardless of pass/fail. io.write preserves
-        # each .ic.q's PLOT3D aux header (the existing file's header is
-        # carried over -- see ParallelIOHandler._write_one_q), so msforward /
-        # msadjoint see the original timestep and time after the test exits.
-        io.write_x(x_base)
+        # Restore the original on-disk state regardless of pass/fail or
+        # whether --add-ic-noise was used. io.write_x preserves each .ic.q's
+        # PLOT3D aux header (timestep, time) via ParallelIOHandler._write_one_q.
+        io.write_x(x_disk_original)
+        x_disk_original.destroy()
         x_base.destroy()
         g_mode.destroy()
 
