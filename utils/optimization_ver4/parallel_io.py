@@ -43,10 +43,13 @@ import sys
 from collections import namedtuple
 from typing import List, Optional
 
+import h5py
 import numpy as np
 
 from mpi4py import MPI  # noqa: F401  (import-order side effect)
 from petsc4py import PETSc
+
+from inputs import InputParser
 
 # plot3dnasa is typically copied into the staged run directory (= cwd) by the
 # run wrapper. Add cwd to sys.path so the import finds it without requiring
@@ -110,25 +113,44 @@ class ParallelIOHandler:
         slice_of(slot_index)   -> (lo, hi) global-index range
     """
 
-    def __init__(self, schema: List[FileSpec], prefix: str,
-                 ic_norm_q_path: Optional[str] = None,
+    def __init__(self, cfg: InputParser,
                  comm: MPI.Comm = MPI.COMM_WORLD,
                  pcomm = PETSc.COMM_WORLD):
-        """prefix: the canonical file-name prefix (e.g. "OneDWave") used by
-        _build_paths to derive .control_forcing_<name>.dat / -<k>.ic.q /
-        .gradient_<name>.dat / -<k>.ic.adjoint.q / .norm_<name>.dat paths.
-        ic_norm_q_path: path to <prefix>.norm_ic.q (compute_norm's output).
-        Inspected once at init to learn (nblocks, per-block sizes, nUnknowns).
-        Optional only if the schema has no ic slots.
+        """cfg: parsed YAML. Every config-dependent value (prefix, Nsplit,
+        schema, ic_norm_q_path, log path, history-file paths) is derived from
+        cfg here; nothing else needs to be passed in.
+        comm: MPI comm used for parent-side rank classification and
+        per-actuator MPI-IO sub-communicators.
         pcomm: PETSc comm used for binary .petsc Viewer / Vec.createMPI calls
         (read_petsc / write_petsc / save_tao_state / load_tao_state).
         Defaults to PETSc.COMM_WORLD.
         """
-        if not schema:
-            raise ValueError("ParallelIOHandler: empty schema")
-        self.schema = list(schema)
-        self.prefix = prefix
-        self.ic_norm_q_path = ic_norm_q_path
+        self.cfg = cfg
+        self.prefix = cfg.getInput(["global_prefix"], datatype=str)
+        self.Nsplit = cfg.getInput(
+            ["time_splitting", "number_of_segments"], datatype=int)
+        self.log_file_path = cfg.getInput(
+            ["optimization", "log_file"],
+            fallback=f"{self.prefix}.optim.h5")
+
+        layout_path = f"{self.prefix}.layout.txt"
+        self.schema = parse_layout(layout_path)
+        if not self.schema:
+            raise ValueError(f"ParallelIOHandler: empty schema in {layout_path}")
+        self.ic_norm_q_path = f"{self.prefix}.norm_ic.q"
+
+        # msforward / msadjoint mutate solver%outputPrefix = <prefix>-<k> per
+        # segment (bin/msforward.f90:240-241, bin/msadjoint.f90:296-297), so
+        # the per-timestep history files are per-segment.
+        self.fwd_hist_paths = [f"{self.prefix}-{k}.cost_functional.txt"
+                               for k in range(self.Nsplit)]
+        self.adj_hist_paths = [f"{self.prefix}-{k}.cost_sensitivity.txt"
+                               for k in range(self.Nsplit)]
+        self.sub_j_path   = f"{self.prefix}.sub_J.txt"            # msforward subOutputFilename
+        self.sub_adj_path = f"{self.prefix}.sub_adjoint_run.txt"  # msadjoint subOutputFilename
+        self.j_path       = f"{self.prefix}.forward_run.txt"      # msforward total J output
+        self.gg_path      = f"{self.prefix}.adjoint_run.txt"      # msadjoint total <g,g>_M output
+
         self.comm = comm
         self.pcomm = pcomm
         self.rank = comm.Get_rank()
@@ -142,12 +164,14 @@ class ParallelIOHandler:
             )
         self._assign_ownership()
         self._build_dat_subcomm()
-        self._cache_q_geometry(ic_norm_q_path)
+        self._cache_q_geometry(self.ic_norm_q_path)
         self._validate_ic_geometry()
 
         self.x_paths = self._build_paths("x")
         self.grad_paths = self._build_paths("grad")
         self.metric_paths = self._build_paths("metric")
+
+        self._init_log_file()
 
     # ------------------------------------------------------------------ layout
 
@@ -419,6 +443,165 @@ class ParallelIOHandler:
                 os.unlink(path)
             except FileNotFoundError:
                 pass
+        self.comm.Barrier()
+
+    # ---- per-iteration HDF5 history log (rank-0 only) ---------------------
+
+    def _init_log_file(self) -> None:
+        """Create empty resizable datasets and labels in self.log_file_path.
+
+        If self.log_file_path already exists, return immediately — the file
+        keeps its existing structure and history across resumes. Otherwise
+        create the file from scratch with all groups/datasets/labels in one
+        pass.
+        """
+        if self.rank == 0 and not os.path.exists(self.log_file_path):
+            Nsplit = self.Nsplit
+            str_dt = h5py.string_dtype(encoding="utf-8")
+            with h5py.File(self.log_file_path, "w") as f:
+                obj_grp = f.create_group("Objectives")
+                obj_labels = (
+                    [f"J{k}" for k in range(Nsplit)]
+                    + [f"L2sq{k}" for k in range(Nsplit)]
+                    + ["penalty_weight"]
+                )
+                obj_grp.create_dataset(
+                    "labels", data=np.array(obj_labels, dtype=object), dtype=str_dt)
+                obj_grp.create_dataset(
+                    "subJ", shape=(0, 2 * Nsplit + 1),
+                    maxshape=(None, 2 * Nsplit + 1),
+                    chunks=(1, 2 * Nsplit + 1), dtype="f8")
+
+                grad_grp = f.create_group("Gradients")
+                grad_labels = (
+                    [f"ctrl{k}" for k in range(Nsplit)]
+                    + [f"ic{k}" for k in range(Nsplit)]
+                )
+                grad_grp.create_dataset(
+                    "labels", data=np.array(grad_labels, dtype=object), dtype=str_dt)
+                grad_grp.create_dataset(
+                    "subgrad", shape=(0, 2 * Nsplit),
+                    maxshape=(None, 2 * Nsplit),
+                    chunks=(1, 2 * Nsplit), dtype="f8")
+
+                th_grp = f.create_group("TimeHistory")
+                # time / timesteps width is set on the first log_iteration call
+                # (we don't know the total timestep count here without reading
+                # the history files).
+                th_grp.create_dataset(
+                    "time", shape=(0,), maxshape=(None,), dtype="f8")
+                th_grp.create_dataset(
+                    "timesteps", shape=(0,), maxshape=(None,), dtype="i8")
+                th_grp.create_dataset(
+                    "forward", shape=(0, 0), maxshape=(None, None),
+                    chunks=True, dtype="f8")
+                th_grp.create_dataset(
+                    "adjoint", shape=(0, 0), maxshape=(None, None),
+                    chunks=True, dtype="f8")
+
+                f.create_dataset(
+                    "line_steps", shape=(0,), maxshape=(None,),
+                    chunks=(1,), dtype="f8")
+        self.comm.Barrier()
+
+    def _read_segment_table(self, path: str) -> np.ndarray:
+        """Rank-0 helper. Read the msforward / msadjoint sub-output table.
+
+        Returns shape (Nsplit, n_cols); column 0 is the segment index.
+        """
+        table = np.loadtxt(path, comments="#")
+        if table.ndim == 1:
+            table = table.reshape(1, -1)
+        if table.shape[0] != self.Nsplit:
+            raise RuntimeError(
+                f"{path}: expected {self.Nsplit} segment rows, got {table.shape[0]}"
+            )
+        return table
+
+    def _read_history_files(self, paths):
+        """Rank-0 helper. Read 4-column per-segment history files; concat & sort.
+
+        Each file is a (rows, 4) table written by writeFunctionalToFile /
+        writeSensitivityToFile (cols: timestep, time, instant, running_quad).
+        Returns 1D (timesteps, time, instant) sorted by time.
+        """
+        tables = []
+        for p in paths:
+            tbl = np.loadtxt(p, comments="#")
+            if tbl.ndim == 1:
+                tbl = tbl.reshape(1, -1)
+            if tbl.shape[1] != 4:
+                raise RuntimeError(
+                    f"{p}: expected 4 columns (timestep, time, instant, running_quad); "
+                    f"got {tbl.shape[1]}"
+                )
+            tables.append(tbl)
+        merged = np.concatenate(tables, axis=0)
+        order = np.argsort(merged[:, 1], kind="stable")
+        merged = merged[order]
+        return (merged[:, 0].astype("i8"),
+                merged[:, 1].astype("f8"),
+                merged[:, 2].astype("f8"))
+
+    def log_iteration(self, penalty_weight: float, line_step: float) -> None:
+        """Append one row per dataset for the current accepted TAO iteration.
+
+        Reads:
+          - <prefix>.sub_J.txt              (segmentCost, segmentL2sq per segment)
+          - <prefix>.sub_adjoint_run.txt    (segmentCtrlIP, segmentICIP per segment)
+          - <prefix>-<k>.cost_functional.txt   (per-timestep forward values)
+          - <prefix>-<k>.cost_sensitivity.txt  (per-timestep adjoint values)
+        Appends to Objectives/subJ, Gradients/subgrad, TimeHistory/forward,
+        TimeHistory/adjoint, and line_steps.
+        """
+        if self.rank == 0:
+            sub_j   = self._read_segment_table(self.sub_j_path)    # cols: idx, J, L2sq, penalty
+            sub_adj = self._read_segment_table(self.sub_adj_path)  # cols: idx, ctrlIP, icIP
+            segmentCost   = sub_j[:, 1]
+            segmentL2sq   = sub_j[:, 2]
+            segmentCtrlIP = sub_adj[:, 1]
+            segmentICIP   = sub_adj[:, 2]
+
+            ts_fwd, time_fwd, inst_fwd = self._read_history_files(self.fwd_hist_paths)
+            _, time_adj, inst_adj = self._read_history_files(self.adj_hist_paths)
+            if len(time_adj) != len(time_fwd):
+                raise RuntimeError(
+                    f"forward/adjoint history length mismatch: "
+                    f"forward={len(time_fwd)} vs adjoint={len(time_adj)}"
+                )
+
+            with h5py.File(self.log_file_path, "a") as f:
+                subJ = f["Objectives/subJ"]
+                row = np.concatenate([segmentCost, segmentL2sq, [penalty_weight]])
+                subJ.resize(subJ.shape[0] + 1, axis=0)
+                subJ[-1] = row
+
+                subgrad = f["Gradients/subgrad"]
+                row = np.concatenate([segmentCtrlIP, segmentICIP])
+                subgrad.resize(subgrad.shape[0] + 1, axis=0)
+                subgrad[-1] = row
+
+                time_ds = f["TimeHistory/time"]
+                ts_ds   = f["TimeHistory/timesteps"]
+                fwd_ds  = f["TimeHistory/forward"]
+                adj_ds  = f["TimeHistory/adjoint"]
+                N = len(time_fwd)
+                if time_ds.shape[0] == 0:
+                    time_ds.resize((N,))
+                    time_ds[:] = time_fwd
+                    ts_ds.resize((N,))
+                    ts_ds[:] = ts_fwd
+                    fwd_ds.resize((0, N))
+                    adj_ds.resize((0, N))
+                fwd_ds.resize(fwd_ds.shape[0] + 1, axis=0)
+                fwd_ds[-1] = inst_fwd
+                adj_ds.resize(adj_ds.shape[0] + 1, axis=0)
+                adj_ds[-1] = inst_adj
+
+                ls_ds = f["line_steps"]
+                ls_ds.resize(ls_ds.shape[0] + 1, axis=0)
+                ls_ds[-1] = line_step
+
         self.comm.Barrier()
 
     # ---- .petsc binary I/O for PETSc Vecs ---------------------------------
@@ -798,18 +981,16 @@ class ParallelIOHandler:
 def _selftest():
     """Round-trip a Vec through write + read for a synthetic schema.
 
-    Run with `mpirun -n N python3 parallel_io.py [--layout ...] [--ic-norm-q ...]`
+    Stages layout.txt + norm_ic.q + a tiny YAML in a tempdir, then calls the
+    cfg-driven ctor. Run with `mpirun -n N python3 parallel_io.py`.
     """
     import argparse
     import shutil
     import tempfile
 
+    import yaml
+
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--layout", default=None,
-                        help="Optional path to layout.txt; synthetic schema otherwise.")
-    parser.add_argument("--ic-norm-q", default=None,
-                        help="Optional path to compute_norm's .norm_ic.q for geometry; "
-                             "synthetic single-block .q otherwise.")
     parser.add_argument("--n-actuator", type=int, default=1)
     parser.add_argument("--actuator-size", type=int, default=64)
     parser.add_argument("--nx", type=int, default=5)
@@ -822,47 +1003,56 @@ def _selftest():
     workdir = tempfile.mkdtemp() if comm.Get_rank() == 0 else None
     workdir = comm.bcast(workdir, root=0)
 
-    if args.layout is not None:
-        schema = parse_layout(args.layout)
-        ic_norm_q = args.ic_norm_q
+    N = comm.Get_size()
+    if N == 1:
+        n_ic = 2
     else:
-        N = comm.Get_size()
-        if N == 1:
-            n_ic = 2
-        else:
-            n_ic = max(0, N - args.n_actuator)
-            if args.n_actuator > 0 and (N - n_ic) % args.n_actuator != 0:
-                raise SystemExit(
-                    f"selftest: with N={N} and n_actuator={args.n_actuator}, "
-                    f"choose --n-actuator dividing (N - n_ic)"
-                )
-        Nx, Ny, Nz, nU = args.nx, args.ny, args.nz, args.nU
-        ic_size = Nx * Ny * Nz * nU
-        schema = [FileSpec("actuator", f"act{i}", args.actuator_size)
-                  for i in range(args.n_actuator)]
-        schema += [FileSpec("ic", str(k), ic_size) for k in range(1, n_ic + 1)]
-        # Synthesize a .norm_ic.q-like file (rank 0) so geometry caching works
-        # without depending on a .xyz file.
-        if n_ic > 0 and args.ic_norm_q is None:
-            ic_norm_q = os.path.join(workdir, "synth.norm_ic.q")
-            if comm.Get_rank() == 0:
-                if plot3dnasa is None:
-                    raise SystemExit(
-                        f"selftest: plot3dnasa import failed: {_plot3d_import_error}"
-                    )
-                sol = plot3dnasa.Solution()
-                sol.set_size(np.array([[Nx, Ny, Nz]], dtype=np.int32), allocate=True)
-                sol.q[0][:] = 1.0
-                sol.save(ic_norm_q)
-            comm.Barrier()
-        else:
-            ic_norm_q = args.ic_norm_q
+        n_ic = max(0, N - args.n_actuator)
+        if args.n_actuator > 0 and (N - n_ic) % args.n_actuator != 0:
+            raise SystemExit(
+                f"selftest: with N={N} and n_actuator={args.n_actuator}, "
+                f"choose --n-actuator dividing (N - n_ic)"
+            )
+    Nx, Ny, Nz, nU = args.nx, args.ny, args.nz, args.nU
+    ic_size = Nx * Ny * Nz * nU
+    schema = [FileSpec("actuator", f"act{i}", args.actuator_size)
+              for i in range(args.n_actuator)]
+    schema += [FileSpec("ic", str(k), ic_size) for k in range(1, n_ic + 1)]
 
-    # Synthetic prefix; the selftest uses its own paths via the low-level
-    # write(vec, paths) / read(vec, paths) API, so prefix is only used to populate
-    # self.x_paths / self.grad_paths / self.metric_paths (unused here).
+    # Prefix the ctor will use. The ctor reads <prefix>.layout.txt and
+    # <prefix>.norm_ic.q, both of which we stage below.
     selftest_prefix = os.path.join(workdir, "selftest")
-    io = ParallelIOHandler(schema, selftest_prefix, ic_norm_q, comm)
+    layout_path = f"{selftest_prefix}.layout.txt"
+    ic_norm_q = f"{selftest_prefix}.norm_ic.q"
+    yaml_path = os.path.join(workdir, "selftest.yml")
+    log_path  = os.path.join(workdir, "selftest.optim.h5")
+
+    if comm.Get_rank() == 0:
+        # 1) layout.txt — same format parse_layout expects.
+        with open(layout_path, "w") as fh:
+            for s in schema:
+                fh.write(f"{s.kind} {s.identifier} {s.size}\n")
+        # 2) norm_ic.q — single-block PLOT3D solution for geometry caching.
+        if n_ic > 0:
+            if plot3dnasa is None:
+                raise SystemExit(
+                    f"selftest: plot3dnasa import failed: {_plot3d_import_error}"
+                )
+            sol = plot3dnasa.Solution()
+            sol.set_size(np.array([[Nx, Ny, Nz]], dtype=np.int32), allocate=True)
+            sol.q[0][:] = 1.0
+            sol.save(ic_norm_q)
+        # 3) YAML — minimal config the ctor will read.
+        with open(yaml_path, "w") as fh:
+            yaml.safe_dump({
+                "global_prefix": selftest_prefix,
+                "time_splitting": {"number_of_segments": 2},
+                "optimization": {"log_file": log_path},
+            }, fh)
+    comm.Barrier()
+
+    cfg = InputParser(yaml_path)
+    io = ParallelIOHandler(cfg, comm)
     io.report_balance()
 
     v = io.create_vec()

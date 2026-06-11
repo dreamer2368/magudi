@@ -35,7 +35,7 @@ from mpi4py import MPI  # noqa: F401  (import-order side effect)
 from petsc4py import PETSc
 
 from inputs import InputParser
-from parallel_io import ParallelIOHandler, parse_layout
+from parallel_io import ParallelIOHandler
 
 LMVM_DEPTH = 5  # matches BQNLS default Max. storage = 5
 
@@ -122,13 +122,10 @@ def main():
             f"resource_distribution.jobs.petsc requests {N_petsc}"
         )
 
-    prefix = cfg.getInput(["global_prefix"], datatype=str)
-    layout_path = f"{prefix}.layout.txt"
-    ic_norm_q_path = f"{prefix}.norm_ic.q"
+    penalty_weight = cfg.getInput(
+        ["time_splitting", "penalty_weight"], datatype=float)
     checkpoint_path = "y.petsc"
     history_path = "history.petsc"
-    j_path = f"{prefix}.forward_run.txt"
-    gg_path = f"{prefix}.adjoint_run.txt"
 
     # Optimization tolerance: TAO's relative gradient-norm test (grtol).
     grtol = cfg.getInput(["optimization", "tolerance"], fallback=1.0e-8)
@@ -147,13 +144,12 @@ def main():
         ["optimization", "line_search", "bracket_tol"], fallback=1.0e-4)
     ls_max_funcs  = cfg.getInput(
         ["optimization", "line_search", "max_funcs"], fallback=30)
-    ls_log_file   = cfg.getInput(
+    io = ParallelIOHandler(cfg, comm=comm, pcomm=pcomm)
+    io.report_balance()
+    prefix = io.prefix
+    ls_log_file = cfg.getInput(
         ["optimization", "line_search", "log_file"],
         fallback=f"{prefix}.line_search.h5")
-
-    schema = parse_layout(layout_path)
-    io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm, pcomm=pcomm)
-    io.report_balance()
 
     N_total = io.global_size
 
@@ -216,8 +212,8 @@ def main():
         # J: msforward folds the matching-condition penalty into the total
         # before writing (bin/msforward.f90:237).
         # gg: <g,g>_M scalar from msadjoint (.sub_adjoint_run.txt sum).
-        J = io.read_scalar(j_path)
-        gg_local = io.read_scalar(gg_path)
+        J = io.read_scalar(io.j_path)
+        gg_local = io.read_scalar(io.gg_path)
 
         raw_grad = io.read_grad()
         # raw_grad is the M-Riesz gradient g (msadjoint convention); the
@@ -292,14 +288,12 @@ def main():
 
     def monitor(tao):
         it = tao.getIterationNumber()
-        try:
-            its, f_val, gnorm, cnorm, xdiff, reason = tao.getSolutionStatus()
-        except AttributeError:
-            f_val = iter_log[-1] if iter_log else float("nan")
-            gnorm = float("nan")
+        _, f_val, gnorm, _, _, _ = tao.getSolutionStatus()
         PETSc.Sys.Print(
             f"  iter {it:4d}  J = {f_val: .6e}  |g_y| = {gnorm: .6e}"
         )
+        # y_prev: the iterate from the previous monitor call (None at iter 0).
+        y_prev = pending[0][0] if pending[0] is not None else None
         if pending[0] is not None:
             snapshots.append(pending[0])
         x_now = tao.getSolution()
@@ -307,6 +301,16 @@ def main():
         vx = x_now.duplicate(); x_now.copy(vx)
         vg = g_now.duplicate(); g_now.copy(vg)
         pending[0] = (vx, vg)
+
+        # |y_N - y_{N-1}| = alpha * |d| -- the y-space iterate displacement
+        # produced by iter N's line search. 0 at iter 0 (no LS has run yet).
+        if y_prev is not None:
+            dy = vx.duplicate(); vx.copy(dy); dy.axpy(-1.0, y_prev)
+            displacement = float(dy.norm())
+            dy.destroy()
+        else:
+            displacement = 0.0
+        io.log_iteration(penalty_weight=penalty_weight, line_step=displacement)
 
     tao = PETSc.TAO().create(comm=pcomm)
     tao.setType("bqnls")
@@ -329,7 +333,8 @@ def main():
     # (TAO_DIVERGED_LS_FAILURE) without re-running. `:append` keeps records
     # across the multiple optim.parallel.py invocations that run_parallel.sh
     # chains, instead of truncating on each invocation.
-    PETSc.Options().setValue("tao_ls_monitor", ls_log_file)
+    if args.verbose:
+        PETSc.Options().setValue("tao_ls_monitor", ls_log_file)
     # Surface any options the user set that PETSc never consumed (typically
     # a spelling mistake against the PETSc option registry).
     PETSc.Options().setValue("options_left", True)
