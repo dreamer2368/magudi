@@ -38,9 +38,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$(pwd)}"
 WORK_DIR="${BUILD_DIR}/OneDWave_msgrad"
 
-NSPLIT="${NSPLIT:-4}"
-NTS="${NTS:-120}"
-PENALTY_WEIGHT="${PENALTY_WEIGHT:-1.0e-2}"
+NSPLIT="${NSPLIT:-2}"
+NTS="${NTS:-480}"
+PENALTY_WEIGHT="${PENALTY_WEIGHT:-1.0e-3}"
 MODE="${MODE:-full}"
 ADD_IC_NOISE="${ADD_IC_NOISE:-1}"
 TOTAL_TS=$(( NSPLIT * NTS ))
@@ -50,9 +50,9 @@ if [ -n "${ADD_IC_NOISE}" ]; then
     NOISE_FLAG="--add-ic-noise"
 fi
 
-N_FORWARD="${N_FORWARD:-7}"
-N_ADJOINT="${N_ADJOINT:-7}"
-N_PETSC="${N_PETSC:-1}"
+N_FORWARD="${N_FORWARD:-4}"
+N_ADJOINT="${N_ADJOINT:-4}"
+N_PETSC="${N_PETSC:-4}"
 
 for b in forward msforward msadjoint zaxpy qfile_zaxpy compute_norm; do
     if [ ! -x "${BUILD_DIR}/bin/${b}" ]; then

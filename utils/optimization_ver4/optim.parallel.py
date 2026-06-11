@@ -212,6 +212,14 @@ def main():
         "--max-iter", type=int, default=5,
         help="iterations this run (added to loaded iter if resuming)"
     )
+    parser.add_argument(
+        "--verbose", action="store_true",
+        help="print extra progress information"
+    )
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="print debug-level diagnostics"
+    )
     args = parser.parse_args()
 
     comm = MPI.COMM_WORLD
@@ -339,64 +347,65 @@ def main():
         g_vec.pointwiseMult(raw_grad, D)
         raw_grad.destroy()
 
-        # DIAGNOSTIC (1): cross-check g_y · g_y == g^T M g == gg_local.
-        # The y-space Euclidean norm of g_y must equal the M-norm of the
-        # M-Riesz gradient that msadjoint reported. A mismatch flags an
-        # error in the D-scaling, the layout, or the M_diag file.
-        gg_check = g_vec.dot(g_vec)
-        rel = abs(gg_check - gg_local) / max(abs(gg_local), 1e-30)
-        PETSc.Sys.Print(
-            f"fwd eval #{fg_count[0]+1:4d}  J = {J: .5e}  "
-            f"<g_y,g_y> = {gg_check: .5e}  vs gg_local = {gg_local: .5e}  "
-            f"rel = {rel: .2e}"
-        )
-
-        # DIAGNOSTIC (2): reconstruct (Dg)^T d at each line-search trial.
-        # petsc4py does not expose the LS direction or step length, so we
-        # detect the bracket start via the outer-iteration counter (which
-        # increments only after a LS accepts) and store (y_init, g_init).
-        # At every subsequent trial in the same LS, y_vec - y_init = alpha*d
-        # so g_vec . (y_vec - y_init) = alpha * (g_now . d) and similarly
-        # g_init . (y_vec - y_init) = alpha * dginit. The ratio cancels
-        # alpha, giving dg_now / dginit -- the strong-Wolfe gate (must
-        # shrink below gtol = 0.9 in magnitude for the LS to accept).
-        it = tao.getIterationNumber()
-        if it != ls_iter_seen[0]:
-            ls_iter_seen[0] = it
-            if ls_bracket[0] is not None:
-                ls_bracket[0][0].destroy()
-                ls_bracket[0][1].destroy()
-            y_init = y_vec.duplicate(); y_vec.copy(y_init)
-            g_init = g_vec.duplicate(); g_vec.copy(g_init)
-            ls_bracket[0] = (y_init, g_init)
-            PETSc.Sys.Print(f"    [LS#{it}] bracket start captured")
-        else:
-            y_init, g_init = ls_bracket[0]
-            dy = y_vec.duplicate(); y_vec.copy(dy); dy.axpy(-1.0, y_init)
-            ginit_dot_dy = g_init.dot(dy)          # = alpha * dginit
-            gnow_dot_dy  = g_vec.dot(dy)           # = alpha * dg(alpha)
-            dy_norm = dy.norm()
-            g_init_norm = g_init.norm()
-            dy.destroy()
-            # cos(dy, g_init) should be -1 at iter 0 (pure steepest descent
-            # along the initial scaled-identity Hessian). Deviation flags
-            # a non-steepest direction (e.g. stale L-BFGS history active).
-            denom = dy_norm * g_init_norm
-            if denom > 0.0:
-                cos_dy_g0 = ginit_dot_dy / denom
-                cos_str = f"cos(dy,g0) = {cos_dy_g0: .6f}"
-            else:
-                cos_str = "cos(dy,g0) = NaN"
-            if abs(ginit_dot_dy) > 0.0:
-                ratio = gnow_dot_dy / ginit_dot_dy
-                ratio_str = f"|dg/dg0| = {abs(ratio):.3f}"
-            else:
-                ratio_str = "|dg/dg0| = NaN"
+        if args.debug:
+            # DIAGNOSTIC (1): cross-check g_y · g_y == g^T M g == gg_local.
+            # The y-space Euclidean norm of g_y must equal the M-norm of the
+            # M-Riesz gradient that msadjoint reported. A mismatch flags an
+            # error in the D-scaling, the layout, or the M_diag file.
+            gg_check = g_vec.dot(g_vec)
+            rel = abs(gg_check - gg_local) / max(abs(gg_local), 1e-30)
             PETSc.Sys.Print(
-                f"    [LS#{it} trial] |alpha*d| = {dy_norm: .3e}  "
-                f"alpha*g0.d = {ginit_dot_dy: .3e}  "
-                f"alpha*g.d  = {gnow_dot_dy: .3e}  {ratio_str}  {cos_str}"
+                f"fwd eval #{fg_count[0]+1:4d}  J = {J: .5e}  "
+                f"<g_y,g_y> = {gg_check: .5e}  vs gg_local = {gg_local: .5e}  "
+                f"rel = {rel: .2e}"
             )
+
+            # DIAGNOSTIC (2): reconstruct (Dg)^T d at each line-search trial.
+            # petsc4py does not expose the LS direction or step length, so we
+            # detect the bracket start via the outer-iteration counter (which
+            # increments only after a LS accepts) and store (y_init, g_init).
+            # At every subsequent trial in the same LS, y_vec - y_init = alpha*d
+            # so g_vec . (y_vec - y_init) = alpha * (g_now . d) and similarly
+            # g_init . (y_vec - y_init) = alpha * dginit. The ratio cancels
+            # alpha, giving dg_now / dginit -- the strong-Wolfe gate (must
+            # shrink below gtol = 0.9 in magnitude for the LS to accept).
+            it = tao.getIterationNumber()
+            if it != ls_iter_seen[0]:
+                ls_iter_seen[0] = it
+                if ls_bracket[0] is not None:
+                    ls_bracket[0][0].destroy()
+                    ls_bracket[0][1].destroy()
+                y_init = y_vec.duplicate(); y_vec.copy(y_init)
+                g_init = g_vec.duplicate(); g_vec.copy(g_init)
+                ls_bracket[0] = (y_init, g_init)
+                PETSc.Sys.Print(f"    [LS#{it}] bracket start captured")
+            else:
+                y_init, g_init = ls_bracket[0]
+                dy = y_vec.duplicate(); y_vec.copy(dy); dy.axpy(-1.0, y_init)
+                ginit_dot_dy = g_init.dot(dy)          # = alpha * dginit
+                gnow_dot_dy  = g_vec.dot(dy)           # = alpha * dg(alpha)
+                dy_norm = dy.norm()
+                g_init_norm = g_init.norm()
+                dy.destroy()
+                # cos(dy, g_init) should be -1 at iter 0 (pure steepest descent
+                # along the initial scaled-identity Hessian). Deviation flags
+                # a non-steepest direction (e.g. stale L-BFGS history active).
+                denom = dy_norm * g_init_norm
+                if denom > 0.0:
+                    cos_dy_g0 = ginit_dot_dy / denom
+                    cos_str = f"cos(dy,g0) = {cos_dy_g0: .6f}"
+                else:
+                    cos_str = "cos(dy,g0) = NaN"
+                if abs(ginit_dot_dy) > 0.0:
+                    ratio = gnow_dot_dy / ginit_dot_dy
+                    ratio_str = f"|dg/dg0| = {abs(ratio):.3f}"
+                else:
+                    ratio_str = "|dg/dg0| = NaN"
+                PETSc.Sys.Print(
+                    f"    [LS#{it} trial] |alpha*d| = {dy_norm: .3e}  "
+                    f"alpha*g0.d = {ginit_dot_dy: .3e}  "
+                    f"alpha*g.d  = {gnow_dot_dy: .3e}  {ratio_str}  {cos_str}"
+                )
 
         fg_count[0] += 1
         iter_log.append(J)
@@ -439,7 +448,8 @@ def main():
     # Per-trial line-search log -- prints "LS step <alpha> f <f(alpha)>" for
     # every Wolfe trial inside an outer iteration. Useful for diagnosing -6
     # (TAO_DIVERGED_LS_FAILURE) without re-running.
-    PETSc.Options().setValue("tao_ls_monitor", "")
+    if args.verbose:
+        PETSc.Options().setValue("tao_ls_monitor", "")
     # Surface any options the user set that PETSc never consumed (typically
     # a spelling mistake against the PETSc option registry).
     PETSc.Options().setValue("options_left", True)
@@ -451,11 +461,11 @@ def main():
 
     # Dump the resolved TAO config (type, tolerances, line search subtype +
     # its parameters) so the run log records the actual setting picked up from
-    # the YAML / command-line overlay. Equivalent to passing -tao_view, but
-    # always-on so it shows up in run_parallel.log regardless of CLI flags.
-    PETSc.Sys.Print("--- TAO configuration ---")
-    tao.view()
-    PETSc.Sys.Print("-------------------------")
+    # the YAML / command-line overlay. Equivalent to passing -tao_view.
+    if args.verbose:
+        PETSc.Sys.Print("--- TAO configuration ---")
+        tao.view()
+        PETSc.Sys.Print("-------------------------")
 
     PETSc.Sys.Print(
         f"optim.parallel: prefix={prefix} N_total={N_total} "
