@@ -140,7 +140,12 @@ def load_tao_state(tao, checkpoint_path, history_path, N, comm):
         return False
     x = tao.getSolution()
     viewer = PETSc.Viewer().createBinary(checkpoint_path, mode="r", comm=comm)
-    x_loaded = PETSc.Vec().load(viewer)
+    # Pre-allocate the load target with x's per-rank layout. Without this,
+    # PETSc would distribute the checkpoint evenly across ranks (N/P per rank),
+    # which mismatches the ParallelIOHandler's file-aligned partition and the
+    # subsequent VecCopy would fail with "Incompatible vector local lengths".
+    x_loaded = x.duplicate()
+    x_loaded.load(viewer)
     viewer.destroy()
     if x_loaded.getSize() != x.getSize():
         raise SystemExit(
@@ -170,12 +175,14 @@ def load_tao_state(tao, checkpoint_path, history_path, N, comm):
         raise SystemExit(f"history N={n_dim} != current N={N}")
     M = tao.getLMVMMat()
     for _ in range(n_snap):
-        vx = PETSc.Vec().load(viewer)
-        vg = PETSc.Vec().load(viewer)
+        # Same layout-pinning rationale as the x_loaded path above:
+        # snapshots and J0 diag share x's file-aligned partition.
+        vx = x.duplicate(); vx.load(viewer)
+        vg = x.duplicate(); vg.load(viewer)
         M.updateLMVM(vx, vg)
         vx.destroy()
         vg.destroy()
-    J0_diag = PETSc.Vec().load(viewer)
+    J0_diag = x.duplicate(); J0_diag.load(viewer)
     viewer.destroy()
     M.setLMVMJ0(PETSc.Mat().createDiagonal(J0_diag))
     tao.setIterationNumber(iter_no)
