@@ -112,13 +112,17 @@ class ParallelIOHandler:
 
     def __init__(self, schema: List[FileSpec], prefix: str,
                  ic_norm_q_path: Optional[str] = None,
-                 comm: MPI.Comm = MPI.COMM_WORLD):
+                 comm: MPI.Comm = MPI.COMM_WORLD,
+                 pcomm = PETSc.COMM_WORLD):
         """prefix: the canonical file-name prefix (e.g. "OneDWave") used by
         _build_paths to derive .control_forcing_<name>.dat / -<k>.ic.q /
         .gradient_<name>.dat / -<k>.ic.adjoint.q / .norm_<name>.dat paths.
         ic_norm_q_path: path to <prefix>.norm_ic.q (compute_norm's output).
         Inspected once at init to learn (nblocks, per-block sizes, nUnknowns).
         Optional only if the schema has no ic slots.
+        pcomm: PETSc comm used for binary .petsc Viewer / Vec.createMPI calls
+        (read_petsc / write_petsc / save_tao_state / load_tao_state).
+        Defaults to PETSc.COMM_WORLD.
         """
         if not schema:
             raise ValueError("ParallelIOHandler: empty schema")
@@ -126,6 +130,7 @@ class ParallelIOHandler:
         self.prefix = prefix
         self.ic_norm_q_path = ic_norm_q_path
         self.comm = comm
+        self.pcomm = pcomm
         self.rank = comm.Get_rank()
         self.size = comm.Get_size()
 
@@ -415,6 +420,165 @@ class ParallelIOHandler:
             except FileNotFoundError:
                 pass
         self.comm.Barrier()
+
+    # ---- .petsc binary I/O for PETSc Vecs ---------------------------------
+
+    def write_petsc(self, vec: PETSc.Vec, path: str) -> None:
+        """Write a PETSc Vec to a binary .petsc file collectively on self.pcomm."""
+        viewer = PETSc.Viewer().createBinary(path, mode="w", comm=self.pcomm)
+        vec.view(viewer)
+        viewer.destroy()
+
+    def read_petsc(self, path: str) -> PETSc.Vec:
+        """Load a Vec from `path` with the file-aligned layout.
+
+        Pre-allocates the target via self.create_vec() so PETSc reads into
+        the ParallelIOHandler partition (matches what every other Vec the
+        driver uses). Without this, VecLoad would distribute the file
+        contents evenly across ranks and downstream VecCopy / pointwiseMult
+        would fail with PETSc error code 75 (incompatible local lengths).
+        """
+        viewer = PETSc.Viewer().createBinary(path, mode="r", comm=self.pcomm)
+        vec = self.create_vec()
+        vec.load(viewer)
+        viewer.destroy()
+        return vec
+
+    # ---- scalar .txt I/O (rank 0 reads/writes, broadcasts on read) --------
+
+    def read_scalar(self, path: str) -> float:
+        """Rank 0 reads a single float from `path`; broadcast to all ranks."""
+        if self.rank == 0:
+            with open(path) as fh:
+                val = float(fh.read().strip())
+        else:
+            val = None
+        return self.comm.bcast(val, root=0)
+
+    def write_scalar(self, path: str, value: float) -> None:
+        """Rank 0 writes `value` to `path` as text. No broadcast (value is
+        already known on every rank)."""
+        if self.rank == 0:
+            with open(path, "w") as fh:
+                fh.write(f"{value}\n")
+
+    # ---- driver-side bootstrap and TAO state checkpointing ----------------
+
+    def seed_zero_actuator_files(self) -> None:
+        """Create zero-filled .control_forcing_<name>.dat for every actuator
+        slot, sized to its layout entry. Idempotent: skipped when the file
+        already exists at the expected size. Needed only on the first run,
+        before the very first read_x for the baseline x.
+        """
+        if self.rank == 0:
+            for s, path in zip(self.schema, self.x_paths):
+                if s.kind != "actuator":
+                    continue
+                expected = s.size * 8
+                actual = os.path.getsize(path) if os.path.exists(path) else -1
+                if actual != expected:
+                    with open(path, "wb") as fh:
+                        fh.write(b"\x00" * expected)
+        self.comm.Barrier()
+
+    def save_tao_state(self, tao, checkpoint_path: str, history_path: str,
+                       snapshots) -> None:
+        """Persist iterate + L-BFGS replay buffer + J0 diagonal.
+
+        `snapshots` is a deque of (vx, vg) tuples of distributed Vecs with the
+        file-aligned layout. J0 is persisted explicitly because
+        M.updateLMVM replay reconstructs (s_k, y_k) but not the nested
+        MATLMVMDIAGBRDN diagonal.
+        """
+        x = tao.getSolution()
+        self.write_petsc(x, checkpoint_path)
+        PETSc.Sys.Print(f"Saved {checkpoint_path}: |y| = {x.norm():.6e}")
+
+        viewer = PETSc.Viewer().createBinary(history_path, mode="w",
+                                             comm=self.pcomm)
+        local_size = 3 if self.rank == 0 else 0
+        hdr = PETSc.Vec().createMPI((local_size, 3), comm=self.pcomm)
+        if self.rank == 0:
+            hdr.setValues([0, 1, 2],
+                          [float(tao.getIterationNumber()),
+                           float(len(snapshots)),
+                           float(self.global_size)])
+        hdr.assemble()
+        hdr.view(viewer)
+        hdr.destroy()
+        for vx, vg in snapshots:
+            vx.view(viewer)
+            vg.view(viewer)
+        J0_diag = tao.getLMVMMat().getLMVMJ0().getDiagonal()
+        J0_diag.view(viewer)
+        J0_diag.destroy()
+        viewer.destroy()
+        PETSc.Sys.Print(
+            f"Saved {history_path}: {len(snapshots)} snapshots + J0 diag, "
+            f"iter={tao.getIterationNumber()}"
+        )
+
+    def load_tao_state(self, tao, checkpoint_path: str,
+                       history_path: str) -> bool:
+        """Resume iterate; replay L-BFGS history + J0 if present.
+
+        Caller must have done tao.setSolution(y) AND tao.setUp() so the inner
+        LMVM Mat is allocated and updateLMVM / setLMVMJ0 target the right
+        object. Returns True if a checkpoint was loaded, False otherwise.
+        """
+        if not os.path.exists(checkpoint_path):
+            PETSc.Sys.Print(
+                f"No checkpoint at {checkpoint_path}; starting from current y"
+            )
+            return False
+        x = tao.getSolution()
+        x_loaded = self.read_petsc(checkpoint_path)
+        if x_loaded.getSize() != self.global_size:
+            raise SystemExit(
+                f"{checkpoint_path} size {x_loaded.getSize()} "
+                f"!= expected {self.global_size}"
+            )
+        x_loaded.copy(x)
+        x_loaded.destroy()
+        PETSc.Sys.Print(
+            f"Resumed iterate from {checkpoint_path}: |y| = {x.norm():.6e}"
+        )
+
+        if not (os.path.exists(history_path)
+                and os.path.getsize(history_path) > 0):
+            PETSc.Sys.Print(
+                f"No L-BFGS history at {history_path}; using fresh L-BFGS"
+            )
+            return True
+
+        viewer = PETSc.Viewer().createBinary(history_path, mode="r",
+                                             comm=self.pcomm)
+        hdr = PETSc.Vec().load(viewer)
+        local_vals = list(hdr.getArray(readonly=True))
+        gathered = self.comm.allgather(local_vals)
+        flat = [v for sub in gathered for v in sub]
+        iter_no, n_snap, n_dim = int(flat[0]), int(flat[1]), int(flat[2])
+        hdr.destroy()
+        if n_dim != self.global_size:
+            raise SystemExit(
+                f"history N={n_dim} != current N={self.global_size}")
+        M = tao.getLMVMMat()
+        for _ in range(n_snap):
+            # Same layout-pinning rationale as read_petsc: snapshots and J0
+            # diag share the file-aligned partition.
+            vx = self.create_vec(); vx.load(viewer)
+            vg = self.create_vec(); vg.load(viewer)
+            M.updateLMVM(vx, vg)
+            vx.destroy()
+            vg.destroy()
+        J0_diag = self.create_vec(); J0_diag.load(viewer)
+        viewer.destroy()
+        M.setLMVMJ0(PETSc.Mat().createDiagonal(J0_diag))
+        tao.setIterationNumber(iter_no)
+        PETSc.Sys.Print(
+            f"Replayed {n_snap} snapshots + J0 diag; iter counter set to {iter_no}"
+        )
+        return True
 
     def _build_paths(self, mode: str) -> List[str]:
         """One path per slot for a given access mode.

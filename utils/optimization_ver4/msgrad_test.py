@@ -92,16 +92,6 @@ def _spawn_and_wait(executable, args, n):
     MPI.COMM_WORLD.Barrier()
 
 
-def _read_scalar(path, comm):
-    """Rank-0 reads a single float; bcast to all ranks."""
-    if comm.Get_rank() == 0:
-        with open(path) as fh:
-            val = float(fh.read().strip())
-    else:
-        val = None
-    return comm.bcast(val, root=0)
-
-
 def _read_sub_adjoint(path, comm):
     """Rank-0 parses .sub_adjoint_run.txt -> (sum_ctrl_IP, sum_ic_IP); bcast."""
     if comm.Get_rank() == 0:
@@ -292,7 +282,7 @@ def main():
         ["--input", "magudi.inp", "--output", "J0.txt"],
         N_forward,
     )
-    j0 = _read_scalar("J0.txt", comm)
+    j0 = io.read_scalar("J0.txt")
     _spawn_and_wait(
         "./msadjoint",
         ["--input", "magudi.inp", "--output", "gg.txt"],
@@ -301,7 +291,7 @@ def main():
 
     ctrl_sum, ic_sum = _read_sub_adjoint(
         f"{prefix}.sub_adjoint_run.txt", comm)
-    gg_total = _read_scalar("gg.txt", comm)
+    gg_total = io.read_scalar("gg.txt")
 
     x_base = io.read_x()
     g = io.read_grad()
@@ -354,7 +344,7 @@ def main():
                 ["--input", "magudi.inp", "--output", "Jh.txt"],
                 N_forward,
             )
-            jh = _read_scalar("Jh.txt", comm)
+            jh = io.read_scalar("Jh.txt")
             slope = (jh - j0) / h
             err = abs(slope - gg) / abs(gg) if gg != 0.0 else abs(slope - gg)
 

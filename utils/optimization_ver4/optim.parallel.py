@@ -89,129 +89,6 @@ def _spawn_and_wait(executable, args, n):
     MPI.COMM_WORLD.Barrier()
 
 
-def save_tao_state(tao, checkpoint_path, history_path, snapshots, N, comm):
-    """Persist iterate + replay-buffer + J0 diagonal collectively on `comm`.
-
-    `snapshots` is a deque of (vx, vg) tuples of distributed PETSc Vecs
-    with the file-aligned layout. See optim.py for why J0 must be persisted
-    explicitly -- M.updateLMVM replay reconstructs (s_k, y_k) but not the
-    nested MATLMVMDIAGBRDN diagonal.
-    """
-    x = tao.getSolution()
-    viewer = PETSc.Viewer().createBinary(checkpoint_path, mode="w", comm=comm)
-    x.view(viewer)
-    viewer.destroy()
-    PETSc.Sys.Print(f"Saved {checkpoint_path}: |y| = {x.norm():.6e}")
-
-    viewer = PETSc.Viewer().createBinary(history_path, mode="w", comm=comm)
-    local_size = 3 if comm.Get_rank() == 0 else 0
-    hdr = PETSc.Vec().createMPI((local_size, 3), comm=comm)
-    if comm.Get_rank() == 0:
-        hdr.setValues([0, 1, 2],
-                      [float(tao.getIterationNumber()),
-                       float(len(snapshots)),
-                       float(N)])
-    hdr.assemble()
-    hdr.view(viewer)
-    hdr.destroy()
-    for vx, vg in snapshots:
-        vx.view(viewer)
-        vg.view(viewer)
-    J0_diag = tao.getLMVMMat().getLMVMJ0().getDiagonal()
-    J0_diag.view(viewer)
-    J0_diag.destroy()
-    viewer.destroy()
-    PETSc.Sys.Print(
-        f"Saved {history_path}: {len(snapshots)} snapshots + J0 diag, "
-        f"iter={tao.getIterationNumber()}"
-    )
-
-
-def load_tao_state(tao, checkpoint_path, history_path, N, comm):
-    """Resume iterate; replay L-BFGS history + J0 if present.
-
-    Caller must have done tao.setSolution(y) AND tao.setUp() so the inner
-    LMVM Mat is allocated and updateLMVM / setLMVMJ0 target the right object.
-    """
-    if not os.path.exists(checkpoint_path):
-        PETSc.Sys.Print(
-            f"No checkpoint at {checkpoint_path}; starting from current y"
-        )
-        return False
-    x = tao.getSolution()
-    viewer = PETSc.Viewer().createBinary(checkpoint_path, mode="r", comm=comm)
-    # Pre-allocate the load target with x's per-rank layout. Without this,
-    # PETSc would distribute the checkpoint evenly across ranks (N/P per rank),
-    # which mismatches the ParallelIOHandler's file-aligned partition and the
-    # subsequent VecCopy would fail with "Incompatible vector local lengths".
-    x_loaded = x.duplicate()
-    x_loaded.load(viewer)
-    viewer.destroy()
-    if x_loaded.getSize() != x.getSize():
-        raise SystemExit(
-            f"{checkpoint_path} size {x_loaded.getSize()} "
-            f"!= expected {x.getSize()}"
-        )
-    x_loaded.copy(x)
-    x_loaded.destroy()
-    PETSc.Sys.Print(
-        f"Resumed iterate from {checkpoint_path}: |y| = {x.norm():.6e}"
-    )
-
-    if not (os.path.exists(history_path) and os.path.getsize(history_path) > 0):
-        PETSc.Sys.Print(
-            f"No L-BFGS history at {history_path}; using fresh L-BFGS"
-        )
-        return True
-
-    viewer = PETSc.Viewer().createBinary(history_path, mode="r", comm=comm)
-    hdr = PETSc.Vec().load(viewer)
-    local_vals = list(hdr.getArray(readonly=True))
-    gathered = comm.tompi4py().allgather(local_vals)
-    flat = [v for sub in gathered for v in sub]
-    iter_no, n_snap, n_dim = int(flat[0]), int(flat[1]), int(flat[2])
-    hdr.destroy()
-    if n_dim != N:
-        raise SystemExit(f"history N={n_dim} != current N={N}")
-    M = tao.getLMVMMat()
-    for _ in range(n_snap):
-        # Same layout-pinning rationale as the x_loaded path above:
-        # snapshots and J0 diag share x's file-aligned partition.
-        vx = x.duplicate(); vx.load(viewer)
-        vg = x.duplicate(); vg.load(viewer)
-        M.updateLMVM(vx, vg)
-        vx.destroy()
-        vg.destroy()
-    J0_diag = x.duplicate(); J0_diag.load(viewer)
-    viewer.destroy()
-    M.setLMVMJ0(PETSc.Mat().createDiagonal(J0_diag))
-    tao.setIterationNumber(iter_no)
-    PETSc.Sys.Print(
-        f"Replayed {n_snap} snapshots + J0 diag; iter counter set to {iter_no}"
-    )
-    return True
-
-
-def _seed_zero_actuator_files(schema, prefix, comm):
-    """Rank 0 creates zero-filled .control_forcing_<name>.dat for each actuator
-    slot, sized to its layout entry. Idempotent: skipped when the file already
-    exists at the expected size. Needed only on the first run, before the very
-    first io.read for the baseline x -- subsequent iterations overwrite the
-    file via io.write.
-    """
-    if comm.Get_rank() == 0:
-        for s in schema:
-            if s.kind != "actuator":
-                continue
-            path = f"{prefix}.control_forcing_{s.identifier}.dat"
-            expected = s.size * 8
-            actual = os.path.getsize(path) if os.path.exists(path) else -1
-            if actual != expected:
-                with open(path, "wb") as fh:
-                    fh.write(b"\x00" * expected)
-    comm.Barrier()
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("config", help="Path to optim.parallel.yml")
@@ -272,7 +149,7 @@ def main():
         ["optimization", "line_search", "max_funcs"], fallback=30)
 
     schema = parse_layout(layout_path)
-    io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm)
+    io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm, pcomm=pcomm)
     io.report_balance()
 
     N_total = io.global_size
@@ -333,19 +210,11 @@ def main():
         _spawn_and_wait("./msadjoint", ["--input", "magudi.inp"], N_adjoint)
         n_spawn[0] += 1
 
-        # J: scalar, read on rank 0, bcast. msforward folds the matching-condition
-        # penalty into the total before writing (bin/msforward.f90:237).
+        # J: msforward folds the matching-condition penalty into the total
+        # before writing (bin/msforward.f90:237).
         # gg: <g,g>_M scalar from msadjoint (.sub_adjoint_run.txt sum).
-        if comm.Get_rank() == 0:
-            with open(j_path) as fh:
-                J_local = float(fh.read().strip())
-            with open(gg_path) as fh:
-                gg_local = float(fh.read().strip())
-        else:
-            J_local = None
-            gg_local = None
-        J = comm.bcast(J_local, root=0)
-        gg_local = comm.bcast(gg_local, root=0)   # was discarded before
+        J = io.read_scalar(j_path)
+        gg_local = io.read_scalar(gg_path)
 
         raw_grad = io.read_grad()
         # raw_grad is the M-Riesz gradient g (msadjoint convention); the
@@ -482,13 +351,13 @@ def main():
 
     tao.setSolution(y)
     tao.setUp()
-    resumed = load_tao_state(tao, checkpoint_path, history_path, N_total, pcomm)
+    resumed = io.load_tao_state(tao, checkpoint_path, history_path)
     if not resumed:
         # Initial x = (zero control, baseline IC). The baseline IC slabs were staged
         # from a controller-off forward run by run_parallel.sh as <prefix>-<k>.ic.q.
         # .control_forcing_<name>.dat doesn't exist yet -- rank 0 seeds zero files
         # so io.read can stitch them into baseline_x. Then y_init = D * x_init.
-        _seed_zero_actuator_files(schema, prefix, comm)
+        io.seed_zero_actuator_files()
         baseline_x = io.read_x()
         y.pointwiseMult(baseline_x, D)         # y_init = D * baseline_x
         baseline_x.destroy()
@@ -496,7 +365,7 @@ def main():
 
     tao.solve(y)
 
-    save_tao_state(tao, checkpoint_path, history_path, snapshots, N_total, pcomm)
+    io.save_tao_state(tao, checkpoint_path, history_path, snapshots)
 
     reason = tao.getConvergedReason()
     final_J = iter_log[-1] if iter_log else float("nan")
