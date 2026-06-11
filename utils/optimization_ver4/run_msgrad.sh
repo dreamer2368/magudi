@@ -50,9 +50,9 @@ if [ -n "${ADD_IC_NOISE}" ]; then
     NOISE_FLAG="--add-ic-noise"
 fi
 
-N_FORWARD="${N_FORWARD:-4}"
-N_ADJOINT="${N_ADJOINT:-4}"
-N_PETSC="${N_PETSC:-4}"
+N_FORWARD="${N_FORWARD:-1}"
+N_ADJOINT="${N_ADJOINT:-1}"
+N_PETSC="${N_PETSC:-3}"
 
 for b in forward msforward msadjoint zaxpy qfile_zaxpy compute_norm; do
     if [ ! -x "${BUILD_DIR}/bin/${b}" ]; then

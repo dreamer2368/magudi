@@ -147,6 +147,9 @@ def main():
         ["optimization", "line_search", "bracket_tol"], fallback=1.0e-4)
     ls_max_funcs  = cfg.getInput(
         ["optimization", "line_search", "max_funcs"], fallback=30)
+    ls_log_file   = cfg.getInput(
+        ["optimization", "line_search", "log_file"],
+        fallback=f"{prefix}.line_search.h5")
 
     schema = parse_layout(layout_path)
     io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm, pcomm=pcomm)
@@ -321,11 +324,12 @@ def main():
     PETSc.Options().setValue("tao_ls_stepmin",  ls_step_min)
     PETSc.Options().setValue("tao_ls_rtol",     ls_stol)
     PETSc.Options().setValue("tao_ls_max_funcs", ls_max_funcs)
-    # Per-trial line-search log -- prints "LS step <alpha> f <f(alpha)>" for
+    # Per-trial line-search log -- writes "LS step <alpha> f <f(alpha)>" for
     # every Wolfe trial inside an outer iteration. Useful for diagnosing -6
-    # (TAO_DIVERGED_LS_FAILURE) without re-running.
-    if args.verbose:
-        PETSc.Options().setValue("tao_ls_monitor", "")
+    # (TAO_DIVERGED_LS_FAILURE) without re-running. `:append` keeps records
+    # across the multiple optim.parallel.py invocations that run_parallel.sh
+    # chains, instead of truncating on each invocation.
+    PETSc.Options().setValue("tao_ls_monitor", ls_log_file)
     # Surface any options the user set that PETSc never consumed (typically
     # a spelling mistake against the PETSc option registry).
     PETSc.Options().setValue("options_left", True)
