@@ -744,7 +744,8 @@ function runForward(this, region, restartFilename, controlTimestepOffset) result
        controller%onsetTime = startTime
        controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
        if (PRESENT(controlTimestepOffset)) then
-         call controller%hookBeforeTimemarch(region, FORWARD, controlTimestepOffset)
+         call controller%hookBeforeTimemarch(region, FORWARD,                                  &
+              referenceTimestep=controlTimestepOffset)
        else
          call controller%hookBeforeTimemarch(region, FORWARD)
        end if
@@ -855,8 +856,8 @@ function runForward(this, region, restartFilename, controlTimestepOffset) result
 
 end function runForward
 
-function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)                    &
-     result(costSensitivity)
+function runAdjoint(this, region, controlTimestepOffset, controlTotalTimesteps,                 &
+                    deleteGradientFile) result(costSensitivity)
 
   ! <<< External modules >>>
   use iso_fortran_env, only : output_unit
@@ -882,7 +883,7 @@ function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)    
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
-  use ErrorHandler, only : writeAndFlush
+  use ErrorHandler, only : writeAndFlush, gracefulExit
   use InputHelper, only : getOption, getRequiredOption
 
   ! <<< SeungWhan: debug >>>
@@ -894,6 +895,7 @@ function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)    
   class(t_Solver) :: this
   class(t_Region) :: region
   integer, intent(in), optional :: controlTimestepOffset
+  integer, intent(in), optional :: controlTotalTimesteps
   logical, intent(in), optional :: deleteGradientFile
 
   ! <<< Result >>> - This value is currently not meaningful. left for future purpose.
@@ -913,11 +915,31 @@ function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)    
              IS_FINAL_STEP, noAdjointForcing
   integer :: accumulatedNTimesteps, intermediateEndTimestep
   integer :: procRank, ierror
+  integer :: forwardReferenceTimestep_, adjointReferenceTimestep_
   SCALAR_TYPE :: instantaneousCostSensitivity
 
   assert(region%simulationFlags%enableController)
   assert(region%simulationFlags%enableFunctional)
   assert(region%simulationFlags%enableAdjoint)
+
+  ! controlTimestepOffset and controlTotalTimesteps must be provided together.
+  ! From those, derive the FORWARD-hook reference (count from start, = offset)
+  ! and the ADJOINT-hook reference (count from end in reverse,
+  ! = total - offset - nTimesteps). See include/Controller.f90 for the
+  ! referenceTimestep semantics consumed by the hooks.
+  if (PRESENT(controlTimestepOffset) .neqv. PRESENT(controlTotalTimesteps)) then
+     call gracefulExit(region%comm,                                                             &
+          "runAdjoint: controlTimestepOffset and controlTotalTimesteps must be "                &
+          // "provided together or both omitted.")
+  end if
+  forwardReferenceTimestep_ = -1
+  adjointReferenceTimestep_ = -1
+  if (PRESENT(controlTimestepOffset)) then
+     forwardReferenceTimestep_ = controlTimestepOffset
+     adjointReferenceTimestep_ = controlTotalTimesteps - controlTimestepOffset - this%nTimesteps
+     assert(forwardReferenceTimestep_ >= 0)
+     assert(adjointReferenceTimestep_ >= 0)
+  end if
 
   call startTiming("runAdjoint")
 
@@ -1025,15 +1047,18 @@ function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)    
   end if
 
   ! Call controller hooks before time marching starts.
-  ! When the caller supplies controlTimestepOffset, it drives both ADJOINT and FORWARD hooks
-  ! (overrides the magudi.inp adjoint_restart/accumulated_timesteps mechanism) and the
+  ! When the caller supplies (controlTimestepOffset, controlTotalTimesteps), the
+  ! computed referenceTimesteps drive both ADJOINT and FORWARD hooks (overriding
+  ! the magudi.inp adjoint_restart/accumulated_timesteps mechanism) and the
   ! caller is also responsible for the deleteGradientFile policy.
   if (PRESENT(controlTimestepOffset)) then
     if (PRESENT(deleteGradientFile)) then
       call controller%hookBeforeTimemarch(region, ADJOINT,                                  &
-           controlTimestepOffset=controlTimestepOffset, deleteGradientFile=deleteGradientFile)
+           referenceTimestep=adjointReferenceTimestep_,                                     &
+           deleteGradientFile=deleteGradientFile)
     else
-      call controller%hookBeforeTimemarch(region, ADJOINT, controlTimestepOffset=controlTimestepOffset)
+      call controller%hookBeforeTimemarch(region, ADJOINT,                                  &
+           referenceTimestep=adjointReferenceTimestep_)
     end if
   else if (adjointRestart) then
     call controller%hookBeforeTimemarch(region, ADJOINT, accumulatedNTimesteps)
@@ -1045,7 +1070,8 @@ function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)    
     controller%duration = this%nTimesteps * region%solverOptions%timeStepSize
     controller%onsetTime = startTime - controller%duration
     if (PRESENT(controlTimestepOffset)) then
-      call controller%hookBeforeTimemarch(region, FORWARD, controlTimestepOffset)
+      call controller%hookBeforeTimemarch(region, FORWARD,                                  &
+           referenceTimestep=forwardReferenceTimestep_)
     else
       call controller%hookBeforeTimemarch(region, FORWARD)
     end if

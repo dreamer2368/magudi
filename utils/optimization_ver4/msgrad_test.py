@@ -41,7 +41,8 @@ from inputs import InputParser
 from parallel_io import ParallelIOHandler, parse_layout
 
 
-GG_TOL = 1.0e-8  # relative tolerance for the <g,g>_M cross-check vs msadjoint
+GG_TOL = 1.0e-10  # relative tolerance for the <g,g>_M cross-check vs msadjoint
+MIN_ERR_THRESHOLD = 1.0e-6  # FD min rel_err must drop below this to pass
 
 # FD step sizes used when finite_difference.step_sizes is absent from the
 # config -- mirrors check_grad_at_current.py's default so msgrad_test.py can
@@ -274,11 +275,11 @@ def main():
     if args.add_ic_noise:
         x_perturbed = x_disk_original.duplicate()
         x_disk_original.copy(x_perturbed)
-        _add_noise_to_ic(x_perturbed, io, amplitude=1.0e-4, seed=0)
+        _add_noise_to_ic(x_perturbed, io, amplitude=1.0e-2, seed=0)
         io.write_x(x_perturbed)
         x_perturbed.destroy()
         PETSc.Sys.Print(
-            "--add-ic-noise: injected uniform [-1e-4, 1e-4] noise into "
+            "--add-ic-noise: injected uniform [-1e-2, 1e-2] noise into "
             "intermediate ic slabs; FD operating point = x_disk + noise."
         )
         comm.Barrier()
@@ -388,6 +389,7 @@ def main():
         ]
         n_bad = sum(o < order_threshold for o in orders)
 
+        min_err = min(errs)
         PETSc.Sys.Print("")
         PETSc.Sys.Print(
             f"Pre-floor orders ({len(orders)}): "
@@ -397,11 +399,23 @@ def main():
             f"Bad orders (< {order_threshold}): {n_bad} / {len(orders)} "
             f"(allowed: {max_bad_orders})"
         )
+        PETSc.Sys.Print(
+            f"min rel_err = {min_err:.4e} (threshold: {MIN_ERR_THRESHOLD:.0e})"
+        )
 
-        if n_bad <= max_bad_orders:
+        orders_ok = n_bad <= max_bad_orders
+        min_err_ok = min_err < MIN_ERR_THRESHOLD
+        if orders_ok and min_err_ok:
             PETSc.Sys.Print("PASS: gradient is discrete-exact within FD precision")
             return 0
-        PETSc.Sys.Print("FAIL: gradient is not discrete-exact")
+        reasons = []
+        if not orders_ok:
+            reasons.append("orders")
+        if not min_err_ok:
+            reasons.append(f"min rel_err >= {MIN_ERR_THRESHOLD:.0e}")
+        PETSc.Sys.Print(
+            f"FAIL: gradient is not discrete-exact ({', '.join(reasons)})"
+        )
         return 1
 
     finally:

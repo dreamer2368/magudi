@@ -384,10 +384,19 @@ contains
     !                                          total grid points * nUnknowns)
     !
     ! Sizes are in real64 elements. Rank 0 has the canonical view of patch metadata.
+    !
+    ! We iterate region%patchData -- the global descriptor list parsed from
+    ! bc.dat and broadcast to every rank (src/RegionImpl.f90:175-307) -- rather
+    ! than region%patchFactories, because the latter only holds factories whose
+    ! patchCommunicators on the local rank are non-null (src/RegionImpl.f90
+    ! :1224-1231). If rank 0's grid slice doesn't intersect an actuator's
+    ! extent (the OneDWave controlRegion (43:67, 13:39) under e.g. 7-way
+    ! partitioning), the actuator factory is absent from rank-0's
+    ! patchFactories and the actuator line would be silently dropped from
+    ! layout.txt. patchData contains every patch globally regardless of
+    ! ownership, so we always emit the correct number of slots.
 
     use Region_mod, only : t_Region
-    use Patch_mod, only : t_Patch
-    use ActuatorPatch_mod, only : t_ActuatorPatch
 
     implicit none
 
@@ -397,7 +406,6 @@ contains
 
     integer :: i, k, fileUnit, stat, procRank, ierror
     integer(kind = MPI_OFFSET_KIND) :: fileSizeBytes, icSize
-    class(t_Patch), pointer :: patch => null()
     character(len = STRING_LENGTH) :: dataPath, name
 
     call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
@@ -415,18 +423,14 @@ contains
 
     write(fileUnit, '(A)') "# kind identifier size_in_real64"
 
-    if (allocated(region%patchFactories)) then
-      do i = 1, size(region%patchFactories)
-        call region%patchFactories(i)%connect(patch)
-        if (.not. associated(patch)) cycle
-        select type (patch)
-        class is (t_ActuatorPatch)
-          name = trim(patch%name)
-          write(dataPath, '(4A)') trim(outputPrefix), ".norm_", trim(name), ".dat"
-          call inquireFileSize(dataPath, fileSizeBytes)
-          write(fileUnit, '(A,1X,A,1X,I0)') "actuator", trim(name),                          &
-               fileSizeBytes / int(SIZEOF_SCALAR, MPI_OFFSET_KIND)
-        end select
+    if (allocated(region%patchData)) then
+      do i = 1, size(region%patchData)
+        if (trim(region%patchData(i)%patchType) /= 'ACTUATOR') cycle
+        name = trim(region%patchData(i)%name)
+        write(dataPath, '(4A)') trim(outputPrefix), ".norm_", trim(name), ".dat"
+        call inquireFileSize(dataPath, fileSizeBytes)
+        write(fileUnit, '(A,1X,A,1X,I0)') "actuator", trim(name),                            &
+             fileSizeBytes / int(SIZEOF_SCALAR, MPI_OFFSET_KIND)
       end do
     end if
 

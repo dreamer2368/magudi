@@ -158,7 +158,9 @@ module ThermalActuator_mod
 
   interface
 
-     subroutine hookThermalActuatorBeforeTimemarch(this, region, mode, controlTimestepOffset,    &
+     ! See the abstract hookBeforeTimemarch in Controller.f90 for the meaning
+     ! of `referenceTimestep` in each mode.
+     subroutine hookThermalActuatorBeforeTimemarch(this, region, mode, referenceTimestep,       &
                                                    deleteGradientFile)
 
        use Region_mod, only : t_Region
@@ -168,7 +170,7 @@ module ThermalActuator_mod
        class(t_ThermalActuator) :: this
        class(t_Region) :: region
        integer, intent(in) :: mode
-       integer, intent(in), optional :: controlTimestepOffset
+       integer, intent(in), optional :: referenceTimestep
        logical, intent(in), optional :: deleteGradientFile
 
      end subroutine hookThermalActuatorBeforeTimemarch

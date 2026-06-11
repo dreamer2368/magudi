@@ -156,7 +156,9 @@ module MomentumActuator_mod
 
   interface
 
-     subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, controlTimestepOffset,  &
+     ! See the abstract hookBeforeTimemarch in Controller.f90 for the meaning
+     ! of `referenceTimestep` in each mode.
+     subroutine hookMomentumActuatorBeforeTimemarch(this, region, mode, referenceTimestep,      &
                                                     deleteGradientFile)
 
        use Region_mod, only : t_Region
@@ -166,7 +168,7 @@ module MomentumActuator_mod
        class(t_MomentumActuator) :: this
        class(t_Region) :: region
        integer, intent(in) :: mode
-       integer, intent(in), optional :: controlTimestepOffset
+       integer, intent(in), optional :: referenceTimestep
        logical, intent(in), optional :: deleteGradientFile
 
      end subroutine hookMomentumActuatorBeforeTimemarch

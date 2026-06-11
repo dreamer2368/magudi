@@ -287,12 +287,18 @@ program msadjoint
     ! resolved once during setupActuatorPatch (src/ActuatorPatchImpl.f90:52,68)
     ! via getOption("output_prefix", PROJECT_NAME) and cached on the patch as
     ! controlForcingFilename / gradientFilename. They stay under the global
-    ! prefix, so segments keep reading/writing one shared .dat with
-    ! controlTimestepOffset = k*Nts selecting the segment's window.
+    ! prefix, so segments keep reading/writing one shared .dat. The driver
+    ! supplies (controlTimestepOffset, controlTotalTimesteps) = (k*Nts, Nsplit*Nts);
+    ! runAdjoint derives the FORWARD referenceTimestep (= controlTimestepOffset,
+    ! counted from start) and the ADJOINT referenceTimestep
+    ! (= controlTotalTimesteps - controlTimestepOffset - Nts, counted from end
+    ! in reverse) per the time-reversed file convention.
     write(segPrefix, '(2A,I0)') trim(outputPrefix), "-", k
     solver%outputPrefix = trim(segPrefix)
 
-    segmentCtrlIP(k) = solver%runAdjoint(region, controlTimestepOffset = k * Nts,           &
+    segmentCtrlIP(k) = solver%runAdjoint(region,                                            &
+                                         controlTimestepOffset = k * Nts,                   &
+                                         controlTotalTimesteps = Nsplit * Nts,              &
                                          deleteGradientFile = .false.)
 
     ! Save the IC-side adjoint (= dJ_time_integral_via_segment_k / d(ic_k); the matching
