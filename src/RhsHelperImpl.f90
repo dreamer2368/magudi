@@ -249,6 +249,125 @@ contains
 
   end subroutine addFarFieldAdjointPenalty
 
+   subroutine addDragForceAdjointPenalty(simulationFlags, solverOptions,                       &
+      grid, state, patchFactories)
+
+      ! <<< External modules >>>
+      use MPI
+
+      ! <<< Derived types >>>
+      use Grid_mod, only : t_Grid
+      use State_mod, only : t_State
+      use Patch_mod, only : t_Patch
+      use Patch_factory, only : t_PatchFactory
+      use SolverOptions_mod, only : t_SolverOptions
+      use SimulationFlags_mod, only : t_SimulationFlags
+      use CostTargetPatch_mod, only : t_CostTargetPatch
+
+      ! <<< Internal modules >>>
+      use CNSHelper
+      use Patch_factory, only : queryPatchTypeExists
+      use InputHelper, only: getOption
+
+      implicit none
+
+      ! <<< Arguments >>>
+      type(t_SimulationFlags), intent(in) :: simulationFlags
+      type(t_SolverOptions), intent(in) :: solverOptions
+      class(t_Grid), intent(in) :: grid
+      class(t_State) :: state
+      type(t_PatchFactory), allocatable :: patchFactories(:)
+
+      ! <<< Local variables >>>
+      integer, parameter :: wp = SCALAR_KIND
+      logical :: costTargetPatchesExist
+      integer :: i, j, k, l, m, direction, iPatchFactory, nDimensions, nUnknowns,                            &
+                  gridIndex, patchIndex, ierror
+      SCALAR_TYPE :: normBoundaryFactor
+      SCALAR_TYPE, allocatable :: temp2(:,:)
+      class(t_Patch), pointer :: patch => null()
+
+      if (trim(solverOptions%costFunctionalType) .ne. 'DRAG') return
+
+      costTargetPatchesExist = queryPatchTypeExists(patchFactories,                              &
+                                                    'COST_TARGET', grid%index)
+      call MPI_Allreduce(MPI_IN_PLACE, costTargetPatchesExist, 1, MPI_LOGICAL,                   &
+         MPI_LOR, grid%comm, ierror) !... reduce across grid-level processes.
+      if (.not. costTargetPatchesExist) return
+
+      nDimensions = grid%nDimensions
+      assert_key(nDimensions, (1, 2, 3))
+
+      nUnknowns = solverOptions%nUnknowns
+      assert(nUnknowns >= nDimensions + 2)
+
+      allocate(temp2(grid%nGridPoints, 1))
+      temp2 = 0.0_wp
+
+      !! DragForce HACK: copy the direction setup in setupDragForce.
+      !! Cannot use functional class all the way here in this routine.
+      direction = getOption('drag_direction', 0)
+      m = abs(direction)
+      l = -1
+
+      if (allocated(patchFactories)) then
+         do iPatchFactory = 1, size(patchFactories)
+            call patchFactories(iPatchFactory)%connect(patch)
+            if (.not. associated(patch)) cycle
+            if (patch%gridIndex /= grid%index .or. patch%nPatchPoints <= 0) cycle
+
+            assert(all(grid%offset == patch%gridOffset))
+            assert(all(grid%localSize == patch%gridLocalSize))
+
+            select type (patch)
+               class is (t_CostTargetPatch)
+
+               l = abs(patch%normalDirection)
+               normBoundaryFactor = sign(1.0_wp / grid%firstDerivative(abs(patch%normalDirection))%normBoundary(1), &
+                                          real(direction * patch%normalDirection, wp))
+
+               do k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+                  do j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+                     do i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                        gridIndex = i - patch%gridOffset(1) + patch%gridLocalSize(1) *         &
+                           (j - 1 - patch%gridOffset(2) + patch%gridLocalSize(2) *           &
+                           (k - 1 - patch%gridOffset(3)))
+                        if (grid%iblank(gridIndex) == 0) cycle
+                        patchIndex = i - patch%offset(1) + patch%localSize(1) *                &
+                           (j - 1 - patch%offset(2) + patch%localSize(2) *                   &
+                           (k - 1 - patch%offset(3)))
+
+                        temp2(gridIndex, 1) = temp2(gridIndex, 1) -                                &
+                                                normBoundaryFactor *                               &
+                                                grid%targetMollifier(gridIndex, 1) *               &
+                                                state%dynamicViscosity(gridIndex, 1) *             &
+                                                grid%metrics(gridIndex, l+nDimensions*(l-1))**2 *  &
+                                                grid%jacobian(gridIndex, 1)
+
+                     end do !... i = patch%offset(1) + 1, patch%offset(1) + patch%localSize(1)
+                  end do !... j = patch%offset(2) + 1, patch%offset(2) + patch%localSize(2)
+               end do !... k = patch%offset(3) + 1, patch%offset(3) + patch%localSize(3)
+
+            end select !... type (patch)
+
+         end do !... iPatchFactory = 1, size(patchFactories)
+      end if !... allocated(patchFactories)
+
+      ! It is assumed that all cost target patches have the same abs(normalDirection).
+      call MPI_Allreduce(MPI_IN_PLACE, l, 1, MPI_INTEGER, MPI_MAX, grid%comm, ierror)
+
+      call grid%adjointFirstDerivative(l)%apply(temp2, grid%localSize)
+      temp2(:, 1) = temp2(:, 1) * grid%jacobian(:, 1)
+
+      state%rightHandSide(:, 1) = state%rightHandSide(:, 1) -                                      &
+                                    state%velocity(:, m) * state%specificVolume(:, 1) * temp2(:, 1)
+      state%rightHandSide(:, m+1) = state%rightHandSide(:, m+1) +                                      &
+                                    state%specificVolume(:, 1) * temp2(:, 1)
+
+      SAFE_DEALLOCATE(temp2)
+
+   end subroutine addDragForceAdjointPenalty
+
 end module RhsHelperImpl
 
 subroutine computeRhsForward(simulationFlags, solverOptions, grid, state, patchFactories)
@@ -370,7 +489,7 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
   use Region_enum, only : ADJOINT
 
   ! <<< Private members >>>
-  use RhsHelperImpl, only : addDissipation, addFarFieldAdjointPenalty
+  use RhsHelperImpl, only : addDissipation, addFarFieldAdjointPenalty, addDragForceAdjointPenalty
 
   ! <<< Internal modules >>>
   use CNSHelper
@@ -587,9 +706,12 @@ subroutine computeRhsAdjoint(simulationFlags, solverOptions, grid, state, patchF
        call addDissipation(ADJOINT, simulationFlags, solverOptions, grid, state)
 
   ! Viscous penalties on far-field patches.
-  if (simulationFlags%viscosityOn)                                                           &
+  if (simulationFlags%viscosityOn) then
        call addFarFieldAdjointPenalty(simulationFlags, solverOptions,                        &
        grid, state, patchFactories)
+       call addDragForceAdjointPenalty(simulationFlags, solverOptions,                        &
+       grid, state, patchFactories)
+  end if
 
   call endTiming("computeRhsAdjoint")
 

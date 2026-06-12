@@ -44,6 +44,9 @@ contains
        if (simulationFlags%repeatFirstDerivative) then
           allocate(this%stressTensor(nGridPoints, nDimensions ** 2))
           allocate(this%heatFlux(nGridPoints, nDimensions))
+          if (simulationFlags%storeVelocityGradient) then
+            allocate(this%velocityGradient(nGridPoints, nDimensions ** 2))
+          end if
        else
           allocate(this%velocityGradient(nGridPoints, nDimensions ** 2))
        end if
@@ -515,9 +518,17 @@ subroutine updateState(this, grid, simulationFlags, solverOptions, conservedVari
 
      if (simulationFlags%repeatFirstDerivative) then
 
-        call grid%computeGradient(this%velocity, this%stressTensor)
-        call computeStressTensor(nDimensions, this%stressTensor, this%dynamicViscosity(:,1), &
-             this%secondCoefficientOfViscosity(:,1))
+        if (simulationFlags%storeVelocityGradient) then
+           ! out-of-place evaluation
+           call grid%computeGradient(this%velocity, this%velocityGradient)
+           call computeStressTensor(nDimensions, this%velocityGradient, this%dynamicViscosity(:,1), &
+                                    this%secondCoefficientOfViscosity(:,1), this%stressTensor)
+        else
+           ! in-place evaluation
+           call grid%computeGradient(this%velocity, this%stressTensor)
+           call computeStressTensor(nDimensions, this%stressTensor, this%dynamicViscosity(:,1), &
+                                    this%secondCoefficientOfViscosity(:,1))
+        end if
 
         call grid%computeGradient(this%temperature(:,1), this%heatFlux)
         do i = 1, nDimensions
