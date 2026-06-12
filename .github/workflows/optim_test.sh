@@ -42,7 +42,7 @@ if [ $? -ne 0 ]; then exit -1; fi
 
 echo "Setting up the directories for multi-point optimization."
 
-python3 optimization.py optim.yml --mode setup
+python3 optimization.py optim.ver3.yml --mode setup
 if [ $? -ne 0 ]; then exit -1; fi
 
 bash ${commandFile}
@@ -52,7 +52,7 @@ export REF_ERROR="5.2613616409101998E-08"
 cat <<EOF > ${checkResultFile}
 from inputs import InputParser
 from optimizer import Optimizer
-config = InputParser('./optim.yml')
+config = InputParser('./optim.ver3.yml')
 optim = Optimizer(config)
 
 J, subJ = optim.base.QoI('b')
@@ -67,7 +67,7 @@ for k in {1..15}
 do
     echo "Optimization Iteration $k"
 
-    python3 optimization.py optim.yml --mode schedule
+    python3 optimization.py optim.ver3.yml --mode schedule
     if [ $? -ne 0 ]; then
         echo "Scheduling is not run successfully."
         exit -1
@@ -80,6 +80,6 @@ do
       if [ $? -eq 0 ]; then exit 0; else exit -1; fi
     else
       echo $RESULT
-      python3 optimization.py optim.yml --mode log_result --result $RESULT
+      python3 optimization.py optim.ver3.yml --mode log_result --result $RESULT
     fi
 done

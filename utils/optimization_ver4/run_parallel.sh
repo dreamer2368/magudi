@@ -3,7 +3,7 @@
 # per-segment ICs, then drive TAO L-BFGS via msforward / msadjoint with
 # N_petsc Python ranks spawning N_forward / N_adjoint child workers.
 #
-# All three rank counts come from optim.parallel.yml's resource_distribution.
+# All three rank counts come from optim.yml's resource_distribution.
 # jobs.{forward,adjoint,petsc} block. compute_norm runs at N_forward so the
 # .norm_<actuator>.dat layout matches what msforward/msadjoint will produce.
 #
@@ -15,7 +15,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$(pwd)}"
 WORK_DIR="${BUILD_DIR}/OneDWave_msparallel"
-CFG="optim.parallel.yml"
+CFG="optim.yml"
 
 for bin in forward msforward msadjoint compute_norm; do
     if [ ! -x "${BUILD_DIR}/bin/${bin}" ]; then
@@ -38,19 +38,20 @@ ln -sf "${BUILD_DIR}/bin/msforward" .
 ln -sf "${BUILD_DIR}/bin/msadjoint" .
 ln -sf "${BUILD_DIR}/bin/compute_norm" .
 
-# Parse rank counts and the time-splitting layout from optim.parallel.yml once.
+# Parse rank counts and the time-splitting layout from optim.yml once.
 read N_FORWARD N_PETSC NSPLIT NTS START_TS PENALTY_WEIGHT STATE_CTRL PREFIX <<EOF
 $(python3 - <<PY
 import yaml
 with open("${CFG}") as f: c = yaml.safe_load(f)
+ts = c["magudi"]["forced_inputs"]["time_splitting"]
 print(
     c["resource_distribution"]["jobs"]["forward"][1],
     c["resource_distribution"]["jobs"]["petsc"][1],
-    c["time_splitting"]["number_of_segments"],
-    c["time_splitting"]["segment_length"],
-    c["time_splitting"]["start_timestep"],
-    c["time_splitting"]["penalty_weight"],
-    c["time_splitting"]["state_controllability"],
+    ts["number_of_segments"],
+    ts["segment_length"],
+    ts["start_timestep"],
+    ts["penalty_weight"],
+    ts["state_controllability"],
     c["global_prefix"],
 )
 PY
@@ -58,35 +59,18 @@ PY
 EOF
 echo "N_forward=${N_FORWARD} N_petsc=${N_PETSC} Nsplit=${NSPLIT} Nts=${NTS} start_ts=${START_TS} prefix=${PREFIX}"
 
-# Patch magudi.inp for the multi-segment layout. solver%setup reads
-# number_of_timesteps for the *per-segment* step count -- runAdjoint at
-# src/SolverImpl.f90:988 uses (region%timestep + this%nTimesteps) to find the
-# terminal forward snapshot, which only matches msforward's output if
-# nTimesteps == segment_length. The baseline forward below needs to span all
-# segments, so we set number_of_timesteps = Nts there and lift it temporarily
-# to NSPLIT*NTS just for the baseline run.
+# Magudi.inp mutations needed BEFORE the optim driver runs (which only fires
+# set_magudi_inp() at startup). The baseline forward + compute_norm need:
+#   - number_of_timesteps = NSPLIT*NTS so the baseline spans every segment
+#     (solver%setup reads it as the per-run step count; src/SolverImpl.f90:988
+#     uses region%timestep + nTimesteps to locate the terminal snapshot).
+#   - controller_switch = false for the unforced baseline.
+# Everything else (save_interval, baseline_prediction_available, controller_switch
+# for the optim run, time_splitting/*, adjoint_nonzero_initial_condition) is
+# declared in optim.yml's magudi.forced_inputs and applied by
+# ParallelIOHandler.set_magudi_inp() at the start of optim.parallel.py.
 sed -i "s/^number_of_timesteps = .*/number_of_timesteps = $((NSPLIT * NTS))/" magudi.inp
-sed -i "s/^save_interval = .*/save_interval = ${NTS}/" magudi.inp
-sed -i 's/^baseline_prediction_available = .*/baseline_prediction_available = true/' magudi.inp
 sed -i 's/^controller_switch = .*/controller_switch = false/' magudi.inp
-
-# msadjoint requires adjoint_nonzero_initial_condition in the dict (it mutates the
-# value per segment). Add a placeholder line if it isn't already there.
-if ! grep -q '^adjoint_nonzero_initial_condition' magudi.inp; then
-    echo 'adjoint_nonzero_initial_condition = false' >> magudi.inp
-fi
-
-# msforward / msadjoint / compute_norm read time_splitting/* via getRequiredOption.
-# magudi.inp uses literal flat keys, so write the slash-style names directly.
-# Replace any pre-existing entries with the YAML-driven values.
-sed -i '/^time_splitting\//d' magudi.inp
-cat >> magudi.inp <<EOF
-time_splitting/number_of_segments = ${NSPLIT}
-time_splitting/segment_length = ${NTS}
-time_splitting/start_timestep = ${START_TS}
-time_splitting/penalty_weight = ${PENALTY_WEIGHT}
-time_splitting/state_controllability = ${STATE_CTRL}
-EOF
 
 # 1. Baseline forward run with controller_switch=false: produces snapshots
 #    at every segment boundary (ts = NTS, 2*NTS, ..., NSPLIT*NTS).
@@ -101,21 +85,27 @@ for k in $(seq 1 $((NSPLIT - 1))); do
     cp "${PREFIX}-${ts}.q" "${PREFIX}-${k}.ic.q"
 done
 
-# 3. Flip controller_switch=true so compute_norm (and the optim run) see the
-#    actuator patch with its controlForcing buffer allocated. Leave
-#    number_of_timesteps at NSPLIT*NTS so compute_norm collects norm frames
-#    for the full trajectory (compute_norm gracefulExits otherwise).
-sed -i 's/^controller_switch = .*/controller_switch = true/' magudi.inp
+# 3. Apply optim.yml's magudi.forced_inputs to magudi.inp once, so compute_norm
+#    sees time_splitting/* (it reads them via getRequiredOption and would
+#    gracefulExit otherwise) and the actuator patch is enabled
+#    (controller_switch=true is in forced_inputs). Then bump number_of_timesteps
+#    back to NSPLIT*NTS just for compute_norm -- the YAML value (= NTS,
+#    per-segment) is wrong here because compute_norm needs the full-trajectory
+#    step count to allocate the norm buffer. The optim driver re-applies
+#    set_magudi_inp at startup, restoring number_of_timesteps to NTS.
+python3 - <<PY
+import sys
+sys.path.insert(0, "${REPO_ROOT}/utils/optimization_ver4")
+from inputs import InputParser
+from parallel_io import apply_magudi_inp
+apply_magudi_inp(InputParser("${CFG}"))
+PY
+sed -i "s/^number_of_timesteps = .*/number_of_timesteps = $((NSPLIT * NTS))/" magudi.inp
 
 # 4. compute_norm writes .norm_<actuator>.dat (5D-subarray, NSPLIT*NTS frames),
 #    .norm_ic.q (PLOT3D solution, shared across all ic slabs of M_diag), and
 #    .layout.txt for Python.
 mpirun -n "${N_FORWARD}" ./compute_norm --input magudi.inp
-
-# 5. Drop number_of_timesteps to NTS for the optim run -- msforward / msadjoint
-#    iterate Nsplit segments of NTS steps each via runForward / runAdjoint,
-#    which use solver%nTimesteps as the per-segment count.
-sed -i "s/^number_of_timesteps = .*/number_of_timesteps = ${NTS}/" magudi.inp
 
 BASELINE=2
 SPLIT=1

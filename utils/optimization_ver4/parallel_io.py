@@ -39,6 +39,7 @@ Wire format follows schema kind unambiguously:
 
 import glob
 import os
+import re
 import sys
 from collections import namedtuple
 from typing import List, Optional
@@ -67,6 +68,73 @@ except Exception as exc:  # pragma: no cover - exercised at runtime via .q path
 
 FileSpec = namedtuple("FileSpec", ["kind", "identifier", "size"])
 # kind ∈ {"actuator", "ic"} — semantic role in the layout, not wire format.
+
+
+def _flatten_magudi_dict(d, parent="", sep="/"):
+    """{'a': {'b': 1}, 'c': 2}  ->  {'a/b': 1, 'c': 2}.
+
+    Magudi.inp stores hierarchical keys flat with '/' separators
+    (e.g. time_splitting/number_of_segments). YAML nested dicts become these
+    slash-joined keys.
+    """
+    out = {}
+    for k, v in d.items():
+        key = f"{parent}{sep}{k}" if parent else str(k)
+        if isinstance(v, dict):
+            out.update(_flatten_magudi_dict(v, key, sep))
+        else:
+            out[key] = v
+    return out
+
+
+def _format_magudi_val(v):
+    """Render a Python value as a magudi.inp RHS.
+
+    bool -> lowercase 'true'/'false' (matches examples/OneDWave/magudi.inp:14).
+    str  -> always quoted; magudi requires quotes when the value contains
+            whitespace (examples/magudi.inp:8) and accepts quotes otherwise.
+    int / float / other -> str(v).
+    """
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        return f'"{v}"'
+    return str(v)
+
+
+def apply_magudi_inp(cfg) -> None:
+    """Rewrite magudi.inp in place from cfg['magudi']['forced_inputs'].
+
+    Standalone (no ParallelIOHandler / MPI required). Used by run_parallel.sh
+    before compute_norm so that time_splitting/* and the other forced_inputs
+    are visible to compute_norm's getRequiredOption reads, and used internally
+    by ParallelIOHandler.set_magudi_inp on rank 0. No-op when forced_inputs
+    is empty or absent.
+    """
+    input_file = cfg.getInput(
+        ["magudi", "input_file"], fallback="magudi.inp")
+    forced = cfg.getInput(
+        ["magudi", "forced_inputs"], fallback={})
+    if not forced:
+        return
+    flat = _flatten_magudi_dict(forced)
+    with open(input_file) as fh:
+        lines = fh.readlines()
+    seen = set()
+    key_re = re.compile(r"^\s*([^\s#=][^\s=]*)\s*=")
+    for i, line in enumerate(lines):
+        m = key_re.match(line)
+        if not m:
+            continue
+        key = m.group(1)
+        if key in flat:
+            lines[i] = f"{key} = {_format_magudi_val(flat[key])}\n"
+            seen.add(key)
+    for key, val in flat.items():
+        if key not in seen:
+            lines.append(f"{key} = {_format_magudi_val(val)}\n")
+    with open(input_file, "w") as fh:
+        fh.writelines(lines)
 
 
 def parse_layout(path: str) -> List[FileSpec]:
@@ -128,7 +196,8 @@ class ParallelIOHandler:
         self.cfg = cfg
         self.prefix = cfg.getInput(["global_prefix"], datatype=str)
         self.Nsplit = cfg.getInput(
-            ["time_splitting", "number_of_segments"], datatype=int)
+            ["magudi", "forced_inputs", "time_splitting", "number_of_segments"],
+            datatype=int)
         self.log_file_path = cfg.getInput(
             ["optimization", "log_file"],
             fallback=f"{self.prefix}.optim.h5")
@@ -502,6 +571,12 @@ class ParallelIOHandler:
                 f.create_dataset(
                     "line_steps", shape=(0,), maxshape=(None,),
                     chunks=(1,), dtype="f8")
+        self.comm.Barrier()
+
+    def set_magudi_inp(self) -> None:
+        """Rank-0 wrapper around apply_magudi_inp; comm barrier at end."""
+        if self.rank == 0:
+            apply_magudi_inp(self.cfg)
         self.comm.Barrier()
 
     def _read_segment_table(self, path: str) -> np.ndarray:
@@ -1046,7 +1121,11 @@ def _selftest():
         with open(yaml_path, "w") as fh:
             yaml.safe_dump({
                 "global_prefix": selftest_prefix,
-                "time_splitting": {"number_of_segments": 2},
+                "magudi": {
+                    "forced_inputs": {
+                        "time_splitting": {"number_of_segments": 2},
+                    },
+                },
                 "optimization": {"log_file": log_path},
             }, fh)
     comm.Barrier()

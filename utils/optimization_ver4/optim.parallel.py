@@ -123,7 +123,8 @@ def main():
         )
 
     penalty_weight = cfg.getInput(
-        ["time_splitting", "penalty_weight"], datatype=float)
+        ["magudi", "forced_inputs", "time_splitting", "penalty_weight"],
+        datatype=float)
     checkpoint_path = "y.petsc"
     history_path = "history.petsc"
 
@@ -145,6 +146,7 @@ def main():
     ls_max_funcs  = cfg.getInput(
         ["optimization", "line_search", "max_funcs"], fallback=30)
     io = ParallelIOHandler(cfg, comm=comm, pcomm=pcomm)
+    io.set_magudi_inp()
     io.report_balance()
     prefix = io.prefix
     ls_log_file = cfg.getInput(
