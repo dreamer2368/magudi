@@ -57,8 +57,6 @@ subroutine setupSinusoidalWallLevelset(this, grids, states)
     this%wallShapes(n)%buffer = this%wallShapes(n)%buffer * this%levelsetAmp
   end do
 
-  this%verticalOscillation = getOption("immersed_boundary/vertical_oscillation", .false.)
-
 end subroutine setupSinusoidalWallLevelset
 
 subroutine cleanupSinusoidalWallLevelset(this)
@@ -105,7 +103,7 @@ subroutine updateSinusoidalWallLevelset(this, mode, grids, states)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  real(wp) :: timeFactor, timeDerivativeFactor, buf, objectSpeed
+  real(wp) :: timeFactor, timeDerivativeFactor, timeAccFactor, buf, objectSpeed
   real(wp) :: verticalDirection(grids(1)%nDimensions)
   integer :: i, j
 
@@ -115,9 +113,10 @@ subroutine updateSinusoidalWallLevelset(this, mode, grids, states)
     return
   end if
 
-  timeFactor = sin(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
-  timeDerivativeFactor = 2.0_wp * pi / this%levelsetPeriod                          &
-                         * cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
+  timeFactor = cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
+  timeDerivativeFactor = -2.0_wp * pi / this%levelsetPeriod                          &
+                         * sin(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
+  timeAccFactor = timeFactor * (-4.0_wp) * pi * pi / this%levelsetPeriod / this%levelsetPeriod
   verticalDirection = 0.0_wp
   verticalDirection(2) = 1.0_wp
 
@@ -142,16 +141,13 @@ subroutine updateSinusoidalWallLevelset(this, mode, grids, states)
 
       ! d/dt levelset = - wallShape * d/dt timeFactor
       objectSpeed = timeDerivativeFactor * this%wallShapes(i)%buffer(j)
-      if (.not. this%verticalOscillation) objectSpeed = objectSpeed / buf
 
       ! Make the levelset normal a unit norm
       if (buf .gt. 0.0_wp) states(i)%levelsetNormal(j,:) = states(i)%levelsetNormal(j,:) / buf
 
-      if (this%verticalOscillation) then
-        states(i)%objectVelocity(j,:) = objectSpeed * verticalDirection
-      else
-        states(i)%objectVelocity(j,:) = objectSpeed * states(i)%levelsetNormal(j,:)
-      end if
+      states(i)%objectVelocity(j,:) = objectSpeed * verticalDirection
+      states(i)%objectAcceleration(j,:) = timeAccFactor * this%wallShapes(i)%buffer(j) *      &
+                                          verticalDirection
     end do
   end do
 

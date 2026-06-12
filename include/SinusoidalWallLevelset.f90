@@ -13,7 +13,6 @@ module SinusoidalWallLevelset_mod
   type, extends(t_LevelsetFactory), public :: t_SinusoidalWallLevelset
 
     type(t_SWInternal), dimension(:), allocatable :: wallShapes
-    logical ::           verticalOscillation      ! oscillation is vertical.
     real(SCALAR_KIND) :: levelsetLoc,           & ! center location of deforming part.
                          levelsetWidth,         & ! width of the deforming part.
                          levelsetHeight,        & ! height of the wall shape.

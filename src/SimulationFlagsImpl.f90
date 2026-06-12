@@ -57,6 +57,12 @@ subroutine initializeSimulationFlags(this)
     call gracefulExit(comm_, message)
   end if
 
+  if (this%viscosityOn .and. (.not. this%repeatFirstDerivative)) then
+    comm_ = MPI_COMM_WORLD
+    write(message, '(A)') "Viscous flux is implemented only with repeated first derivatives!"
+    call gracefulExit(comm_, message)
+  end if
+
   this%IsInitialized = .true.
 
 end subroutine initializeSimulationFlags

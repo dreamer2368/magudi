@@ -60,6 +60,7 @@ module Region_mod
      procedure, pass :: resetProbes
      procedure, pass :: saveProbeData
      procedure, pass :: connectLevelsetFactory
+     procedure, pass :: getMinimumSpacing
 
   end type t_Region
 
@@ -241,6 +242,18 @@ module Region_mod
        class(t_Region) :: this
 
      end subroutine connectLevelsetFactory
+
+  end interface
+
+  interface
+
+    subroutine getMinimumSpacing(this)
+
+      import :: t_Region
+
+      class(t_Region) :: this
+
+    end subroutine getMinimumSpacing
 
   end interface
 

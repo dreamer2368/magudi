@@ -12,6 +12,7 @@ subroutine setupAdiabaticWall(this, index, comm, patchDescriptor,               
 
   ! <<< Internal modules >>>
   use InputHelper, only : getOption
+  use ErrorHandler, only : gracefulExit
 
   implicit none
 
@@ -25,8 +26,11 @@ subroutine setupAdiabaticWall(this, index, comm, patchDescriptor,               
 
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
-  character(len = STRING_LENGTH) :: key
+  character(len = STRING_LENGTH) :: key, message
   integer :: i
+
+  write(message, '(A)') "SAT adiabatic wall is not implemented yet!"
+  call gracefulExit(comm, message)
 
   call this%cleanup()
   call this%t_ImpenetrableWall%setup(index, comm, patchDescriptor,                           &

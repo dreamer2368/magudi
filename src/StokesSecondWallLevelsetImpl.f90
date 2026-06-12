@@ -99,8 +99,8 @@ subroutine updateStokesSecondWallLevelset(this, mode, grids, states)
   ! <<< Local variables >>>
   integer, parameter :: wp = SCALAR_KIND
   real(wp), parameter :: pi = 4.0_wp * atan(1.0_wp)
-  real(wp) :: timeFactor, timeDerivativeFactor
-  real(wp), dimension(grids(1)%nDimensions) :: loc, vel
+  real(wp) :: timeFactor, timeDerivativeFactor, timeAccFactor
+  real(wp), dimension(grids(1)%nDimensions) :: loc, vel, acc
   integer :: i, j
 
   call startTiming("updateStokesSecondWallLevelset")
@@ -112,8 +112,10 @@ subroutine updateStokesSecondWallLevelset(this, mode, grids, states)
   timeFactor = cos(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
   timeDerivativeFactor = -2.0_wp * pi / this%levelsetPeriod                         &
                          * sin(2.0_wp * pi * states(1)%time / this%levelsetPeriod)
+  timeAccFactor = timeFactor * (-4.0_wp) * pi * pi / this%levelsetPeriod / this%levelsetPeriod
   loc = this%levelsetLoc + timeFactor * this%levelsetAmp * this%levelsetDirection
   vel = timeDerivativeFactor * this%levelsetAmp * this%levelsetDirection
+  acc = timeAccFactor * this%levelsetAmp * this%levelsetDirection
 
   do i = 1, size(states)
     !NOTE: you cannot simply cycle here, since even in the same grid, some
@@ -130,6 +132,7 @@ subroutine updateStokesSecondWallLevelset(this, mode, grids, states)
 
       states(i)%levelsetNormal(:, j) = this%levelsetNormal(j)
       states(i)%objectVelocity(:, j) = vel(j)
+      states(i)%objectAcceleration(:, j) = acc(j)
     end do
   end do
 
