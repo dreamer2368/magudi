@@ -1,10 +1,10 @@
-"""Multi-segment gradient accuracy test for msforward / msadjoint (Phase 3).
+"""Multi-segment gradient accuracy test for msforward / msadjoint.
 
 Run as
-    mpirun -n N_petsc python3 msgrad_test.py msgrad.yml [--mode full|ctrl|ic]
+    mpirun -n N_petsc magudi-msgrad msgrad.yml [--mode full|ctrl|ic]
 
 from the staged OneDWave_msgrad/ directory. The driver
-  - parses msgrad.yml via InputParser (typed YAML reader from inputs.py);
+  - parses msgrad.yml via InputParser (typed YAML reader from .inputs);
   - launches ./msforward and ./msadjoint via launch_and_wait
     (subprocess + mpirun / srun --overlap; see --exec-mode);
   - runs a Taylor finite-difference test
@@ -26,8 +26,6 @@ ParallelIOHandler.write_x, so no zaxpy / qfile_zaxpy binaries are needed.
 """
 import argparse
 import math
-import os
-import subprocess
 import sys
 
 import numpy as np
@@ -36,58 +34,19 @@ import numpy as np
 from mpi4py import MPI  # noqa: F401  (import-order side effect)
 from petsc4py import PETSc
 
-from inputs import InputParser
-from parallel_io import ParallelIOHandler
+from .inputs import InputParser
+from .parallel_io import ParallelIOHandler, launch_and_wait
 
 
 GG_TOL = 1.0e-10  # relative tolerance for the <g,g>_M cross-check vs msadjoint
 MIN_ERR_THRESHOLD = 1.0e-6  # FD min rel_err must drop below this to pass
 
 # FD step sizes used when finite_difference.step_sizes is absent from the
-# config -- mirrors check_grad_at_current.py's default so msgrad_test.py can
+# config -- mirrors check_grad_at_current.py's default so magudi-msgrad can
 # also run from any pre-staged optim-parallel directory with no extra YAML.
 DEFAULT_H_LIST = [1.0e-1, 3.0e-2, 1.0e-2, 3.0e-3, 1.0e-3,
                   3.0e-4, 1.0e-4, 3.0e-5, 1.0e-5, 3.0e-6,
                   1.0e-6, 3.0e-7, 1.0e-7]
-
-
-def launch_and_wait(executable, args, n, mode):
-    """Collectively launch `n` worker processes via the mode's launcher; block.
-
-    Lifted from utils/optimization_ver4/optim.parallel.py. All N_petsc
-    parent ranks Barrier; rank 0 subprocess.runs the launcher and blocks
-    until it returns; the return code is broadcast so every rank either
-    continues or raises SystemExit together; then Barrier again. The
-    worker's stdout/stderr land in ./out/<basename>.out.
-
-    mode='base'  -> launcher = ["mpirun"]
-    mode='slurm' -> launcher = ["srun", "--overlap"]
-    """
-    comm = MPI.COMM_WORLD
-    log_path = os.path.abspath(
-        os.path.join("out", os.path.basename(executable) + ".out")
-    )
-    if comm.Get_rank() == 0:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        open(log_path, "w").close()
-    comm.Barrier()
-
-    if comm.Get_rank() == 0:
-        launcher = ["mpirun"] if mode == "base" else ["srun", "--overlap"]
-        cmd = launcher + ["-n", str(n), executable] + list(args)
-        with open(log_path, "a") as logf:
-            rc = subprocess.run(
-                cmd, stdout=logf, stderr=subprocess.STDOUT
-            ).returncode
-    else:
-        rc = None
-    rc = comm.bcast(rc, root=0)
-    comm.Barrier()
-    if rc != 0:
-        raise SystemExit(
-            f"{executable} (mode={mode}) exited with code {rc}; "
-            f"see {log_path} for details"
-        )
 
 
 def _read_sub_adjoint(path, comm):

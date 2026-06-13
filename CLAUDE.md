@@ -118,10 +118,10 @@ The `test/adjoint_relation` and `test/linearized_relation` suites verify that ad
 
 End-to-end CI also runs two driver scripts in `.github/workflows/`:
 
-- `optim_grad_test.sh` — gradient-accuracy check via the `OneDWave` example.
-- `optim_test.sh` — full multi-point optimization loop.
+- `run_msgrad.sh` — multi-segment gradient-accuracy check via the `OneDWave` example.
+- `run_parallel.sh` — restart-equivalence test of the parallel TAO L-BFGS loop.
 
-Both copy `utils/optimization_ver3/*.py` and `examples/OneDWave/*` into the build tree, then drive `python3 checkGradientAccuracy.py optim.yml --mode {setup,schedule,log_result}` in a loop.
+Both `pip install ./utils/optimization_ver4` (the `magudi_optimizer` package) and drive its console scripts `magudi-msgrad` / `magudi-optim` against `examples/OneDWave/` staged into the build tree.
 
 ## Architecture
 
@@ -159,7 +159,7 @@ The primary executables are `forward`, `adjoint`, `linearized`, and `gradient_ac
 
 Auxiliary executables (post-processing such as `q_criterion`, `vorticity_dilatation`, grid generators) are built into `build/utils/`. The `utils/python/` directory contains Python helpers — note that `plot3dnasa.py` and `examples/*/config.py` are **Python 2** (incompatible with Python 3); the optimization drivers are Python 3.
 
-Three generations of Python optimization frameworks coexist: `utils/optimization/` (oldest), `utils/optimization_ver2/`, and `utils/optimization_ver3/` (current — YAML-configured, used by CI). Pull from `optimization_ver3` for new work; example config in [utils/optimization_ver3/example.yml](utils/optimization_ver3/example.yml).
+Four generations of Python optimization frameworks coexist: `utils/optimization/` (oldest), `utils/optimization_ver2/`, `utils/optimization_ver3/`, and `utils/optimization_ver4/` (current — the installable `magudi_optimizer` Python package built on PETSc/TAO L-BFGS; used by CI). Pull from `optimization_ver4` for new work; architecture in [utils/optimization_ver4/DESIGN.md](utils/optimization_ver4/DESIGN.md).
 
 ### Examples ([examples/](examples/))
 

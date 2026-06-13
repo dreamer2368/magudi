@@ -34,7 +34,6 @@ class InputParser:
             if (type(val) != datatype):
                 raise RuntimeError("%s does not match the specified datatype %s!" % (str(type(val)), str(datatype)))
         else:
-            from inputs import verbose
             if verbose: warn("InputParser Warning: datatype is not checked.\n key: %s\n value type: %s" % (keys, type(val)))
         return val
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# msforward/msadjoint Phase 3 gradient accuracy test on OneDWave.
+# msforward/msadjoint gradient accuracy test on OneDWave.
 #
 # Stage build/OneDWave_msgrad/, run a warmup forward to generate per-segment
 # IC files, run compute_norm (parallel) to produce M_diag / layout.txt, then
-# launch msgrad_test.py under ${LAUNCHER} -n N_PETSC. msgrad_test.py launches
+# launch magudi-msgrad under ${LAUNCHER} -n N_PETSC. magudi-msgrad launches
 # msforward / msadjoint via subprocess + ${LAUNCHER} (selected by --exec-mode).
 # Control / IC perturbation is done in Python via PETSc.Vec.axpy, so zaxpy /
 # qfile_zaxpy binaries are no longer needed.
@@ -22,7 +22,7 @@
 #                                             reference = sum ic IPs.
 #                                      full = perturb both, reference = total <g,g>.
 #   ADD_IC_NOISE    (default unset)    if non-empty, pass --add-ic-noise to
-#                                      msgrad_test.py: pointwise uniform
+#                                      magudi-msgrad: pointwise uniform
 #                                      [-1e-4, 1e-4] noise on intermediate
 #                                      ic slabs before the baseline pass.
 #   N_FORWARD       (default 2)        msforward child rank count
@@ -35,7 +35,7 @@
 #   EXEC_MODE       (default base)     base | slurm
 #                                      base  = mpirun (dev container / interactive)
 #                                      slurm = srun (production SLURM allocation);
-#                                              passed through to msgrad_test.py
+#                                              passed through to magudi-msgrad
 #                                              as --exec-mode.
 
 set -euo pipefail
@@ -91,7 +91,7 @@ done
 # NTS, set number_of_timesteps = TOTAL_TS for the warmup forward and for
 # compute_norm (which gracefulExits unless solver%nTimesteps == Nts*Nsplit).
 # Append the time_splitting block. number_of_timesteps narrows to NTS only
-# right before launching msgrad_test.py.
+# right before launching magudi-msgrad.
 sed -i "s/^number_of_timesteps = .*/number_of_timesteps = ${TOTAL_TS}/" magudi.inp
 sed -i "s/^save_interval = .*/save_interval = ${NTS}/" magudi.inp
 sed -i 's/^controller_switch = .*/controller_switch = true/' magudi.inp
@@ -108,7 +108,7 @@ time_splitting/penalty_weight = ${PENALTY_WEIGHT}
 EOF
 
 # Warmup: one forward over TOTAL_TS timesteps with zero control. We have not
-# yet seeded OneDWave.control_forcing_controlRegion.dat, but msgrad_test.py
+# yet seeded OneDWave.control_forcing_controlRegion.dat, but magudi-msgrad
 # writes a zero one of the right size later anyway. For the warmup the
 # controller path needs a file to load -- create a zero one sized from the
 # *intended* layout (nPatchPoints * nUnknowns * TOTAL_TS * nStages * 8); the
@@ -141,7 +141,7 @@ sed -i "s/^number_of_timesteps = .*/number_of_timesteps = ${NTS}/" magudi.inp
 
 # Drop the test config the Python driver reads. Schema matches optim.yml so
 # ParallelIOHandler(cfg, ...) can derive prefix / Nsplit / log path directly.
-# resource_distribution mirrors optim.parallel.yml; msgrad_test.py consumes
+# resource_distribution mirrors optim.yml; magudi-msgrad consumes
 # the procs (index 1).
 cat > msgrad.yml <<EOF
 global_prefix: OneDWave
@@ -162,9 +162,8 @@ resource_distribution:
     petsc:   [1, ${N_PETSC}]
 EOF
 
-# msgrad_test.py runs under ${LAUNCHER} -n N_PETSC. Child binaries
-# (msforward, msadjoint) are launched by msgrad_test.py via subprocess +
+# magudi-msgrad runs under ${LAUNCHER} -n N_PETSC. Child binaries
+# (msforward, msadjoint) are launched by magudi-msgrad via subprocess +
 # ${LAUNCHER} (mpirun or srun --overlap, selected by --exec-mode).
-${LAUNCHER} -n "${N_PETSC}" python3 \
-    "${REPO_ROOT}/utils/optimization_ver4/msgrad_test.py" \
+${LAUNCHER} -n "${N_PETSC}" magudi-msgrad \
     msgrad.yml --mode "${MODE}" --exec-mode "${EXEC_MODE}" ${NOISE_FLAG}

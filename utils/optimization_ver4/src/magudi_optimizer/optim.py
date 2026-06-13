@@ -1,4 +1,4 @@
-"""optim_ver4 Phase 3 MPI-parallel TAO driver.
+"""magudi_optimizer MPI-parallel TAO driver (optim_ver4 production).
 
 Wraps `./msforward` and `./msadjoint` (bin/msforward.f90, bin/msadjoint.f90)
 inside a TAO L-BFGS outer loop. Layout + parallel I/O live in
@@ -6,8 +6,7 @@ ParallelIOHandler (parallel_io.py); this file owns the optimizer state,
 spawn coordination, and resume/checkpoint logic.
 
 Run:
-    mpirun -n N_petsc python3 optim.parallel.py optim.parallel.yml \\
-                                                [--max-iter K]
+    mpirun -n N_petsc magudi-optim optim.yml [--max-iter K]
 
 N_petsc satisfies the ParallelIOHandler policy:
   N_petsc == 1  (serial fallback)
@@ -25,8 +24,6 @@ Do not change N_petsc between a save and a resume: the layout (and thus
 the Vec's local sizes per rank) is layout-bound.
 """
 import argparse
-import os
-import subprocess
 import sys
 from collections import deque
 
@@ -34,58 +31,15 @@ from collections import deque
 from mpi4py import MPI  # noqa: F401  (import-order side effect)
 from petsc4py import PETSc
 
-from inputs import InputParser
-from parallel_io import ParallelIOHandler
+from .inputs import InputParser
+from .parallel_io import ParallelIOHandler, launch_and_wait
 
 LMVM_DEPTH = 5  # matches BQNLS default Max. storage = 5
 
 
-def launch_and_wait(executable, args, n, mode):
-    """Collectively launch `n` worker processes via the mode's launcher; block.
-
-    All N_petsc parent ranks Barrier; rank 0 subprocess.runs the launcher
-    and blocks until it returns; the return code is broadcast so every
-    rank either continues or raises SystemExit together; then Barrier
-    again. The worker's stdout/stderr land in ./out/<basename>.out.
-
-    mode='base'  -> launcher = ["mpirun"]
-    mode='slurm' -> launcher = ["srun", "--overlap"]
-
-    The Fortran child's disconnectParentIfSpawned (MPIHelperImpl.f90:552-574)
-    is a no-op here -- MPI_Comm_get_parent returns MPI_COMM_NULL because
-    we launched via mpirun/srun, not MPI_Comm_spawn. Sync is via the
-    subprocess.run blocking call, not an inter-comm Barrier.
-    """
-    comm = MPI.COMM_WORLD
-    log_path = os.path.abspath(
-        os.path.join("out", os.path.basename(executable) + ".out")
-    )
-    if comm.Get_rank() == 0:
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        open(log_path, "w").close()
-    comm.Barrier()
-
-    if comm.Get_rank() == 0:
-        launcher = ["mpirun"] if mode == "base" else ["srun", "--overlap"]
-        cmd = launcher + ["-n", str(n), executable] + list(args)
-        with open(log_path, "a") as logf:
-            rc = subprocess.run(
-                cmd, stdout=logf, stderr=subprocess.STDOUT
-            ).returncode
-    else:
-        rc = None
-    rc = comm.bcast(rc, root=0)
-    comm.Barrier()
-    if rc != 0:
-        raise SystemExit(
-            f"{executable} (mode={mode}) exited with code {rc}; "
-            f"see {log_path} for details"
-        )
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("config", help="Path to optim.parallel.yml")
+    parser.add_argument("config", help="Path to optim.yml")
     parser.add_argument(
         "--max-iter", type=int, default=5,
         help="iterations this run (added to loaded iter if resuming)"
@@ -332,7 +286,7 @@ def main():
     # Per-trial line-search log -- writes "LS step <alpha> f <f(alpha)>" for
     # every Wolfe trial inside an outer iteration. Useful for diagnosing -6
     # (TAO_DIVERGED_LS_FAILURE) without re-running. `:append` keeps records
-    # across the multiple optim.parallel.py invocations that run_parallel.sh
+    # across the multiple magudi-optim invocations that run_parallel.sh
     # chains, instead of truncating on each invocation.
     if args.verbose:
         PETSc.Options().setValue("tao_ls_monitor", ls_log_file)
@@ -354,7 +308,7 @@ def main():
         PETSc.Sys.Print("-------------------------")
 
     PETSc.Sys.Print(
-        f"optim.parallel: prefix={prefix} N_total={N_total} "
+        f"magudi-optim: prefix={prefix} N_total={N_total} "
         f"n_actuator={io.n_actuator} n_ic={io.n_ic} "
         f"N_petsc={N_petsc} N_forward={N_forward} N_adjoint={N_adjoint}"
     )

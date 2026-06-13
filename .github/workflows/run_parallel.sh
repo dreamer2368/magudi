@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# optim_ver4 Phase 3 driver: stage OneDWave, run baseline forward to seed the
+# optim_ver4 driver: stage OneDWave, run baseline forward to seed the
 # per-segment ICs, then drive TAO L-BFGS via msforward / msadjoint with
 # N_petsc Python ranks spawning N_forward / N_adjoint child workers.
 #
@@ -19,7 +19,7 @@ CFG="optim.yml"
 
 # Launch mode. base = mpirun (default, dev container / interactive). slurm =
 # srun (production allocation). Used by both the standalone forward / compute_norm
-# steps and by optim.parallel.py (which is passed through as --mode).
+# steps and by magudi-optim (which is passed through as --mode).
 MODE="${MODE:-base}"
 case "${MODE}" in
     base)  LAUNCHER="mpirun" ;;
@@ -78,7 +78,7 @@ echo "N_forward=${N_FORWARD} N_petsc=${N_PETSC} Nsplit=${NSPLIT} Nts=${NTS} star
 # Everything else (save_interval, baseline_prediction_available, controller_switch
 # for the optim run, time_splitting/*, adjoint_nonzero_initial_condition) is
 # declared in optim.yml's magudi.forced_inputs and applied by
-# ParallelIOHandler.set_magudi_inp() at the start of optim.parallel.py.
+# ParallelIOHandler.set_magudi_inp() at the start of magudi-optim.
 sed -i "s/^number_of_timesteps = .*/number_of_timesteps = $((NSPLIT * NTS))/" magudi.inp
 sed -i 's/^controller_switch = .*/controller_switch = false/' magudi.inp
 
@@ -104,10 +104,8 @@ done
 #    step count to allocate the norm buffer. The optim driver re-applies
 #    set_magudi_inp at startup, restoring number_of_timesteps to NTS.
 python3 - <<PY
-import sys
-sys.path.insert(0, "${REPO_ROOT}/utils/optimization_ver4")
-from inputs import InputParser
-from parallel_io import apply_magudi_inp
+from magudi_optimizer.inputs import InputParser
+from magudi_optimizer.parallel_io import apply_magudi_inp
 apply_magudi_inp(InputParser("${CFG}"))
 PY
 sed -i "s/^number_of_timesteps = .*/number_of_timesteps = $((NSPLIT * NTS))/" magudi.inp
@@ -136,8 +134,7 @@ restore_baseline_inputs() {
 }
 
 # Baseline: BASELINE iters in one go.
-${LAUNCHER} -n "${N_PETSC}" python3 \
-    "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
+${LAUNCHER} -n "${N_PETSC}" magudi-optim \
     "${CFG}" --max-iter "${BASELINE}" --mode "${MODE}"
 J_baseline=$(tr -d '[:space:]' < "${PREFIX}.forward_run.txt")
 
@@ -146,11 +143,9 @@ restore_baseline_inputs
 # Split: SPLIT iters, checkpoint, resume for SPLIT more. Final J should match
 # the baseline to near-bitwise precision; this checks the parallel-I/O wiring
 # under Phase 3's file-aligned layout.
-${LAUNCHER} -n "${N_PETSC}" python3 \
-    "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
+${LAUNCHER} -n "${N_PETSC}" magudi-optim \
     "${CFG}" --max-iter "${SPLIT}" --mode "${MODE}"
-${LAUNCHER} -n "${N_PETSC}" python3 \
-    "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
+${LAUNCHER} -n "${N_PETSC}" magudi-optim \
     "${CFG}" --max-iter "${SPLIT}" --mode "${MODE}"
 J_split=$(tr -d '[:space:]' < "${PREFIX}.forward_run.txt")
 

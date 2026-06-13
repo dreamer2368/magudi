@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "magudi_optimizer"
+version = "0.1.0"
+description = "PETSc/TAO-based optimization driver for the magudi PDE solver (ver4)."
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+  "scipy",
+  "h5py",
+  "PyYAML",
+  "tables",
+  "pandas",
+  "mpi4py",
+  "petsc4py>=3.25.1",
+]
+
+[project.scripts]
+magudi-optim  = "magudi_optimizer.optim:main"
+magudi-msgrad = "magudi_optimizer.msgrad_test:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

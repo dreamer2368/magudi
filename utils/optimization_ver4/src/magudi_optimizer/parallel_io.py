@@ -40,7 +40,7 @@ Wire format follows schema kind unambiguously:
 import glob
 import os
 import re
-import sys
+import subprocess
 from collections import namedtuple
 from typing import List, Optional
 
@@ -50,20 +50,51 @@ import numpy as np
 from mpi4py import MPI  # noqa: F401  (import-order side effect)
 from petsc4py import PETSc
 
-from inputs import InputParser
+from . import plot3dnasa
+from .inputs import InputParser
 
-# plot3dnasa is typically copied into the staged run directory (= cwd) by the
-# run wrapper. Add cwd to sys.path so the import finds it without requiring
-# PYTHONPATH manipulation in shell.
-if os.getcwd() not in sys.path:
-    sys.path.insert(0, os.getcwd())
 
-try:
-    import plot3dnasa  # noqa: F401  (probed for .q handling)
-    _plot3d_import_error = None
-except Exception as exc:  # pragma: no cover - exercised at runtime via .q path
-    plot3dnasa = None
-    _plot3d_import_error = exc
+def launch_and_wait(executable, args, n, mode):
+    """Collectively launch `n` worker processes via the mode's launcher; block.
+
+    All N_petsc parent ranks Barrier; rank 0 subprocess.runs the launcher
+    and blocks until it returns; the return code is broadcast so every
+    rank either continues or raises SystemExit together; then Barrier
+    again. The worker's stdout/stderr land in ./out/<basename>.out.
+
+    mode='base'  -> launcher = ["mpirun"]
+    mode='slurm' -> launcher = ["srun", "--overlap"]
+
+    The Fortran child's disconnectParentIfSpawned (MPIHelperImpl.f90:552-574)
+    is a no-op here -- MPI_Comm_get_parent returns MPI_COMM_NULL because
+    we launched via mpirun/srun, not MPI_Comm_spawn. Sync is via the
+    subprocess.run blocking call, not an inter-comm Barrier.
+    """
+    comm = MPI.COMM_WORLD
+    log_path = os.path.abspath(
+        os.path.join("out", os.path.basename(executable) + ".out")
+    )
+    if comm.Get_rank() == 0:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        open(log_path, "w").close()
+    comm.Barrier()
+
+    if comm.Get_rank() == 0:
+        launcher = ["mpirun"] if mode == "base" else ["srun", "--overlap"]
+        cmd = launcher + ["-n", str(n), executable] + list(args)
+        with open(log_path, "a") as logf:
+            rc = subprocess.run(
+                cmd, stdout=logf, stderr=subprocess.STDOUT
+            ).returncode
+    else:
+        rc = None
+    rc = comm.bcast(rc, root=0)
+    comm.Barrier()
+    if rc != 0:
+        raise SystemExit(
+            f"{executable} (mode={mode}) exited with code {rc}; "
+            f"see {log_path} for details"
+        )
 
 
 FileSpec = namedtuple("FileSpec", ["kind", "identifier", "size"])
@@ -987,8 +1018,7 @@ class ParallelIOHandler:
         # (src/RegionImpl.f90:1381-1383), so a fresh zero header would put the
         # controller buffer at the wrong frame offset in subsequent segments.
         # Callers must pre-stage the target .q files (run_parallel.sh copies the
-        # baseline snapshots into <prefix>-<k>.ic.q before optim.parallel.py
-        # starts).
+        # baseline snapshots into <prefix>-<k>.ic.q before magudi-optim starts).
         if not os.path.exists(path):
             raise RuntimeError(
                 f"ParallelIOHandler._write_one_q requires {path} to exist so the "
