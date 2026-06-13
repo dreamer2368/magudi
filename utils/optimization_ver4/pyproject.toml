@@ -9,11 +9,8 @@ description = "PETSc/TAO-based optimization driver for the magudi PDE solver (ve
 requires-python = ">=3.9"
 dependencies = [
   "numpy",
-  "scipy",
   "h5py",
   "PyYAML",
-  "tables",
-  "pandas",
   "mpi4py",
   "petsc4py>=3.25.1",
 ]
