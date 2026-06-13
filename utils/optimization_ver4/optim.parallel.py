@@ -26,7 +26,7 @@ the Vec's local sizes per rank) is layout-bound.
 """
 import argparse
 import os
-import shlex
+import subprocess
 import sys
 from collections import deque
 
@@ -40,27 +40,21 @@ from parallel_io import ParallelIOHandler
 LMVM_DEPTH = 5  # matches BQNLS default Max. storage = 5
 
 
-def _spawn_and_wait(executable, args, n):
-    """Collectively spawn `n` child MPI processes; block until they finalize.
+def launch_and_wait(executable, args, n, mode):
+    """Collectively launch `n` worker processes via the mode's launcher; block.
 
-    All N_petsc parent ranks must call this with identical arguments. Only one
-    set of `n` children is launched (not N_petsc * n).
+    All N_petsc parent ranks Barrier; rank 0 subprocess.runs the launcher
+    and blocks until it returns; the return code is broadcast so every
+    rank either continues or raises SystemExit together; then Barrier
+    again. The worker's stdout/stderr land in ./out/<basename>.out.
 
-    Child stdout/stderr go to ./out/<basename(executable)>.out; rank 0
-    truncates the file before each call. Suppression uses
-    /bin/bash -c "exec <bin> ... >> log 2>&1": the shell exec replaces
-    itself with the real binary, preserving the PID and PMI env vars so
-    MPI_Init in the child still completes the spawn handshake.
+    mode='base'  -> launcher = ["mpirun"]
+    mode='slurm' -> launcher = ["srun", "--overlap"]
 
-    Sync is via an inter-communicator `Barrier()`, NOT `Disconnect()`.
-    Per the MPI standard, MPI_Comm_disconnect only waits for pending traffic
-    on the inter-comm to finish; since we never send/recv on it, both sides
-    disconnect immediately and no rendezvous occurs. MPI_Barrier on the
-    inter-comm IS a true rendezvous over the union of parent+child groups.
-    The child calls a matching MPI_Barrier(parent) from disconnectParentIfSpawned
-    in MPIHelperImpl.f90, placed immediately before MPI_Comm_disconnect and
-    MPI_Finalize -- so the parent's Barrier() returns only after the child
-    has finished all its work.
+    The Fortran child's disconnectParentIfSpawned (MPIHelperImpl.f90:552-574)
+    is a no-op here -- MPI_Comm_get_parent returns MPI_COMM_NULL because
+    we launched via mpirun/srun, not MPI_Comm_spawn. Sync is via the
+    subprocess.run blocking call, not an inter-comm Barrier.
     """
     comm = MPI.COMM_WORLD
     log_path = os.path.abspath(
@@ -71,22 +65,22 @@ def _spawn_and_wait(executable, args, n):
         open(log_path, "w").close()
     comm.Barrier()
 
-    quoted_args = " ".join(shlex.quote(a) for a in args)
-    redir_cmd = (
-        f"exec {shlex.quote(executable)} {quoted_args} "
-        f">> {shlex.quote(log_path)} 2>&1"
-    )
-
-    inter = MPI.COMM_WORLD.Spawn(
-        "/bin/bash",
-        args=["-c", redir_cmd],
-        maxprocs=n,
-        info=MPI.INFO_NULL,
-        root=0,
-    )
-    inter.Barrier()
-    inter.Disconnect()
-    MPI.COMM_WORLD.Barrier()
+    if comm.Get_rank() == 0:
+        launcher = ["mpirun"] if mode == "base" else ["srun", "--overlap"]
+        cmd = launcher + ["-n", str(n), executable] + list(args)
+        with open(log_path, "a") as logf:
+            rc = subprocess.run(
+                cmd, stdout=logf, stderr=subprocess.STDOUT
+            ).returncode
+    else:
+        rc = None
+    rc = comm.bcast(rc, root=0)
+    comm.Barrier()
+    if rc != 0:
+        raise SystemExit(
+            f"{executable} (mode={mode}) exited with code {rc}; "
+            f"see {log_path} for details"
+        )
 
 
 def main():
@@ -103,6 +97,11 @@ def main():
     parser.add_argument(
         "--debug", action="store_true",
         help="print debug-level diagnostics"
+    )
+    parser.add_argument(
+        "--mode", choices=("base", "slurm"), default="base",
+        help="Worker launch mode. base: mpirun (default). "
+             "slurm: srun --overlap (production SLURM)."
     )
     args = parser.parse_args()
 
@@ -206,9 +205,9 @@ def main():
         x_dist.destroy()
         comm.Barrier()
 
-        _spawn_and_wait("./msforward", ["--input", "magudi.inp"], N_forward)
+        launch_and_wait("./msforward", ["--input", "magudi.inp"], N_forward, args.mode)
         n_spawn[0] += 1
-        _spawn_and_wait("./msadjoint", ["--input", "magudi.inp"], N_adjoint)
+        launch_and_wait("./msadjoint", ["--input", "magudi.inp"], N_adjoint, args.mode)
         n_spawn[0] += 1
 
         # J: msforward folds the matching-condition penalty into the total
