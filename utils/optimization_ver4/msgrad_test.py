@@ -5,9 +5,8 @@ Run as
 
 from the staged OneDWave_msgrad/ directory. The driver
   - parses msgrad.yml via InputParser (typed YAML reader from inputs.py);
-  - spawns ./msforward, ./msadjoint, ./zaxpy, ./qfile_zaxpy via MPI_Comm_spawn
-    using the resource_distribution.jobs.{forward,adjoint,petsc} block (lifted
-    from optim.parallel.yml's convention);
+  - launches ./msforward and ./msadjoint via launch_and_wait
+    (subprocess + mpirun / srun --overlap; see --exec-mode);
   - runs a Taylor finite-difference test
         s(h) = ( J(x0 + h*g) - J(x0) ) / h  ->  <g,g>_M  as h -> 0
     where the reference <g,g>_M is the msadjoint .adjoint_run.txt scalar; and
@@ -22,13 +21,13 @@ compute_norm scales the IC portion of M_diag by state_controllability, but
 msadjoint's per-segment IC inner product (bin/msadjoint.f90:307-318) does
 not. We assert this at startup rather than silently failing the cross-check.
 
-zaxpy and qfile_zaxpy run at n=1 -- .dat and .q files are rank-portable via
-MPI-IO, and the perturbation step is O(N) memory traffic, not compute-bound.
+The control / IC perturbation is performed in Python via PETSc.Vec.axpy +
+ParallelIOHandler.write_x, so no zaxpy / qfile_zaxpy binaries are needed.
 """
 import argparse
 import math
 import os
-import shlex
+import subprocess
 import sys
 
 import numpy as np
@@ -38,7 +37,7 @@ from mpi4py import MPI  # noqa: F401  (import-order side effect)
 from petsc4py import PETSc
 
 from inputs import InputParser
-from parallel_io import ParallelIOHandler, parse_layout
+from parallel_io import ParallelIOHandler
 
 
 GG_TOL = 1.0e-10  # relative tolerance for the <g,g>_M cross-check vs msadjoint
@@ -52,18 +51,17 @@ DEFAULT_H_LIST = [1.0e-1, 3.0e-2, 1.0e-2, 3.0e-3, 1.0e-3,
                   1.0e-6, 3.0e-7, 1.0e-7]
 
 
-def _spawn_and_wait(executable, args, n):
-    """Collectively spawn `n` MPI children; block until they finalize.
+def launch_and_wait(executable, args, n, mode):
+    """Collectively launch `n` worker processes via the mode's launcher; block.
 
-    Lifted verbatim from utils/optimization_ver4/optim.parallel.py. All
-    N_petsc parent ranks must call this with identical arguments; only one
-    set of `n` children is launched (not N_petsc * n).
+    Lifted from utils/optimization_ver4/optim.parallel.py. All N_petsc
+    parent ranks Barrier; rank 0 subprocess.runs the launcher and blocks
+    until it returns; the return code is broadcast so every rank either
+    continues or raises SystemExit together; then Barrier again. The
+    worker's stdout/stderr land in ./out/<basename>.out.
 
-    Sync is via inter-comm Barrier (true rendezvous), NOT Disconnect (which
-    doesn't wait if no messages flow). The child calls a matching
-    MPI_Barrier(parent) in disconnectParentIfSpawned (MPIHelperImpl.f90)
-    immediately before MPI_Comm_disconnect + MPI_Finalize, so the parent's
-    Barrier returns only after the child has flushed all I/O.
+    mode='base'  -> launcher = ["mpirun"]
+    mode='slurm' -> launcher = ["srun", "--overlap"]
     """
     comm = MPI.COMM_WORLD
     log_path = os.path.abspath(
@@ -74,22 +72,22 @@ def _spawn_and_wait(executable, args, n):
         open(log_path, "w").close()
     comm.Barrier()
 
-    quoted_args = " ".join(shlex.quote(a) for a in args)
-    redir_cmd = (
-        f"exec {shlex.quote(executable)} {quoted_args} "
-        f">> {shlex.quote(log_path)} 2>&1"
-    )
-
-    inter = MPI.COMM_WORLD.Spawn(
-        "/bin/bash",
-        args=["-c", redir_cmd],
-        maxprocs=n,
-        info=MPI.INFO_NULL,
-        root=0,
-    )
-    inter.Barrier()
-    inter.Disconnect()
-    MPI.COMM_WORLD.Barrier()
+    if comm.Get_rank() == 0:
+        launcher = ["mpirun"] if mode == "base" else ["srun", "--overlap"]
+        cmd = launcher + ["-n", str(n), executable] + list(args)
+        with open(log_path, "a") as logf:
+            rc = subprocess.run(
+                cmd, stdout=logf, stderr=subprocess.STDOUT
+            ).returncode
+    else:
+        rc = None
+    rc = comm.bcast(rc, root=0)
+    comm.Barrier()
+    if rc != 0:
+        raise SystemExit(
+            f"{executable} (mode={mode}) exited with code {rc}; "
+            f"see {log_path} for details"
+        )
 
 
 def _read_sub_adjoint(path, comm):
@@ -203,18 +201,15 @@ def main():
                              "(k >= 1). The FD test then runs at the perturbed "
                              "operating point. Original on-disk state is restored "
                              "at exit, so the probe is non-invasive.")
+    parser.add_argument("--exec-mode", choices=("base", "slurm"), default="base",
+                        help="Worker launch mode. base: mpirun (default). "
+                             "slurm: srun --overlap (production SLURM).")
     args = parser.parse_args()
 
     comm = MPI.COMM_WORLD
     cfg = InputParser(args.config)
 
-    # Accept both naming conventions: production configs use "global_prefix"
-    # (optim.parallel.yml), the per-test msgrad.yml historically used
-    # "output_prefix". Fall through silently to the other key.
-    try:
-        prefix = cfg.getInput(["global_prefix"], datatype=str)
-    except RuntimeError:
-        prefix = cfg.getInput(["output_prefix"], datatype=str)
+    prefix = cfg.getInput(["global_prefix"], datatype=str)
     h_list = cfg.getInput(
         ["finite_difference", "step_sizes"], fallback=DEFAULT_H_LIST)
     order_threshold = cfg.getInput(
@@ -238,7 +233,8 @@ def main():
     # state_controllability MUST be 1.0 -- see module docstring + compute_norm /
     # msadjoint metric mismatch note.
     state_ctrl = cfg.getInput(
-        ["time_splitting", "state_controllability"], fallback=1.0)
+        ["magudi", "forced_inputs", "time_splitting", "state_controllability"],
+        fallback=1.0)
     if abs(state_ctrl - 1.0) > 0.0:
         raise SystemExit(
             f"state_controllability must be 1.0 for the <g,g>_M cross-check "
@@ -247,15 +243,12 @@ def main():
         )
 
     # One ParallelIOHandler drives both the cross-check and the FD perturbation
-    # loop. With it we replace ./zaxpy / ./qfile_zaxpy (which don't call
-    # disconnectParentIfSpawned and hang the parent's inter-comm Barrier) by
-    # PETSc.Vec.axpy on the host-side and a single io.write per h.
+    # loop. With it we replace the old ./zaxpy / ./qfile_zaxpy spawn (which
+    # didn't call disconnectParentIfSpawned and hung the parent's inter-comm
+    # Barrier) by PETSc.Vec.axpy on the host-side and a single io.write per h.
     # Built BEFORE the baseline pass so --add-ic-noise can mutate the on-disk
     # state before msforward reads it.
-    layout_path = f"{prefix}.layout.txt"
-    ic_norm_q_path = f"{prefix}.norm_ic.q"
-    schema = parse_layout(layout_path)
-    io = ParallelIOHandler(schema, prefix, ic_norm_q_path, comm=comm)
+    io = ParallelIOHandler(cfg, comm=comm)
     io.report_balance()
 
     # Snapshot the on-disk state so we can restore it in the finally block,
@@ -277,16 +270,18 @@ def main():
     # Baseline pass: msforward then msadjoint. msforward reads the (possibly
     # noised) .control_forcing.dat + .ic.q files; msadjoint writes .gradient.dat
     # + .ic.adjoint.q. After this, both the operating point and g exist on disk.
-    _spawn_and_wait(
+    launch_and_wait(
         "./msforward",
         ["--input", "magudi.inp", "--output", "J0.txt"],
         N_forward,
+        args.exec_mode,
     )
     j0 = io.read_scalar("J0.txt")
-    _spawn_and_wait(
+    launch_and_wait(
         "./msadjoint",
         ["--input", "magudi.inp", "--output", "gg.txt"],
         N_adjoint,
+        args.exec_mode,
     )
 
     ctrl_sum, ic_sum = _read_sub_adjoint(
@@ -339,10 +334,11 @@ def main():
             x_new.axpy(h, g_mode)        # x_new = x_base + h * g_mode
             io.write_x(x_new)
 
-            _spawn_and_wait(
+            launch_and_wait(
                 "./msforward",
                 ["--input", "magudi.inp", "--output", "Jh.txt"],
                 N_forward,
+                args.exec_mode,
             )
             jh = io.read_scalar("Jh.txt")
             slope = (jh - j0) / h

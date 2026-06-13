@@ -17,6 +17,16 @@ BUILD_DIR="${BUILD_DIR:-$(pwd)}"
 WORK_DIR="${BUILD_DIR}/OneDWave_msparallel"
 CFG="optim.yml"
 
+# Launch mode. base = mpirun (default, dev container / interactive). slurm =
+# srun (production allocation). Used by both the standalone forward / compute_norm
+# steps and by optim.parallel.py (which is passed through as --mode).
+MODE="${MODE:-base}"
+case "${MODE}" in
+    base)  LAUNCHER="mpirun" ;;
+    slurm) LAUNCHER="srun"   ;;
+    *) echo "error: MODE must be 'base' or 'slurm', got '${MODE}'" >&2; exit 1 ;;
+esac
+
 for bin in forward msforward msadjoint compute_norm; do
     if [ ! -x "${BUILD_DIR}/bin/${bin}" ]; then
         echo "error: ${BUILD_DIR}/bin/${bin} not found; run cmake + make first" >&2
@@ -74,7 +84,7 @@ sed -i 's/^controller_switch = .*/controller_switch = false/' magudi.inp
 
 # 1. Baseline forward run with controller_switch=false: produces snapshots
 #    at every segment boundary (ts = NTS, 2*NTS, ..., NSPLIT*NTS).
-mpirun -n "${N_FORWARD}" ./forward
+${LAUNCHER} -n "${N_FORWARD}" ./forward
 
 # 2. Stage per-segment IC files. Segment 0 IC is the canonical initial state
 #    (read from the .ic.q produced by config.py). Segments 1..NSPLIT-1 take the
@@ -105,7 +115,7 @@ sed -i "s/^number_of_timesteps = .*/number_of_timesteps = $((NSPLIT * NTS))/" ma
 # 4. compute_norm writes .norm_<actuator>.dat (5D-subarray, NSPLIT*NTS frames),
 #    .norm_ic.q (PLOT3D solution, shared across all ic slabs of M_diag), and
 #    .layout.txt for Python.
-mpirun -n "${N_FORWARD}" ./compute_norm --input magudi.inp
+${LAUNCHER} -n "${N_FORWARD}" ./compute_norm --input magudi.inp
 
 BASELINE=2
 SPLIT=1
@@ -126,9 +136,9 @@ restore_baseline_inputs() {
 }
 
 # Baseline: BASELINE iters in one go.
-mpirun -n "${N_PETSC}" python3 \
+${LAUNCHER} -n "${N_PETSC}" python3 \
     "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
-    "${CFG}" --max-iter "${BASELINE}"
+    "${CFG}" --max-iter "${BASELINE}" --mode "${MODE}"
 J_baseline=$(tr -d '[:space:]' < "${PREFIX}.forward_run.txt")
 
 restore_baseline_inputs
@@ -136,12 +146,12 @@ restore_baseline_inputs
 # Split: SPLIT iters, checkpoint, resume for SPLIT more. Final J should match
 # the baseline to near-bitwise precision; this checks the parallel-I/O wiring
 # under Phase 3's file-aligned layout.
-mpirun -n "${N_PETSC}" python3 \
+${LAUNCHER} -n "${N_PETSC}" python3 \
     "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
-    "${CFG}" --max-iter "${SPLIT}"
-mpirun -n "${N_PETSC}" python3 \
+    "${CFG}" --max-iter "${SPLIT}" --mode "${MODE}"
+${LAUNCHER} -n "${N_PETSC}" python3 \
     "${REPO_ROOT}/utils/optimization_ver4/optim.parallel.py" \
-    "${CFG}" --max-iter "${SPLIT}"
+    "${CFG}" --max-iter "${SPLIT}" --mode "${MODE}"
 J_split=$(tr -d '[:space:]' < "${PREFIX}.forward_run.txt")
 
 python3 - "${J_baseline}" "${J_split}" "${BASELINE}" "${SPLIT}" <<'PY'

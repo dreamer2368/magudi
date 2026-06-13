@@ -3,12 +3,13 @@
 #
 # Stage build/OneDWave_msgrad/, run a warmup forward to generate per-segment
 # IC files, run compute_norm (parallel) to produce M_diag / layout.txt, then
-# launch msgrad_test.py under mpirun -n N_PETSC. msgrad_test.py spawns
-# msforward / msadjoint / zaxpy / qfile_zaxpy via MPI_Comm_spawn using the
-# resource_distribution block we inject into msgrad.yml.
+# launch msgrad_test.py under ${LAUNCHER} -n N_PETSC. msgrad_test.py launches
+# msforward / msadjoint via subprocess + ${LAUNCHER} (selected by --exec-mode).
+# Control / IC perturbation is done in Python via PETSc.Vec.axpy, so zaxpy /
+# qfile_zaxpy binaries are no longer needed.
 #
 # Run from the build/ directory after `make -j` has produced bin/forward,
-# bin/msforward, bin/msadjoint, bin/zaxpy, bin/qfile_zaxpy, bin/compute_norm.
+# bin/msforward, bin/msadjoint, bin/compute_norm.
 #
 # Tunables (env vars):
 #   NSPLIT          (default 4)        number of msforward/msadjoint segments
@@ -31,6 +32,11 @@
 #                                        n_actuator * nprocs_per_actuator + n_ic.
 #                                      For OneDWave (1 actuator), N_PETSC = NSPLIT
 #                                      gives nprocs_per_actuator = 1.
+#   EXEC_MODE       (default base)     base | slurm
+#                                      base  = mpirun (dev container / interactive)
+#                                      slurm = srun (production SLURM allocation);
+#                                              passed through to msgrad_test.py
+#                                              as --exec-mode.
 
 set -euo pipefail
 
@@ -54,7 +60,14 @@ N_FORWARD="${N_FORWARD:-1}"
 N_ADJOINT="${N_ADJOINT:-1}"
 N_PETSC="${N_PETSC:-3}"
 
-for b in forward msforward msadjoint zaxpy qfile_zaxpy compute_norm; do
+EXEC_MODE="${EXEC_MODE:-base}"
+case "${EXEC_MODE}" in
+    base)  LAUNCHER="mpirun" ;;
+    slurm) LAUNCHER="srun"   ;;
+    *) echo "error: EXEC_MODE must be 'base' or 'slurm', got '${EXEC_MODE}'" >&2; exit 1 ;;
+esac
+
+for b in forward msforward msadjoint compute_norm; do
     if [ ! -x "${BUILD_DIR}/bin/${b}" ]; then
         echo "error: ${BUILD_DIR}/bin/${b} not found; run cmake + make first" >&2
         exit 1
@@ -70,7 +83,7 @@ cd "${WORK_DIR}"
 
 python3 config.py
 
-for b in forward msforward msadjoint zaxpy qfile_zaxpy compute_norm; do
+for b in forward msforward msadjoint compute_norm; do
     ln -sf "${BUILD_DIR}/bin/${b}" .
 done
 
@@ -101,7 +114,7 @@ EOF
 # *intended* layout (nPatchPoints * nUnknowns * TOTAL_TS * nStages * 8); the
 # simplest path: run compute_norm FIRST so we know the size, then truncate the
 # norm file's bytes to zero in a copy.
-mpirun -n ${N_FORWARD} ./compute_norm --input magudi.inp
+${LAUNCHER} -n ${N_FORWARD} ./compute_norm --input magudi.inp
 python3 - <<'PY'
 import os
 size = os.path.getsize("OneDWave.norm_controlRegion.dat")
@@ -110,7 +123,7 @@ with open("OneDWave.control_forcing_controlRegion.dat", "wb") as fh:
 PY
 
 # save_interval = NTS produces OneDWave-{NTS:08d}.q, ..., OneDWave-{TOTAL_TS:08d}.q.
-mpirun -n ${N_FORWARD} ./forward --input magudi.inp
+${LAUNCHER} -n ${N_FORWARD} ./forward --input magudi.inp
 
 # Build per-segment IC files. ic_0 = original IC (timestep 0); ic_k for k>=1
 # comes from the k-th segment-boundary snapshot of the warmup trajectory.
@@ -126,16 +139,19 @@ done
 # seeks the actuator into the right window for segment k.
 sed -i "s/^number_of_timesteps = .*/number_of_timesteps = ${NTS}/" magudi.inp
 
-# Drop the test config the Python driver reads. resource_distribution mirrors
-# optim.parallel.yml's convention; msgrad_test.py consumes the procs (index 1).
+# Drop the test config the Python driver reads. Schema matches optim.yml so
+# ParallelIOHandler(cfg, ...) can derive prefix / Nsplit / log path directly.
+# resource_distribution mirrors optim.parallel.yml; msgrad_test.py consumes
+# the procs (index 1).
 cat > msgrad.yml <<EOF
-output_prefix: OneDWave
-patches: [controlRegion]
-time_splitting:
-  number_of_segments: ${NSPLIT}
-  segment_length: ${NTS}
-  penalty_weight: ${PENALTY_WEIGHT}
-  state_controllability: 1.0
+global_prefix: OneDWave
+magudi:
+  forced_inputs:
+    time_splitting:
+      number_of_segments: ${NSPLIT}
+      segment_length: ${NTS}
+      penalty_weight: ${PENALTY_WEIGHT}
+      state_controllability: 1.0
 finite_difference:
   step_sizes: [1.0e-1, 3.0e-2, 1.0e-2, 3.0e-3, 1.0e-3, 3.0e-4, 1.0e-4, 3.0e-5, 1.0e-5, 3.0e-6, 1.0e-6, 3.0e-7, 1.0e-7]
   order_threshold: 0.5
@@ -146,10 +162,9 @@ resource_distribution:
     petsc:   [1, ${N_PETSC}]
 EOF
 
-# msgrad_test.py runs under mpirun -n N_PETSC. All child binaries
-# (msforward, msadjoint, zaxpy, qfile_zaxpy) go through MPI_Comm_spawn so PMI
-# env vars don't leak. zaxpy / qfile_zaxpy are spawned at n=1 (.dat / .q are
-# rank-portable; perturbation is O(N) memory work).
-mpirun -n "${N_PETSC}" python3 \
+# msgrad_test.py runs under ${LAUNCHER} -n N_PETSC. Child binaries
+# (msforward, msadjoint) are launched by msgrad_test.py via subprocess +
+# ${LAUNCHER} (mpirun or srun --overlap, selected by --exec-mode).
+${LAUNCHER} -n "${N_PETSC}" python3 \
     "${REPO_ROOT}/utils/optimization_ver4/msgrad_test.py" \
-    msgrad.yml --mode "${MODE}" ${NOISE_FLAG}
+    msgrad.yml --mode "${MODE}" --exec-mode "${EXEC_MODE}" ${NOISE_FLAG}
