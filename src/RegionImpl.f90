@@ -1309,7 +1309,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename, speciesFilename)
 
   select case(quantityOfInterest)
   case (QOI_GRID, QOI_JACOBIAN, QOI_TARGET_MOLLIFIER, QOI_CONTROL_MOLLIFIER,                 &
-       QOI_METRICS, QOI_DUMMY_FUNCTION)
+       QOI_STATE_MOLLIFIER, QOI_METRICS, QOI_DUMMY_FUNCTION)
   case default
      isSolutionFile = .true.
      if (this%solverOptions%nSpecies > 0 .and. len_trim(speciesFilename_) == 0 .and.         &
@@ -1350,7 +1350,7 @@ subroutine loadRegionData(this, quantityOfInterest, filename, speciesFilename)
 
            select case(quantityOfInterest)
            case (QOI_GRID, QOI_JACOBIAN, QOI_METRICS, QOI_TARGET_MOLLIFIER,                  &
-                QOI_CONTROL_MOLLIFIER)
+                QOI_CONTROL_MOLLIFIER, QOI_STATE_MOLLIFIER)
               call this%grids(j)%loadData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default
@@ -1453,7 +1453,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
   select case(quantityOfInterest)
   case (QOI_GRID, QOI_JACOBIAN, QOI_TARGET_MOLLIFIER, QOI_CONTROL_MOLLIFIER,                 &
-       QOI_METRICS, QOI_DUMMY_FUNCTION, QOI_NORM)
+       QOI_STATE_MOLLIFIER, QOI_METRICS, QOI_DUMMY_FUNCTION, QOI_NORM)
   case default
      isSolutionFile = .true.
      if (filename(len_trim(filename)-1:len_trim(filename)) /= ".q") then
@@ -1476,7 +1476,8 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
   case (QOI_GRID)
      call plot3dWriteSkeleton(this%comm, trim(filename),                                     &
           PLOT3D_GRID_FILE, this%globalGridSizes, success)
-  case (QOI_JACOBIAN, QOI_TARGET_MOLLIFIER, QOI_CONTROL_MOLLIFIER, QOI_NORM)
+  case (QOI_JACOBIAN, QOI_TARGET_MOLLIFIER, QOI_CONTROL_MOLLIFIER,                           &
+        QOI_STATE_MOLLIFIER, QOI_NORM)
      call plot3dWriteSkeleton(this%comm, trim(filename),                                     &
           PLOT3D_FUNCTION_FILE, this%globalGridSizes, success, 1)
   case (QOI_METRICS)
@@ -1542,7 +1543,7 @@ subroutine saveRegionData(this, quantityOfInterest, filename)
 
            select case(quantityOfInterest)
            case (QOI_GRID, QOI_JACOBIAN, QOI_METRICS, QOI_TARGET_MOLLIFIER,                  &
-                QOI_CONTROL_MOLLIFIER, QOI_NORM)
+                QOI_CONTROL_MOLLIFIER, QOI_STATE_MOLLIFIER, QOI_NORM)
               call this%grids(j)%saveData(quantityOfInterest,                                &
                    trim(filename), offset, success)
            case default

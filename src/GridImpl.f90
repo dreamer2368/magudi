@@ -357,6 +357,7 @@ subroutine cleanupGrid(this)
 
   SAFE_DEALLOCATE(this%targetMollifier)
   SAFE_DEALLOCATE(this%controlMollifier)
+  SAFE_DEALLOCATE(this%stateMollifier)
 
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
   SAFE_DEALLOCATE(this%mpiReduceBuffer)
@@ -420,6 +421,11 @@ subroutine loadGridData(this, quantityOfInterest, filename, offsetInBytes, succe
      call plot3dReadSingleFunction(this%comm, trim(filename), offsetInBytes,                 &
           this%mpiDerivedTypeScalarSubarray, this%globalSize,                                &
           this%controlMollifier, success)
+  case (QOI_STATE_MOLLIFIER)
+     assert(allocated(this%stateMollifier))
+     call plot3dReadSingleFunction(this%comm, trim(filename), offsetInBytes,                 &
+          this%mpiDerivedTypeScalarSubarray, this%globalSize,                                &
+          this%stateMollifier, success)
   end select
 
 end subroutine loadGridData
@@ -470,6 +476,10 @@ subroutine saveGridData(this, quantityOfInterest, filename, offsetInBytes, succe
      call plot3dWriteSingleFunction(this%comm, trim(filename), offsetInBytes,                &
           this%mpiDerivedTypeScalarSubarray, this%globalSize,                                &
           this%controlMollifier, success)
+  case (QOI_STATE_MOLLIFIER)
+     call plot3dWriteSingleFunction(this%comm, trim(filename), offsetInBytes,                &
+          this%mpiDerivedTypeScalarSubarray, this%globalSize,                                &
+          this%stateMollifier, success)
   end select
 
 end subroutine saveGridData

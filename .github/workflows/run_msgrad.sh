@@ -45,7 +45,7 @@ BUILD_DIR="${BUILD_DIR:-$(pwd)}"
 WORK_DIR="${BUILD_DIR}/OneDWave_msgrad"
 
 NSPLIT="${NSPLIT:-2}"
-NTS="${NTS:-480}"
+NTS="${NTS:-240}"
 PENALTY_WEIGHT="${PENALTY_WEIGHT:-1.0e-3}"
 MODE="${MODE:-full}"
 ADD_IC_NOISE="${ADD_IC_NOISE:-1}"
@@ -105,6 +105,8 @@ time_splitting/number_of_segments = ${NSPLIT}
 time_splitting/segment_length = ${NTS}
 time_splitting/start_timestep = 0
 time_splitting/penalty_weight = ${PENALTY_WEIGHT}
+time_splitting/state_mollifier/enabled = true
+time_splitting/state_mollifier/uniform_in_time = true
 EOF
 
 # Warmup: one forward over TOTAL_TS timesteps with zero control. We have not
@@ -152,6 +154,9 @@ magudi:
       segment_length: ${NTS}
       penalty_weight: ${PENALTY_WEIGHT}
       state_controllability: 1.0
+      state_mollifier:
+        enabled: true
+        uniform_in_time: true
 finite_difference:
   step_sizes: [1.0e-1, 3.0e-2, 1.0e-2, 3.0e-3, 1.0e-3, 3.0e-4, 1.0e-4, 3.0e-5, 1.0e-5, 3.0e-6, 1.0e-6, 3.0e-7, 1.0e-7]
   order_threshold: 0.5

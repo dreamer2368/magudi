@@ -23,7 +23,9 @@ magudi:
       penalty_weight: 1.6e-6           # consumed by msforward / msadjoint (bin/msforward.f90:116)
       periodic_solution: false
       state_controllability: 1.0
-      use_state_mollifier: true
+      state_mollifier:
+        enabled: true
+        uniform_in_time: true
     penalty_norm:
       type: quadratic
       augmented_lagrangian: false

@@ -25,7 +25,7 @@ program msforward
   end type t_StateBuffer
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, k, icDictIndex, stat, fileUnit, procRank, numProcs, ierror
+  integer :: i, k, m, icDictIndex, stat, fileUnit, procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., lookForOutput = .false., lookForSubOutput = .false.,   &
               inputFlag = .false., outputFlag = .false., subOutputFlag = .false.,           &
@@ -33,16 +33,23 @@ program msforward
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, subOutputFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, segPrefix, message
   character(len = STRING_LENGTH) :: icFilename
+  character(len = STRING_LENGTH) :: stateMollifierFilename, blendedIcFilename
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
   type(t_Solver) :: solver
   ! After segment k completes, scratch(:)%F holds end_k for use in segment k+1's penalty.
   type(t_StateBuffer), allocatable :: scratch(:)
+  ! Auxiliary buffer for state-mollifier IC blending: holds ic_k while we
+  ! overwrite conservedVariables with the blended IC for the solver.
+  type(t_StateBuffer), allocatable :: blendBuf(:)
 
   ! << time-splitting parameters >>
   integer :: Nsplit, Nts, startTimestep
   real(wp) :: penaltyWeight
+
+  ! << state-mollifier flags >>
+  logical :: useStateMollifier, stateMollifierUniformInTime
 
   ! << per-segment accumulators >>
   SCALAR_TYPE, allocatable :: segmentCost(:), segmentL2sq(:), segmentPenalty(:)
@@ -130,6 +137,14 @@ program msforward
   assert(Nts >= 1)
   assert(startTimestep >= 0)
 
+  ! State-mollifier flags. When enabled, the matching penalty is
+  ! mollifier-weighted and segment k's IC is blended with end_{k-1} so the
+  ! solver sees a continuous field in the passive region.
+  useStateMollifier = getOption(                                                            &
+       "time_splitting/state_mollifier/enabled", .false.)
+  stateMollifierUniformInTime = getOption(                                                  &
+       "time_splitting/state_mollifier/uniform_in_time", .true.)
+
   ! Verify that the grid file is in valid PLOT3D format and fetch the grid dimensions.
   call getRequiredOption("grid_file", filename)
   call plot3dDetectFormat(MPI_COMM_WORLD, filename, success,                                 &
@@ -140,6 +155,18 @@ program msforward
   call region%setup(MPI_COMM_WORLD, globalGridSizes)
   call getRequiredOption("grid_file", filename)
   call region%loadData(QOI_GRID, filename)
+
+  ! Allocate the state-mollifier field per grid and, for uniform-in-time mode,
+  ! load it once. (Per-segment mode loads inside the segment loop below.)
+  if (useStateMollifier) then
+    do i = 1, size(region%grids)
+      allocate(region%grids(i)%stateMollifier(region%grids(i)%nGridPoints, 1))
+    end do
+    if (stateMollifierUniformInTime) then
+      write(stateMollifierFilename, '(2A)') trim(outputPrefix), ".ic_mollifier.f"
+      call region%loadData(QOI_STATE_MOLLIFIER, stateMollifierFilename)
+    end if
+  end if
 
   ! Update the grids by computing the Jacobian, metrics, and norm.
   do i = 1, size(region%grids)
@@ -180,11 +207,19 @@ program msforward
   segmentPenalty  = 0.0_wp
 
   ! Scratch buffer for the end state of segment k-1 / the diff (ic_k - end_{k-1}).
-  ! No state mollifier in this first step; the M-weighted inner product is the SBP norm.
+  ! With state mollifier, the inner product is w-weighted; without, it is the SBP norm.
   allocate(scratch(size(region%grids)))
   do i = 1, size(region%grids)
     allocate(scratch(i)%F(region%grids(i)%nGridPoints, region%solverOptions%nUnknowns))
   end do
+
+  ! Auxiliary buffer for state-mollifier IC blending. Only allocated when needed.
+  if (useStateMollifier) then
+    allocate(blendBuf(size(region%grids)))
+    do i = 1, size(region%grids)
+      allocate(blendBuf(i)%F(region%grids(i)%nGridPoints, region%solverOptions%nUnknowns))
+    end do
+  end if
 
   ! Segment loop: forward solve + on-the-fly matching-condition penalty.
   do k = 0, Nsplit-1
@@ -202,16 +237,61 @@ program msforward
     write(message, '(A,I0,A,I0,A)') "=== msforward: segment ", k, " of ", Nsplit, " ==="
     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
-    ! For k > 0: load ic_k now, form diff against scratch (= end_{k-1}), compute L2sq.
-    ! runForward will re-load the IC immediately after, so this load is purely diagnostic.
+    ! For k > 0: load ic_k now, form diff against scratch (= end_{k-1}), compute L2sq,
+    ! and (with state mollifier) build the blended IC the solver will actually run from.
+    ! runForward will re-load the IC immediately after, so this load is purely diagnostic
+    ! in the no-mollifier path; with mollifier we point the dict to a shadow file.
     if (k > 0) then
       call region%loadData(QOI_FORWARD_STATE, icFilename)
-      L2sq = 0.0_wp
-      do i = 1, size(region%states)
-        scratch(i)%F = region%states(i)%conservedVariables - scratch(i)%F
-        L2sq = L2sq +                                                                       &
-             region%grids(i)%computeInnerProduct(scratch(i)%F, scratch(i)%F)
-      end do
+
+      if (useStateMollifier) then
+        if (.not. stateMollifierUniformInTime) then
+          write(stateMollifierFilename, '(2A,I0,A)')                                        &
+               trim(outputPrefix), "-", k, ".ic_mollifier.f"
+          call region%loadData(QOI_STATE_MOLLIFIER, stateMollifierFilename)
+        end if
+
+        ! Stash ic_k (we are about to overwrite conservedVariables with the blend).
+        do i = 1, size(region%states)
+          blendBuf(i)%F = region%states(i)%conservedVariables
+        end do
+
+        ! Mollifier-weighted L2sq of the un-blended raw mismatch:
+        !   L2sq = <w · (ic_k - end_{k-1}), (ic_k - end_{k-1})>_SBP
+        L2sq = 0.0_wp
+        do i = 1, size(region%states)
+          scratch(i)%F = blendBuf(i)%F - scratch(i)%F            ! = ic_k - end_{k-1}
+          L2sq = L2sq +                                                                     &
+               region%grids(i)%computeInnerProduct(scratch(i)%F, scratch(i)%F,               &
+                                                   region%grids(i)%stateMollifier(:,1))
+        end do
+
+        ! Build the blended IC the solver will see:
+        !   ic_blended_k = w · ic_k + (1-w) · end_{k-1}
+        !                = blendBuf - (1-w) · (blendBuf - end_{k-1})
+        !                = blendBuf - (1-w) · scratch          (scratch now = ic_k - end_{k-1})
+        do i = 1, size(region%states)
+          do m = 1, region%solverOptions%nUnknowns
+            region%states(i)%conservedVariables(:,m) =                                      &
+                 blendBuf(i)%F(:,m) -                                                        &
+                 (1.0_wp - region%grids(i)%stateMollifier(:,1)) * scratch(i)%F(:,m)
+          end do
+        end do
+
+        ! Persist the blended IC; route runForward's loadInitialCondition there.
+        write(blendedIcFilename, '(2A,I0,A)')                                               &
+             trim(outputPrefix), "-", k, ".ic.blended.q"
+        call region%saveData(QOI_FORWARD_STATE, blendedIcFilename)
+      else
+        ! Plain SBP-norm L2sq (no blending).
+        L2sq = 0.0_wp
+        do i = 1, size(region%states)
+          scratch(i)%F = region%states(i)%conservedVariables - scratch(i)%F
+          L2sq = L2sq +                                                                     &
+               region%grids(i)%computeInnerProduct(scratch(i)%F, scratch(i)%F)
+        end do
+      end if
+
       if (region%commGridMasters /= MPI_COMM_NULL)                                          &
            call MPI_Allreduce(MPI_IN_PLACE, L2sq, 1, SCALAR_TYPE_MPI, MPI_SUM,              &
                               region%commGridMasters, ierror)
@@ -229,6 +309,9 @@ program msforward
     ! inside msadjoint loads ic_k -- not end_{k-1} from the previous segment --
     ! when it re-runs forward over segment k.
     !
+    ! With state-mollifier blending we point at the shadow blended IC; otherwise
+    ! at the raw <prefix>-<k>.ic.q (which Python wrote and msadjoint will reread).
+    !
     ! Mutating solver%outputPrefix here does NOT change the actuator's
     ! .control_forcing_<name>.dat / .gradient_<name>.dat paths -- those were
     ! resolved once during setupActuatorPatch (src/ActuatorPatchImpl.f90:52,68)
@@ -236,7 +319,11 @@ program msforward
     ! controlForcingFilename / gradientFilename. They stay under the global
     ! prefix, so msforward/msadjoint can keep accumulating into a single .dat
     ! across segments via controlTimestepOffset = k*Nts.
-    dict(icDictIndex)%val = trim(icFilename)
+    if (useStateMollifier .and. k > 0) then
+      dict(icDictIndex)%val = trim(blendedIcFilename)
+    else
+      dict(icDictIndex)%val = trim(icFilename)
+    end if
     write(segPrefix, '(2A,I0)') trim(outputPrefix), "-", k
     solver%outputPrefix = trim(segPrefix)
 
@@ -256,6 +343,13 @@ program msforward
     SAFE_DEALLOCATE(scratch(i)%F)
   end do
   SAFE_DEALLOCATE(scratch)
+
+  if (allocated(blendBuf)) then
+    do i = 1, size(blendBuf)
+      SAFE_DEALLOCATE(blendBuf(i)%F)
+    end do
+    SAFE_DEALLOCATE(blendBuf)
+  end if
 
   ! Aggregate.
   JtimeIntegral = 0.0_wp

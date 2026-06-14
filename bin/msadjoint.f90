@@ -27,7 +27,7 @@ program msadjoint
   end type t_StateBuffer
 
   integer, parameter :: wp = SCALAR_KIND
-  integer :: i, k, dictIndex, icDictIndex, nonzeroDictIndex, stat, fileUnit
+  integer :: i, k, m, dictIndex, icDictIndex, nonzeroDictIndex, stat, fileUnit
   integer :: procRank, numProcs, ierror
   integer :: kthArgument, numberOfArguments
   logical :: lookForInput = .false., lookForOutput = .false., lookForSubOutput = .false.,   &
@@ -36,6 +36,7 @@ program msadjoint
   character(len = STRING_LENGTH) :: argument, inputFilename, outputFilename, subOutputFilename
   character(len = STRING_LENGTH) :: filename, outputPrefix, segPrefix, message
   character(len = STRING_LENGTH) :: icFilename, endFilename, terminalFilename, icAdjointFilename
+  character(len = STRING_LENGTH) :: stateMollifierFilename
   logical :: fileExists, success
   integer, dimension(:,:), allocatable :: globalGridSizes
   type(t_Region) :: region
@@ -43,10 +44,17 @@ program msadjoint
   class(t_Controller), pointer :: controller => null()
   ! Scratch for state arithmetic (matching adjoint pre-computation, IC gradient combination).
   type(t_StateBuffer), allocatable :: scratch(:)
+  ! Buffer that carries the in-memory adjoint_start_of_{k+1} from the previous
+  ! iteration's runAdjoint into the current iteration's on-the-fly IC-gradient
+  ! assembly and (with state mollifier) matching-terminal blend.
+  type(t_StateBuffer), allocatable :: icAdjBuf(:)
 
   ! << time-splitting parameters >>
   integer :: Nsplit, Nts, startTimestep
   real(wp) :: penaltyWeight
+
+  ! << state-mollifier flags >>
+  logical :: useStateMollifier, stateMollifierUniformInTime
 
   ! << per-segment gradient inner-product accumulators >>
   ! segmentCtrlIP(k) = <g_ctrl, g_ctrl>_M restricted to segment k's time window (from runAdjoint).
@@ -147,6 +155,12 @@ program msadjoint
   assert(Nts >= 1)
   assert(startTimestep >= 0)
 
+  ! State-mollifier flags (must agree with msforward's reading of the same options).
+  useStateMollifier = getOption(                                                            &
+       "time_splitting/state_mollifier/enabled", .false.)
+  stateMollifierUniformInTime = getOption(                                                  &
+       "time_splitting/state_mollifier/uniform_in_time", .true.)
+
   ! Per-segment gradient inner-product accumulators (segmentICIP(0) stays 0; ic_0 is fixed).
   allocate(segmentCtrlIP(0:Nsplit-1)); segmentCtrlIP = 0.0_wp
   allocate(segmentICIP  (0:Nsplit-1)); segmentICIP   = 0.0_wp
@@ -161,6 +175,18 @@ program msadjoint
   call region%setup(MPI_COMM_WORLD, globalGridSizes)
   call getRequiredOption("grid_file", filename)
   call region%loadData(QOI_GRID, filename)
+
+  ! Allocate the state-mollifier field per grid and, for uniform-in-time mode,
+  ! load it once. (Per-segment mode loads inside the segment loop below.)
+  if (useStateMollifier) then
+    do i = 1, size(region%grids)
+      allocate(region%grids(i)%stateMollifier(region%grids(i)%nGridPoints, 1))
+    end do
+    if (stateMollifierUniformInTime) then
+      write(stateMollifierFilename, '(2A)') trim(outputPrefix), ".ic_mollifier.f"
+      call region%loadData(QOI_STATE_MOLLIFIER, stateMollifierFilename)
+    end if
+  end if
 
   ! Update the grids by computing the Jacobian, metrics, and norm.
   do i = 1, size(region%grids)
@@ -207,23 +233,47 @@ program msadjoint
     allocate(scratch(i)%F(region%grids(i)%nGridPoints, region%solverOptions%nUnknowns))
   end do
 
-  ! Adjoint segment loop: process segments in reverse order. The matching adjoint
-  ! terminal for each segment's right boundary is (re)written immediately before
-  ! that segment's runAdjoint call — it CANNOT be done as a one-shot pre-pass
-  ! because runAdjoint's internal showProgress save (src/SolverImpl.f90:128-140)
-  ! overwrites <prefix>-<ts:08d>.adjoint.q at every save_interval boundary,
-  ! including the segment boundaries pre-pass writes target.
+  ! Buffer that carries adjoint_start_of_{k+1} from iteration k+1 into iteration k
+  ! (used by both step A1 IC-grad assembly and step A2 matching-terminal blend).
+  allocate(icAdjBuf(size(region%grids)))
+  do i = 1, size(region%grids)
+    allocate(icAdjBuf(i)%F(region%grids(i)%nGridPoints, region%solverOptions%nUnknowns))
+  end do
+
+  ! Unified adjoint segment loop. Two roles per iteration k (going backward):
+  !
+  !   Step A (k < Nsplit-1): reuse the in-memory adjoint_start_of_{k+1} produced
+  !     by the previous iteration's runAdjoint to (A1) assemble segment k+1's
+  !     final IC gradient and (A2) build segment k's matching adjoint terminal,
+  !     each in one pass with the file I/O folded together. This collapses the
+  !     old segment-loop + post-pass into one loop and skips the write-then-
+  !     reread of the bare adjoint that ver3 / earlier ver4 paid for.
+  !   Step B: runAdjoint over segment k. Leaves adjoint_start_of_k in
+  !     region%states(:)%adjointVariables for the next iteration to consume.
+  !
+  ! Order matches ver3's adjointRunCommand (base_extension.py:113-145): the
+  ! matching-terminal patchup uses the BARE adjoint_start_of_{k+1} (not the
+  ! penalty-augmented / mollifier-weighted gradient); the penalty add + w
+  ! multiplication only enter the final IC gradient.
   do k = Nsplit-1, 0, -1
     write(message, '(A,I0,A,I0,A)') "=== msadjoint: segment ", k, " of ", Nsplit, " ==="
     call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
 
-    ! Re-write the matching adjoint terminal at startTs + (k+1)*Nts:
-    !   matching_k = penaltyWeight * (end_k - ic_{k+1})
-    ! runAdjoint will load this when adjoint_nonzero_initial_condition = "true".
-    ! Skip for k=Nsplit-1 (no right neighbor; runAdjoint synthesizes zero terminal).
+    !==========================================================================
+    ! STEP A. Build segment k+1's final IC gradient and segment k's matching
+    ! adjoint terminal on the fly. Skip on the first iteration (k=Nsplit-1):
+    ! no segment to the right, runAdjoint synthesizes the zero terminal.
+    !==========================================================================
     if (k < Nsplit - 1) then
-      ! end_k lives under segment k's prefix (msforward wrote it via showProgress
-      ! after running with solver%outputPrefix = <prefix>-<k>).
+
+      ! Preserve adjoint_start_of_{k+1} from the previous iteration's runAdjoint.
+      ! Needed by both A1 (penalty add) and A2 (mollifier blend).
+      do i = 1, size(region%states)
+        icAdjBuf(i)%F = region%states(i)%adjointVariables
+      end do
+
+      ! Load end_k -> conservedVariables, copy to scratch. (end_k lives under
+      ! segment k's prefix, written by msforward's runForward via showProgress.)
       write(endFilename, '(2A,I0,A,I8.8,A)') trim(outputPrefix), "-", k, "-",               &
            startTimestep + (k+1) * Nts, ".q"
       if (procRank == 0) inquire(file = endFilename, exist = fileExists)
@@ -235,9 +285,10 @@ program msadjoint
       end if
       call region%loadData(QOI_FORWARD_STATE, endFilename)
       do i = 1, size(region%states)
-        scratch(i)%F = region%states(i)%conservedVariables
+        scratch(i)%F = region%states(i)%conservedVariables    ! = end_k
       end do
 
+      ! Load ic_{k+1} -> conservedVariables (the un-blended optimization variable).
       write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k+1, ".ic.q"
       if (procRank == 0) inquire(file = icFilename, exist = fileExists)
       call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
@@ -246,19 +297,80 @@ program msadjoint
         call gracefulExit(MPI_COMM_WORLD, message)
       end if
       call region%loadData(QOI_FORWARD_STATE, icFilename)
+
+      ! Per-segment mollifier for index (k+1): drives both A1 and A2.
+      if (useStateMollifier .and. .not. stateMollifierUniformInTime) then
+        write(stateMollifierFilename, '(2A,I0,A)')                                          &
+             trim(outputPrefix), "-", k+1, ".ic_mollifier.f"
+        call region%loadData(QOI_STATE_MOLLIFIER, stateMollifierFilename)
+      end if
+
+      ! --- A1. Final IC gradient of segment k+1 ---------------------------------
+      ! dJ/d(ic_{k+1}) = w · (adjoint_start_of_{k+1} + pw · (ic_{k+1} - end_k))
+      ! (w = stateMollifier when enabled, else identity.)
       do i = 1, size(region%states)
-        region%states(i)%adjointVariables = penaltyWeight *                                 &
-             (scratch(i)%F - region%states(i)%conservedVariables)
+        region%states(i)%adjointVariables = icAdjBuf(i)%F +                                 &
+             penaltyWeight * (region%states(i)%conservedVariables - scratch(i)%F)
+        if (useStateMollifier) then
+          do m = 1, region%solverOptions%nUnknowns
+            region%states(i)%adjointVariables(:,m) =                                        &
+                 region%grids(i)%stateMollifier(:,1) *                                       &
+                 region%states(i)%adjointVariables(:,m)
+          end do
+        end if
       end do
 
-      ! Terminal file must live under segment k's prefix so runAdjoint
+      ! segmentICIP(k+1) = <grad, grad>_SBP (plain norm of the finalized gradient,
+      ! matching ver3's gradient inner-product convention).
+      L2sq = 0.0_wp
+      do i = 1, size(region%states)
+        L2sq = L2sq + region%grids(i)%computeInnerProduct(                                  &
+             region%states(i)%adjointVariables, region%states(i)%adjointVariables)
+      end do
+      if (region%commGridMasters /= MPI_COMM_NULL)                                          &
+           call MPI_Allreduce(MPI_IN_PLACE, L2sq, 1, SCALAR_TYPE_MPI, MPI_SUM,              &
+                              region%commGridMasters, ierror)
+      do i = 1, size(region%grids)
+        call MPI_Bcast(L2sq, 1, SCALAR_TYPE_MPI, 0, region%grids(i)%comm, ierror)
+      end do
+      segmentICIP(k+1) = L2sq
+
+      write(icAdjointFilename, '(2A,I0,A)') trim(outputPrefix), "-", k+1, ".ic.adjoint.q"
+      call region%saveData(QOI_ADJOINT_STATE, icAdjointFilename)
+
+      ! --- A2. Segment k's matching adjoint terminal ----------------------------
+      ! Without mollifier: terminal_k = pw · (end_k - ic_{k+1})
+      ! With mollifier:    terminal_k = w · pw · (end_k - ic_{k+1})
+      !                               + (1-w) · adjoint_start_of_{k+1}
+      ! The terminal file lives under segment k's prefix so runAdjoint
       ! (with solver%outputPrefix = <prefix>-<k> below) picks it up via its
       ! "<this%outputPrefix>-<region%timestep>.adjoint.q" path.
+      do i = 1, size(region%states)
+        region%states(i)%adjointVariables =                                                 &
+             penaltyWeight * (scratch(i)%F - region%states(i)%conservedVariables)
+        if (useStateMollifier) then
+          do m = 1, region%solverOptions%nUnknowns
+            region%states(i)%adjointVariables(:,m) =                                        &
+                 region%grids(i)%stateMollifier(:,1) *                                       &
+                 region%states(i)%adjointVariables(:,m) +                                   &
+                 (1.0_wp - region%grids(i)%stateMollifier(:,1)) * icAdjBuf(i)%F(:,m)
+          end do
+        end if
+      end do
+
       write(terminalFilename, '(2A,I0,A,I8.8,A)') trim(outputPrefix), "-", k, "-",          &
            startTimestep + (k+1) * Nts, ".adjoint.q"
       call region%saveData(QOI_ADJOINT_STATE, terminalFilename)
+
+      dict(nonzeroDictIndex)%val = "true"
+    else
+      ! No segment to the right -> zero adjoint terminal (runAdjoint synthesizes it).
+      dict(nonzeroDictIndex)%val = "false"
     end if
 
+    !==========================================================================
+    ! STEP B. runAdjoint for segment k.
+    !==========================================================================
     write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.q"
     if (procRank == 0) inquire(file = icFilename, exist = fileExists)
     call MPI_Bcast(fileExists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierror)
@@ -268,19 +380,12 @@ program msadjoint
     end if
 
     dict(icDictIndex)%val = trim(icFilename)
-    if (k == Nsplit-1) then
-      ! No segment to the right -> zero adjoint terminal (runAdjoint synthesizes it).
-      dict(nonzeroDictIndex)%val = "false"
-    else
-      ! Load the matching adjoint terminal just written above.
-      dict(nonzeroDictIndex)%val = "true"
-    end if
 
     ! Mutate solver%outputPrefix to <prefix>-<k> so runAdjoint, showProgress, and
     ! the reverse-time migrator all key their I/O off segment k's namespace.
-    ! That makes the migrator's "<prefix>-<startTimestep>.q" read pick up ic_k
-    ! (written by msforward's segment k via runForward's IC-save) instead of
-    ! end_{k-1} (which used to live at <prefix>-<k*Nts>.q under the global prefix).
+    ! That makes the migrator's "<prefix>-<startTimestep>.q" read pick up the
+    ! IC snapshot written by msforward (which is the blended IC when state-
+    ! mollifier blending is on, or the raw ic_k otherwise).
     !
     ! Mutating solver%outputPrefix here does NOT change the actuator's
     ! .control_forcing_<name>.dat / .gradient_<name>.dat paths -- those were
@@ -301,57 +406,26 @@ program msadjoint
                                          controlTotalTimesteps = Nsplit * Nts,              &
                                          deleteGradientFile = .false.)
 
-    ! Save the IC-side adjoint (= dJ_time_integral_via_segment_k / d(ic_k); the matching
-    ! penalty's direct contribution to ic_k is added in the post-pass below).
-    write(icAdjointFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.adjoint.q"
-    call region%saveData(QOI_ADJOINT_STATE, icAdjointFilename)
-
     call MPI_Barrier(MPI_COMM_WORLD, ierror)
   end do
 
-  ! Post-pass: add the matching penalty's direct contribution to each IC gradient for k >= 1.
-  !   dJ_p/d(ic_k) = penaltyWeight * (ic_k - end_{k-1})
-  do k = 1, Nsplit-1
-    write(icAdjointFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.adjoint.q"
-    call region%loadData(QOI_ADJOINT_STATE, icAdjointFilename)
-    ! adjointVariables now holds the time-integral adjoint at start of segment k.
-
-    write(icFilename, '(2A,I0,A)') trim(outputPrefix), "-", k, ".ic.q"
-    call region%loadData(QOI_FORWARD_STATE, icFilename)
-    do i = 1, size(region%states)
-      scratch(i)%F = region%states(i)%conservedVariables
-    end do
-
-    ! end_{k-1} lives under segment (k-1)'s prefix.
-    write(endFilename, '(2A,I0,A,I8.8,A)') trim(outputPrefix), "-", k-1, "-",               &
-         startTimestep + k * Nts, ".q"
-    call region%loadData(QOI_FORWARD_STATE, endFilename)
-    do i = 1, size(region%states)
-      region%states(i)%adjointVariables = region%states(i)%adjointVariables +               &
-           penaltyWeight * (scratch(i)%F - region%states(i)%conservedVariables)
-    end do
-
-    ! Spatial inner product <g_ic_k, g_ic_k>_SBP of the finalized IC gradient, before save.
-    L2sq = 0.0_wp
-    do i = 1, size(region%states)
-      L2sq = L2sq + region%grids(i)%computeInnerProduct(                                    &
-           region%states(i)%adjointVariables, region%states(i)%adjointVariables)
-    end do
-    if (region%commGridMasters /= MPI_COMM_NULL)                                            &
-         call MPI_Allreduce(MPI_IN_PLACE, L2sq, 1, SCALAR_TYPE_MPI, MPI_SUM,                &
-                            region%commGridMasters, ierror)
-    do i = 1, size(region%grids)
-      call MPI_Bcast(L2sq, 1, SCALAR_TYPE_MPI, 0, region%grids(i)%comm, ierror)
-    end do
-    segmentICIP(k) = L2sq
-
-    call region%saveData(QOI_ADJOINT_STATE, icAdjointFilename)
-  end do
+  ! Post-loop: After k=0's runAdjoint, adjointVariables = adjoint_start_of_0
+  ! = dJ/d(ic_blended_0). ic_0 is not optimized (no penalty contribution and
+  ! segmentICIP(0) stays 0), but we still write the file because parallel_io's
+  ! _build_paths("grad") lists <prefix>-0.ic.adjoint.q whenever the schema
+  ! includes ic slot 0.
+  write(icAdjointFilename, '(2A,I0,A)') trim(outputPrefix), "-", 0, ".ic.adjoint.q"
+  call region%saveData(QOI_ADJOINT_STATE, icAdjointFilename)
 
   do i = 1, size(scratch)
     SAFE_DEALLOCATE(scratch(i)%F)
   end do
   SAFE_DEALLOCATE(scratch)
+
+  do i = 1, size(icAdjBuf)
+    SAFE_DEALLOCATE(icAdjBuf(i)%F)
+  end do
+  SAFE_DEALLOCATE(icAdjBuf)
 
   ! Aggregate gradient inner product across segments:
   !   total = sum_k (control_forcing_IP_k + ic_IP_k); ic_IP_0 = 0 since ic_0 is not optimized.

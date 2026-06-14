@@ -11,7 +11,8 @@ module Grid_enum
        QOI_JACOBIAN          =  2,                                                           &
        QOI_TARGET_MOLLIFIER  =  3,                                                           &
        QOI_CONTROL_MOLLIFIER =  4,                                                           &
-       QOI_NORM              =  5
+       QOI_NORM              =  5,                                                           &
+       QOI_STATE_MOLLIFIER   =  6
 
   integer, parameter, public ::                                                              &
        NONE    = 0,                                                                          &
@@ -35,7 +36,7 @@ module Grid_mod
 
      integer, dimension(:), allocatable :: iblank
      SCALAR_TYPE, dimension(:,:), allocatable :: coordinates, jacobian, metrics, norm,       &
-          controlMollifier, targetMollifier, arcLengths, gridSpacing
+          controlMollifier, targetMollifier, stateMollifier, arcLengths, gridSpacing
      SCALAR_TYPE :: minGridSpacing
 #ifdef SCALAR_TYPE_IS_binary128_IEEE754
      real(SCALAR_KIND), allocatable :: mpiReduceBuffer(:)
