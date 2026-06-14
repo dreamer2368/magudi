@@ -150,7 +150,17 @@ module Controller_mod
 
   abstract interface
 
-     subroutine hookBeforeTimemarch(this, region, mode, controlTimestepOffset, deleteGradientFile)
+     ! `referenceTimestep` semantics (control_forcing.dat / gradient.dat are
+     ! stored in time-reversed order: forward timestep t at byte (N_total - t)*B):
+     !   FORWARD / LINEARIZED: counted from the start timestep. Forward
+     !     integration begins reading forcing for timestep referenceTimestep + 1.
+     !   ADJOINT: counted from the end timestep in reverse. Adjoint integration
+     !     begins writing gradient for forward timestep (N_total - referenceTimestep),
+     !     i.e. the latest forward timestep in the segment.
+     ! For a multi-segment driver covering segment k with per-segment length Nts
+     ! out of N_total timesteps, the FORWARD-side reference is k*Nts and the
+     ! ADJOINT-side reference is N_total - (k+1)*Nts.
+     subroutine hookBeforeTimemarch(this, region, mode, referenceTimestep, deleteGradientFile)
 
        use Region_mod, only : t_Region
 
@@ -159,7 +169,7 @@ module Controller_mod
        class(t_Controller) :: this
        class(t_Region) :: region
        integer, intent(in) :: mode
-       integer, intent(in), optional :: controlTimestepOffset
+       integer, intent(in), optional :: referenceTimestep
        logical, intent(in), optional :: deleteGradientFile
 
      end subroutine hookBeforeTimemarch

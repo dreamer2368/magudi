@@ -81,8 +81,14 @@ module Solver_mod
 
   interface
 
-     function runAdjoint(this, region, controlTimestepOffset, deleteGradientFile)               &
-          result(costSensitivity)
+     ! Multi-segment callers pass controlTimestepOffset (start timestep of the
+     ! current segment, k*Nts) AND controlTotalTimesteps (the full trajectory
+     ! length, Nsplit*Nts). runAdjoint derives the FORWARD-hook reference
+     ! (= controlTimestepOffset) and the ADJOINT-hook reference
+     ! (= controlTotalTimesteps - controlTimestepOffset - this%nTimesteps).
+     ! The two arguments must be provided together or both omitted.
+     function runAdjoint(this, region, controlTimestepOffset, controlTotalTimesteps,            &
+                         deleteGradientFile) result(costSensitivity)
 
        use Region_mod, only : t_Region
 
@@ -92,6 +98,7 @@ module Solver_mod
        class(t_Region) :: region
 
        integer, intent(in), optional :: controlTimestepOffset
+       integer, intent(in), optional :: controlTotalTimesteps
        logical, intent(in), optional :: deleteGradientFile
 
        SCALAR_TYPE :: costSensitivity
