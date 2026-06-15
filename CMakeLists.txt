@@ -166,6 +166,8 @@ set(magudiObj_SOURCES
   ${PROJECT_SOURCE_DIR}/src/ReverseMigratorImpl.f90
   ${PROJECT_SOURCE_DIR}/include/MappingFunction.f90
   ${PROJECT_SOURCE_DIR}/include/LevelsetFactory.f90
+  ${PROJECT_SOURCE_DIR}/include/MSPenalty.f90
+  ${PROJECT_SOURCE_DIR}/src/MSPenaltyImpl.f90
 
   # Extended types.
   ${PROJECT_SOURCE_DIR}/include/RK4Integrator.f90

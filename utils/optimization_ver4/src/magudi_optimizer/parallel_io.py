@@ -661,7 +661,7 @@ class ParallelIOHandler:
         TimeHistory/adjoint, and line_steps.
         """
         if self.rank == 0:
-            sub_j   = self._read_segment_table(self.sub_j_path)    # cols: idx, J, L2sq, penalty
+            sub_j   = self._read_segment_table(self.sub_j_path)    # cols: idx, J, L2sq
             sub_adj = self._read_segment_table(self.sub_adj_path)  # cols: idx, ctrlIP, icIP
             segmentCost   = sub_j[:, 1]
             segmentL2sq   = sub_j[:, 2]

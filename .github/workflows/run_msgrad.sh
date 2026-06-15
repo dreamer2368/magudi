@@ -105,6 +105,7 @@ time_splitting/number_of_segments = ${NSPLIT}
 time_splitting/segment_length = ${NTS}
 time_splitting/start_timestep = 0
 time_splitting/penalty_weight = ${PENALTY_WEIGHT}
+time_splitting/penalty_type = huber
 time_splitting/state_mollifier/enabled = true
 time_splitting/state_mollifier/uniform_in_time = true
 EOF
@@ -153,6 +154,7 @@ magudi:
       number_of_segments: ${NSPLIT}
       segment_length: ${NTS}
       penalty_weight: ${PENALTY_WEIGHT}
+      penalty_type: huber
       state_controllability: 1.0
       state_mollifier:
         enabled: true

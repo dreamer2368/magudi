@@ -8,6 +8,7 @@ program msadjoint
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
   use Controller_mod, only : t_Controller
+  use MSPenalty_mod, only : t_MSPenalty, connectMSPenalty
 
   use Grid_enum
   use State_enum
@@ -52,6 +53,15 @@ program msadjoint
   ! << time-splitting parameters >>
   integer :: Nsplit, Nts, startTimestep
   real(wp) :: penaltyWeight
+
+  ! << penalty norm (must agree with msforward) >>
+  character(len = STRING_LENGTH) :: penaltyType
+  real(wp) :: huberThreshold
+  class(t_MSPenalty), pointer :: penalty => null()
+  character(len = STRING_LENGTH) :: forwardSubFilename, headerLine
+  integer :: kRead
+  SCALAR_TYPE :: segCostRead, segL2sqRead
+  SCALAR_TYPE :: L2sqSum, gradFactor, penaltyScale
 
   ! << state-mollifier flags >>
   logical :: useStateMollifier, stateMollifierUniformInTime
@@ -154,6 +164,40 @@ program msadjoint
   assert(Nsplit >= 1)
   assert(Nts >= 1)
   assert(startTimestep >= 0)
+
+  ! Penalty norm (must match msforward's reading; quadratic recovers legacy behavior).
+  penaltyType    = getOption("time_splitting/penalty_type", "quadratic")
+  huberThreshold = getOption("time_splitting/huber/threshold", real(1.0e-12, wp))
+  call connectMSPenalty(penalty, trim(penaltyType), huberThreshold)
+
+  ! L2sqSum pre-pass: read msforward's sub_J.txt (column 3 = L2sq_mismatch) and
+  ! sum across segments. Needed because Huber's gradientFactor depends on the
+  ! global summed mismatch, not per-segment values; recovers gradFactor=1 for
+  ! the quadratic case (legacy code path).
+  forwardSubFilename = trim(outputPrefix) // ".sub_J.txt"
+  L2sqSum = 0.0_wp
+  if (procRank == 0) then
+    inquire(file = forwardSubFilename, exist = fileExists)
+    if (.not. fileExists) then
+      write(message, '(3A)') "msforward suboutput ", trim(forwardSubFilename),                &
+           " missing (run msforward first)."
+      call gracefulExit(MPI_COMM_WORLD, message)
+    end if
+    open(unit = getFreeUnit(fileUnit), file = trim(forwardSubFilename), action = 'read',      &
+         iostat = stat, status = 'old')
+    read(fileUnit, '(A)') headerLine    ! discard "# segment time_integral_J L2sq_mismatch"
+    do k = 0, Nsplit-1
+      read(fileUnit, *) kRead, segCostRead, segL2sqRead
+      L2sqSum = L2sqSum + segL2sqRead
+    end do
+    close(fileUnit)
+  end if
+  call MPI_Bcast(L2sqSum, 1, SCALAR_TYPE_MPI, 0, MPI_COMM_WORLD, ierror)
+
+  ! Scale that replaces the bare penaltyWeight in the matching-condition adjoint
+  ! forcing. For quadratic, gradFactor == 1 -> penaltyScale == penaltyWeight.
+  gradFactor   = penalty%gradientFactor(L2sqSum)
+  penaltyScale = penaltyWeight / gradFactor
 
   ! State-mollifier flags (must agree with msforward's reading of the same options).
   useStateMollifier = getOption(                                                            &
@@ -306,11 +350,12 @@ program msadjoint
       end if
 
       ! --- A1. Final IC gradient of segment k+1 ---------------------------------
-      ! dJ/d(ic_{k+1}) = w · (adjoint_start_of_{k+1} + pw · (ic_{k+1} - end_k))
-      ! (w = stateMollifier when enabled, else identity.)
+      ! dJ/d(ic_{k+1}) = w · (adjoint_start_of_{k+1} + penaltyScale · (ic_{k+1} - end_k))
+      ! penaltyScale = penaltyWeight / penalty%gradientFactor(L2sqSum); reduces to
+      ! plain penaltyWeight for the quadratic norm. (w = stateMollifier when enabled.)
       do i = 1, size(region%states)
         region%states(i)%adjointVariables = icAdjBuf(i)%F +                                 &
-             penaltyWeight * (region%states(i)%conservedVariables - scratch(i)%F)
+             penaltyScale * (region%states(i)%conservedVariables - scratch(i)%F)
         if (useStateMollifier) then
           do m = 1, region%solverOptions%nUnknowns
             region%states(i)%adjointVariables(:,m) =                                        &
@@ -339,15 +384,17 @@ program msadjoint
       call region%saveData(QOI_ADJOINT_STATE, icAdjointFilename)
 
       ! --- A2. Segment k's matching adjoint terminal ----------------------------
-      ! Without mollifier: terminal_k = pw · (end_k - ic_{k+1})
-      ! With mollifier:    terminal_k = w · pw · (end_k - ic_{k+1})
+      ! Without mollifier: terminal_k = penaltyScale · (end_k - ic_{k+1})
+      ! With mollifier:    terminal_k = w · penaltyScale · (end_k - ic_{k+1})
       !                               + (1-w) · adjoint_start_of_{k+1}
+      ! penaltyScale folds penalty%gradientFactor(L2sqSum) into the bare weight so
+      ! the Huber norm's piecewise gradient is honored.
       ! The terminal file lives under segment k's prefix so runAdjoint
       ! (with solver%outputPrefix = <prefix>-<k> below) picks it up via its
       ! "<this%outputPrefix>-<region%timestep>.adjoint.q" path.
       do i = 1, size(region%states)
         region%states(i)%adjointVariables =                                                 &
-             penaltyWeight * (scratch(i)%F - region%states(i)%conservedVariables)
+             penaltyScale * (scratch(i)%F - region%states(i)%conservedVariables)
         if (useStateMollifier) then
           do m = 1, region%solverOptions%nUnknowns
             region%states(i)%adjointVariables(:,m) =                                        &
@@ -460,6 +507,9 @@ program msadjoint
 
   SAFE_DEALLOCATE(segmentCtrlIP)
   SAFE_DEALLOCATE(segmentICIP)
+
+  if (associated(penalty)) deallocate(penalty)
+  nullify(penalty)
 
   call solver%cleanup()
   call region%cleanup()
