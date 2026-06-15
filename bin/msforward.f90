@@ -7,6 +7,7 @@ program msforward
 
   use Region_mod, only : t_Region
   use Solver_mod, only : t_Solver
+  use MSPenalty_mod, only : t_MSPenalty, connectMSPenalty
 
   use Grid_enum
   use State_enum
@@ -48,12 +49,17 @@ program msforward
   integer :: Nsplit, Nts, startTimestep
   real(wp) :: penaltyWeight
 
+  ! << penalty norm (quadratic by default, Huber optional) >>
+  character(len = STRING_LENGTH) :: penaltyType
+  real(wp) :: huberThreshold
+  class(t_MSPenalty), pointer :: penalty => null()
+
   ! << state-mollifier flags >>
   logical :: useStateMollifier, stateMollifierUniformInTime
 
   ! << per-segment accumulators >>
-  SCALAR_TYPE, allocatable :: segmentCost(:), segmentL2sq(:), segmentPenalty(:)
-  SCALAR_TYPE :: J, JtimeIntegral, Jpenalty, L2sq
+  SCALAR_TYPE, allocatable :: segmentCost(:), segmentL2sq(:)
+  SCALAR_TYPE :: J, JtimeIntegral, Jpenalty, L2sq, L2sqSum
 
   ! Initialize MPI.
   call MPI_Init(ierror)
@@ -137,6 +143,12 @@ program msforward
   assert(Nts >= 1)
   assert(startTimestep >= 0)
 
+  ! Penalty norm: quadratic recovers the legacy 0.5*pw*sum_k(L2sq_k); huber applies
+  ! a smooth-absolute-value norm to the summed mismatch, with a kink at threshold.
+  penaltyType    = getOption("time_splitting/penalty_type", "quadratic")
+  huberThreshold = getOption("time_splitting/huber/threshold", real(1.0e-12, wp))
+  call connectMSPenalty(penalty, trim(penaltyType), huberThreshold)
+
   ! State-mollifier flags. When enabled, the matching penalty is
   ! mollifier-weighted and segment k's IC is blended with end_{k-1} so the
   ! solver sees a continuous field in the passive region.
@@ -201,10 +213,9 @@ program msforward
   ! Allocate per-segment accumulators.
   allocate(segmentCost(0:Nsplit-1))
   allocate(segmentL2sq(0:Nsplit-1))
-  allocate(segmentPenalty(0:Nsplit-1))
   segmentCost     = 0.0_wp
   segmentL2sq     = 0.0_wp
-  segmentPenalty  = 0.0_wp
+  L2sqSum         = 0.0_wp
 
   ! Scratch buffer for the end state of segment k-1 / the diff (ic_k - end_{k-1}).
   ! With state mollifier, the inner product is w-weighted; without, it is the SBP norm.
@@ -298,8 +309,8 @@ program msforward
       do i = 1, size(region%grids)
         call MPI_Bcast(L2sq, 1, SCALAR_TYPE_MPI, 0, region%grids(i)%comm, ierror)
       end do
-      segmentL2sq(k)    = L2sq
-      segmentPenalty(k) = 0.5_wp * penaltyWeight * L2sq
+      segmentL2sq(k) = L2sq
+      L2sqSum        = L2sqSum + L2sq
     end if
 
     ! Route runForward through its own loadInitialCondition path (dict mutation
@@ -351,14 +362,14 @@ program msforward
     SAFE_DEALLOCATE(blendBuf)
   end if
 
-  ! Aggregate.
+  ! Aggregate. Penalty is now a single norm applied to the summed mismatch L2sqSum
+  ! rather than a per-segment sum; matches optimization_ver3/penalty_norm.py.
   JtimeIntegral = 0.0_wp
-  Jpenalty      = 0.0_wp
   do k = 0, Nsplit-1
     JtimeIntegral = JtimeIntegral + segmentCost(k)
-    Jpenalty      = Jpenalty      + segmentPenalty(k)
   end do
-  J = JtimeIntegral + Jpenalty
+  Jpenalty = penaltyWeight * penalty%norm(L2sqSum)
+  J        = JtimeIntegral + Jpenalty
 
   write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'msforward: time-integral J  = ',   &
                                                           JtimeIntegral
@@ -381,10 +392,10 @@ program msforward
 
     open(unit = getFreeUnit(fileUnit), file = trim(subOutputFilename), action='write',      &
          iostat = stat, status = 'replace')
-    write(fileUnit, '(A)') "# segment  time_integral_J            L2sq_mismatch              penalty"
+    write(fileUnit, '(A)') "# segment  time_integral_J            L2sq_mismatch"
     do k = 0, Nsplit-1
-      write(fileUnit, '(I8,3(1X,SP,' // SCALAR_FORMAT // '))')                              &
-           k, segmentCost(k), segmentL2sq(k), segmentPenalty(k)
+      write(fileUnit, '(I8,2(1X,SP,' // SCALAR_FORMAT // '))')                              &
+           k, segmentCost(k), segmentL2sq(k)
     end do
     close(fileUnit)
   end if
@@ -393,7 +404,9 @@ program msforward
 
   SAFE_DEALLOCATE(segmentCost)
   SAFE_DEALLOCATE(segmentL2sq)
-  SAFE_DEALLOCATE(segmentPenalty)
+
+  if (associated(penalty)) deallocate(penalty)
+  nullify(penalty)
 
   call solver%cleanup()
   call region%cleanup()
