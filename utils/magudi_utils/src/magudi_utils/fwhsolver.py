@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import plot3dnasa as p3d
+from . import plot3dnasa as p3d
 import numpy as np
 
 def get_fromfile(offset, size, n, probe_files):

@@ -1,6 +1,6 @@
 #ini!/usr/bin/env python
 import numpy as np
-import plot3dnasa as p3d
+from magudi_utils import plot3dnasa as p3d
 
 def mapping_function(s, b, c, sigma):
     from scipy.special import erf

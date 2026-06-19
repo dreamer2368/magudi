@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import numpy as np
 
-import PLOT3D
+from magudi_utils import PLOT3D
 
 def wallProfile(xNormalized, amplitude, gaussianFactor, nModes):
 

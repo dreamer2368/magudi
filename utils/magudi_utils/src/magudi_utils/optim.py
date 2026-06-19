@@ -1,4 +1,4 @@
-"""magudi_optimizer MPI-parallel TAO driver (optim_ver4 production).
+"""magudi_utils MPI-parallel TAO driver.
 
 Wraps `./msforward` and `./msadjoint` (bin/msforward.f90, bin/msadjoint.f90)
 inside a TAO L-BFGS outer loop. Layout + parallel I/O live in

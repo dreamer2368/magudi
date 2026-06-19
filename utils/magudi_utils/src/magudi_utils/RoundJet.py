@@ -1,6 +1,6 @@
 import numpy as np
-import PLOT3D
-import plot3dnasa as p3d
+from . import PLOT3D
+from . import plot3dnasa as p3d
 
 def mergeMeanSolutions(prefix,meanSolutionFileList, **kwargs):
 

@@ -121,7 +121,7 @@ End-to-end CI also runs two driver scripts in `.github/workflows/`:
 - `run_msgrad.sh` — multi-segment gradient-accuracy check via the `OneDWave` example.
 - `run_parallel.sh` — restart-equivalence test of the parallel TAO L-BFGS loop.
 
-Both `pip install ./utils/optimization_ver4` (the `magudi_optimizer` package) and drive its console scripts `magudi-msgrad` / `magudi-optim` against `examples/OneDWave/` staged into the build tree.
+Both `pip install ./utils/magudi_utils` (the `magudi_utils` package) and drive its console scripts `magudi-msgrad` / `magudi-optim` against `examples/OneDWave/` staged into the build tree.
 
 ## Architecture
 
@@ -157,9 +157,11 @@ The primary executables are `forward`, `adjoint`, `linearized`, and `gradient_ac
 
 ### Utilities ([utils/](utils/))
 
-Auxiliary executables (post-processing such as `q_criterion`, `vorticity_dilatation`, grid generators) are built into `build/utils/`. The `utils/python/` directory contains Python helpers — note that `plot3dnasa.py` and `examples/*/config.py` are **Python 2** (incompatible with Python 3); the optimization drivers are Python 3.
+Auxiliary executables (post-processing such as `q_criterion`, `vorticity_dilatation`, grid generators) are built into `build/utils/`.
 
-Four generations of Python optimization frameworks coexist: `utils/optimization/` (oldest), `utils/optimization_ver2/`, `utils/optimization_ver3/`, and `utils/optimization_ver4/` (current — the installable `magudi_optimizer` Python package built on PETSc/TAO L-BFGS; used by CI). Pull from `optimization_ver4` for new work; architecture in [utils/optimization_ver4/DESIGN.md](utils/optimization_ver4/DESIGN.md).
+Python utilities live in [utils/magudi_utils/](utils/magudi_utils/) — an installable package (`pip install ./utils/magudi_utils`) that bundles PLOT3D file I/O (`plot3dnasa`, `PLOT3D`), mesh helpers (`SummationByParts`, `RoundJet`, `SingleBlockCartesian`), the FWH solver (`fwhsolver`), matplotlib helpers, and the PETSc/TAO L-BFGS optimization driver (`magudi-optim` / `magudi-msgrad` console scripts, used by CI). Examples and tests `from magudi_utils import plot3dnasa as p3d`. Architecture for the optimizer: [utils/magudi_utils/DESIGN.md](utils/magudi_utils/DESIGN.md).
+
+Superseded code lives under [utils/legacy/](utils/legacy/) (`inexactnewton/`, `optimization/`, `optimization_ver2/`, `optimization_ver3/`, the residue `python/`); see [utils/legacy/README.md](utils/legacy/README.md). Not on the active CI path — kept for in-flight production runs only.
 
 ### Examples ([examples/](examples/))
 

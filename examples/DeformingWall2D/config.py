@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import numpy as np
 import scipy.sparse as sps
-import plot3dnasa as p3d
+from magudi_utils import plot3dnasa as p3d
 
 def mapping_function(x, sigma):
     return np.sinh(sigma * x) / np.sinh(sigma)

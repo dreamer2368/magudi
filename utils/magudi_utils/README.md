@@ -1,20 +1,27 @@
-# magudi_optimizer
+# magudi_utils
 
-PETSc/TAO-based PDE-constrained optimization driver for [`magudi`](../../README.md), the
-MPI-parallel compressible Navier-Stokes solver. This is the `ver4` production framework;
-it replaces the per-segment bash orchestration in `utils/optimization_ver3/` with a single
-TAO L-BFGS outer loop running on top of the multi-segment Fortran binaries `msforward`
-and `msadjoint` (`bin/msforward.f90`, `bin/msadjoint.f90`).
+Python utilities for [`magudi`](../../README.md), the MPI-parallel compressible
+Navier-Stokes solver. Bundles:
 
-See [`DESIGN.md`](DESIGN.md) for the architecture (problem-scale constraints, variable
-transformation, the Python ↔ Fortran interface, async-evaluation cases).
+- PLOT3D file I/O (`plot3dnasa`, `PLOT3D`) used by every `examples/*/config.py`.
+- Mesh / SBP helpers (`SummationByParts`, `RoundJet`, `SingleBlockCartesian`).
+- FWH solver (`fwhsolver`) and matplotlib helpers (`matplotlibhelper`).
+- PETSc/TAO L-BFGS optimization driver (`optim`, `msgrad_test`, `parallel_io`,
+  `inputs`) — replaces the per-segment bash orchestration in the legacy
+  `utils/legacy/optimization_ver3/` with a single TAO outer loop running on
+  top of the multi-segment Fortran binaries `msforward` / `msadjoint`
+  (`bin/msforward.f90`, `bin/msadjoint.f90`).
+
+See [`DESIGN.md`](DESIGN.md) for the optimizer architecture (problem-scale
+constraints, variable transformation, the Python ↔ Fortran interface,
+async-evaluation cases).
 
 ## Install
 
 From the repository root:
 
 ```
-pip install ./utils/optimization_ver4
+pip install ./utils/magudi_utils
 ```
 
 ## Console scripts
@@ -32,7 +39,7 @@ mpirun -n N_petsc magudi-msgrad msgrad.yml --mode full
 ```
 
 `N_petsc` must satisfy the `ParallelIOHandler` resource policy (see
-`src/magudi_optimizer/parallel_io.py`).
+`src/magudi_utils/parallel_io.py`).
 
 ## CI driver scripts
 

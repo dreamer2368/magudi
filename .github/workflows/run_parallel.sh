@@ -37,7 +37,6 @@ done
 rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}"
 cp -r "${REPO_ROOT}/examples/OneDWave/." "${WORK_DIR}/"
-cp "${REPO_ROOT}/utils/python/plot3dnasa.py" "${WORK_DIR}/"
 
 cd "${WORK_DIR}"
 
@@ -104,8 +103,8 @@ done
 #    step count to allocate the norm buffer. The optim driver re-applies
 #    set_magudi_inp at startup, restoring number_of_timesteps to NTS.
 python3 - <<PY
-from magudi_optimizer.inputs import InputParser
-from magudi_optimizer.parallel_io import apply_magudi_inp
+from magudi_utils.inputs import InputParser
+from magudi_utils.parallel_io import apply_magudi_inp
 apply_magudi_inp(InputParser("${CFG}"))
 PY
 sed -i "s/^number_of_timesteps = .*/number_of_timesteps = $((NSPLIT * NTS))/" magudi.inp

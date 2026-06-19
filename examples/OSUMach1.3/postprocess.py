@@ -1,4 +1,4 @@
-import plot3dnasa as p3d
+from magudi_utils import plot3dnasa as p3d
 import numpy as np
 from numpy.linalg import norm
 import os

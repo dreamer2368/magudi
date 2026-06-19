@@ -27,15 +27,15 @@ We copy the example directory `<magudi-src>/examples/AcousticMonopole` to any lo
 cp -r <magudi-src>/examples/AcousticMonopole/* ./
 ```
 
-`config.py` file includes all routines to generate grid, function, and flow solution files in PLOT3D format. This needs a python file from `<magudi-src>/utils/python`.
+`config.py` includes all routines to generate grid, function, and flow solution files in PLOT3D format. It imports helpers from the `magudi_utils` Python package, which you install once from the repository:
 ```
-cp <magudi-src>/utils/python/plot3dnasa.py ./
+pip install <magudi-src>/utils/magudi_utils
 ```
 
-Note that `plot3dnasa.py` and `config.py` are written in python2. They are currently not compatible with python3. You can either import `config.py` and use the routines, or run `config.py` itself:
+You can either import `config.py` and use the routines, or run `config.py` itself:
 
 ```
-python2 config.py
+python3 config.py
 ```
 
 This will generate:

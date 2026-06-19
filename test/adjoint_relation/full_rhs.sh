@@ -5,7 +5,6 @@ echo "binary dir:" $1
 exampleDir="AcousticMonopole"
 
 cp -r ../../examples/${exampleDir} ./
-cp ../../utils/python/plot3dnasa.py ./${exampleDir}
 cd ${exampleDir}
 python3 config.py
 mpirun -n 2 $1/full_rhs

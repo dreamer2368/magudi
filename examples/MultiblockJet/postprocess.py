@@ -1,4 +1,4 @@
-import plot3dnasa as p3d
+from magudi_utils import plot3dnasa as p3d
 import numpy as np
 
 def extract_yz(f):
@@ -57,7 +57,7 @@ def extract_const_r(g, f, r=0.5):
 
 def compute_sound(prefix, x0, dt, d, theta):
     import os
-    import fwhsolver as fwh
+    from magudi_utils import fwhsolver as fwh
     g = p3d.Grid('%s.xyz' % prefix)
     n = g.get_size(0)
     ge = extract_const_r(g, g)

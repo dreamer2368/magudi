@@ -77,7 +77,6 @@ done
 rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}"
 cp -r "${REPO_ROOT}/examples/OneDWave/." "${WORK_DIR}/"
-cp "${REPO_ROOT}/utils/python/plot3dnasa.py" "${WORK_DIR}/"
 
 cd "${WORK_DIR}"
 

@@ -1,4 +1,4 @@
-import plot3dnasa as p3d
+from magudi_utils import plot3dnasa as p3d
 import numpy as np
 
 def reynolds_average(s, chunk_size=50):
