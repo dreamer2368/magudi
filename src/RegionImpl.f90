@@ -1077,6 +1077,9 @@ contains
 
     end do
 
+    instantaneousPenalty = region%solverOptions%solutionLimitPenaltyFactor *                &
+         instantaneousPenalty
+
     if (region%commGridMasters /= MPI_COMM_NULL)                                            &
          call MPI_Allreduce(MPI_IN_PLACE, instantaneousPenalty, 1,                          &
          SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
@@ -1134,6 +1137,7 @@ contains
        else
           forcingFactor = region%states(i)%adjointForcingFactor
        end if
+       forcingFactor = forcingFactor * region%solverOptions%solutionLimitPenaltyFactor
 
        nDimensions = region%grids(i)%nDimensions
 

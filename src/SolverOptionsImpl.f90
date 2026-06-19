@@ -77,6 +77,11 @@ subroutine initializeSolverOptions(this, nDimensions, simulationFlags, comm)
      call getRequiredOption("maximum_temperature", this%temperatureRange(2), comm)
   end if
 
+  if (simulationFlags%softSolutionLimits) then
+     this%solutionLimitPenaltyFactor =                                                       &
+          getOption("solution_limit_penalty_factor", 1.0_wp)
+  end if
+
   if (simulationFlags%dissipationOn) then
      call getRequiredOption("dissipation_amount", this%dissipationAmount, comm)
   end if
@@ -194,6 +199,7 @@ subroutine assignSolverOptions(this, solverOptions)
 
   this%densityRange = solverOptions%densityRange
   this%temperatureRange = solverOptions%temperatureRange
+  this%solutionLimitPenaltyFactor = solverOptions%solutionLimitPenaltyFactor
 
   this%dissipationAmount = solverOptions%dissipationAmount
 
