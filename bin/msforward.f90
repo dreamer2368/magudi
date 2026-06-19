@@ -61,6 +61,11 @@ program msforward
   SCALAR_TYPE, allocatable :: segmentCost(:), segmentL2sq(:)
   SCALAR_TYPE :: J, JtimeIntegral, Jpenalty, L2sq, L2sqSum
 
+  ! Set when any segment's runForward trips the hard solution-limit check
+  ! and returns HUGE(0.0_wp). Causes the segment loop to bail and the
+  ! output writer to emit HUGE to outputFilename for the Python driver.
+  logical :: solutionCrashed
+
   ! Initialize MPI.
   call MPI_Init(ierror)
   call MPI_Comm_rank(MPI_COMM_WORLD, procRank, ierror)
@@ -216,6 +221,7 @@ program msforward
   segmentCost     = 0.0_wp
   segmentL2sq     = 0.0_wp
   L2sqSum         = 0.0_wp
+  solutionCrashed = .false.
 
   ! Scratch buffer for the end state of segment k-1 / the diff (ic_k - end_{k-1}).
   ! With state mollifier, the inner product is w-weighted; without, it is the SBP norm.
@@ -340,6 +346,17 @@ program msforward
 
     segmentCost(k) = solver%runForward(region, controlTimestepOffset = k * Nts)
 
+    ! runForward returns HUGE(0.0_wp) when checkSolutionLimits aborts a
+    ! mid-segment step. Bail out: subsequent segments would propagate the
+    ! crashed state and pollute JtimeIntegral / Jpenalty.
+    if (segmentCost(k) > 0.5_wp * HUGE(0.0_wp)) then
+      solutionCrashed = .true.
+      write(message, '(A,I0,A)') "msforward: segment ", k,                                  &
+           " returned HUGE (runForward solution-limit crash); skipping remaining segments."
+      call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+      exit
+    end if
+
     ! Cache the end-state in scratch for the next segment's penalty computation.
     ! The end-of-segment snapshot has already been written by showProgress under
     ! the segment-scoped prefix at <prefix>-<k>-<(k+1)*Nts>.q.
@@ -364,22 +381,31 @@ program msforward
 
   ! Aggregate. Penalty is now a single norm applied to the summed mismatch L2sqSum
   ! rather than a per-segment sum; matches optimization_ver3/penalty_norm.py.
-  JtimeIntegral = 0.0_wp
-  do k = 0, Nsplit-1
-    JtimeIntegral = JtimeIntegral + segmentCost(k)
-  end do
-  Jpenalty = penaltyWeight * penalty%norm(L2sqSum)
-  J        = JtimeIntegral + Jpenalty
+  if (solutionCrashed) then
+    J             = HUGE(0.0_wp)
+    JtimeIntegral = HUGE(0.0_wp)
+    Jpenalty      = 0.0_wp
+    write(message, '(A)')                                                                  &
+         'msforward: hard crash detected; writing HUGE to outputFilename.'
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  else
+    JtimeIntegral = 0.0_wp
+    do k = 0, Nsplit-1
+      JtimeIntegral = JtimeIntegral + segmentCost(k)
+    end do
+    Jpenalty = penaltyWeight * penalty%norm(L2sqSum)
+    J        = JtimeIntegral + Jpenalty
 
-  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'msforward: time-integral J  = ',   &
-                                                          JtimeIntegral
-  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'msforward: matching penalty = ',   &
-                                                          Jpenalty
-  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
-  write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'msforward: total J          = ',   &
-                                                          J
-  call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+    write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'msforward: time-integral J  = ', &
+                                                            JtimeIntegral
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+    write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'msforward: matching penalty = ', &
+                                                            Jpenalty
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+    write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'msforward: total J          = ', &
+                                                            J
+    call writeAndFlush(MPI_COMM_WORLD, output_unit, message)
+  end if
 
   call MPI_Barrier(MPI_COMM_WORLD, ierror)
 
