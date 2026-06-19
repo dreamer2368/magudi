@@ -211,6 +211,7 @@ contains
     logical :: solutionCrashes
 
     ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
     integer :: i, iGlobal, jGlobal, kGlobal, rankReportingError, procRank, ierror
     character(len = STRING_LENGTH) :: message
     SCALAR_TYPE :: fOutsideRange
@@ -222,31 +223,59 @@ contains
 
     do i = 1, size(region%states)
 
-       if (.not. region%grids(i)%isVariableWithinRange(                                      &
-            region%states(i)%conservedVariables(:,1),                                        &
-            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &
-            minValue = region%solverOptions%densityRange(1),                                 &
-            maxValue = region%solverOptions%densityRange(2))) then
-          write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Density on grid ",              &
-               region%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, "): ", &
-               fOutsideRange, " out of range (",                                             &
-               region%solverOptions%densityRange(1), ", ",                                   &
-               region%solverOptions%densityRange(2), ")!"
-          rankReportingError = procRank
-          exit
-       end if
+       if (region%simulationFlags%softSolutionLimits) then
 
-       if (.not. region%grids(i)%isVariableWithinRange(region%states(i)%temperature(:,1),    &
-            fOutsideRange, iGlobal, jGlobal, kGlobal,                                        &
-            minValue = region%solverOptions%temperatureRange(1),                             &
-            maxValue = region%solverOptions%temperatureRange(2))) then
-          write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Temperature on grid ",          &
-               region%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal, "): ", &
-               fOutsideRange, " out of range (",                                             &
-               region%solverOptions%temperatureRange(1), ", ",                               &
-               region%solverOptions%temperatureRange(2), ")!"
-          rankReportingError = procRank
-          exit
+          if (.not. region%grids(i)%isVariableWithinRange(                                   &
+               region%states(i)%conservedVariables(:,1),                                     &
+               fOutsideRange, iGlobal, jGlobal, kGlobal,                                     &
+               minValue = 0.0_wp)) then
+             write(message, '(4(A,I0.0),A,(SS,ES9.2E2),A)') "Density on grid ",              &
+                  region%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal,     &
+                  "): ", fOutsideRange, " is not positive!"
+             rankReportingError = procRank
+             exit
+          end if
+
+          if (.not. region%grids(i)%isVariableWithinRange(                                   &
+               region%states(i)%temperature(:,1),                                            &
+               fOutsideRange, iGlobal, jGlobal, kGlobal,                                     &
+               minValue = 0.0_wp)) then
+             write(message, '(4(A,I0.0),A,(SS,ES9.2E2),A)') "Temperature on grid ",          &
+                  region%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal,     &
+                  "): ", fOutsideRange, " is not positive!"
+             rankReportingError = procRank
+             exit
+          end if
+
+       else
+
+          if (.not. region%grids(i)%isVariableWithinRange(                                   &
+               region%states(i)%conservedVariables(:,1),                                     &
+               fOutsideRange, iGlobal, jGlobal, kGlobal,                                     &
+               minValue = region%solverOptions%densityRange(1),                              &
+               maxValue = region%solverOptions%densityRange(2))) then
+             write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Density on grid ",           &
+                  region%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal,     &
+                  "): ", fOutsideRange, " out of range (",                                   &
+                  region%solverOptions%densityRange(1), ", ",                                &
+                  region%solverOptions%densityRange(2), ")!"
+             rankReportingError = procRank
+             exit
+          end if
+
+          if (.not. region%grids(i)%isVariableWithinRange(region%states(i)%temperature(:,1), &
+               fOutsideRange, iGlobal, jGlobal, kGlobal,                                     &
+               minValue = region%solverOptions%temperatureRange(1),                          &
+               maxValue = region%solverOptions%temperatureRange(2))) then
+             write(message, '(4(A,I0.0),3(A,(SS,ES9.2E2)),A)') "Temperature on grid ",       &
+                  region%grids(i)%index, " at (", iGlobal, ", ", jGlobal, ", ", kGlobal,     &
+                  "): ", fOutsideRange, " out of range (",                                   &
+                  region%solverOptions%temperatureRange(1), ", ",                            &
+                  region%solverOptions%temperatureRange(2), ")!"
+             rankReportingError = procRank
+             exit
+          end if
+
        end if
 
     end do
@@ -290,6 +319,7 @@ contains
     use Region_enum, only : FORWARD, ADJOINT, LINEARIZED
 
     ! <<< Internal modules >>>
+    use RegionImpl, only : addSolutionLimitPenaltyAdjointForcing
     use InputHelper, only : getOption, getRequiredOption
     use ErrorHandler, only : writeAndFlush, gracefulExit
 
@@ -374,6 +404,15 @@ contains
                 end do
              end select
           end do
+
+          ! Pre-load the soft solution-limit penalty's adjoint forcing into the
+          ! adjoint initial condition. The time-loop skips this contribution at
+          ! the terminal step (see solutionLimitPenaltyAdjointForcingSwitch in
+          ! computeRhs), so it must be folded in here for the gradient to stay
+          ! consistent. Mirrors functional%updateAdjointForcing above.
+          if (region%simulationFlags%softSolutionLimits .and. .not. noAdjointForcing) then
+             call addSolutionLimitPenaltyAdjointForcing(region)
+          end if
 
           ! The last step of adjoint run will not include adjoint forcing term.
           ! If the adjoint continues from the previous adjoint run,
@@ -650,7 +689,7 @@ function runForward(this, region, restartFilename, controlTimestepOffset) result
 
   ! <<< Private members >>>
   use SolverImpl, only : showProgress, checkSolutionLimits, loadInitialCondition
-  use RegionImpl, only : computeRegionIntegral
+  use RegionImpl, only : computeRegionIntegral, computeSolutionLimitPenalty
 
   ! <<< Internal modules >>>
   use MPITimingsHelper, only : startTiming, endTiming
@@ -682,11 +721,13 @@ function runForward(this, region, restartFilename, controlTimestepOffset) result
   integer :: i, j, timestep, startTimestep
   real(wp) :: time, startTime, timeStepSize
   SCALAR_TYPE :: instantaneousCostFunctional
+  SCALAR_TYPE :: instantaneousSolutionLimitPenalty, solutionLimitPenalty
   logical :: controllerSwitch = .false.
 
   call startTiming("runForward")
 
   costFunctional = 0.0_wp
+  solutionLimitPenalty = 0.0_wp
 
   ! Connect to the previously allocated time integrator.
   call this%timeIntegratorFactory%connect(timeIntegrator)
@@ -799,6 +840,13 @@ function runForward(this, region, restartFilename, controlTimestepOffset) result
                 timeIntegrator%norm(i) * timeStepSize * instantaneousCostFunctional
         end if
 
+        ! Update the soft solution-limit penalty (time-integrated).
+        if (region%simulationFlags%softSolutionLimits) then
+           instantaneousSolutionLimitPenalty = computeSolutionLimitPenalty(region)
+           solutionLimitPenalty = solutionLimitPenalty +                                     &
+                timeIntegrator%norm(i) * timeStepSize * instantaneousSolutionLimitPenalty
+        end if
+
         ! Update the time average.
         if (region%simulationFlags%computeTimeAverage) then
            do j = 1, size(region%states)
@@ -850,6 +898,13 @@ function runForward(this, region, restartFilename, controlTimestepOffset) result
        write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))') 'Forward run: cost functional = ', &
                                                                costFunctional
        call writeAndFlush(region%comm, output_unit, message)
+  end if
+
+  if (region%simulationFlags%softSolutionLimits) then
+     costFunctional = costFunctional + solutionLimitPenalty
+     write(message, '(A,(1X,SP,' // SCALAR_FORMAT // '))')                                  &
+          'Forward run: solution-limit penalty = ', solutionLimitPenalty
+     call writeAndFlush(region%comm, output_unit, message)
   end if
 
   call endTiming("runForward")
@@ -1125,6 +1180,10 @@ function runAdjoint(this, region, controlTimestepOffset, controlTotalTimesteps, 
         end if
         noAdjointForcing = (.not. region%simulationFlags%adjointForcingSwitch)               &
                             .or. (IS_FINAL_STEP)
+        ! Gate the region-wide soft solution-limit forcing the same way
+        ! functional%updateAdjointForcing gates patch buffers via noAdjointForcing.
+        region%solutionLimitPenaltyAdjointForcingSwitch = .not. noAdjointForcing
+
         ! Update adjoint forcing on cost target patches.
         call functional%updateAdjointForcing(region,noAdjointForcing)
 

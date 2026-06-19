@@ -40,7 +40,7 @@ module Region_mod
           gridCommunicators(:), patchCommunicators(:), patchInterfaces(:),                   &
           interfaceIndexReorderings(:,:), patchMasterRanks(:),                               &
                              localToGlobalPatchIndex(:)     ! index mapping from patchFactories to patchData.
-     logical :: outputOn = .true.
+     logical :: outputOn = .true., solutionLimitPenaltyAdjointForcingSwitch = .true.
      SCALAR_TYPE :: initialXmomentum, oneOverVolume, momentumLossPerVolume,                  &
                     adjointMomentumLossPerVolume
      character(len=STRING_LENGTH) :: levelsetType

@@ -17,6 +17,7 @@ module SimulationFlags_mod
                 isDomainCurvilinear   = .true.,  &
                 manualDomainDecomp    = .false., &
                 enableSolutionLimits  = .false., &
+                softSolutionLimits    = .false., &
                 useConstantCfl        = .true.,  &
                 filterOn              = .false., &
                 steadyStateSimulation = .false., &

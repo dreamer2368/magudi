@@ -44,9 +44,9 @@ MIN_ERR_THRESHOLD = 1.0e-6  # FD min rel_err must drop below this to pass
 # FD step sizes used when finite_difference.step_sizes is absent from the
 # config -- mirrors check_grad_at_current.py's default so magudi-msgrad can
 # also run from any pre-staged optim-parallel directory with no extra YAML.
-DEFAULT_H_LIST = [1.0e-1, 3.0e-2, 1.0e-2, 3.0e-3, 1.0e-3,
+DEFAULT_H_LIST = [1.0e-3,
                   3.0e-4, 1.0e-4, 3.0e-5, 1.0e-5, 3.0e-6,
-                  1.0e-6, 3.0e-7, 1.0e-7]
+                  1.0e-6, 3.0e-7, 1.0e-7, 3.0e-8, 1.0e-8, 3.0e-9, 1.0e-9]
 
 
 def _read_sub_adjoint(path, comm):
@@ -290,7 +290,9 @@ def main():
         x_new = io.create_vec()
         for h in h_list:
             x_base.copy(x_new)
-            x_new.axpy(h, g_mode)        # x_new = x_base + h * g_mode
+            # Scale the step by 1/sqrt(gg) so that h is the actual amplitude
+            # of the perturbation vector (||(h/sqrt(gg)) * g_mode||_M = h).
+            x_new.axpy(h / math.sqrt(gg), g_mode)
             io.write_x(x_new)
 
             launch_and_wait(
@@ -300,7 +302,7 @@ def main():
                 args.exec_mode,
             )
             jh = io.read_scalar("Jh.txt")
-            slope = (jh - j0) / h
+            slope = (jh - j0) / (h / math.sqrt(gg))
             err = abs(slope - gg) / abs(gg) if gg != 0.0 else abs(slope - gg)
 
             if results:
