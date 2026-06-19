@@ -160,7 +160,6 @@ magudi:
         enabled: true
         uniform_in_time: true
 finite_difference:
-  step_sizes: [1.0e-1, 3.0e-2, 1.0e-2, 3.0e-3, 1.0e-3, 3.0e-4, 1.0e-4, 3.0e-5, 1.0e-5, 3.0e-6, 1.0e-6, 3.0e-7, 1.0e-7]
   order_threshold: 0.5
 resource_distribution:
   jobs:

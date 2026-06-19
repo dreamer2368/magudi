@@ -998,6 +998,228 @@ contains
 
   end subroutine normalizeKolmogorovForcing
 
+  function computeSolutionLimitPenalty(region) result(instantaneousPenalty)
+
+    ! <<< External modules >>>
+    use MPI
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! <<< Arguments >>>
+    class(t_Region), intent(in) :: region
+
+    ! <<< Result >>>
+    SCALAR_TYPE :: instantaneousPenalty
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, iGlobal, jGlobal, kGlobal, ierror
+    logical :: densityInRange, temperatureInRange
+    SCALAR_TYPE :: fOutsideRange
+    SCALAR_TYPE, allocatable :: f(:)
+    real(wp) :: rhoMin, rhoMax, TMin, TMax
+
+    assert(allocated(region%grids))
+    assert(allocated(region%states))
+    assert(size(region%grids) == size(region%states))
+
+    instantaneousPenalty = 0.0_wp
+
+    rhoMin = region%solverOptions%densityRange(1)
+    rhoMax = region%solverOptions%densityRange(2)
+    TMin   = region%solverOptions%temperatureRange(1)
+    TMax   = region%solverOptions%temperatureRange(2)
+
+    do i = 1, size(region%grids)
+
+       densityInRange = region%grids(i)%isVariableWithinRange(                              &
+            region%states(i)%conservedVariables(:,1),                                       &
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                       &
+            minValue = rhoMin, maxValue = rhoMax)
+
+       temperatureInRange = region%grids(i)%isVariableWithinRange(                          &
+            region%states(i)%temperature(:,1),                                              &
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                       &
+            minValue = TMin, maxValue = TMax)
+
+       if (densityInRange .and. temperatureInRange) cycle
+
+       allocate(f(region%grids(i)%nGridPoints))
+
+       if (.not. densityInRange) then
+          where (region%states(i)%conservedVariables(:,1) > rhoMax)
+             f = region%states(i)%conservedVariables(:,1) - rhoMax
+          elsewhere (region%states(i)%conservedVariables(:,1) < rhoMin)
+             f = log(rhoMin / region%states(i)%conservedVariables(:,1))
+          elsewhere
+             f = 0.0_wp
+          end where
+          where (region%grids(i)%iblank == 0) f = 0.0_wp
+          instantaneousPenalty = instantaneousPenalty +                                     &
+               region%grids(i)%computeInnerProduct(f, f)
+       end if
+
+       if (.not. temperatureInRange) then
+          where (region%states(i)%temperature(:,1) > TMax)
+             f = region%states(i)%temperature(:,1) - TMax
+          elsewhere (region%states(i)%temperature(:,1) < TMin)
+             f = log(TMin / region%states(i)%temperature(:,1))
+          elsewhere
+             f = 0.0_wp
+          end where
+          where (region%grids(i)%iblank == 0) f = 0.0_wp
+          instantaneousPenalty = instantaneousPenalty +                                     &
+               region%grids(i)%computeInnerProduct(f, f)
+       end if
+
+       SAFE_DEALLOCATE(f)
+
+    end do
+
+    instantaneousPenalty = region%solverOptions%solutionLimitPenaltyFactor *                &
+         instantaneousPenalty
+
+    if (region%commGridMasters /= MPI_COMM_NULL)                                            &
+         call MPI_Allreduce(MPI_IN_PLACE, instantaneousPenalty, 1,                          &
+         SCALAR_TYPE_MPI, MPI_SUM, region%commGridMasters, ierror)
+
+    do i = 1, size(region%grids)
+       call MPI_Bcast(instantaneousPenalty, 1, SCALAR_TYPE_MPI,                             &
+            0, region%grids(i)%comm, ierror)
+    end do
+
+  end function computeSolutionLimitPenalty
+
+  subroutine addSolutionLimitPenaltyAdjointForcing(region)
+
+    ! <<< Derived types >>>
+    use Region_mod, only : t_Region
+
+    ! <<< Arguments >>>
+    class(t_Region) :: region
+
+    ! <<< Local variables >>>
+    integer, parameter :: wp = SCALAR_KIND
+    integer :: i, k, iGlobal, jGlobal, kGlobal, nDimensions
+    logical :: densityInRange, temperatureInRange
+    SCALAR_TYPE :: fOutsideRange, forcingFactor
+    real(wp) :: rhoMin, rhoMax, TMin, TMax, gamma
+    SCALAR_TYPE, allocatable :: fRho(:), dfRho(:), fT(:), dfT(:)
+
+    assert(allocated(region%grids))
+    assert(allocated(region%states))
+    assert(size(region%grids) == size(region%states))
+
+    rhoMin = region%solverOptions%densityRange(1)
+    rhoMax = region%solverOptions%densityRange(2)
+    TMin   = region%solverOptions%temperatureRange(1)
+    TMax   = region%solverOptions%temperatureRange(2)
+    gamma  = region%solverOptions%ratioOfSpecificHeats
+
+    do i = 1, size(region%grids)
+
+       densityInRange = region%grids(i)%isVariableWithinRange(                              &
+            region%states(i)%conservedVariables(:,1),                                       &
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                       &
+            minValue = rhoMin, maxValue = rhoMax)
+
+       temperatureInRange = region%grids(i)%isVariableWithinRange(                          &
+            region%states(i)%temperature(:,1),                                              &
+            fOutsideRange, iGlobal, jGlobal, kGlobal,                                       &
+            minValue = TMin, maxValue = TMax)
+
+       if (densityInRange .and. temperatureInRange) cycle
+
+       if (region%simulationFlags%useContinuousAdjoint .or.                                 &
+            region%simulationFlags%steadyStateSimulation) then
+          forcingFactor = 1.0_wp
+       else
+          forcingFactor = region%states(i)%adjointForcingFactor
+       end if
+       forcingFactor = forcingFactor * region%solverOptions%solutionLimitPenaltyFactor
+
+       nDimensions = region%grids(i)%nDimensions
+
+       allocate(fRho(region%grids(i)%nGridPoints))
+       allocate(dfRho(region%grids(i)%nGridPoints))
+       allocate(fT(region%grids(i)%nGridPoints))
+       allocate(dfT(region%grids(i)%nGridPoints))
+       fRho = 0.0_wp;  dfRho = 0.0_wp
+       fT   = 0.0_wp;  dfT   = 0.0_wp
+
+       if (.not. densityInRange) then
+          where (region%states(i)%conservedVariables(:,1) > rhoMax)
+             fRho  = region%states(i)%conservedVariables(:,1) - rhoMax
+             dfRho = 1.0_wp
+          elsewhere (region%states(i)%conservedVariables(:,1) < rhoMin)
+             fRho  = log(rhoMin / region%states(i)%conservedVariables(:,1))
+             dfRho = - 1.0_wp / region%states(i)%conservedVariables(:,1)
+          end where
+       end if
+
+       if (.not. temperatureInRange) then
+          where (region%states(i)%temperature(:,1) > TMax)
+             fT  = region%states(i)%temperature(:,1) - TMax
+             dfT = 1.0_wp
+          elsewhere (region%states(i)%temperature(:,1) < TMin)
+             fT  = log(TMin / region%states(i)%temperature(:,1))
+             dfT = - 1.0_wp / region%states(i)%temperature(:,1)
+          end where
+       end if
+
+       ! Mask immersed boundary holes so per-unknown updates below pass through
+       ! unchanged at those points (zero contribution).
+       where (region%grids(i)%iblank == 0)
+          fRho = 0.0_wp;  dfRho = 0.0_wp
+          fT   = 0.0_wp;  dfT   = 0.0_wp
+       end where
+
+       ! Accumulate adjoint forcing directly into rightHandSide. Sign mirrors
+       ! AcousticNoise convention (adjointForcing = -d(integrand)/dU_l, added
+       ! with positive forcingFactor in t_CostTargetPatch%addAdjointForcing).
+       !
+       ! Density penalty: contributes only to U_1.
+       region%states(i)%rightHandSide(:,1) = region%states(i)%rightHandSide(:,1)            &
+            - forcingFactor * 2.0_wp * fRho * dfRho
+
+       ! Temperature penalty: chain rule on T(U) populates all unknowns.
+       if (.not. temperatureInRange) then
+
+          ! dT/d(rho) = (gamma/rho) * (|u|^2 - E),   E = U_{nDim+2}/rho
+          region%states(i)%rightHandSide(:,1) = region%states(i)%rightHandSide(:,1)         &
+               - forcingFactor * 2.0_wp * fT * dfT * gamma * (                              &
+               sum(region%states(i)%velocity ** 2, dim = 2) -                               &
+               region%states(i)%conservedVariables(:,nDimensions+2) /                       &
+               region%states(i)%conservedVariables(:,1)                                     &
+               ) / region%states(i)%conservedVariables(:,1)
+
+          ! dT/d(rho*u_k) = -gamma * u_k / rho
+          do k = 1, nDimensions
+             region%states(i)%rightHandSide(:,k+1) =                                        &
+                  region%states(i)%rightHandSide(:,k+1)                                     &
+                  - forcingFactor * 2.0_wp * fT * dfT *                                     &
+                  (- gamma * region%states(i)%velocity(:,k) /                               &
+                  region%states(i)%conservedVariables(:,1))
+          end do
+
+          ! dT/d(rho*E) = gamma / rho
+          region%states(i)%rightHandSide(:,nDimensions+2) =                                 &
+               region%states(i)%rightHandSide(:,nDimensions+2)                              &
+               - forcingFactor * 2.0_wp * fT * dfT *                                        &
+               gamma / region%states(i)%conservedVariables(:,1)
+
+       end if
+
+       SAFE_DEALLOCATE(fRho)
+       SAFE_DEALLOCATE(dfRho)
+       SAFE_DEALLOCATE(fT)
+       SAFE_DEALLOCATE(dfT)
+
+    end do
+
+  end subroutine addSolutionLimitPenaltyAdjointForcing
+
 end module RegionImpl
 
 subroutine setupRegion(this, comm, globalGridSizes, simulationFlags, solverOptions, verbose)
@@ -1670,7 +1892,7 @@ subroutine computeRhs(this, mode, timeStep, stage)
                         computeRhsLinearized, addInterfaceAdjointPenalty
   use InterfaceHelper, only : exchangeInterfaceData
   use MPITimingsHelper, only : startTiming, endTiming
-  use RegionImpl, only : addBodyForce
+  use RegionImpl, only : addBodyForce, addSolutionLimitPenaltyAdjointForcing
 
   implicit none
 
@@ -1770,6 +1992,16 @@ subroutine computeRhs(this, mode, timeStep, stage)
                 this%grids(j), this%states(j))
         end do
      end do
+  end if
+
+  ! Soft solution-limit adjoint forcing (region-wide, no patch).
+  ! Skipped when runAdjoint flips the switch off for the terminal adjoint step
+  ! (the corresponding contribution is folded into the adjoint initial
+  ! condition instead, mirroring functional%updateAdjointForcing's
+  ! noAdjointForcing branch).
+  if (mode == ADJOINT .and. this%simulationFlags%softSolutionLimits .and.                   &
+       this%solutionLimitPenaltyAdjointForcingSwitch) then
+     call addSolutionLimitPenaltyAdjointForcing(this)
   end if
 
   ! Acoustic source terms.

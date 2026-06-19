@@ -36,6 +36,12 @@ from .parallel_io import ParallelIOHandler, launch_and_wait
 
 LMVM_DEPTH = 5  # matches BQNLS default Max. storage = 5
 
+# msforward writes HUGE(0.0_wp) (~1.79e308 for real64) when runForward
+# trips the hard solution-limit positivity check. Any J above this
+# threshold is treated as a crash sentinel — well above any conceivable
+# physical functional value, well below the float overflow boundary.
+HUGE_THRESHOLD = 1.0e300
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -161,13 +167,26 @@ def main():
 
         launch_and_wait("./msforward", ["--input", "magudi.inp"], N_forward, args.mode)
         n_spawn[0] += 1
+
+        # Read J early so a hard runForward crash (J = HUGE) can short-circuit
+        # the msadjoint launch — its segment-restart state would be missing or
+        # stale, so it would fail or return garbage. Returning inf with a zero
+        # gradient lets TAO's More-Thuente line search shrink the trial step.
+        J = io.read_scalar(io.j_path)
+        if J > HUGE_THRESHOLD:
+            PETSc.Sys.Print(
+                f"fg eval #{fg_count[0]+1:4d}: msforward returned HUGE "
+                f"(J = {J:.3e}); skipping msadjoint and returning inf to TAO."
+            )
+            g_vec.set(0.0)
+            fg_count[0] += 1
+            iter_log.append(float("inf"))
+            return float("inf")
+
         launch_and_wait("./msadjoint", ["--input", "magudi.inp"], N_adjoint, args.mode)
         n_spawn[0] += 1
 
-        # J: msforward folds the matching-condition penalty into the total
-        # before writing (bin/msforward.f90:237).
         # gg: <g,g>_M scalar from msadjoint (.sub_adjoint_run.txt sum).
-        J = io.read_scalar(io.j_path)
         gg_local = io.read_scalar(io.gg_path)
 
         raw_grad = io.read_grad()
