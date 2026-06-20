@@ -1,6 +1,6 @@
-# optimization_ver4 — design document
+# magudi_utils optimizer — design document
 
-This document specifies the architecture of the next-generation optimization framework for `magudi`, intended to replace [utils/optimization_ver3/](../optimization_ver3/). It is the design baseline; no implementation has landed yet.
+This document specifies the architecture of the optimization framework now shipped inside the `magudi_utils` package, replacing the legacy [utils/legacy/optimization_ver3/](../legacy/optimization_ver3/).
 
 ## 1. Why ver4 exists
 
@@ -451,7 +451,7 @@ Multi-month effort. Each phase produces a working artifact.
 ### Phase 5 — CI port + ver3 deprecation *(1 week)*
 
 - Port `optim_grad_test.sh` and `optim_test.sh` to ver4 (Case A-long for the CI environment, since runs are short).
-- Deprecate ver3 in CLAUDE.md and `utils/optimization_ver3/`'s top-level docstrings; do **not** delete — keep as fallback for in-flight production runs.
+- Deprecate ver3 in CLAUDE.md and `utils/legacy/optimization_ver3/`'s top-level docstrings; do **not** delete — keep as fallback for in-flight production runs.
 
 **Total**: ~2 months focused work for the A-long-only path (Phases 1–4a + 5). Phases 4b/4c add 1–3 weeks each if production hits those constraints.
 

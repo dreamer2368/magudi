@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "magudi_optimizer"
+name = "magudi_utils"
 version = "0.1.0"
-description = "PETSc/TAO-based optimization driver for the magudi PDE solver (ver4)."
+description = "Python utilities for the magudi PDE solver: PLOT3D I/O, mesh helpers, FWH solver, and the PETSc/TAO L-BFGS optimization driver."
 requires-python = ">=3.9"
 dependencies = [
   "numpy",
@@ -16,8 +16,8 @@ dependencies = [
 ]
 
 [project.scripts]
-magudi-optim  = "magudi_optimizer.optim:main"
-magudi-msgrad = "magudi_optimizer.msgrad_test:main"
+magudi-optim  = "magudi_utils.optim:main"
+magudi-msgrad = "magudi_utils.msgrad_test:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

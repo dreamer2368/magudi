@@ -1,4 +1,4 @@
-"""File-aligned PETSc Vec layout + parallel I/O for optim_ver4.
+"""File-aligned PETSc Vec layout + parallel I/O for the magudi_utils optimizer.
 
 ParallelIOHandler owns:
   - the concatenated-control-vector schema parsed from <prefix>.layout.txt,

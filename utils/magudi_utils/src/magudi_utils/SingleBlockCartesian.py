@@ -1,5 +1,5 @@
 import numpy as np
-import PLOT3D
+from . import PLOT3D
 
 def getSliceCoordinates(gridFile, sliceAxis = -1, hasIBLANK = False):
     """Slices a three-dimensional single-block Cartesian grid along the

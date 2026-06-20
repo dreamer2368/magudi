@@ -24,6 +24,17 @@ jobs:
           access_token: ${{ github.token }}
       - name: Checkout code
         uses: actions/checkout@v3
+      - name: Install magudi_utils
+        run: |
+          pip install --user ./utils/magudi_utils
+          # Required by ctest: test/adjoint_relation/full_rhs.sh and
+          # test/linearized_relation/full_rhs_linearized.sh stage an example
+          # into a workdir and `python3 config.py`, which now does
+          # `from magudi_utils import plot3dnasa as p3d`.
+          # uid 1001 can't write /usr/local; pip falls back to ~/.local which
+          # isn't on PATH in this container — expose it for the child python
+          # processes.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Cmake
         run: |
           mkdir build
@@ -52,9 +63,9 @@ jobs:
           access_token: ${{ github.token }}
       - name: Checkout code
         uses: actions/checkout@v3
-      - name: Install magudi_optimizer
+      - name: Install magudi_utils
         run: |
-          pip install --user ./utils/optimization_ver4
+          pip install --user ./utils/magudi_utils
           # uid 1001 can't write /usr/local; pip falls back to ~/.local which
           # isn't on PATH in this container. Expose it so subsequent steps
           # (and mpirun's forked workers) can find magudi-optim / magudi-msgrad.
@@ -87,9 +98,9 @@ jobs:
           access_token: ${{ github.token }}
       - name: Checkout code
         uses: actions/checkout@v3
-      - name: Install magudi_optimizer
+      - name: Install magudi_utils
         run: |
-          pip install --user ./utils/optimization_ver4
+          pip install --user ./utils/magudi_utils
           # uid 1001 can't write /usr/local; pip falls back to ~/.local which
           # isn't on PATH in this container. Expose it so subsequent steps
           # (and mpirun's forked workers) can find magudi-optim / magudi-msgrad.

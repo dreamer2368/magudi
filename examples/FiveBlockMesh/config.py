@@ -3,7 +3,7 @@ import numpy as np
 from scipy.optimize import fsolve
 import numpy.random as random
 
-import plot3dnasa as p3d
+from magudi_utils import plot3dnasa as p3d
 
 EPSILON = np.finfo(float).eps
 

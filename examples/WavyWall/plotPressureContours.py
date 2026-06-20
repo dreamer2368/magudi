@@ -4,7 +4,7 @@ import struct
 import numpy as np
 import matplotlib.pyplot as plt
 
-import PLOT3D
+from magudi_utils import PLOT3D
 
 def drawEdges(ax, grid):
     ax.plot(grid.X[0][:,0,0,0], grid.X[0][:,0,0,1], 'k-')

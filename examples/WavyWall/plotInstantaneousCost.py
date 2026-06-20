@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-import PLOT3D
+from magudi_utils import PLOT3D
 
 def plot(ax, dataFile, *args, **kwargs):
 
