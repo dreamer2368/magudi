@@ -352,17 +352,17 @@ def grid(num_radial_nozzle, num_radial_near_field, num_azimuthal,
     assert num_azimuthal % 4 == 0
     num_radial = num_radial_nozzle + num_radial_near_field
     g = p3d.Grid().set_size([
-        [num_azimuthal / 4, num_azimuthal / 4, num_axial],
-        [num_radial, num_azimuthal / 4, num_axial],
-        [num_radial, num_azimuthal / 4, num_axial],
-        [num_radial, num_azimuthal / 4, num_axial],
-        [num_radial, num_azimuthal / 4, num_axial]], True)
-    x, y = nozzle_quadrant([num_radial_nozzle, num_azimuthal / 4],
+        [num_azimuthal // 4, num_azimuthal // 4, num_axial],
+        [num_radial, num_azimuthal // 4, num_axial],
+        [num_radial, num_azimuthal // 4, num_axial],
+        [num_radial, num_azimuthal // 4, num_axial],
+        [num_radial, num_azimuthal // 4, num_axial]], True)
+    x, y = nozzle_quadrant([num_radial_nozzle, num_azimuthal // 4],
                            a_inner=a_inner, p_inner=p_inner, dr_min=dr_min)
     for k in range(num_axial):
         g.xyz[1][:num_radial_nozzle,:,k,0] = x
         g.xyz[1][:num_radial_nozzle,:,k,1] = y
-    x, y = near_field_quadrant([num_radial_near_field, num_azimuthal / 4],
+    x, y = near_field_quadrant([num_radial_near_field, num_azimuthal // 4],
                                dr_min=dr_min)
     for k in range(num_axial):
         g.xyz[1][num_radial_nozzle:,:,k,0] = x
@@ -380,8 +380,8 @@ def grid(num_radial_nozzle, num_radial_near_field, num_azimuthal,
                              g.xyz[i][:,:,:,1]) / np.sqrt(2.)
         g.xyz[i][:,:,:,1] = (x + g.xyz[i][:,:,:,1]) / np.sqrt(2.)
     complete_inner_block(g)
-    r = np.append(g.xyz[0][:,num_azimuthal/8,0,0],
-                  g.xyz[4][1:,num_azimuthal/8,0,0])
+    r = np.append(g.xyz[0][:,num_azimuthal//8,0,0],
+                  g.xyz[4][1:,num_azimuthal//8,0,0])
     # plot_radial_spacing(r)
     # plot_jacobian_continuity(g)
     return g
@@ -687,12 +687,12 @@ if __name__ == '__main__':
     g.save('MultiblockJet.xyz')
     control_mollifier(g).save('MultiblockJet.control_mollifier.f')
     target_mollifier(g).save('MultiblockJet.target_mollifier.f')
-#    target_state(g).save('MultiblockJet.target.q')
-#    initial_condition(g).save('MultiblockJet.ic.q')
-#    gi = extract_inflow(g)
-#    gi.save('MultiblockJet.inflow.xyz')
-#    modes = eigenmodes()
-#    for i, mode in enumerate(modes):
-#        sr, si = inflow_perturbations(gi, mode)
-#        sr.save('MultiblockJet-%02d.eigenmode_real.q' % (i + 1))
-#        si.save('MultiblockJet-%02d.eigenmode_imag.q' % (i + 1))
+    target_state(g).save('MultiblockJet.target.q')
+    initial_condition(g).save('MultiblockJet.ic.q')
+    gi = extract_inflow(g)
+    gi.save('MultiblockJet.inflow.xyz')
+    modes = eigenmodes()
+    for i, mode in enumerate(modes):
+        sr, si = inflow_perturbations(gi, mode)
+        sr.save('MultiblockJet-%02d.eigenmode_real.q' % (i + 1))
+        si.save('MultiblockJet-%02d.eigenmode_imag.q' % (i + 1))
