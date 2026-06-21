@@ -6,7 +6,7 @@ def reynolds_average(s, chunk_size=50):
     sm = p3d.Solution().set_size([n[1], 1, 1], True)
     sm.q[0].fill(0.)
     ends = [int(d) for d in np.linspace(chunk_size - 1, n[2] - 1,
-                                        n[2] / chunk_size)]
+                                        n[2] // chunk_size)]
     subzones = [([0, 0, ends[i-1] + 1], [-1, -1, ends[i]])
                 if i > 0 else ([0, 0, 0], [-1, -1, ends[0]])
                 for i in range(len(ends))]
@@ -42,7 +42,7 @@ def reynolds_stresses(s, qm, chunk_size=50):
     f = p3d.Function(ncomponents=6).set_size([n[1], 1, 1], True)
     f.f[0].fill(0.)
     ends = [int(d) for d in np.linspace(chunk_size - 1, n[2] - 1,
-                                        n[2] / chunk_size)]
+                                        n[2] // chunk_size)]
     subzones = [([0, 0, ends[i-1] + 1], [-1, -1, ends[i]])
                 if i > 0 else ([0, 0, 0], [-1, -1, ends[0]])
                 for i in range(len(ends))]

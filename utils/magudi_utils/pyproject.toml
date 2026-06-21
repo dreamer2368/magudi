@@ -16,6 +16,7 @@ dependencies = [
   "PyYAML",
   "mpi4py",
   "petsc4py>=3.25.1",
+  "joblib",
 ]
 
 [project.scripts]

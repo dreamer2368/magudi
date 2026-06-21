@@ -20,7 +20,7 @@ def grid(size, mapping_type='sinh'):
     if mapping_type == 'sinh':
         sigma = fsolve(lambda x: (
                 (y_max - y_min - num_uniform * dy_min) * mapping_function(
-                    1. / (g.size[0,1] - 1.), x) - dy_min) ** 2, 2.)
+                    1. / (g.size[0,1] - 1.), x) - dy_min) ** 2, 2.)[0]
         y = np.append(np.linspace(y_min, y_min + dy_min * num_uniform,
                                   num_uniform + 1), y_min + dy_min *
                       num_uniform + (y_max - y_min - num_uniform * dy_min) *
@@ -29,7 +29,7 @@ def grid(size, mapping_type='sinh'):
     else:
         sigma = fsolve(lambda x: (y_max - y_min) / dy_min - num_uniform + 1 -
                        (x ** (g.size[0,1] - num_uniform) - 1.) /
-                       (x - 1.), 1.02)
+                       (x - 1.), 1.02)[0]
         print(100. * (sigma - 1.))
         y = np.append([0.], np.cumsum(
                 [dy_min if r < num_uniform - 1
