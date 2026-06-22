@@ -130,6 +130,7 @@ def extract_axisymmetric(g, f, show_progress=True):
     return ge, fe
 
 def centerline_rms_fluctuations(prefix, gamma=1.4):
+    import os
     z = p3d.fromfile('%s.xyz' % prefix, 0,
                      [0, 0, 0], [0, 0, -1]).xyz[0][0,0,:,2]
     q_m = p3d.fromfile('%s.mean.q' % prefix, 0,
