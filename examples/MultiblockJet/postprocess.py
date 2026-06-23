@@ -14,9 +14,9 @@ def extract_yz(f):
     so = {3: [slice(None), slice(None, n[3][0] - 1), 0],
           0: [slice(None), slice(n[3][0] - 1, n[3][0] + n[0][1] - 1), 0],
           1: [slice(None), slice(n[3][0] + n[0][1] - 1, None), 0]}
-    starts = {3: [1, n[3][1]/2, 0], 0: [n[0][0]/2, 0, 0], 1: [1, n[1][1]/2, 0]}
-    ends = {3: [-1, n[3][1]/2, -1], 0: [n[0][0]/2, -1, -1],
-            1: [-1, n[1][1]/2, -1]}
+    starts = {3: [1, n[3][1]//2, 0], 0: [n[0][0]//2, 0, 0], 1: [1, n[1][1]//2, 0]}
+    ends = {3: [-1, n[3][1]//2, -1], 0: [n[0][0]//2, -1, -1],
+            1: [-1, n[1][1]//2, -1]}
     for i in [3, 0, 1]:
         f.set_subzone(i, starts[i], ends[i]).load()
         for j in range(f[0].shape[-1]):
@@ -64,8 +64,8 @@ def compute_sound(prefix, x0, dt, d, theta):
     mikes = fwh.get_mikes(8, x0, d, theta)
     probe_files = ['%s.probe_fwh.%s.dat' % (prefix, s)
                    for s in ['E', 'N', 'W', 'S']]
-    nsamples = os.stat(probe_files[0]).st_size / \
-               (40 * n[0] * ((n[1] - 1) / 4 + 1))
+    nsamples = os.stat(probe_files[0]).st_size // \
+               (40 * n[0] * ((n[1] - 1) // 4 + 1))
     solver = fwh.FWHSolver(ge, mikes, nsamples, dt, probe_files=probe_files)
     solver.integrate(chunk_size=50)
     for i, mike in enumerate(mikes):
@@ -75,14 +75,14 @@ def compute_sound(prefix, x0, dt, d, theta):
 def extract_axisymmetric(g, f, show_progress=True):
     n = g.get_size()
     z = g.set_subzone(0, [0, 0, 0], [0, 0, -1]).load().xyz[0][0,0,:,2]
-    r = np.zeros(n[0][1] / 2 + n[1][0])
-    r[1:n[0][1]/2] = np.sqrt(
-        np.sum(g.set_subzone(0, [n[0][0]/2, n[0][1]/2 + 1, 0],
-                             [n[0][0]/2, -2, 0]).load().xyz[0][0,:,0,0:2] ** 2,
+    r = np.zeros(n[0][1] // 2 + n[1][0])
+    r[1:n[0][1]//2] = np.sqrt(
+        np.sum(g.set_subzone(0, [n[0][0]//2, n[0][1]//2 + 1, 0],
+                             [n[0][0]//2, -2, 0]).load().xyz[0][0,:,0,0:2] ** 2,
                axis=-1))
-    r[n[0][1]/2:] = np.sqrt(
-        np.sum(g.set_subzone(2, [0, n[2][1]/2, 0],
-                             [-1, n[2][1]/2, 0]).load().xyz[0][:,0,0,0:2] ** 2,
+    r[n[0][1]//2:] = np.sqrt(
+        np.sum(g.set_subzone(2, [0, n[2][1]//2, 0],
+                             [-1, n[2][1]//2, 0]).load().xyz[0][:,0,0,0:2] ** 2,
                axis=-1))
     bins = [r[0] - 0.5 * (r[1] - r[0])] + list(0.5 * (r[:-1] + r[1:])) + \
            [r[-1] + 0.5 * (r[-1] - r[-2])]
@@ -101,7 +101,7 @@ def extract_axisymmetric(g, f, show_progress=True):
         x = np.append(x, np.sqrt(xy[:,:,0] ** 2 + xy[:,:,1] ** 2).ravel())
     if show_progress:
         from progressbar import ProgressBar, Percentage, Bar, ETA
-        print 'Processing along streamwise direction:'
+        print('Processing along streamwise direction:')
         p = ProgressBar(widgets = [Percentage(), ' ',
                                    Bar('=', left = '[', right = ']'), ' ',
                                    ETA()], maxval=z.size).start()
@@ -130,12 +130,13 @@ def extract_axisymmetric(g, f, show_progress=True):
     return ge, fe
 
 def centerline_rms_fluctuations(prefix, gamma=1.4):
+    import os
     z = p3d.fromfile('%s.xyz' % prefix, 0,
                      [0, 0, 0], [0, 0, -1]).xyz[0][0,0,:,2]
     q_m = p3d.fromfile('%s.mean.q' % prefix, 0,
                        [0, 0, 0], [0, 0, -1]).toprimitive(gamma).q[0][0,0,:,:]
     probe_file = '%s.probe_centerline.dat' % prefix
-    num_samples = os.stat(probe_file).st_size / (40 * z.size)    
+    num_samples = os.stat(probe_file).st_size // (40 * z.size)
     q = np.reshape(np.fromfile(probe_file), [z.size, 5, num_samples],
                    order='F')
     for i in range(3):
@@ -157,18 +158,18 @@ def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4):
     # p: pressure history of many mikes = [time steps, number of mikes]
     import numpy.fft
     n = p.shape[0]
-    m = 2 * (n / (num_windows + 1))
+    m = 2 * (n // (num_windows + 1))
     windows = [((int(0.5 * i * m), int(0.5 * i * m) + m))
                for i in range(num_windows)]
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
     u_j = mach_number * np.sqrt(temperature_ratio)
-    St = numpy.fft.fftfreq(m, d=dt)[1:m/2] / u_j
-    y = np.empty([m / 2, num_windows, p.shape[1]])
+    St = numpy.fft.fftfreq(m, d=dt)[1:m//2] / u_j
+    y = np.empty([m // 2, num_windows, p.shape[1]])
     window_func = np.blackman(m)
     for j in range(p.shape[1]):
         for i, w in enumerate(windows):
             y[:,i,j] = np.absolute(numpy.fft.fft(
-                p[w[0]:w[1],j] * window_func))[:m/2] / (m * window_func.mean())
+                p[w[0]:w[1],j] * window_func))[:m//2] / (m * window_func.mean())
             y[1:,i,j] *= np.sqrt(2.)
     p_ref = 20.e-6 / 101325. / gamma
     OASPL = 10. * np.log10(np.mean(np.sum(np.mean(

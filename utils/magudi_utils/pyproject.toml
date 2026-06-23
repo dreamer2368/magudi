@@ -9,10 +9,14 @@ description = "Python utilities for the magudi PDE solver: PLOT3D I/O, mesh help
 requires-python = ">=3.9"
 dependencies = [
   "numpy",
+  "scipy",
+  "matplotlib",
+  "progressbar",
   "h5py",
   "PyYAML",
   "mpi4py",
   "petsc4py>=3.25.1",
+  "joblib",
 ]
 
 [project.scripts]

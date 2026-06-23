@@ -119,7 +119,7 @@ def initial_and_target_condition(g, R=1.0/0.15, Ma=0.56,
     dA[:,1:-1] *= 0.5 * ( yg[:,2::] - yg[:,:-2] )
 
     from joblib import Parallel, delayed
-    pOverRho = Parallel(n_jobs=36*8)(delayed(poisson_greens_function)(xg,yg,src,dA,xs,ys)              \
+    pOverRho = Parallel(n_jobs=-1)(delayed(poisson_greens_function)(xg,yg,src,dA,xs,ys)              \
                                     for xs, ys in zip(np.nditer(xg),np.nditer(yg)))
     pOverRho = np.reshape(pOverRho,[n,n]).T + 1./gamma
 

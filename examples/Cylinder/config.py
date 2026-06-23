@@ -13,7 +13,7 @@ def radial_coordinate(n, mapping_type='geom', r_buffer=800., dr_min=0.005):
     if mapping_type == 'sinh':
         sigma = fsolve(lambda x: (
                 (r_max - r_min - num_uniform * dr_min) * mapping_function(
-                    1. / (n - 1.), x) - dr_min) ** 2, 2.)
+                    1. / (n - 1.), x) - dr_min) ** 2, 2.)[0]
         r = np.append(np.linspace(r_min, r_min + dr_min * num_uniform,
                                   num_uniform + 1), r_min + dr_min *
                       num_uniform + (r_max - r_min - num_uniform * dr_min) *
@@ -22,7 +22,7 @@ def radial_coordinate(n, mapping_type='geom', r_buffer=800., dr_min=0.005):
     else:
         sigma = fsolve(lambda x: (r_max - r_min) / dr_min - num_uniform + 1 -
                        (x ** (n - num_uniform) - 1.) /
-                       (x - 1.), 1.02)
+                       (x - 1.), 1.02)[0]
         r = r_min + np.append([0.], np.cumsum(
             [dr_min if r < num_uniform - 1
              else dr_min * sigma ** (r - num_uniform + 1)

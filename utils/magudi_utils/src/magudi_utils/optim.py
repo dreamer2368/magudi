@@ -63,7 +63,7 @@ def main():
         help="Worker launch mode. base: mpirun (default). "
              "slurm: srun --overlap (production SLURM)."
     )
-    args = parser.parse_args()
+    args = parser.parse_args() 
 
     comm = MPI.COMM_WORLD
     pcomm = PETSc.COMM_WORLD

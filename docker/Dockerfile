@@ -34,6 +34,9 @@ RUN echo "tables" >> requirements.txt
 RUN echo "pandas" >> requirements.txt
 RUN echo "PyYAML" >> requirements.txt
 RUN echo "h5py" >> requirements.txt
+RUN echo "progressbar" >> requirements.txt
+RUN echo "matplotlib" >> requirements.txt
+RUN echo "joblib" >> requirements.txt
 RUN sudo pip3 install --upgrade pip
 RUN sudo pip3 install -r ./requirements.txt
 
