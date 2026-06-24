@@ -118,3 +118,35 @@ jobs:
         run: |
           cd build
           bash ../.github/workflows/run_parallel.sh
+  optim-manual:
+    runs-on: ubuntu-latest
+    needs: [docker-image]
+    container:
+      image: ghcr.io/dreamer2368/magudi/magudi_env:latest
+      # image: dreamer2368/magudi_env:latest
+      options: --user 1001 --privileged
+    name: Optimization-manual-case-a
+    steps:
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Install magudi_utils
+        run: |
+          pip install --user ./utils/magudi_utils
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Cmake
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=debug -DCMAKE_Fortran_COMPILER=mpif90 ../
+      - name: Make
+        run: |
+          cd build
+          make -j 16
+      - name: ManualBQNLS smoke test (one fwd+adj per allocation)
+        run: |
+          cd build
+          bash ../.github/workflows/run_manual.sh

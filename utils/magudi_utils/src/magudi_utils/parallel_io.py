@@ -41,7 +41,7 @@ import glob
 import os
 import re
 import subprocess
-from collections import namedtuple
+from collections import deque, namedtuple
 from typing import List, Optional
 
 import h5py
@@ -806,6 +806,53 @@ class ParallelIOHandler:
             f"Saved {history_path}: {len(snapshots)} snapshots + J0 diag, "
             f"iter={tao.getIterationNumber()}"
         )
+
+    def load_snapshots(self, history_path: str,
+                       maxlen: Optional[int] = None) -> deque:
+        """Read the (vx, vg) snapshot deque written by save_tao_state.
+
+        Pure read: does NOT touch MatLMVM (use load_tao_state for that) and
+        does NOT read the trailing J0 diagonal. Used by the manual driver
+        (ManualBQNLS.ls_accepted) to fetch the existing history so a new
+        (y_new, g_new) pair can be appended and the full deque rewritten
+        via save_tao_state.
+
+        Caller owns the returned Vecs and must .destroy() each before
+        dropping the deque. Returns an empty deque if history_path is
+        missing or empty. When maxlen is given the deque is bounded to that
+        length; if the file holds more snapshots than maxlen, the oldest
+        ones are popped (and their Vecs destroyed) during the read so no
+        Vec leaks even at full capacity.
+        """
+        snapshots = deque(maxlen=maxlen)
+        if not (os.path.exists(history_path)
+                and os.path.getsize(history_path) > 0):
+            return snapshots
+        viewer = PETSc.Viewer().createBinary(history_path, mode="r",
+                                             comm=self.pcomm)
+        hdr = PETSc.Vec().load(viewer)
+        local_vals = list(hdr.getArray(readonly=True))
+        gathered = self.comm.allgather(local_vals)
+        flat = [v for sub in gathered for v in sub]
+        _, n_snap, n_dim = int(flat[0]), int(flat[1]), int(flat[2])
+        hdr.destroy()
+        if n_dim != self.global_size:
+            raise SystemExit(
+                f"{history_path}: header N={n_dim} != current N={self.global_size}"
+            )
+        for _ in range(n_snap):
+            vx = self.create_vec(); vx.load(viewer)
+            vg = self.create_vec(); vg.load(viewer)
+            if maxlen is not None and len(snapshots) == maxlen:
+                # deque(maxlen=...).append silently drops the leftmost; do
+                # the pop explicitly so we can destroy the discarded Vecs.
+                old_vx, old_vg = snapshots.popleft()
+                old_vx.destroy(); old_vg.destroy()
+            snapshots.append((vx, vg))
+        # Skip the trailing J0 diagonal; load_tao_state handles it when
+        # MatLMVM needs to be initialized.
+        viewer.destroy()
+        return snapshots
 
     def load_tao_state(self, tao, checkpoint_path: str,
                        history_path: str) -> bool:
