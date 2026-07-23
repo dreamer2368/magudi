@@ -204,7 +204,7 @@ def main(input_dir='.', output_dir='.', prefix='MultiblockJet', shift=0.,
     rms_c_hat, rms_l_hat = None, None
     if start is not None and end is not None:
         lipline_radius(p3d.Grid('%s.xyz' % in_prefix), r=r_lipline)
-        soln_files = [os.path.join(input_dir, '%s.%08d.q' % (prefix, t))
+        soln_files = [os.path.join(input_dir, '%s-%08d.q' % (prefix, t))
                       for t in range(start, end + 1, freq)]
         rms_c_hat = getCenterlineRMSFluctuations(
             '%s.mean.q' % in_prefix, soln_files,
