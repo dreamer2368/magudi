@@ -6,14 +6,14 @@ import numpy as np
 
 def get_fromfile(offset, size, n, probe_files):
     q = np.empty([n[1], n[0], 5, size], order='F')
-    m = (n[1] - 1) / 4 + 1
-    n = 40 * m * n[0] * size
+    m = (n[1] - 1) // 4 + 1
+    nbytes = 40 * m * n[0] * size
     for i, filename in enumerate(probe_files):
-        with open(filename) as f:
-            f.seek(offset * n / size)
+        with open(filename, 'rb') as f:
+            f.seek(offset * nbytes // size)
             q[i*(m-1):(i+1)*(m-1),:,:,:] = np.reshape(
-                np.fromstring(f.read(n), dtype='<f8'), [m, q.shape[1], 5, size],
-                order='F')[:-1,:,:,:]
+                np.frombuffer(f.read(nbytes), dtype='<f8'),
+                [m, q.shape[1], 5, size], order='F')[:-1,:,:,:]
     return q
 
 class FWHSolver:
@@ -50,8 +50,8 @@ class FWHSolver:
                 q[-1,:,:,:] = q[0,:,:,:]
                 q[:,:,0,:] = 1. / q[:,:,0,:]
                 q[:,:,4,:] = (self.gamma - 1.) * (
-                    q[:,:,4,:] - 0.5 * q[:,:,0,:] * np.sum(
-                        q[:,:,i+1,:] for i in range(3))) - 1. / self.gamma
+                    q[:,:,4,:] - 0.5 * q[:,:,0,:] *
+                    np.sum(q[:,:,1:4,:], axis=2)) - 1. / self.gamma
             for mike in self.mikes:
                 mike.add_contribution(i, q[:,:,:,i%chunk_size])
             if pbar:
@@ -103,7 +103,7 @@ class Mike:
         self._allocate(n, nsteps)
         dist = np.empty_like(self.normal_projection)
         for i, s in enumerate(self.slices):
-            self.disp[:,:,:,i] = self.xyz - xyz[s + [slice(None)]]
+            self.disp[:,:,:,i] = self.xyz - xyz[tuple(s) + (slice(None),)]
             dist[:,:,i] = np.sqrt(np.sum(self.disp[:,:,:,i] ** 2, axis=-1))
         self.dist_inverse = 1. / dist
         self.advanced_offset = dist / dt - self.coeff.size // 2
@@ -134,15 +134,15 @@ class Mike:
         self.Q[:,:,:,:-1] = self.Q[:,:,:,1:]
         self.L[:,:,:,:-1] = self.L[:,:,:,1:]
         for i, s in enumerate(self.slices):
-            self.Q[:,:,i,-1] = np.sum(q[s + [j+1]] * self.unit_normals[:,:,j]
-                                      for j in range(3))
-            self.L[:,:,i,-1] = self.normal_projection[:,:,i] * q[s + [4]] + \
-                               q[s + [0]] * self.Q[:,:,i,-1] * \
-                np.sum(q[s + [j+1]] * self.disp[:,:,j,i] for j in range(3))
+            st = tuple(s)
+            self.Q[:,:,i,-1] = np.sum(
+                q[st + (slice(1, 4),)] * self.unit_normals, axis=-1)
+            self.L[:,:,i,-1] = self.normal_projection[:,:,i] * q[st + (4,)] + \
+                               q[st + (0,)] * self.Q[:,:,i,-1] * \
+                np.sum(q[st + (slice(1, 4),)] * self.disp[:,:,:,i], axis=-1)
         if sample_index < self.coeff.size - 1:
             return self
-        dp = (np.sum((self.L[:,:,:,i] + self.Q[:,:,:,i]) * c
-                     for i, c in enumerate(self.coeff)) +
+        dp = (np.sum((self.L + self.Q) * self.coeff, axis=-1) +
               self.L[:,:,:,self.coeff.size//2] * self.dist_inverse) * \
             self.dist_inverse * self.dp_factor
         for i in range(dp.shape[-1]):
@@ -190,7 +190,7 @@ def get_monopole(offset, size, disp, dt, amp, ppw, a_inf=1., gamma=1.4):
                                  omega * (t[i] - dist / a_inf)) / dist ** 2)
     q[:,:,4,:] = 1. / gamma + (q[:,:,0,:] - 1.)
     q[:,:,4,:] = q[:,:,4,:] / (gamma - 1.) + 0.5 * q[:,:,0,:] * \
-               np.sum(q[:,:,i+1,:] ** 2 for i in range(3))
+               np.sum(q[:,:,1:4,:] ** 2, axis=2)
     for i in range(3):
         q[:,:,i+1,:] *= q[:,:,0,:]
     return q
