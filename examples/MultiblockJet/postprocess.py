@@ -65,7 +65,7 @@ def compute_sound(prefix, x0, dt, d, theta, probe_name, probe_r):
     probe_files = ['%s.probe_%s.%s.dat' % (prefix, probe_name, s)
                    for s in ['E', 'N', 'W', 'S']]
     nsamples = os.stat(probe_files[0]).st_size // \
-               (40 * n[0] * ((n[1] - 1) // 4 + 1))
+               (40 * int(n[0]) * ((int(n[1]) - 1) // 4 + 1))
     solver = fwh.FWHSolver(ge, mikes, nsamples, dt, probe_files=probe_files)
     solver.integrate(chunk_size=50)
     for i, mike in enumerate(mikes):
