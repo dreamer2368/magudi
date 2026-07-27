@@ -5,9 +5,10 @@ from . import plot3dnasa as p3d
 import numpy as np
 
 def get_fromfile(offset, size, n, probe_files):
-    q = np.empty([n[1], n[0], 5, size], order='F')
-    m = (n[1] - 1) // 4 + 1
-    nbytes = 40 * m * n[0] * size
+    n0, n1 = int(n[0]), int(n[1])
+    q = np.empty([n1, n0, 5, size], order='F')
+    m = (n1 - 1) // 4 + 1
+    nbytes = 40 * m * n0 * size
     for i, filename in enumerate(probe_files):
         with open(filename, 'rb') as f:
             f.seek(offset * nbytes // size)
