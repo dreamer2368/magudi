@@ -47,7 +47,8 @@ class FWHSolver:
             pass
         for i in range(self.nsamples):
             if i % chunk_size == 0:
-                q = self.get(i, chunk_size, *self.get_args)
+                actual = min(chunk_size, self.nsamples - i)
+                q = self.get(i, actual, *self.get_args)
                 q[-1,:,:,:] = q[0,:,:,:]
                 q[:,:,0,:] = 1. / q[:,:,0,:]
                 q[:,:,4,:] = (self.gamma - 1.) * (

@@ -59,13 +59,20 @@ def compute_sound(prefix, x0, dt, d, theta, probe_name, probe_r):
     import os
     from magudi_utils import fwhsolver as fwh
     g = p3d.Grid('%s.xyz' % prefix)
-    n = g.get_size(0)
+    n = g.get_size(1)
     ge = extract_const_r(g, g, r=probe_r)
     mikes = fwh.get_mikes(8, x0, d, theta)
     probe_files = ['%s.probe_%s.%s.dat' % (prefix, probe_name, s)
                    for s in ['E', 'N', 'W', 'S']]
-    nsamples = os.stat(probe_files[0]).st_size // \
-               (40 * int(n[0]) * ((int(n[1]) - 1) // 4 + 1))
+    bytes_per_sample = 40 * int(n[1]) * int(n[2])
+    file_size = os.stat(probe_files[0]).st_size
+    if file_size % bytes_per_sample != 0:
+        raise RuntimeError(
+            'Probe file size %d is not a multiple of bytes/sample %d '
+            '(remainder %d)' % (file_size, bytes_per_sample,
+                                file_size % bytes_per_sample))
+    nsamples = file_size // bytes_per_sample
+    print('nsamples = %d' % nsamples)
     solver = fwh.FWHSolver(ge, mikes, nsamples, dt, probe_files=probe_files)
     solver.integrate(chunk_size=50)
     for i, mike in enumerate(mikes):
