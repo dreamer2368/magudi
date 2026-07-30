@@ -27,9 +27,9 @@ SURFACE_TO_RADIAL_INDEX = {
 
 
 AUTHOR_STYLES = {
-    'Kim':    dict(color='magenta', ls=(0, (6, 2)), lw=1.3),
-    'Samimy': dict(color='black',   marker='s', mfc='none', ls='none', ms=5),
-    'Ram':    dict(color='blue',    marker='^', mfc='none', ls='none', ms=5),
+    'Kim':    dict(color='magenta', ls='-.', lw=1.3),
+    'Samimy': dict(color='black',   ls='--', lw=1.3),
+    'Ram':    dict(color='blue',    ls=(0, (1, 1)), lw=1.3),
 }
 
 
@@ -68,9 +68,12 @@ def plot_SPL(spl_file, distance, theta, literature_h5, out_path):
             arr = f[key][...]
             style = AUTHOR_STYLES.get(author, dict(lw=1.))
             ax.plot(arr[:, 0], arr[:, 1], label=author, **style)
-    ax.set_xlabel(r'$St$')
+    ax.set_xlabel(r'$St_D$')
     ax.set_ylabel('SPL (dB)')
     ax.set_title(r'$d=%gD$, $\theta=%g^\circ$' % (distance, theta))
+    ax.set_xlim(0.05, 5.0)
+    ax.set_ylim(0.0, 110.0)
+    ax.set_yticks(np.arange(0, 111, 10))
     ax.grid(True, which='both', alpha=0.3)
     ax.legend(loc='best', frameon=False, fontsize=8)
     fig.tight_layout()
