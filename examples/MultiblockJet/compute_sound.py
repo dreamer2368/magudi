@@ -98,12 +98,12 @@ def parse_args():
                    help='nondim time between probe samples')
     p.add_argument('--mach', type=float, default=1.3)
     p.add_argument('--num-windows', type=int, default=5)
-    p.add_argument('--plot-only', action='store_true',
-                   help='skip the FWH+FFT computation and only run plot_SPL '
-                        'against an existing spl_<surface>.dat')
+    p.add_argument('--load-mike', action='store_true',
+                   help='skip the FWH integration and load existing '
+                        'mike_<surface>_##.dat files instead; still re-runs '
+                        'windowed_fft and re-writes spl/oaspl outputs')
     p.add_argument('--spl-dir', default='.',
-                   help='directory for spl_<surface>.dat and oaspl_<surface>.dat '
-                        '(written in compute mode, read in --plot-only mode)')
+                   help='directory for spl_<surface>.dat and oaspl_<surface>.dat')
     p.add_argument('--literature', default='literature.h5',
                    help='HDF5 file with literature SPL data '
                         '(layout: /<Author>/SPL/{94D30deg,44D90deg})')
@@ -116,11 +116,11 @@ def parse_args():
 def main():
     args = parse_args()
 
+    os.makedirs(args.spl_dir, exist_ok=True)
     spl_file = os.path.join(args.spl_dir, 'spl_%s.dat' % args.surface)
     oaspl_file = os.path.join(args.spl_dir, 'oaspl_%s.dat' % args.surface)
 
-    if not args.plot_only:
-        os.makedirs(args.spl_dir, exist_ok=True)
+    if not args.load_mike:
         grid_file = '%s.xyz' % args.prefix
 
         probe_r = fwh_surface_radius(grid_file, args.surface)
@@ -130,15 +130,16 @@ def main():
         compute_sound(args.prefix, args.x0, args.probe_dt, args.distance,
                       args.theta, args.surface, probe_r)
 
-        p = load_mike_pressures(args.surface, args.num_mikes)
-        St, SPL, OASPL = windowed_fft(p, num_windows=args.num_windows,
-                                      dt=args.probe_dt, mach_number=args.mach)
+    p = load_mike_pressures(args.surface, args.num_mikes)
+    St, SPL, OASPL = windowed_fft(p, num_windows=args.num_windows,
+                                  dt=args.probe_dt, mach_number=args.mach)
 
-        np.savetxt(spl_file, np.column_stack([St, SPL]), fmt='%+.18E')
-        with open(oaspl_file, 'a') as f:
-            f.write('%+.6E %+.6E\n' % (args.theta, OASPL))
-        print('%s @ theta=%g deg, d=%g: OASPL = %.3f dB' %
-              (args.surface, args.theta, args.distance, OASPL))
+    np.savetxt(spl_file, np.column_stack([St, SPL]), fmt='%+.18E')
+    with open(oaspl_file, 'a') as f:
+        f.write('%+.6E %+.6E\n' % (args.theta, OASPL))
+    print('%s @ theta=%g deg, d=%g: OASPL = %.3f dB' %
+          (args.surface, args.theta, args.distance, OASPL))
+
     figure = args.figure or ('spl_%s_%gD_%gdeg.png' %
                              (args.surface, args.distance, args.theta))
     plot_SPL(spl_file, args.distance, args.theta, args.literature, figure)
