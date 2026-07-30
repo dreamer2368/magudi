@@ -7,7 +7,12 @@ Reuses postprocess.compute_sound (FWH integration) and postprocess.windowed_fft
 (Blackman-windowed FFT, 50% overlap, returns Strouhal, SPL, OASPL).
 """
 import argparse
+import os
 import numpy as np
+import h5py
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from magudi_utils import plot3dnasa as p3d
 from postprocess import compute_sound, windowed_fft
 
@@ -18,6 +23,13 @@ SURFACE_TO_RADIAL_INDEX = {
     'fwh2': 172,
     'fwh3': 183,
     'fwh4': 192,
+}
+
+
+AUTHOR_STYLES = {
+    'Kim':    dict(color='magenta', ls=(0, (6, 2)), lw=1.3),
+    'Samimy': dict(color='black',   marker='s', mfc='none', ls='none', ms=5),
+    'Ram':    dict(color='blue',    marker='^', mfc='none', ls='none', ms=5),
 }
 
 
@@ -40,6 +52,32 @@ def load_mike_pressures(probe_name, num_mikes):
     return np.array(columns).T
 
 
+def plot_SPL(spl_file, distance, theta, literature_h5, out_path):
+    """Plot SPL(St) from `spl_file` against literature data from `literature_h5`
+    at the station keyed by (distance, theta), e.g. (94, 30) -> '94D30deg'."""
+    station = '%gD%gdeg' % (distance, theta)
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
+    d = np.loadtxt(spl_file)
+    ax.semilogx(d[:, 0], d[:, 1], 'r-', lw=1.6, label='Current')
+    with h5py.File(literature_h5, 'r') as f:
+        for author in f:
+            key = '%s/SPL/%s' % (author, station)
+            if key not in f:
+                continue
+            arr = f[key][...]
+            style = AUTHOR_STYLES.get(author, dict(lw=1.))
+            ax.plot(arr[:, 0], arr[:, 1], label=author, **style)
+    ax.set_xlabel(r'$St$')
+    ax.set_ylabel('SPL (dB)')
+    ax.set_title(r'$d=%gD$, $\theta=%g^\circ$' % (distance, theta))
+    ax.grid(True, which='both', alpha=0.3)
+    ax.legend(loc='best', frameon=False, fontsize=8)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--prefix', default='MultiblockJet')
@@ -57,30 +95,51 @@ def parse_args():
                    help='nondim time between probe samples')
     p.add_argument('--mach', type=float, default=1.3)
     p.add_argument('--num-windows', type=int, default=5)
+    p.add_argument('--plot-only', action='store_true',
+                   help='skip the FWH+FFT computation and only run plot_SPL '
+                        'against an existing spl_<surface>.dat')
+    p.add_argument('--spl-dir', default='.',
+                   help='directory for spl_<surface>.dat and oaspl_<surface>.dat '
+                        '(written in compute mode, read in --plot-only mode)')
+    p.add_argument('--literature', default='literature.h5',
+                   help='HDF5 file with literature SPL data '
+                        '(layout: /<Author>/SPL/{94D30deg,44D90deg})')
+    p.add_argument('--figure', default=None,
+                   help='output path for the SPL figure (default: '
+                        'spl_<surface>_<distance>D_<theta>deg.png)')
     return p.parse_args()
 
 
 def main():
     args = parse_args()
-    grid_file = '%s.xyz' % args.prefix
 
-    probe_r = fwh_surface_radius(grid_file, args.surface)
-    print('%s: radial index %d -> r/D = %.4f' %
-          (args.surface, SURFACE_TO_RADIAL_INDEX[args.surface], probe_r))
+    spl_file = os.path.join(args.spl_dir, 'spl_%s.dat' % args.surface)
+    oaspl_file = os.path.join(args.spl_dir, 'oaspl_%s.dat' % args.surface)
 
-    compute_sound(args.prefix, args.x0, args.probe_dt, args.distance,
-                  args.theta, args.surface, probe_r)
+    if not args.plot_only:
+        os.makedirs(args.spl_dir, exist_ok=True)
+        grid_file = '%s.xyz' % args.prefix
 
-    p = load_mike_pressures(args.surface, args.num_mikes)
-    St, SPL, OASPL = windowed_fft(p, num_windows=args.num_windows,
-                                  dt=args.probe_dt, mach_number=args.mach)
+        probe_r = fwh_surface_radius(grid_file, args.surface)
+        print('%s: radial index %d -> r/D = %.4f' %
+              (args.surface, SURFACE_TO_RADIAL_INDEX[args.surface], probe_r))
 
-    np.savetxt('spl_%s.dat' % args.surface,
-               np.column_stack([St, SPL]), fmt='%+.18E')
-    with open('oaspl_%s.dat' % args.surface, 'a') as f:
-        f.write('%+.6E %+.6E\n' % (args.theta, OASPL))
-    print('%s @ theta=%g deg, d=%g: OASPL = %.3f dB' %
-          (args.surface, args.theta, args.distance, OASPL))
+        compute_sound(args.prefix, args.x0, args.probe_dt, args.distance,
+                      args.theta, args.surface, probe_r)
+
+        p = load_mike_pressures(args.surface, args.num_mikes)
+        St, SPL, OASPL = windowed_fft(p, num_windows=args.num_windows,
+                                      dt=args.probe_dt, mach_number=args.mach)
+
+        np.savetxt(spl_file, np.column_stack([St, SPL]), fmt='%+.18E')
+        with open(oaspl_file, 'a') as f:
+            f.write('%+.6E %+.6E\n' % (args.theta, OASPL))
+        print('%s @ theta=%g deg, d=%g: OASPL = %.3f dB' %
+              (args.surface, args.theta, args.distance, OASPL))
+    figure = args.figure or ('spl_%s_%gD_%gdeg.png' %
+                             (args.surface, args.distance, args.theta))
+    plot_SPL(spl_file, args.distance, args.theta, args.literature, figure)
+    print('wrote %s' % figure)
 
 
 if __name__ == '__main__':
