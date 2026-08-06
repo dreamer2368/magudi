@@ -161,38 +161,25 @@ def centerline_rms_fluctuations(prefix, gamma=1.4):
     np.savetxt('%s.centerline_rms_fluctuations.txt' % prefix, a,
                fmt=a.shape[1] * '%+.15E ')
 
-def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4,
-                 distance=None):
-    # p: pressure history of many mikes = [time steps, number of mikes]
-    # If `distance` (mic slant distance) is given, apply the two normalizations
-    # from thesis.pdf eq. 8.3: project to a common measurement distance
-    # de = 80D and collapse across jet velocities via Lighthill's U^8 law.
-    import numpy.fft
-    n = p.shape[0]
-    m = 2 * (n // (num_windows + 1))
-    windows = [((int(0.5 * i * m), int(0.5 * i * m) + m))
-               for i in range(num_windows)]
+def get_SPL(freq, p_hat, dt=1.2e-3 * 35, mach_number=1.3, gamma=1.4,
+            distance=80.):
+    # freq, p_hat: outputs of magudi_utils.fwhsolver.windowed_fft; p_hat is
+    # the RMS-averaged (across mikes and windows) one-sided amplitude spectrum.
+    # `distance` is the mic slant distance in D; the two normalizations from
+    # thesis.pdf eq. 8.3 (project to de = 80D, collapse via Lighthill U^8)
+    # are always applied.
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
     u_j = mach_number * np.sqrt(temperature_ratio)
-    St = numpy.fft.fftfreq(m, d=dt)[1:m//2] / u_j
-    y = np.empty([m // 2, num_windows, p.shape[1]])
-    window_func = np.blackman(m)
-    for j in range(p.shape[1]):
-        for i, w in enumerate(windows):
-            y[:,i,j] = np.absolute(numpy.fft.fft(
-                p[w[0]:w[1],j] * window_func))[:m//2] / (m * window_func.mean())
-            y[1:,i,j] *= np.sqrt(2.)
+    St = freq[1:] / u_j
     p_ref = 20.e-6 / 101325. / gamma
-    OASPL = 10. * np.log10(np.mean(np.sum(np.mean(
-        y[1:] ** 2, axis=1), axis=0)) / p_ref ** 2)
-    SPL = 10. * np.log10(np.mean(np.mean(y[1:] ** 2, axis=1), axis=1) /
-                         p_ref ** 2)
-    SPL += 10. * np.log10(1. / dt / n)
-    if distance is not None:
-        n_lighthill = 8
-        d_measure = 80.
-        shift = -10. * np.log10((d_measure / distance) ** 2) - n_lighthill * 10. * np.log10(u_j)
-        SPL += shift
-        OASPL += shift
+    OASPL = 10. * np.log10(np.sum(p_hat[1:] ** 2) / p_ref ** 2)
+    SPL = 10. * np.log10(p_hat[1:] ** 2 / p_ref ** 2)
+    m = 2 * p_hat.size
+    SPL += 10. * np.log10(1. / (dt * m))
+    n_lighthill = 8
+    d_measure = 80.
+    shift = -10. * np.log10((d_measure / distance) ** 2) - n_lighthill * 10. * np.log10(u_j)
+    SPL += shift
+    OASPL += shift
     return St, SPL, OASPL
 

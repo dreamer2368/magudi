@@ -3,8 +3,9 @@ Compute microphone pressure histories and SPL from the baseline
 Mach 1.3 MultiblockJet FWH probe data.
 
 Formulation: kim_thesis.pdf sections 4.2, 6.2; thesis.pdf section 8.3.
-Reuses postprocess.compute_sound (FWH integration) and postprocess.windowed_fft
-(Blackman-windowed FFT, 50% overlap, returns Strouhal, SPL, OASPL).
+Reuses postprocess.compute_sound (FWH integration), fwhsolver.windowed_fft
+(Blackman-windowed FFT, 50% overlap, returns freq and RMS-averaged p_hat),
+and postprocess.get_SPL (converts p_hat to SPL/OASPL in dB).
 """
 import argparse
 import os
@@ -14,7 +15,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from magudi_utils import plot3dnasa as p3d
-from postprocess import compute_sound, windowed_fft
+from magudi_utils import fwhsolver as fwh
+from postprocess import compute_sound, get_SPL
 
 
 # bc.dat: fwh1..fwh4 PROBE patches sit at these radial indices in blocks 2-5.
@@ -70,11 +72,14 @@ def diagnose_stationarity(p, num_windows, dt, mach_number,
     signal is statistically stationary; if the first half sits higher
     (especially at low St), an initial transient is contaminating the record."""
     n = p.shape[0]
-    kw = dict(num_windows=num_windows, dt=dt, mach_number=mach_number,
-              distance=distance)
-    St_full, SPL_full, _ = windowed_fft(p,          **kw)
-    St1,     SPL1,     _ = windowed_fft(p[:n // 2], **kw)
-    St2,     SPL2,     _ = windowed_fft(p[n // 2:], **kw)
+    kw_fft = dict(num_windows=num_windows, dt=dt)
+    kw_spl = dict(dt=dt, mach_number=mach_number, distance=distance)
+    freq_full, phat_full = fwh.windowed_fft(p,          **kw_fft)
+    freq1,     phat1     = fwh.windowed_fft(p[:n // 2], **kw_fft)
+    freq2,     phat2     = fwh.windowed_fft(p[n // 2:], **kw_fft)
+    St_full, SPL_full, _ = get_SPL(freq_full, phat_full, **kw_spl)
+    St1,     SPL1,     _ = get_SPL(freq1,     phat1,     **kw_spl)
+    St2,     SPL2,     _ = get_SPL(freq2,     phat2,     **kw_spl)
 
     station = '%gD%gdeg' % (distance, theta)
     fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
@@ -185,9 +190,10 @@ def main():
         print('wrote %s' % diag_fig)
         return
 
-    St, SPL, OASPL = windowed_fft(p, num_windows=args.num_windows,
-                                  dt=args.probe_dt, mach_number=args.mach,
-                                  distance=args.distance)
+    freq, p_hat = fwh.windowed_fft(p, num_windows=args.num_windows,
+                                   dt=args.probe_dt)
+    St, SPL, OASPL = get_SPL(freq, p_hat, dt=args.probe_dt,
+                             mach_number=args.mach, distance=args.distance)
 
     np.savetxt(spl_file, np.column_stack([St, SPL]), fmt='%+.18E')
     with open(oaspl_file, 'a') as f:
