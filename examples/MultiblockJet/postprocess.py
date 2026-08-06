@@ -161,8 +161,12 @@ def centerline_rms_fluctuations(prefix, gamma=1.4):
     np.savetxt('%s.centerline_rms_fluctuations.txt' % prefix, a,
                fmt=a.shape[1] * '%+.15E ')
 
-def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4):
+def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4,
+                 distance=None):
     # p: pressure history of many mikes = [time steps, number of mikes]
+    # If `distance` (mic slant distance) is given, apply the two normalizations
+    # from thesis.pdf eq. 8.3: project to a common measurement distance
+    # de = 80D and collapse across jet velocities via Lighthill's U^8 law.
     import numpy.fft
     n = p.shape[0]
     m = 2 * (n // (num_windows + 1))
@@ -184,5 +188,11 @@ def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4):
     SPL = 10. * np.log10(np.mean(np.mean(y[1:] ** 2, axis=1), axis=1) /
                          p_ref ** 2)
     SPL += 10. * np.log10(1. / dt / n)
+    if distance is not None:
+        n_lighthill = 8
+        d_measure = 80.
+        shift = -10. * np.log10((d_measure / distance) ** 2) - n_lighthill * 10. * np.log10(u_j)
+        SPL += shift
+        OASPL += shift
     return St, SPL, OASPL
 
