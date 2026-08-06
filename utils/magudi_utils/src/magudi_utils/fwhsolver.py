@@ -174,28 +174,135 @@ def get_mikes(n, x0, d, theta):
                   x0[1] + d * np.sin(np.pi * theta / 180.) * np.sin(phi[i]),
                   x0[2] + d * np.cos(np.pi * theta / 180.)]) for i in range(n)]
 
-def monopole_pressure(t, amp, omega, dist, a_inf=1.):
-    return amp / (4. * np.pi * dist) * omega * \
-        np.cos(omega * (t - dist / a_inf))
+def monopole_flow(x, y, t, A0, omega, lam=0., gamma=1.4,
+                  c_inf=1., rho_inf=1.):
+    """Absolute (rho, u, p) field of a stationary time-harmonic acoustic
+    monopole in an infinite quiescent medium (Kim 2012 thesis eq. 5.15,
+    with optional exponential decay from the same section).
 
-def get_monopole(offset, size, disp, dt, amp, ppw, a_inf=1., gamma=1.4):
-    omega = 2. * np.pi / (ppw * dt)
-    t = dt * np.arange(offset, offset + size)
-    dist = np.sqrt(np.sum(disp ** 2, axis=-1))
-    q = np.empty([disp.shape[0], disp.shape[1], 5, size], order='F')
-    for i in range(t.size):
-        q[:,:,0,i] = 1. + monopole_pressure(t[i], amp, omega, dist)
-        q[:,:,1:4,i] = amp * disp / (4. * np.pi)
-        for j in range(3):
-            q[:,:,j+1,i] *= (np.sin(omega * (t[i] - dist / a_inf)) /
-                             dist ** 3 + omega * np.cos(
-                                 omega * (t[i] - dist / a_inf)) / dist ** 2)
-    q[:,:,4,:] = 1. / gamma + (q[:,:,0,:] - 1.)
-    q[:,:,4,:] = q[:,:,4,:] / (gamma - 1.) + 0.5 * q[:,:,0,:] * \
-               np.sum(q[:,:,1:4,:] ** 2, axis=2)
-    for i in range(3):
-        q[:,:,i+1,:] *= q[:,:,0,:]
+    Source strength q(tau) = A0 * exp(-lam*tau) * sin(omega*tau) at y;
+    the observer field is evaluated using the retarded time
+    tau_r = t - |x-y|/c_inf.
+
+    Uses the Kim / Vishnampet nondimensionalization: ambient state is
+    (rho_inf, 0, rho_inf * c_inf**2 / gamma) (i.e. p_inf = 1/gamma when
+    rho_inf = c_inf = 1).
+
+    Parameters
+    ----------
+    x : array_like, shape (..., 3)
+        Field points.
+    y : array_like, shape (3,)
+        Source location.
+    t : array_like
+        Time; must broadcast with r = |x-y| (typically a scalar or a 1-D
+        time array combined with x expanded on an extra axis).
+    A0, omega, lam : float
+        Monopole strength, angular frequency, and exponential decay rate.
+
+    Returns
+    -------
+    dict with keys 'rho' (shape ...), 'u' (shape (..., 3)), 'p' (shape ...).
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    t = np.asarray(t, dtype=float)
+    disp = x - y
+    r = np.linalg.norm(disp, axis=-1)
+    e_hat = disp / r[..., None]
+    tau_r = t - r / c_inf
+    envelope = A0 * np.exp(-lam * tau_r)
+    sin_w = np.sin(omega * tau_r)
+    cos_w = np.cos(omega * tau_r)
+    q_tau  = envelope * sin_w
+    qp_tau = envelope * (omega * cos_w - lam * sin_w)
+    p_prime = rho_inf * qp_tau / (4. * np.pi * r)
+    rho_prime = p_prime / (c_inf ** 2)
+    u_r = q_tau / (4. * np.pi * r ** 2) + qp_tau / (4. * np.pi * r * c_inf)
+    u_vec = e_hat * u_r[..., None]
+    return dict(rho=rho_inf + rho_prime,
+                u=u_vec,
+                p=rho_inf * c_inf ** 2 / gamma + p_prime)
+
+
+def dipole_flow(x, y, t, A0, omega, gamma=1.4,
+                c_inf=1., rho_inf=1., axis=1):
+    """Absolute (rho, u, p) field of a stationary time-harmonic acoustic
+    dipole (Kim 2012 thesis eq. 5.17). Aligned in +axis (default axis=1
+    is +y, per Kim section 5.3.2 "maximum sound in y direction").
+
+    Dipole source is f_j(tau) = A0 * sin(omega*tau) * delta_{j, axis}.
+    Velocity is derived from the dipole velocity potential; contains
+    the standard 1/r, 1/r**2, 1/r**3 Cartesian terms.
+
+    Parameters mirror :func:`monopole_flow` (no lam — Kim uses no
+    exponential decay for the dipole test).
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    t = np.asarray(t, dtype=float)
+    disp = x - y
+    r = np.linalg.norm(disp, axis=-1)
+    e_hat = disp / r[..., None]
+    e_d = e_hat[..., axis]
+    tau_r = t - r / c_inf
+    f  = A0 * np.sin(omega * tau_r)
+    fp = A0 * omega * np.cos(omega * tau_r)
+    F  = -A0 * np.cos(omega * tau_r) / omega
+    p_prime = -e_d / (4. * np.pi) * (fp / (c_inf * r) + f / (r ** 2))
+    rho_prime = p_prime / (c_inf ** 2)
+    B = f / (c_inf * r) + F / (r ** 2)
+    K = (fp / (c_inf ** 2 * r) + 2. * f / (c_inf * r ** 2)
+         + 2. * F / (r ** 3))
+    basis = np.zeros(3)
+    basis[axis] = 1.
+    dA_dx = (basis - e_d[..., None] * e_hat) / r[..., None]
+    dB_dx = -e_hat * K[..., None]
+    u_prime = (dA_dx * B[..., None] + e_d[..., None] * dB_dx) \
+              / (4. * np.pi * rho_inf)
+    return dict(rho=rho_inf + rho_prime,
+                u=u_prime,
+                p=rho_inf * c_inf ** 2 / gamma + p_prime)
+
+
+def _from_primitive(rho, u, p, gamma):
+    """Assemble a q-file chunk of shape [n1, n0, 5, size] (Fortran-ordered,
+    conservative variables) from (rho, u, p) fields of shapes
+    (n1, n0, size) and (n1, n0, size, 3)."""
+    n1, n0, size = rho.shape
+    q = np.empty([n1, n0, 5, size], order='F')
+    q[:, :, 0, :] = rho
+    q[:, :, 1:4, :] = np.moveaxis(rho[..., None] * u, -1, -2)
+    q[:, :, 4, :] = p / (gamma - 1.) + 0.5 * rho * np.sum(u * u, axis=-1)
     return q
+
+
+def get_monopole(offset, size, xyz, dt, y, A0, omega, lam=0., gamma=1.4,
+                 c_inf=1., rho_inf=1.):
+    """FWH-surface chunk adapter for a monopole. Matches the FWHSolver.get
+    contract ``get(offset, size, *get_args) -> q[n1, n0, 5, size]``.
+
+    Use as::
+
+        solver.get      = get_monopole
+        solver.get_args = (xyz, dt, y, A0, omega, lam)
+    """
+    xyz = np.asarray(xyz, dtype=float)
+    t = dt * np.arange(offset, offset + size, dtype=float)
+    flow = monopole_flow(xyz[:, :, None, :], y, t, A0, omega, lam, gamma,
+                         c_inf, rho_inf)
+    return _from_primitive(flow['rho'], flow['u'], flow['p'], gamma)
+
+
+def get_dipole(offset, size, xyz, dt, y, A0, omega, gamma=1.4,
+               c_inf=1., rho_inf=1., axis=1):
+    """FWH-surface chunk adapter for a +axis-aligned dipole (default +y).
+    Same output layout as :func:`get_monopole`."""
+    xyz = np.asarray(xyz, dtype=float)
+    t = dt * np.arange(offset, offset + size, dtype=float)
+    flow = dipole_flow(xyz[:, :, None, :], y, t, A0, omega, gamma,
+                       c_inf, rho_inf, axis)
+    return _from_primitive(flow['rho'], flow['u'], flow['p'], gamma)
 
 def windowed_fft(p, num_windows=5, dt=1.2e-3 * 35, window_type='blackman'):
     import numpy.fft
