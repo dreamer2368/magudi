@@ -67,15 +67,29 @@ class FWHSolver:
 
     def _compute_normals(self, xyz):
         """Computes the areas of quadrilateral elements and the unit
-        normal vector at each cell."""
+        outward normal vector at each cell.
+
+        Grid convention (matches all in-tree FWH surface producers --
+        magudi_utils.fwhsolver.make_cylindrical_grid,
+        examples/MultiblockJet/postprocess.extract_const_r,
+        examples/OSUMach1.3/postprocess.extract_fwh):
+            xyz.shape == (n_axial, n_azimuthal + 1, 1, 3)
+        with axis 0 = axial (+z), axis 1 = azimuthal (CCW), and the last
+        azimuthal row wrapping back to the first.
+
+        Under this convention cross(d_axial, d_azim) points *inward* on
+        a source-enclosing cylinder; we negate to return outward-facing
+        normals. (Signed direction matters for raw p'(t) reconstruction
+        but is invisible to magnitude-based post-processing such as SPL.)
+        """
         a = np.cross(xyz[1:,:-1,0,:] - xyz[:-1,:-1,0,:],
                      xyz[:-1,1:,0,:] - xyz[:-1,:-1,0,:])
         b = np.cross(xyz[:-1,1:,0,:] - xyz[1:,1:,0,:],
                      xyz[1:,:-1,0,:] - xyz[1:,1:,0,:])
         ab = np.sqrt(np.sum((a + b) ** 2, axis=-1))
-        cell_areas = 0.5 * (np.sqrt(np.sum(a ** 2, axis=-1)) + 
+        cell_areas = 0.5 * (np.sqrt(np.sum(a ** 2, axis=-1)) +
                             np.sqrt(np.sum(b ** 2, axis=-1)))
-        unit_normals = a + b
+        unit_normals = -(a + b)
         for i in range(unit_normals.shape[-1]):
             unit_normals[:,:,i] /= ab
         return np.asfortranarray(cell_areas.T), np.asfortranarray(

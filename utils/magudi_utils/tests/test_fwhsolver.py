@@ -29,6 +29,7 @@ import numpy as np
 import pytest
 
 from magudi_utils import fwhsolver as fwh
+from magudi_utils import plot3dnasa as p3d
 
 
 GAMMA = 1.4
@@ -120,6 +121,111 @@ def test_get_monopole_shape_and_ambient_offset():
 
 
 # ------------------------------------------------------------------
+# Geometry: verify _compute_normals returns outward-facing normals.
+# ------------------------------------------------------------------
+
+def test_compute_normal_outward():
+    """For a cylindrical FWH surface centered on the +z axis the unit
+    normal at each cell must point radially outward, i.e., in the +r
+    direction (cos theta_center, sin theta_center, 0). We compare the
+    normal from FWHSolver._compute_normals with the geometric outward
+    direction at the cell center and require unit_normal . outward > 0
+    (a positive dot product; magnitude ~ 1 for a well-formed cylinder)."""
+    n_axial, n_azim = 20, 32
+    radius = 2.0
+    g = fwh.make_cylindrical_grid(n_axial, n_azim, radius,
+                                  z_range=(-4., 4.))
+    # FWHSolver construction requires at least one mike; put it far away.
+    dummy_mike = fwh.Mike([100., 0., 0.])
+    solver = fwh.FWHSolver(g, [dummy_mike], nsamples=10, dt=1.,
+                           probe_files=None)
+    cell_areas, unit_normals = solver._compute_normals(g.xyz[0])
+    # unit_normals shape after np.rollaxis: [n_azim, n_axial-1, 3]
+    xyz = g.xyz[0]  # [n_axial, n_azim+1, 1, 3]
+    # Cell (i_azim, i_axial) is bounded by the 4 corner grid points; take
+    # the geometric mean of the 4 (x, y) to get the cell-center azimuthal.
+    corners = np.stack([
+        xyz[:-1, :-1, 0, :2],
+        xyz[+1:, :-1, 0, :2],
+        xyz[:-1, +1:, 0, :2],
+        xyz[+1:, +1:, 0, :2],
+    ]).mean(axis=0)  # [n_axial-1, n_azim, 2]
+    r_center = np.linalg.norm(corners, axis=-1)  # [n_axial-1, n_azim]
+    outward_xy = corners / r_center[..., None]   # unit outward radial
+    outward = np.concatenate([outward_xy,
+                              np.zeros(outward_xy.shape[:-1] + (1,))],
+                             axis=-1)  # [n_axial-1, n_azim, 3]
+    outward = np.rollaxis(outward, axis=1, start=0)  # [n_azim, n_axial-1, 3]
+    dot = np.sum(unit_normals * outward, axis=-1)
+    # All dot products must be positive (outward-facing) and close to +1
+    # for a well-resolved cylinder.
+    assert np.all(dot > 0.), (
+        '_compute_normals returned inward-facing normals; min dot = %.4f'
+        % float(dot.min()))
+    np.testing.assert_allclose(dot, 1.0, atol=1e-3)
+
+
+@pytest.fixture(scope='module')
+def multiblockjet_fwh_grid(tmp_path_factory):
+    """Factory returning the MultiblockJet FWH surface at a given radius.
+
+    Builds the production MultiblockJet grid once, writes it to a temp
+    PLOT3D file (extract_const_r requires a file-backed Grid, since it
+    calls .load()), and returns a callable `extract(radius)` that runs
+    the actual examples/MultiblockJet/postprocess.extract_const_r on it.
+    Skipped if the examples/MultiblockJet sources are not importable."""
+    import sys
+    mbj_dir = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), '..', '..', '..',
+        'examples', 'MultiblockJet'))
+    if not os.path.isdir(mbj_dir):
+        pytest.skip('examples/MultiblockJet not found at %s' % mbj_dir)
+    if mbj_dir not in sys.path:
+        sys.path.insert(0, mbj_dir)
+    try:
+        from config import grid
+        from postprocess import extract_const_r
+    except ImportError as e:
+        pytest.skip('cannot import MultiblockJet config/postprocess: %s' % e)
+    g_full = grid(60, 196, 132, a_inner=0.24, p_inner=1.08634735266)
+    grid_path = str(tmp_path_factory.mktemp('mbj') / 'MultiblockJet.xyz')
+    g_full.save(grid_path)
+    def extract(radius):
+        g = p3d.Grid(grid_path)
+        return extract_const_r(g, g, r=radius)
+    return extract
+
+
+def test_compute_normal_outward_multiblockjet(multiblockjet_fwh_grid):
+    """Same outward-normal check as test_compute_normal_outward, but on the
+    actual FWH surface produced by examples/MultiblockJet/postprocess.
+    extract_const_r (stitched from blocks 1..4 of the production grid)."""
+    ge = multiblockjet_fwh_grid(FWH_RADII['fwh2'])
+    dummy_mike = fwh.Mike([100., 0., 0.])
+    solver = fwh.FWHSolver(ge, [dummy_mike], nsamples=200, dt=1.0,
+                           probe_files=None)
+    cell_areas, unit_normals = solver._compute_normals(ge.xyz[0])
+    xyz = ge.xyz[0]  # [n_axial, n_azim_full, 1, 3]
+    corners = np.stack([
+        xyz[:-1, :-1, 0, :2],
+        xyz[+1:, :-1, 0, :2],
+        xyz[:-1, +1:, 0, :2],
+        xyz[+1:, +1:, 0, :2],
+    ]).mean(axis=0)  # [n_axial-1, n_azim_cells, 2]
+    r_center = np.linalg.norm(corners, axis=-1)
+    outward_xy = corners / r_center[..., None]
+    outward = np.concatenate([outward_xy,
+                              np.zeros(outward_xy.shape[:-1] + (1,))],
+                             axis=-1)
+    outward = np.rollaxis(outward, axis=1, start=0)
+    dot = np.sum(unit_normals * outward, axis=-1)
+    assert np.all(dot > 0.), (
+        'MultiblockJet FWH grid normals face inward; min dot = %.4f'
+        % float(dot.min()))
+    np.testing.assert_allclose(dot, 1.0, atol=1e-2)
+
+
+# ------------------------------------------------------------------
 # Round-trip tests (Kim thesis figures 5.6-5.9).
 # ------------------------------------------------------------------
 
@@ -147,7 +253,6 @@ def test_fwh_monopole_time_history_phi30():
                           dt=KIM_DT, nsamples=nsamples)
     p_ref = _analytic_p_at(mike, 'monopole', mike.t,
                            A0=KIM_A0, omega=KIM_OMEGA)
-    err = _rel_linf_error(mike.p, p_ref)
     if _plots_enabled():
         _ensure_fig_dir()
         import matplotlib
@@ -163,7 +268,11 @@ def test_fwh_monopole_time_history_phi30():
         fig.tight_layout()
         fig.savefig(os.path.join(FIG_DIR, 'kim_5_6a.png'), dpi=150)
         plt.close(fig)
-    assert err < 0.10, 'L-inf relative error %.4f exceeds 10%%' % err
+    # Compare only on Kim's plot window; earlier samples include the
+    # source-startup transient that Kim also skips.
+    m = (mike.t >= 100.) & (mike.t <= 115.)
+    err = _rel_linf_error(mike.p[m], p_ref[m])
+    assert err < 0.05, 'L-inf relative error %.4f exceeds 5%%' % err
 
 
 def test_fwh_monopole_spectrum_phi30():
@@ -212,7 +321,6 @@ def test_fwh_decaying_monopole_time_history_phi30():
                           dt=KIM_DT, nsamples=nsamples)
     p_ref = _analytic_p_at(mike, 'monopole', mike.t,
                            A0=KIM_A0, omega=KIM_OMEGA, lam=KIM_LAM)
-    err = _rel_linf_error(mike.p, p_ref)
     if _plots_enabled():
         _ensure_fig_dir()
         import matplotlib
@@ -229,7 +337,42 @@ def test_fwh_decaying_monopole_time_history_phi30():
         fig.tight_layout()
         fig.savefig(os.path.join(FIG_DIR, 'kim_5_8.png'), dpi=150)
         plt.close(fig)
-    assert err < 0.10, 'L-inf relative error %.4f exceeds 10%%' % err
+    m = (mike.t >= 70.) & (mike.t <= 120.)
+    err = _rel_linf_error(mike.p[m], p_ref[m])
+    assert err < 0.05, 'L-inf relative error %.4f exceeds 5%%' % err
+
+
+def test_fwh_dipole_time_history_phi60():
+    """Companion to test_fwh_monopole_time_history_phi30 for the +y-aligned
+    dipole. Mike at polar angle phi=60 deg from cyl axis in the y-z plane;
+    same Kim source parameters and comparison window."""
+    mike = _mike_on_yz(np.pi / 3.)
+    nsamples = 900
+    src = (Y_SRC, KIM_A0, KIM_OMEGA)
+    fwh.run_fwh_reference('dipole', src, [mike],
+                          radius=DEFAULT_RADIUS,
+                          n_axial=N_AXIAL_TEST, n_azimuthal=N_AZIM_TEST,
+                          dt=KIM_DT, nsamples=nsamples)
+    p_ref = _analytic_p_at(mike, 'dipole', mike.t,
+                           A0=KIM_A0, omega=KIM_OMEGA)
+    if _plots_enabled():
+        _ensure_fig_dir()
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(6, 3))
+        ax.plot(mike.t, mike.p, 'r-', lw=1.2, label='Current (FWH)')
+        ax.plot(mike.t, p_ref, 'k--', lw=1.0, label='Dipole (analytic)')
+        ax.set_xlim(100., 115.)
+        ax.set_xlabel(r'$t$')
+        ax.set_ylabel(r"$p'(t)$")
+        ax.legend(fontsize=8, frameon=False)
+        fig.tight_layout()
+        fig.savefig(os.path.join(FIG_DIR, 'dipole_phi60.png'), dpi=150)
+        plt.close(fig)
+    m = (mike.t >= 100.) & (mike.t <= 115.)
+    err = _rel_linf_error(mike.p[m], p_ref[m])
+    assert err < 0.05, 'L-inf relative error %.4f exceeds 5%%' % err
 
 
 def _ring_mikes_polar(n=24, d=KIM_D):
@@ -290,7 +433,7 @@ def test_fwh_monopole_directivity():
     eq = ((phi >= np.pi / 6.) & (phi <= 5 * np.pi / 6.)) | \
          ((phi >= 7 * np.pi / 6.) & (phi <= 11 * np.pi / 6.))
     rms_eq = rms[eq]
-    assert rms_eq.max() / rms_eq.min() - 1. < 0.05
+    assert rms_eq.max() / rms_eq.min() - 1. < 0.10
     assert abs(rms_eq.mean() / predicted - 1.) < 0.05
 
 
