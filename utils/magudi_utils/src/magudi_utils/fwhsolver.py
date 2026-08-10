@@ -53,7 +53,7 @@ class FWHSolver:
                 q[:,:,0,:] = 1. / q[:,:,0,:]
                 q[:,:,4,:] = (self.gamma - 1.) * (
                     q[:,:,4,:] - 0.5 * q[:,:,0,:] *
-                    np.sum(q[:,:,1:4,:], axis=2)) - 1. / self.gamma
+                    np.sum(q[:,:,1:4,:] ** 2, axis=2)) - 1. / self.gamma
             for mike in self.mikes:
                 mike.add_contribution(i, q[:,:,:,i%chunk_size])
             if pbar:
