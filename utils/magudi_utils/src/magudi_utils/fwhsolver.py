@@ -304,6 +304,45 @@ def get_dipole(offset, size, xyz, dt, y, A0, omega, gamma=1.4,
                        c_inf, rho_inf, axis)
     return _from_primitive(flow['rho'], flow['u'], flow['p'], gamma)
 
+
+def make_cylindrical_grid(n_axial, n_azimuthal, radius,
+                          z_range=(-9., 34.)):
+    """Constant-radius cylindrical FWH surface as a single-block plot3dnasa
+    Grid of shape (n_axial, n_azimuthal + 1, 1). The azimuthal direction
+    wraps (last row = first row), matching the extract_const_r convention
+    in examples/MultiblockJet/postprocess.py. Cylinder axis is +z."""
+    z = np.linspace(z_range[0], z_range[1], n_axial)
+    theta = np.linspace(0., 2. * np.pi, n_azimuthal + 1)
+    g = p3d.Grid().set_size([n_axial, n_azimuthal + 1, 1], True)
+    xyz = g.xyz[0]
+    xyz[:, :, 0, 0] = radius * np.cos(theta)[None, :]
+    xyz[:, :, 0, 1] = radius * np.sin(theta)[None, :]
+    xyz[:, :, 0, 2] = z[:, None]
+    return g
+
+
+def run_fwh_reference(kind, source_args, mikes, radius, n_axial, n_azimuthal,
+                      dt, nsamples, z_range=(-9., 34.), chunk_size=50,
+                      gamma=1.4):
+    """Build a synthetic cylindrical FWH surface, wire the analytic
+    monopole/dipole generator into FWHSolver, and populate the mikes.
+
+    kind         : 'monopole' or 'dipole'.
+    source_args  : positional args after (offset, size, xyz, dt) for the
+                   chosen adapter. Monopole: (y, A0, omega[, lam]).
+                   Dipole:   (y, A0, omega[, gamma[, c_inf, rho_inf, axis]]).
+    Returns the input `mikes` list; each mike has `.t` and `.p` populated.
+    """
+    g = make_cylindrical_grid(n_axial, n_azimuthal, radius, z_range=z_range)
+    solver = FWHSolver(g, mikes, nsamples, dt, probe_files=None, gamma=gamma)
+    xyz_surface = np.rollaxis(g.xyz[0][:, :, 0, :], axis=1, start=0)
+    get_fn = {'monopole': get_monopole, 'dipole': get_dipole}[kind]
+    solver.get = get_fn
+    solver.get_args = (xyz_surface, dt) + tuple(source_args)
+    solver.integrate(chunk_size=chunk_size)
+    return mikes
+
+
 def windowed_fft(p, num_windows=5, dt=1.2e-3 * 35, window_type='blackman'):
     import numpy.fft
     from scipy.signal import get_window
