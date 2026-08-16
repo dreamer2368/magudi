@@ -56,8 +56,10 @@ class FWHSolver:
                     np.sum(q[:,:,1:4,:] ** 2, axis=2)) - 1. / self.gamma
             for mike in self.mikes:
                 mike.add_contribution(i, q[:,:,:,i%chunk_size])
-            if pbar:
+            if pbar and i % chunk_size == 0:
                 pbar.update(i)
+                pbar.fd.write('\n')
+                pbar.fd.flush()
             # if i % 100 == 0:
             #     for j, mike in enumerate(self.mikes):
             #         with open('mike%02d.dat' % (j + 1), 'w') as f:

@@ -102,6 +102,26 @@ def diagnose_stationarity(p, num_windows, dt, mach_number,
     plt.close(fig)
 
 
+def plot_mike_history(p, dt, distance, theta, out_path):
+    """Plot per-mike pressure time history as (num_mikes, 1) subplots."""
+    nsteps, num_mikes = p.shape
+    t = np.arange(nsteps) * dt
+    fig, axes = plt.subplots(num_mikes, 1, sharex=True,
+                             figsize=(10, 1.2 * num_mikes))
+    if num_mikes == 1:
+        axes = [axes]
+    for i, ax in enumerate(axes):
+        ax.plot(t, p[:, i], 'k-', lw=0.6)
+        ax.set_ylabel('mike %d' % (i + 1), fontsize=8)
+        ax.tick_params(labelsize=8)
+    axes[-1].set_xlabel(r'$t\,a_\infty / D$')
+    axes[0].set_title(r'Mike histories — $d=%gD$, $\theta=%g^\circ$' %
+                      (distance, theta))
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def plot_SPL(spl_file, distance, theta, literature_h5, out_path):
     """Plot SPL(St) from `spl_file` against literature data from `literature_h5`
     at the station keyed by (distance, theta), e.g. (94, 30) -> '94D30deg'."""
@@ -152,7 +172,10 @@ def parse_args():
                         'Assumes mike_<surface>_##.dat already exist in '
                         '--spl-dir; skips FWH, spl/oaspl outputs, and plot_SPL.')
     p.add_argument('--spl-dir', default='.',
-                   help='directory for spl_<surface>.dat and oaspl_<surface>.dat')
+                   help='directory for all outputs written by this script: '
+                        'mike_<surface>_##.dat, spl_<surface>.dat, '
+                        'oaspl_<surface>.dat, and (when --figure is not set) '
+                        'the SPL/diagnostic PNGs')
     p.add_argument('--literature', default='literature.h5',
                    help='HDF5 file with literature SPL data '
                         '(layout: /<Author>/SPL/{94D30deg,44D90deg})')
@@ -177,13 +200,20 @@ def main():
               (args.surface, SURFACE_TO_RADIAL_INDEX[args.surface], probe_r))
 
         compute_sound(args.prefix, args.x0, args.probe_dt, args.distance,
-                      args.theta, args.surface, probe_r)
+                      args.theta, args.surface, probe_r, out_dir=args.spl_dir)
 
     p = load_mike_pressures(args.spl_dir, args.surface, args.num_mikes)
 
+    history_fig = os.path.join(
+        args.spl_dir, 'mike_history_%s_%gD_%gdeg.png' %
+        (args.surface, args.distance, args.theta))
+    plot_mike_history(p, args.probe_dt, args.distance, args.theta, history_fig)
+    print('wrote %s' % history_fig)
+
     if args.diagnose:
-        diag_fig = args.figure or ('diagnose_%s_%gD_%gdeg.png' %
-                                   (args.surface, args.distance, args.theta))
+        diag_fig = args.figure or os.path.join(
+            args.spl_dir, 'diagnose_%s_%gD_%gdeg.png' %
+            (args.surface, args.distance, args.theta))
         diagnose_stationarity(p, args.num_windows, args.probe_dt, args.mach,
                               args.distance, args.theta, args.literature,
                               diag_fig)
@@ -201,8 +231,9 @@ def main():
     print('%s @ theta=%g deg, d=%g: OASPL = %.3f dB' %
           (args.surface, args.theta, args.distance, OASPL))
 
-    figure = args.figure or ('spl_%s_%gD_%gdeg.png' %
-                             (args.surface, args.distance, args.theta))
+    figure = args.figure or os.path.join(
+        args.spl_dir, 'spl_%s_%gD_%gdeg.png' %
+        (args.surface, args.distance, args.theta))
     plot_SPL(spl_file, args.distance, args.theta, args.literature, figure)
     print('wrote %s' % figure)
 

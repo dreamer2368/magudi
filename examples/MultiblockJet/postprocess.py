@@ -55,7 +55,7 @@ def extract_const_r(g, f, r=0.5):
         fe[0][:,-1,:,:] = fe[0][:,0,:,:]
     return fe
 
-def compute_sound(prefix, x0, dt, d, theta, probe_name, probe_r):
+def compute_sound(prefix, x0, dt, d, theta, probe_name, probe_r, out_dir='.'):
     import os
     from magudi_utils import fwhsolver as fwh
     g = p3d.Grid('%s.xyz' % prefix)
@@ -76,7 +76,8 @@ def compute_sound(prefix, x0, dt, d, theta, probe_name, probe_r):
     solver = fwh.FWHSolver(ge, mikes, nsamples, dt, probe_files=probe_files)
     solver.integrate(chunk_size=50)
     for i, mike in enumerate(mikes):
-        with open('mike_%s_%02d.dat' % (probe_name, i + 1), 'w') as f:
+        path = os.path.join(out_dir, 'mike_%s_%02d.dat' % (probe_name, i + 1))
+        with open(path, 'w') as f:
             np.savetxt(f, np.array([mike.t, mike.p]).T, fmt='%+.18E')
 
 def extract_axisymmetric(g, f, show_progress=True):
