@@ -1,3 +1,4 @@
 *.pyc
 build
 *.xyz
+utils/magudi_utils/tests/figures/

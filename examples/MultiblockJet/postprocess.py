@@ -55,21 +55,61 @@ def extract_const_r(g, f, r=0.5):
         fe[0][:,-1,:,:] = fe[0][:,0,:,:]
     return fe
 
-def compute_sound(prefix, x0, dt, d, theta):
+def polynomial_pressure_mean(p, degree=3):
+    """Per-mike least-squares polynomial fit to a pressure history.
+
+    Input:  p[nsteps, num_mikes] — pressure time series from load_mike_pressures.
+    Output: same shape, containing the fitted polynomial evaluated at each step.
+
+    Used to estimate slow drift in the mean pressure so it can be subtracted
+    before the windowed FFT."""
+    n = p.shape[0]
+    # Normalized time keeps the Vandermonde system well-conditioned.
+    t = np.linspace(-1.0, 1.0, n)
+    coeffs = np.polyfit(t, p, degree)
+    return np.column_stack([np.polyval(coeffs[:, i], t)
+                            for i in range(p.shape[1])])
+
+
+def moving_average(p, window):
+    """Per-mike centered moving average with edge-padded boundaries.
+
+    Input:  p[nsteps, num_mikes], window in samples.
+    Output: same shape as p."""
+    n = p.shape[0]
+    w = max(1, min(int(window), n))
+    half = w // 2
+    padded = np.pad(p, ((half, w - 1 - half), (0, 0)), mode='edge')
+    kernel = np.ones(w) / w
+    out = np.empty_like(p, dtype=float)
+    for i in range(p.shape[1]):
+        out[:, i] = np.convolve(padded[:, i], kernel, mode='valid')
+    return out
+
+
+def compute_sound(prefix, x0, dt, d, theta, probe_name, probe_r, out_dir='.'):
     import os
     from magudi_utils import fwhsolver as fwh
     g = p3d.Grid('%s.xyz' % prefix)
-    n = g.get_size(0)
-    ge = extract_const_r(g, g)
+    n = g.get_size(1)
+    ge = extract_const_r(g, g, r=probe_r)
     mikes = fwh.get_mikes(8, x0, d, theta)
-    probe_files = ['%s.probe_fwh.%s.dat' % (prefix, s)
+    probe_files = ['%s.probe_%s.%s.dat' % (prefix, probe_name, s)
                    for s in ['E', 'N', 'W', 'S']]
-    nsamples = os.stat(probe_files[0]).st_size // \
-               (40 * n[0] * ((n[1] - 1) // 4 + 1))
+    bytes_per_sample = 40 * int(n[1]) * int(n[2])
+    file_size = os.stat(probe_files[0]).st_size
+    if file_size % bytes_per_sample != 0:
+        raise RuntimeError(
+            'Probe file size %d is not a multiple of bytes/sample %d '
+            '(remainder %d)' % (file_size, bytes_per_sample,
+                                file_size % bytes_per_sample))
+    nsamples = file_size // bytes_per_sample
+    print('nsamples = %d' % nsamples)
     solver = fwh.FWHSolver(ge, mikes, nsamples, dt, probe_files=probe_files)
     solver.integrate(chunk_size=50)
     for i, mike in enumerate(mikes):
-        with open('mike%02d.dat' % (i + 1), 'w') as f:
+        path = os.path.join(out_dir, 'mike_%s_%02d.dat' % (probe_name, i + 1))
+        with open(path, 'w') as f:
             np.savetxt(f, np.array([mike.t, mike.p]).T, fmt='%+.18E')
 
 def extract_axisymmetric(g, f, show_progress=True):
@@ -154,28 +194,25 @@ def centerline_rms_fluctuations(prefix, gamma=1.4):
     np.savetxt('%s.centerline_rms_fluctuations.txt' % prefix, a,
                fmt=a.shape[1] * '%+.15E ')
 
-def windowed_fft(p, num_windows=5, dt=0.048, mach_number=1.3, gamma=1.4):
-    # p: pressure history of many mikes = [time steps, number of mikes]
-    import numpy.fft
-    n = p.shape[0]
-    m = 2 * (n // (num_windows + 1))
-    windows = [((int(0.5 * i * m), int(0.5 * i * m) + m))
-               for i in range(num_windows)]
+def get_SPL(freq, p_hat, dt=1.2e-3 * 35, mach_number=1.3, gamma=1.4,
+            distance=80.):
+    # freq, p_hat: outputs of magudi_utils.fwhsolver.windowed_fft; p_hat is
+    # the RMS-averaged (across mikes and windows) one-sided amplitude spectrum.
+    # `distance` is the mic slant distance in D; the two normalizations from
+    # thesis.pdf eq. 8.3 (project to de = 80D, collapse via Lighthill U^8)
+    # are always applied.
     temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
     u_j = mach_number * np.sqrt(temperature_ratio)
-    St = numpy.fft.fftfreq(m, d=dt)[1:m//2] / u_j
-    y = np.empty([m // 2, num_windows, p.shape[1]])
-    window_func = np.blackman(m)
-    for j in range(p.shape[1]):
-        for i, w in enumerate(windows):
-            y[:,i,j] = np.absolute(numpy.fft.fft(
-                p[w[0]:w[1],j] * window_func))[:m//2] / (m * window_func.mean())
-            y[1:,i,j] *= np.sqrt(2.)
+    St = freq[1:] / u_j
     p_ref = 20.e-6 / 101325. / gamma
-    OASPL = 10. * np.log10(np.mean(np.sum(np.mean(
-        y[1:] ** 2, axis=1), axis=0)) / p_ref ** 2)
-    SPL = 10. * np.log10(np.mean(np.mean(y[1:] ** 2, axis=1), axis=1) /
-                         p_ref ** 2)
-    SPL += 10. * np.log10(1. / dt / n)
+    OASPL = 10. * np.log10(np.sum(p_hat[1:] ** 2) / p_ref ** 2)
+    SPL = 10. * np.log10(p_hat[1:] ** 2 / p_ref ** 2)
+    m = 2 * p_hat.size
+    SPL += 10. * np.log10(1. / (dt * m))
+    n_lighthill = 8
+    d_measure = 80.
+    shift = -10. * np.log10((d_measure / distance) ** 2) - n_lighthill * 10. * np.log10(u_j)
+    SPL += shift
+    OASPL += shift
     return St, SPL, OASPL
 
