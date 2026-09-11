@@ -55,6 +55,38 @@ def extract_const_r(g, f, r=0.5):
         fe[0][:,-1,:,:] = fe[0][:,0,:,:]
     return fe
 
+def polynomial_pressure_mean(p, degree=3):
+    """Per-mike least-squares polynomial fit to a pressure history.
+
+    Input:  p[nsteps, num_mikes] — pressure time series from load_mike_pressures.
+    Output: same shape, containing the fitted polynomial evaluated at each step.
+
+    Used to estimate slow drift in the mean pressure so it can be subtracted
+    before the windowed FFT."""
+    n = p.shape[0]
+    # Normalized time keeps the Vandermonde system well-conditioned.
+    t = np.linspace(-1.0, 1.0, n)
+    coeffs = np.polyfit(t, p, degree)
+    return np.column_stack([np.polyval(coeffs[:, i], t)
+                            for i in range(p.shape[1])])
+
+
+def moving_average(p, window):
+    """Per-mike centered moving average with edge-padded boundaries.
+
+    Input:  p[nsteps, num_mikes], window in samples.
+    Output: same shape as p."""
+    n = p.shape[0]
+    w = max(1, min(int(window), n))
+    half = w // 2
+    padded = np.pad(p, ((half, w - 1 - half), (0, 0)), mode='edge')
+    kernel = np.ones(w) / w
+    out = np.empty_like(p, dtype=float)
+    for i in range(p.shape[1]):
+        out[:, i] = np.convolve(padded[:, i], kernel, mode='valid')
+    return out
+
+
 def compute_sound(prefix, x0, dt, d, theta, probe_name, probe_r, out_dir='.'):
     import os
     from magudi_utils import fwhsolver as fwh
