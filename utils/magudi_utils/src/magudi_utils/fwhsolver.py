@@ -378,3 +378,39 @@ def windowed_fft(p, num_windows=5, dt=1.2e-3 * 35, window_type='blackman'):
             y[1:,i,j] *= np.sqrt(2.)
     p_hat = np.sqrt(np.mean(np.mean(y ** 2, axis=1), axis=1))
     return numpy.fft.fftfreq(m, d=dt)[:p_hat.size], p_hat
+
+
+def get_SPL(freq, p_hat, dt=1.2e-3 * 35, mach_number=1.3, gamma=1.4,
+            distance=80., nozzle_diameter=0.0254, window_type='blackman'):
+    """(St, SPL, OASPL) from `windowed_fft`'s `freq`, `p_hat`: Kim thesis
+    eq. 6.5, a PSD level per 1 Hz, as jetnoisejax's compute_sound.spl
+    (derivation: jetnoisejax/docs/spl_normalization.md section 6).
+
+        SPL   = 10 log10(p_hat^2/p_ref^2) - 10 log10(ENBW df/df_ref) + shift
+        OASPL = 10 log10(sum p_hat^2/ENBW/p_ref^2) + shift
+
+    df = 1/(m dt) is the bin width of one m-sample window, ENBW its noise
+    bandwidth in bins (1.73 for Blackman; `window_type` must be the one
+    `windowed_fft` used), and df_ref = 1 Hz * D/a_inf with a_inf = 343 m/s and
+    D = `nozzle_diameter` in m, the experiment's. `shift` projects to 80D
+    (`distance` is the mic slant distance in D) and collapses by U_j^8.
+    SPL is then independent of the number of windows and OASPL is the
+    time-domain mean square."""
+    from scipy.signal import get_window
+    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
+    u_j = mach_number * np.sqrt(temperature_ratio)
+    St = freq[1:] / u_j
+    p_ref = 20.e-6 / 101325. / gamma
+    m = 2 * p_hat.size
+    w = get_window(window_type, m) if window_type else np.ones(m)
+    enbw = m * np.sum(w ** 2) / np.sum(w) ** 2
+    df_ref = 1. * nozzle_diameter / 343.
+    OASPL = 10. * np.log10(np.sum(p_hat[1:] ** 2) / enbw / p_ref ** 2)
+    SPL = 10. * np.log10(p_hat[1:] ** 2 / p_ref ** 2)
+    SPL -= 10. * np.log10(enbw / (m * dt) / df_ref)
+    n_lighthill = 8
+    d_measure = 80.
+    shift = -10. * np.log10((d_measure / distance) ** 2) - n_lighthill * 10. * np.log10(u_j)
+    SPL += shift
+    OASPL += shift
+    return St, SPL, OASPL

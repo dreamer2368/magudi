@@ -310,6 +310,26 @@ def test_fwh_monopole_spectrum_phi30():
         plt.close(fig)
 
 
+def test_get_SPL_white_noise():
+    """White noise of variance sigma^2 (jetnoisejax/docs/spl_normalization.md
+    section 1): SPL does not move with the number of windows, and OASPL is the
+    time-domain mean square."""
+    dt, sigma = 0.042, 1e-3
+    p = sigma * np.random.default_rng(0).standard_normal((24000, 8))
+    kw = dict(dt=dt, mach_number=1.3, gamma=GAMMA, distance=80.)
+    u_j = 1.3 / np.sqrt(1. + 0.5 * (GAMMA - 1.) * 1.3 ** 2)
+    shift = -80. * np.log10(u_j)
+    p_ref = 20.e-6 / 101325. / GAMMA
+    oaspl_exact = 10. * np.log10(np.mean(p ** 2) / p_ref ** 2) + shift
+    levels = []
+    for nw in (3, 7, 15, 31):
+        St, SPL, OASPL = fwh.get_SPL(*fwh.windowed_fft(p, num_windows=nw, dt=dt), **kw)
+        band = (St > 0.1) & (St < 5.)
+        levels.append(np.mean(SPL[band]))
+        assert abs(OASPL - oaspl_exact) < 0.1
+    assert np.ptp(levels) < 0.2
+
+
 def test_fwh_decaying_monopole_time_history_phi30():
     """Kim fig 5.8: decaying monopole (lam=0.01) reconstructed at phi=30 deg."""
     mike = _mike_on_yz(np.pi / 6.)

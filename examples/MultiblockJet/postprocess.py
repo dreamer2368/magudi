@@ -72,14 +72,14 @@ def polynomial_pressure_mean(p, degree=3):
 
 
 def moving_average(p, window):
-    """Per-mike centered moving average with edge-padded boundaries.
+    """Per-mike centered moving average, reflected at the boundaries.
 
     Input:  p[nsteps, num_mikes], window in samples.
     Output: same shape as p."""
     n = p.shape[0]
     w = max(1, min(int(window), n))
     half = w // 2
-    padded = np.pad(p, ((half, w - 1 - half), (0, 0)), mode='edge')
+    padded = np.pad(p, ((half, w - 1 - half), (0, 0)), mode='reflect')
     kernel = np.ones(w) / w
     out = np.empty_like(p, dtype=float)
     for i in range(p.shape[1]):
@@ -193,26 +193,3 @@ def centerline_rms_fluctuations(prefix, gamma=1.4):
     a[:,1:] = np.sqrt(a[:,1:])
     np.savetxt('%s.centerline_rms_fluctuations.txt' % prefix, a,
                fmt=a.shape[1] * '%+.15E ')
-
-def get_SPL(freq, p_hat, dt=1.2e-3 * 35, mach_number=1.3, gamma=1.4,
-            distance=80.):
-    # freq, p_hat: outputs of magudi_utils.fwhsolver.windowed_fft; p_hat is
-    # the RMS-averaged (across mikes and windows) one-sided amplitude spectrum.
-    # `distance` is the mic slant distance in D; the two normalizations from
-    # thesis.pdf eq. 8.3 (project to de = 80D, collapse via Lighthill U^8)
-    # are always applied.
-    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * mach_number ** 2)
-    u_j = mach_number * np.sqrt(temperature_ratio)
-    St = freq[1:] / u_j
-    p_ref = 20.e-6 / 101325. / gamma
-    OASPL = 10. * np.log10(np.sum(p_hat[1:] ** 2) / p_ref ** 2)
-    SPL = 10. * np.log10(p_hat[1:] ** 2 / p_ref ** 2)
-    m = 2 * p_hat.size
-    SPL += 10. * np.log10(1. / (dt * m))
-    n_lighthill = 8
-    d_measure = 80.
-    shift = -10. * np.log10((d_measure / distance) ** 2) - n_lighthill * 10. * np.log10(u_j)
-    SPL += shift
-    OASPL += shift
-    return St, SPL, OASPL
-

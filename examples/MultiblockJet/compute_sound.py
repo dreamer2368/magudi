@@ -5,7 +5,8 @@ Mach 1.3 MultiblockJet FWH probe data.
 Formulation: kim_thesis.pdf sections 4.2, 6.2; thesis.pdf section 8.3.
 Reuses postprocess.compute_sound (FWH integration), fwhsolver.windowed_fft
 (Blackman-windowed FFT, 50% overlap, returns freq and RMS-averaged p_hat),
-and postprocess.get_SPL (converts p_hat to SPL/OASPL in dB).
+and fwhsolver.get_SPL (converts p_hat to SPL/OASPL in dB, per 1 Hz as
+Kim thesis eq. 6.5; jetnoisejax/docs/spl_normalization.md).
 """
 import argparse
 import os
@@ -16,8 +17,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from magudi_utils import plot3dnasa as p3d
 from magudi_utils import fwhsolver as fwh
-from postprocess import (compute_sound, get_SPL,
-                         polynomial_pressure_mean, moving_average)
+from postprocess import (compute_sound, polynomial_pressure_mean,
+                         moving_average)
 
 
 # bc.dat: fwh1..fwh4 PROBE patches sit at these radial indices in blocks 2-5.
@@ -67,7 +68,7 @@ def _overlay_literature_spl(ax, literature_h5, station):
 
 
 def diagnose_stationarity(p_raw, p, p_raw_avg, p_avg,
-                          num_windows, dt, mach_number,
+                          num_windows, dt, mach_number, nozzle_diameter,
                           distance, theta, literature_h5, out_path):
     """Split the (detrended) mike record in half, compute SPL on each half, and
     overlay with the full-signal SPL, the full raw-signal SPL, the SPL of the
@@ -83,19 +84,20 @@ def diagnose_stationarity(p_raw, p, p_raw_avg, p_avg,
     windowed_fft needs 2D input, so they are reshaped internally."""
     n = p.shape[0]
     kw_fft = dict(num_windows=num_windows, dt=dt)
-    kw_spl = dict(dt=dt, mach_number=mach_number, distance=distance)
+    kw_spl = dict(dt=dt, mach_number=mach_number, distance=distance,
+                  nozzle_diameter=nozzle_diameter)
     freq_raw,     phat_raw     = fwh.windowed_fft(p_raw,     **kw_fft)
     freq_full,    phat_full    = fwh.windowed_fft(p,         **kw_fft)
     freq_raw_avg, phat_raw_avg = fwh.windowed_fft(p_raw_avg[:, None], **kw_fft)
     freq_avg,     phat_avg     = fwh.windowed_fft(p_avg[:, None],     **kw_fft)
     freq1,        phat1        = fwh.windowed_fft(p[:n // 2], **kw_fft)
     freq2,        phat2        = fwh.windowed_fft(p[n // 2:], **kw_fft)
-    St_raw,     SPL_raw,     _ = get_SPL(freq_raw,     phat_raw,     **kw_spl)
-    St_full,    SPL_full,    _ = get_SPL(freq_full,    phat_full,    **kw_spl)
-    St_raw_avg, SPL_raw_avg, _ = get_SPL(freq_raw_avg, phat_raw_avg, **kw_spl)
-    St_avg,     SPL_avg,     _ = get_SPL(freq_avg,     phat_avg,     **kw_spl)
-    St1,        SPL1,        _ = get_SPL(freq1,        phat1,        **kw_spl)
-    St2,        SPL2,        _ = get_SPL(freq2,        phat2,        **kw_spl)
+    St_raw,     SPL_raw,     _ = fwh.get_SPL(freq_raw,     phat_raw,     **kw_spl)
+    St_full,    SPL_full,    _ = fwh.get_SPL(freq_full,    phat_full,    **kw_spl)
+    St_raw_avg, SPL_raw_avg, _ = fwh.get_SPL(freq_raw_avg, phat_raw_avg, **kw_spl)
+    St_avg,     SPL_avg,     _ = fwh.get_SPL(freq_avg,     phat_avg,     **kw_spl)
+    St1,        SPL1,        _ = fwh.get_SPL(freq1,        phat1,        **kw_spl)
+    St2,        SPL2,        _ = fwh.get_SPL(freq2,        phat2,        **kw_spl)
 
     station = '%gD%gdeg' % (distance, theta)
     fig, ax = plt.subplots(1, 1, figsize=(6, 4.5))
@@ -211,13 +213,19 @@ def parse_args():
                    help='nondim time between probe samples')
     p.add_argument('--mach', type=float, default=1.3)
     p.add_argument('--num-windows', type=int, default=5)
+    p.add_argument('--nozzle-diameter', type=float, default=0.0254,
+                   help="experiment's nozzle diameter in m (OSU), for the "
+                        '1 Hz SPL reference bandwidth')
     p.add_argument('--poly-degree', type=int, default=3,
                    help='degree of least-squares polynomial fit to per-mike '
                         'pressure history; subtracted from p before FFT to '
                         'remove slow mean drift')
-    p.add_argument('--ma-frac', type=float, default=0.05,
-                   help='moving-average window as a fraction of the record '
-                        'length (used only for the mike-history overlay)')
+    p.add_argument('--ma-St', type=float, default=0.139,
+                   help='high-pass corner of the moving-average detrending, '
+                        'as St_D: the window is set to the period '
+                        '1 / (St_D * u_j) in units of D/a_infty, which is '
+                        'where the sinc response of the moving average first '
+                        'nulls')
     p.add_argument('--load-mike', action='store_true',
                    help='skip the FWH integration and load existing '
                         'mike_<surface>_##.dat files instead; still re-runs '
@@ -261,7 +269,13 @@ def main():
     p_raw = load_mike_pressures(args.spl_dir, args.surface, args.num_mikes)
 
     poly_mean = polynomial_pressure_mean(p_raw, degree=args.poly_degree)
-    ma_window = max(1, int(round(args.ma_frac * p_raw.shape[0])))
+    gamma = 1.4
+    temperature_ratio = 1. / (1. + 0.5 * (gamma - 1.) * args.mach ** 2)
+    u_j = args.mach * np.sqrt(temperature_ratio)
+    ma_period = 1. / (args.ma_St * u_j)
+    ma_window = max(1, int(round(ma_period / args.probe_dt)))
+    print('moving average: St_D = %g -> period %.3f D/a_inf -> %d samples' %
+          (args.ma_St, ma_period, ma_window))
     ma_mean = moving_average(p_raw, ma_window)
 
     # Mike-averaged pressure and its own polynomial / moving-average fits
@@ -291,15 +305,17 @@ def main():
             (args.surface, args.distance, args.theta))
         diagnose_stationarity(p_raw, p, p_raw_avg, p_avg,
                               args.num_windows, args.probe_dt,
-                              args.mach, args.distance, args.theta,
+                              args.mach, args.nozzle_diameter,
+                              args.distance, args.theta,
                               args.literature, diag_fig)
         print('wrote %s' % diag_fig)
         return
 
     freq, p_hat = fwh.windowed_fft(p, num_windows=args.num_windows,
                                    dt=args.probe_dt)
-    St, SPL, OASPL = get_SPL(freq, p_hat, dt=args.probe_dt,
-                             mach_number=args.mach, distance=args.distance)
+    St, SPL, OASPL = fwh.get_SPL(freq, p_hat, dt=args.probe_dt,
+                                 mach_number=args.mach, distance=args.distance,
+                                 nozzle_diameter=args.nozzle_diameter)
 
     np.savetxt(spl_file, np.column_stack([St, SPL]), fmt='%+.18E')
     with open(oaspl_file, 'a') as f:
