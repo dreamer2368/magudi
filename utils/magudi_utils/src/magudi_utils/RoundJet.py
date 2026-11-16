@@ -32,16 +32,16 @@ def getCenterlineSubarray(gridFile, solutionFile = None, functionFile = None, ha
     grid.hasIBLANK = hasIBLANK
     grid.ImportSkeleton(gridFile)
     n = grid.GetSize(0)
-    grid.ImportSubarray(gridFile, 0, [n[0]/2, n[1]/2, 0], [n[0]/2, n[1]/2, -1])
+    grid.ImportSubarray(gridFile, 0, [n[0]//2, n[1]//2, 0], [n[0]//2, n[1]//2, -1])
     a = [grid.X[0][0,0,:,2]]
 
     if solutionFile is not None:
         soln = PLOT3D.Solution()
-        soln.ImportSubarray(solutionFile, 0, [n[0]/2, n[1]/2, 0], [n[0]/2, n[1]/2, -1])
+        soln.ImportSubarray(solutionFile, 0, [n[0]//2, n[1]//2, 0], [n[0]//2, n[1]//2, -1])
         a = a + [soln.Q[0][0,0,:,:]]
     if functionFile is not None:
         func = PLOT3D.Function()
-        func.ImportSubarray(functionFile, 0, [n[0]/2, n[1]/2, 0], [n[0]/2, n[1]/2, -1])
+        func.ImportSubarray(functionFile, 0, [n[0]//2, n[1]//2, 0], [n[0]//2, n[1]//2, -1])
         a = a + [func.F[0][0,0,:,:]]
     return tuple(a)
 
@@ -55,7 +55,7 @@ def getCenterlineRMSFluctuations(meanSolutionFile, solutionFileList, **kwargs):
     meanSoln = PLOT3D.Solution()
     meanSoln.ImportSkeleton(meanSolutionFile)
     n = meanSoln.GetSize(0)
-    meanSoln.ImportSubarray(meanSolutionFile, 0, [n[0]/2, n[1]/2, 0], [n[0]/2, n[1]/2, -1])
+    meanSoln.ImportSubarray(meanSolutionFile, 0, [n[0]//2, n[1]//2, 0], [n[0]//2, n[1]//2, -1])
     meanSoln.TransformToPrimitiveVariables(ratioOfSpecificHeats)
     Q = np.zeros([meanSoln.GetSize(0)[-1], 5])
 
@@ -70,7 +70,7 @@ def getCenterlineRMSFluctuations(meanSolutionFile, solutionFileList, **kwargs):
 
     for i, solutionFile in enumerate(solutionFileList):
         soln = PLOT3D.Solution()
-        soln.ImportSubarray(solutionFile, 0, [n[0]/2, n[1]/2, 0], [n[0]/2, n[1]/2, -1])
+        soln.ImportSubarray(solutionFile, 0, [n[0]//2, n[1]//2, 0], [n[0]//2, n[1]//2, -1])
         soln.TransformToPrimitiveVariables(ratioOfSpecificHeats)
         Q += (soln.Q[0][0,0,:,:] - meanSoln.Q[0][0,0,:,:]) ** 2
         if p is not None:
@@ -96,8 +96,8 @@ def interpolateSolutionAtConstantRadius(gridFile, solutionFile, radialCoordinate
     grid.ImportSubarray(gridFile, 1, [0, 0, 0], [-1, -2, 0])
     interpolators = [ None ] * (grid.GetSize(0)[1])
     iRadialNearest = np.array([np.argmin(np.abs(grid.X[0][:,i,0,0] ** 2 + grid.X[0][:,i,0,1] ** 2 - radialCoordinate ** 2)) for i in range(grid.GetSize(0)[1])], dtype = int)
-    iRadialOffset = iRadialNearest.min() - stencilSize / 2
-    interpolators = [BarycentricInterpolator(np.sqrt(grid.X[0][iRadialNearest[i]-stencilSize/2:iRadialNearest[i]+stencilSize/2+1,i,0,0] ** 2 + grid.X[0][iRadialNearest[i]-stencilSize/2:iRadialNearest[i]+stencilSize/2+1,i,0,1] ** 2)) for i in range(iRadialNearest.size)]
+    iRadialOffset = iRadialNearest.min() - stencilSize // 2
+    interpolators = [BarycentricInterpolator(np.sqrt(grid.X[0][iRadialNearest[i]-stencilSize//2:iRadialNearest[i]+stencilSize//2+1,i,0,0] ** 2 + grid.X[0][iRadialNearest[i]-stencilSize//2:iRadialNearest[i]+stencilSize//2+1,i,0,1] ** 2)) for i in range(iRadialNearest.size)]
     iRadialNearest -= iRadialOffset
 
     axialCoordinate, = getCenterlineSubarray(gridFile)
@@ -117,18 +117,18 @@ def interpolateSolutionAtConstantRadius(gridFile, solutionFile, radialCoordinate
 
     soln = PLOT3D.Solution()
     for i in range(1, 5):
-        grid.ImportSubarray(gridFile, i, [iRadialOffset + iRadialNearest.min() - stencilSize / 2, 0, 0], [iRadialOffset + iRadialNearest.max() + stencilSize / 2, -2, 0])
-        soln.ImportSubarray(solutionFile, i, [iRadialOffset + iRadialNearest.min() - stencilSize / 2, 0, 0], [iRadialOffset + iRadialNearest.max() + stencilSize / 2, -2, -1])
+        grid.ImportSubarray(gridFile, i, [iRadialOffset + iRadialNearest.min() - stencilSize // 2, 0, 0], [iRadialOffset + iRadialNearest.max() + stencilSize // 2, -2, 0])
+        soln.ImportSubarray(solutionFile, i, [iRadialOffset + iRadialNearest.min() - stencilSize // 2, 0, 0], [iRadialOffset + iRadialNearest.max() + stencilSize // 2, -2, -1])
         for l in range(2): # grid coordinates
             for j, interpolator in enumerate(interpolators):
-                interpolator.set_yi(grid.X[0][iRadialNearest[j]-stencilSize/2:iRadialNearest[j]+stencilSize/2+1,j,0,l])
+                interpolator.set_yi(grid.X[0][iRadialNearest[j]-stencilSize//2:iRadialNearest[j]+stencilSize//2+1,j,0,l])
                 X[(i-1)*len(interpolators)+j,:,l] = interpolator(radialCoordinate)
             if p is not None:
                 p.update((i - 1) * 7 + l + 1)
         for l in range(5): # solution components
             for k in range(axialCoordinate.size):
                 for j, interpolator in enumerate(interpolators):
-                    interpolator.set_yi(soln.Q[0][iRadialNearest[j]-stencilSize/2:iRadialNearest[j]+stencilSize/2+1,j,k,l])
+                    interpolator.set_yi(soln.Q[0][iRadialNearest[j]-stencilSize//2:iRadialNearest[j]+stencilSize//2+1,j,k,l])
                     Q[(i-1)*len(interpolators)+j,k,l] = interpolator(radialCoordinate)
             if p is not None:
                 p.update((i - 1) * 7 + l + 3)
@@ -218,36 +218,36 @@ def getVerticalLongitudinalSubarray(gridFile, solutionFile = None, functionFile 
         func.ImportSkeleton(functionFile)
         F = np.empty([x.shape[0], x.shape[1], func.nComponents])
 
-    grid.ImportSubarray(gridFile, 4, [1, n[4][1]/2, 0], [-1, n[4][1]/2, -1])
+    grid.ImportSubarray(gridFile, 4, [1, n[4][1]//2, 0], [-1, n[4][1]//2, -1])
     x[:n[4][0]-1,:] = grid.X[0][::-1,0,:,1]
     y[:n[4][0]-1,:] = grid.X[0][::-1,0,:,2]
     if solutionFile is not None:
-        soln.ImportSubarray(solutionFile, 4, [1, n[4][1]/2, 0], [-1, n[4][1]/2, -1])
+        soln.ImportSubarray(solutionFile, 4, [1, n[4][1]//2, 0], [-1, n[4][1]//2, -1])
         Q[:n[4][0]-1,:,:] = soln.Q[0][::-1,0,:,:]
     if functionFile is not None:
-        func.ImportSubarray(functionFile, 4, [1, n[4][1]/2, 0], [-1, n[4][1]/2, -1])
+        func.ImportSubarray(functionFile, 4, [1, n[4][1]//2, 0], [-1, n[4][1]//2, -1])
         F[:n[4][0]-1,:,:] = func.F[0][::-1,0,:,:]
 
-    grid.ImportSubarray(gridFile, 0, [n[0][0]/2, 0, 0], [n[0][0]/2, -2, -1])
+    grid.ImportSubarray(gridFile, 0, [n[0][0]//2, 0, 0], [n[0][0]//2, -2, -1])
     x[n[4][0]-1:n[4][0]+n[0][1]-2,:] = grid.X[0][0,:,:,1]
     y[n[4][0]-1:n[4][0]+n[0][1]-2,:] = grid.X[0][0,:,:,2]
     if solutionFile is not None:
-        soln.ImportSubarray(solutionFile, 0, [n[0][0]/2, 0, 0], [n[0][0]/2, -2, -1])
+        soln.ImportSubarray(solutionFile, 0, [n[0][0]//2, 0, 0], [n[0][0]//2, -2, -1])
         Q[n[4][0]-1:n[4][0]+n[0][1]-2,:,:] = soln.Q[0][0,:,:,:]
     if functionFile is not None:
-        func.ImportSubarray(functionFile, 0, [n[0][0]/2, 0, 0], [n[0][0]/2, -2, -1])
+        func.ImportSubarray(functionFile, 0, [n[0][0]//2, 0, 0], [n[0][0]//2, -2, -1])
         F[n[4][0]-1:n[4][0]+n[0][1]-2,:,:] = func.F[0][0,:,:,:]
 
-    grid.ImportSubarray(gridFile, 2, [0, n[2][1]/2, 0], [-1, n[2][1]/2, -1])
+    grid.ImportSubarray(gridFile, 2, [0, n[2][1]//2, 0], [-1, n[2][1]//2, -1])
     x[n[4][0]+n[0][1]-2:,:] = grid.X[0][:,0,:,1]
     y[n[4][0]+n[0][1]-2:,:] = grid.X[0][:,0,:,2]
     a = [x, y]
     if solutionFile is not None:
-        soln.ImportSubarray(solutionFile, 2, [0, n[2][1]/2, 0], [-1, n[2][1]/2, -1])
+        soln.ImportSubarray(solutionFile, 2, [0, n[2][1]//2, 0], [-1, n[2][1]//2, -1])
         Q[n[4][0]+n[0][1]-2:,:,:] = soln.Q[0][:,0,:,:]
         a = a + [Q]
     if functionFile is not None:
-        func.ImportSubarray(functionFile, 2, [0, n[2][1]/2, 0], [-1, n[2][1]/2, -1])
+        func.ImportSubarray(functionFile, 2, [0, n[2][1]//2, 0], [-1, n[2][1]//2, -1])
         F[n[4][0]+n[0][1]-2:,:,:] = func.F[0][:,0,:,:]
         a = a + [F]
 
@@ -275,36 +275,36 @@ def getHorizontalLongitudinalSubarray(gridFile, solutionFile = None, functionFil
         func.ImportSkeleton(functionFile)
         F = np.empty([x.shape[0], x.shape[1], func.nComponents])
 
-    grid.ImportSubarray(gridFile, 3, [1, n[3][1]/2, 0], [-1, n[3][1]/2, -1])
+    grid.ImportSubarray(gridFile, 3, [1, n[3][1]//2, 0], [-1, n[3][1]//2, -1])
     x[:n[3][0]-1,:] = grid.X[0][::-1,0,:,0]
     y[:n[3][0]-1,:] = grid.X[0][::-1,0,:,2]
     if solutionFile is not None:
-        soln.ImportSubarray(solutionFile, 3, [1, n[3][1]/2, 0], [-1, n[3][1]/2, -1])
+        soln.ImportSubarray(solutionFile, 3, [1, n[3][1]//2, 0], [-1, n[3][1]//2, -1])
         Q[:n[3][0]-1,:,:] = soln.Q[0][::-1,0,:,:]
     if functionFile is not None:
-        func.ImportSubarray(functionFile, 3, [1, n[3][1]/2, 0], [-1, n[3][1]/2, -1])
+        func.ImportSubarray(functionFile, 3, [1, n[3][1]//2, 0], [-1, n[3][1]//2, -1])
         F[:n[3][0]-1,:,:] = func.F[0][::-1,0,:,:]
 
-    grid.ImportSubarray(gridFile, 0, [0, n[0][1]/2, 0], [-2, n[0][1]/2, -1])
+    grid.ImportSubarray(gridFile, 0, [0, n[0][1]//2, 0], [-2, n[0][1]//2, -1])
     x[n[3][0]-1:n[3][0]+n[0][0]-2,:] = grid.X[0][0,:,:,0]
     y[n[3][0]-1:n[3][0]+n[0][0]-2,:] = grid.X[0][0,:,:,2]
     if solutionFile is not None:
-        soln.ImportSubarray(solutionFile, 0, [0, n[0][1]/2, 0], [-2, n[0][1]/2, -1])
+        soln.ImportSubarray(solutionFile, 0, [0, n[0][1]//2, 0], [-2, n[0][1]//2, -1])
         Q[n[3][0]-1:n[3][0]+n[0][0]-2,:,:] = soln.Q[0][0,:,:,:]
     if functionFile is not None:
-        func.ImportSubarray(functionFile, 0, [0, n[0][1]/2, 0], [-2, n[0][1]/2, -1])
+        func.ImportSubarray(functionFile, 0, [0, n[0][1]//2, 0], [-2, n[0][1]//2, -1])
         F[n[3][0]-1:n[3][0]+n[0][0]-2,:,:] = func.F[0][0,:,:,:]
 
-    grid.ImportSubarray(gridFile, 1, [0, n[1][1]/2, 0], [-1, n[1][1]/2, -1])
+    grid.ImportSubarray(gridFile, 1, [0, n[1][1]//2, 0], [-1, n[1][1]//2, -1])
     x[n[3][0]+n[0][0]-2:,:] = grid.X[0][:,0,:,0]
     y[n[3][0]+n[0][0]-2:,:] = grid.X[0][:,0,:,2]
     a = [x, y]
     if solutionFile is not None:
-        soln.ImportSubarray(solutionFile, 1, [0, n[1][1]/2, 0], [-1, n[1][1]/2, -1])
+        soln.ImportSubarray(solutionFile, 1, [0, n[1][1]//2, 0], [-1, n[1][1]//2, -1])
         Q[n[3][0]+n[0][0]-2:,:,:] = soln.Q[0][:,0,:,:]
         a = a + [Q]
     if functionFile is not None:
-        func.ImportSubarray(functionFile, 1, [0, n[1][1]/2, 0], [-1, n[1][1]/2, -1])
+        func.ImportSubarray(functionFile, 1, [0, n[1][1]//2, 0], [-1, n[1][1]//2, -1])
         F[n[3][0]+n[0][0]-2:,:,:] = func.F[0][:,0,:,:]
         a = a + [F]
 
@@ -376,9 +376,9 @@ def interpolateOnAnnularGrid(gridFile, solutionFile, hasIBLANK = False, showProg
     n = grid.GetSize()
     grid.ImportSubarray(gridFile, 0, [0, 0, 0], [0, 0, -1])
     axialCoordinate = grid.X[0][0,0,:,2]
-    grid.ImportSubarray(gridFile, 0, [n[0][0]/2+2, n[0][1]/2, 0], [-2, n[0][1]/2, 0])
+    grid.ImportSubarray(gridFile, 0, [n[0][0]//2+2, n[0][1]//2, 0], [-2, n[0][1]//2, 0])
     rUniform += grid.X[0][:,0,0,0].tolist()
-    grid.ImportSubarray(gridFile, 1, [0, n[1][1]/2, 0], [-2, n[1][1]/2, 0])
+    grid.ImportSubarray(gridFile, 1, [0, n[1][1]//2, 0], [-2, n[1][1]//2, 0])
     rUniform = np.array(rUniform + grid.X[0][:,0,0,0].tolist())
     xi, eta = np.meshgrid(rUniform, np.linspace(0., 2. * np.pi, 1 + np.sum([n[i][1] - 1 for i in range(5)])))
 

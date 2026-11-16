@@ -441,8 +441,8 @@ subroutine gatherAlongDirection(cartesianCommunicator, localArray,              
        1, MPI_INTEGER, pencilCommunicator, ierror)
 
   ! Find the sizes and displacements of data to be gathered.
-  localSizes = localSizes * size(localArray) / localSize(direction)
-  offsets = offsets * size(localArray) / localSize(direction)
+  localSizes = localSizes * (size(localArray) / localSize(direction))
+  offsets = offsets * (size(localArray) / localSize(direction))
 
   ! Allocate send and receive buffers with shapes that can be gathered easily using
   ! `MPI_Allgatherv`.

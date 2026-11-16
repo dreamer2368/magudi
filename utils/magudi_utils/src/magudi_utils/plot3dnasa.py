@@ -91,7 +91,7 @@ class FileFormat(object):
                     self.endianness)
                 self.nblocks = self._get_integer(f)
                 # block dimensions
-                a = np.fromstring(self._get_raw_bytes(f), dtype=np.dtype(
+                a = np.frombuffer(self._get_raw_bytes(f), dtype=np.dtype(
                     np.int32).newbyteorder(self.endianness))
                 if np.any(a <= 0):
                     raise FileFormatError(filename)
@@ -107,7 +107,7 @@ class FileFormat(object):
                     raise FileFormatError(filename)
                 # aux header for solution files
                 if self.file_type == 'solution':
-                    self.aux_header = np.fromstring(self._get_raw_bytes(f),
+                    self.aux_header = np.frombuffer(self._get_raw_bytes(f),
                                                     self.real_dtype)
                 # data offsets
                 self._compute_offsets(f)
@@ -144,7 +144,7 @@ class FileFormat(object):
             self.file_type = 'function'
             r /= (self.ncomponents * np.prod(self.size[0,:]))
             self.real_dtype = np.dtype({4: np.float32, 8: np.float64,
-                                        16: np.float128}[r])
+                                        16: np.longdouble}[r])
             self.real_dtype = self.real_dtype.newbyteorder(self.endianness)
             return
         s = self._file_size(f) - f.tell()
@@ -157,7 +157,7 @@ class FileFormat(object):
                 return
             self.file_type = 'solution'
             self.real_dtype = np.dtype({16: np.float32, 32: np.float64,
-                                        64: np.float128}[r])
+                                        64: np.longdouble}[r])
             self.real_dtype = self.real_dtype.newbyteorder(self.endianness)
             return
         r /= np.prod(self.size[0,:])
@@ -167,7 +167,7 @@ class FileFormat(object):
             if self.has_iblank:
                 r -= 4
             self.real_dtype = np.dtype({12: np.float32, 24: np.float64,
-                                        48: np.float128}[r])
+                                        48: np.longdouble}[r])
             self.real_dtype = self.real_dtype.newbyteorder(self.endianness)
 
     def _get_reclength(self, f, advance=False):
@@ -250,7 +250,7 @@ class MultiBlockCommon(object):
 
     def read_scalar(self, f, size, dtype, starts, ends):
         if starts is None or ends is None:
-            return np.reshape(np.fromstring(
+            return np.reshape(np.frombuffer(
                 f.read(dtype.itemsize * np.prod(size)), dtype),
                               size.tolist(), order='F')
         size_ = ends - starts + 1
@@ -260,7 +260,7 @@ class MultiBlockCommon(object):
             f.seek(size[0] * starts[1] * dtype.itemsize, 1)
             for j in range(starts[1], ends[1] + 1):
                 f.seek(starts[0] * dtype.itemsize, 1)
-                a[:, j - starts[1], k - starts[2]] = np.fromstring(
+                a[:, j - starts[1], k - starts[2]] = np.frombuffer(
                     f.read(size_[0] * dtype.itemsize), dtype=dtype)
                 f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
             f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
@@ -270,7 +270,7 @@ class MultiBlockCommon(object):
 
     def read_vector(self, f, size, dtype, n, starts, ends):
         if starts is None or ends is None:
-            return np.reshape(np.fromstring(
+            return np.reshape(np.frombuffer(
                 f.read(dtype.itemsize * n * np.prod(size)), dtype),
                               size.tolist() + [n], order='F')
         size_ = ends - starts + 1
@@ -281,7 +281,7 @@ class MultiBlockCommon(object):
                 f.seek(size[0] * starts[1] * dtype.itemsize, 1)
                 for j in range(starts[1], ends[1] + 1):
                     f.seek(starts[0] * dtype.itemsize, 1)
-                    a[:, j - starts[1], k - starts[2], i] = np.fromstring(
+                    a[:, j - starts[1], k - starts[2], i] = np.frombuffer(
                           f.read(size_[0] * dtype.itemsize), dtype=dtype)
                     f.seek((size[0] - (ends[0] + 1)) * dtype.itemsize, 1)
                 f.seek(size[0] * (size[1] - (ends[1] + 1)) * dtype.itemsize, 1)
@@ -299,7 +299,7 @@ class MultiBlockCommon(object):
             if form == 'F':
                 f.write(pack(self._format.reclength_dtype.str[:-1],
                              4 * self.size.size))
-            f.write(self.size.tostring())
+            f.write(self.size.tobytes())
             if form == 'F':
                 f.write(pack(self._format.reclength_dtype.str[:-1],
                              4 * self.size.size))
@@ -310,7 +310,7 @@ class MultiBlockCommon(object):
             s[:,-1] = ncomponents
             if form == 'F':
                 f.write(pack(self._format.reclength_dtype.str[:-1], 4 * s.size))
-            f.write(s.tostring())
+            f.write(s.tobytes())
             if form == 'F':
                 f.write(pack(self._format.reclength_dtype.str[:-1], 4 * s.size))
 
@@ -394,9 +394,9 @@ class Grid(MultiBlockCommon):
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
                     f.write(pack(self._format.reclength_dtype.str[:-1], s))
-                f.write(self.xyz[i].tostring(order='F'))
+                f.write(self.xyz[i].tobytes(order='F'))
                 if self.has_iblank:
-                    f.write(self.iblank[i].tostring(order='F'))
+                    f.write(self.iblank[i].tobytes(order='F'))
                 if form == 'F':
                     f.write(pack(self._format.reclength_dtype.str[:-1], s))
         self.filename = filename
@@ -508,7 +508,7 @@ class Solution(MultiBlockCommon):
             f.seek(self._format.offsets[0] -
                    2 * self._format.reclength_dtype.itemsize -
                    4 * self._format.real_dtype.itemsize)
-            self.time = np.fromstring(f.read(self._format.real_dtype.itemsize),
+            self.time = np.frombuffer(f.read(self._format.real_dtype.itemsize),
                                       dtype=self._format.real_dtype)[0]
             j = 0
             for i in range(self._format.nblocks):
@@ -536,14 +536,14 @@ class Solution(MultiBlockCommon):
                 s = 4 * self._format.real_dtype.itemsize
                 if form == 'F':
                     f.write(pack(self._format.reclength_dtype.str[:-1], s))
-                f.write(aux_header.tostring())
+                f.write(aux_header.tobytes())
                 if form == 'F':
                     f.write(pack(self._format.reclength_dtype.str[:-1], s))
                 s = 5 * self._format.real_dtype.itemsize
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
                     f.write(pack(self._format.reclength_dtype.str[:-1], s))
-                f.write(self.q[i].tostring(order='F'))
+                f.write(self.q[i].tobytes(order='F'))
                 if form == 'F':
                     f.write(pack(self._format.reclength_dtype.str[:-1], s))
         self.filename = filename
@@ -698,7 +698,7 @@ class Function(MultiBlockCommon):
                 s *= np.prod(self.size[i,:])
                 if form == 'F':
                     f.write(pack(self._format.reclength_dtype.str[:-1], s))
-                f.write(self.f[i].tostring(order='F'))
+                f.write(self.f[i].tobytes(order='F'))
                 if form == 'F':
                     f.write(pack(self._format.reclength_dtype.str[:-1], s))
         self.filename = filename

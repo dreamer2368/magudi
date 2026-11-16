@@ -144,7 +144,7 @@ class MultiBlockObject(object):
     def GetNumberOfPoints(self):
         nPoints = 0
         for iGrid in range(self._nGrids):
-            nPoints = nPoints + np.product(self._size[iGrid])
+            nPoints = nPoints + np.prod(self._size[iGrid])
         return nPoints
 
     def CopyFrom(self, obj):
@@ -210,7 +210,7 @@ class Grid(MultiBlockObject):
             f.write(gridSize.tostring())
         f.write(struct.pack(self.offsetTypeStr, recordSize))
         for iGrid in range(self.nGrids):
-            recordSize = (self.integerType.itemsize + 3 * self.scalarType.itemsize) * np.product(self.GetSize(iGrid))
+            recordSize = (self.integerType.itemsize + 3 * self.scalarType.itemsize) * np.prod(self.GetSize(iGrid))
             f.write(struct.pack(self.offsetTypeStr, recordSize))
             f.write(self._X[iGrid].tostring(order = 'F'))
             f.write(self._IBLANK[iGrid].tostring(order = 'F'))
@@ -224,15 +224,15 @@ class Grid(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
+            self.SetSize(iGrid, np.frombuffer(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
         f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
             f.seek(self.offsetType.itemsize, 1)
-            dtype = 3 * np.product(self.GetSize(iGrid)) * self.scalarType
-            self._X[iGrid][:,:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [3], order = 'F')
+            dtype = 3 * np.prod(self.GetSize(iGrid)) * self.scalarType
+            self._X[iGrid][:,:,:,:] = np.reshape(np.frombuffer(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [3], order = 'F')
             if self._hasIBLANK is True:
-                dtype = np.product(self.GetSize(iGrid)) * self.integerType
-                self._IBLANK[iGrid][:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid), order = 'F')
+                dtype = np.prod(self.GetSize(iGrid)) * self.integerType
+                self._IBLANK[iGrid][:,:,:] = np.reshape(np.frombuffer(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid), order = 'F')
             f.seek(self.offsetType.itemsize, 1)
         f.close()
         return None
@@ -243,7 +243,7 @@ class Grid(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
+            self.SetSize(iGrid, np.frombuffer(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
         f.close()
         return None
 
@@ -277,9 +277,9 @@ class Grid(MultiBlockObject):
         for iGrid in range(nGrids):
             f.seek(self.offsetType.itemsize, 1)
             if iGrid != gridIndex:
-                f.seek(3 * np.product(gridSize[iGrid]) * self.scalarType.itemsize, 1)
+                f.seek(3 * np.prod(gridSize[iGrid]) * self.scalarType.itemsize, 1)
                 if self._hasIBLANK is True:
-                    f.seek(np.product(gridSize[iGrid]) * self.integerType.itemsize, 1)
+                    f.seek(np.prod(gridSize[iGrid]) * self.integerType.itemsize, 1)
             else:
 
                 if showProgress is True:
@@ -297,7 +297,7 @@ class Grid(MultiBlockObject):
                             if showProgress is True:
                                 progressBar.update(j - startIndices[1] + 1 + (endIndices[1] - startIndices[1] + 1) * (k - startIndices[2] + (endIndices[2] - startIndices[2] + 1) * i))
                             f.seek(startIndices[0] * self.scalarType.itemsize, 1)
-                            self._X[0][:, j - startIndices[1], k - startIndices[2], i] = np.fromstring(f.read((endIndices[0] - startIndices[0] + 1) * self.scalarType.itemsize), dtype = self.scalarType)
+                            self._X[0][:, j - startIndices[1], k - startIndices[2], i] = np.frombuffer(f.read((endIndices[0] - startIndices[0] + 1) * self.scalarType.itemsize), dtype = self.scalarType)
                             f.seek((gridSize[iGrid][0] - (endIndices[0] + 1)) * self.scalarType.itemsize, 1)
                         f.seek(gridSize[iGrid][0] * (gridSize[iGrid][1] - (endIndices[1] + 1)) * self.scalarType.itemsize, 1)
                     f.seek(gridSize[iGrid][0] * gridSize[iGrid][1] * (gridSize[iGrid][2] - (endIndices[2] + 1)) * self.scalarType.itemsize, 1)
@@ -310,7 +310,7 @@ class Grid(MultiBlockObject):
                             if showProgress is True:
                                 progressBar.update(j - startIndices[1] + 1 + (endIndices[1] - startIndices[1] + 1) * (k - startIndices[2] + (endIndices[2] - startIndices[2] + 1) * 3))
                             f.seek(startIndices[0] * self.integerType.itemsize, 1)
-                            self._IBLANK[0][:, j - startIndices[1], k - startIndices[2]] = np.fromstring(f.read((endIndices[0] - startIndices[0] + 1) * self.integerType.itemsize), dtype = self.integerType)
+                            self._IBLANK[0][:, j - startIndices[1], k - startIndices[2]] = np.frombuffer(f.read((endIndices[0] - startIndices[0] + 1) * self.integerType.itemsize), dtype = self.integerType)
                             f.seek((gridSize[iGrid][0] - (endIndices[0] + 1)) * self.integerType.itemsize, 1)
                         f.seek(gridSize[iGrid][0] * (gridSize[iGrid][1] - (endIndices[1] + 1)) * self.integerType.itemsize, 1)
                     f.seek(gridSize[iGrid][0] * gridSize[iGrid][1] * (gridSize[iGrid][2] - (endIndices[2] + 1)) * self.integerType.itemsize, 1)
@@ -371,7 +371,7 @@ class Solution(MultiBlockObject):
             f.write(struct.pack(self.offsetTypeStr, recordSize))
             f.write(self._auxiliaryData[iGrid].tostring())
             f.write(struct.pack(self.offsetTypeStr, recordSize))
-            recordSize = 5 * self.scalarType.itemsize * np.product(self.GetSize(iGrid))
+            recordSize = 5 * self.scalarType.itemsize * np.prod(self.GetSize(iGrid))
             f.write(struct.pack(self.offsetTypeStr, recordSize))
             f.write(self._Q[iGrid].tostring(order = 'F'))
             f.write(struct.pack(self.offsetTypeStr, recordSize))
@@ -384,14 +384,14 @@ class Solution(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
+            self.SetSize(iGrid, np.frombuffer(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
         f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
             f.seek(self.offsetType.itemsize, 1)
-            self._auxiliaryData[iGrid] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
+            self._auxiliaryData[iGrid] = np.frombuffer(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
             f.seek(2 * self.offsetType.itemsize, 1)
-            dtype = 5 * np.product(self.GetSize(iGrid)) * self.scalarType
-            self._Q[iGrid][:,:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [5], order = 'F')
+            dtype = 5 * np.prod(self.GetSize(iGrid)) * self.scalarType
+            self._Q[iGrid][:,:,:,:] = np.reshape(np.frombuffer(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [5], order = 'F')
             f.seek(self.offsetType.itemsize, 1)
         f.close()
         return None
@@ -402,12 +402,12 @@ class Solution(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
+            self.SetSize(iGrid, np.frombuffer(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
         f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
             f.seek(self.offsetType.itemsize, 1)
-            self._auxiliaryData[iGrid] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
-            dtype = 5 * np.product(self.GetSize(iGrid)) * self.scalarType
+            self._auxiliaryData[iGrid] = np.frombuffer(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
+            dtype = 5 * np.prod(self.GetSize(iGrid)) * self.scalarType
             f.seek(3 * self.offsetType.itemsize + dtype.itemsize, 1)
         f.close()
         return None
@@ -441,11 +441,11 @@ class Solution(MultiBlockObject):
         f.seek(4 * self.offsetType.itemsize + (3 * nGrids + 1) * self.integerType.itemsize)
         for iGrid in range(nGrids):
             if iGrid != gridIndex:
-                f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize + 5 * np.product(gridSize[iGrid]) * self.scalarType.itemsize, 1)
+                f.seek(3 * self.offsetType.itemsize + 4 * self.scalarType.itemsize + 5 * np.prod(gridSize[iGrid]) * self.scalarType.itemsize, 1)
             else:
 
                 f.seek(self.offsetType.itemsize, 1)
-                self._auxiliaryData[0] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
+                self._auxiliaryData[0] = np.frombuffer(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
                 f.seek(2 * self.offsetType.itemsize, 1)
 
                 if showProgress is True:
@@ -460,7 +460,7 @@ class Solution(MultiBlockObject):
                             if showProgress is True:
                                 progressBar.update(j - startIndices[1] + 1 + (endIndices[1] - startIndices[1] + 1) * (k - startIndices[2] + (endIndices[2] - startIndices[2] + 1) * i))
                             f.seek(startIndices[0] * self.scalarType.itemsize, 1)
-                            self._Q[0][:, j - startIndices[1], k - startIndices[2], i] = np.fromstring(f.read((endIndices[0] - startIndices[0] + 1) * self.scalarType.itemsize), dtype = self.scalarType)
+                            self._Q[0][:, j - startIndices[1], k - startIndices[2], i] = np.frombuffer(f.read((endIndices[0] - startIndices[0] + 1) * self.scalarType.itemsize), dtype = self.scalarType)
                             f.seek((gridSize[iGrid][0] - (endIndices[0] + 1)) * self.scalarType.itemsize, 1)
                         f.seek(gridSize[iGrid][0] * (gridSize[iGrid][1] - (endIndices[1] + 1)) * self.scalarType.itemsize, 1)
                     f.seek(gridSize[iGrid][0] * gridSize[iGrid][1] * (gridSize[iGrid][2] - (endIndices[2] + 1)) * self.scalarType.itemsize, 1)
@@ -499,25 +499,25 @@ class Solution(MultiBlockObject):
 
         for iGrid in range(self.nGrids):
             f.seek(self.offsetType.itemsize, 1)
-            self._auxiliaryData[iGrid] = np.fromstring(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
+            self._auxiliaryData[iGrid] = np.frombuffer(f.read(4 * self.scalarType.itemsize), dtype = self.scalarType)
             f.seek(2 * self.offsetType.itemsize, 1)
             for l in range(5):
                 if axis == 0:
                     for k in range(gridSize[iGrid][2]):
                         for j in range(gridSize[iGrid][1]):
-                            self._Q[iGrid][0,j,k,l] = np.mean(np.fromstring(f.read(gridSize[iGrid][0] * self.scalarType.itemsize), dtype = self.scalarType))
+                            self._Q[iGrid][0,j,k,l] = np.mean(np.frombuffer(f.read(gridSize[iGrid][0] * self.scalarType.itemsize), dtype = self.scalarType))
                             if showProgress is True:
                                 progressBar.update(j + gridSize[iGrid][1] * (k + gridSize[iGrid][2] * (l + 5 * iGrid)))
                 elif axis == 1:
                     for k in range(gridSize[iGrid][2]):
                         for j in range(gridSize[iGrid][1]):
-                            self._Q[iGrid][:,0,k,l] += np.fromstring(f.read(gridSize[iGrid][0] * self.scalarType.itemsize), dtype = self.scalarType)
+                            self._Q[iGrid][:,0,k,l] += np.frombuffer(f.read(gridSize[iGrid][0] * self.scalarType.itemsize), dtype = self.scalarType)
                             if showProgress is True:
                                 progressBar.update(j + gridSize[iGrid][1] * (k + gridSize[iGrid][2] * (l + 5 * iGrid)))
                     self._Q[iGrid][:,:,:,l] /= gridSize[iGrid][1]
                 else:
                     for k in range(gridSize[iGrid][2]):
-                        self._Q[iGrid][:,:,0,l] += np.reshape(np.fromstring(f.read(gridSize[iGrid][0] * gridSize[iGrid][1] * self.scalarType.itemsize), dtype = self.scalarType), [gridSize[iGrid][0], gridSize[iGrid][1]], order = 'F')
+                        self._Q[iGrid][:,:,0,l] += np.reshape(np.frombuffer(f.read(gridSize[iGrid][0] * gridSize[iGrid][1] * self.scalarType.itemsize), dtype = self.scalarType), [gridSize[iGrid][0], gridSize[iGrid][1]], order = 'F')
                         if showProgress is True:
                             progressBar.update(gridSize[iGrid][1] * (k + 1 + gridSize[iGrid][2] * (l + 5 * iGrid)) - 1)
                     self._Q[iGrid][:,:,:,l] /= gridSize[iGrid][2]
@@ -583,7 +583,7 @@ class Function(MultiBlockObject):
             f.write(struct.pack(self.integerTypeStr, self._nComponents))
         f.write(struct.pack(self.offsetTypeStr, recordSize))
         for iGrid in range(self.nGrids):
-            recordSize = self._nComponents * self.scalarType.itemsize * np.product(self.GetSize(iGrid))
+            recordSize = self._nComponents * self.scalarType.itemsize * np.prod(self.GetSize(iGrid))
             f.write(struct.pack(self.offsetTypeStr, recordSize))
             f.write(self._F[iGrid].tostring(order = 'F'))
             f.write(struct.pack(self.offsetTypeStr, recordSize))
@@ -596,7 +596,7 @@ class Function(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
+            self.SetSize(iGrid, np.frombuffer(f.read(3 * self.integerType.itemsize), dtype = self.integerType))
             if iGrid == 0:
                 self._nComponents, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
             else:
@@ -607,8 +607,8 @@ class Function(MultiBlockObject):
         f.seek(self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
             f.seek(self.offsetType.itemsize, 1)
-            dtype = self._nComponents * np.product(self.GetSize(iGrid)) * self.scalarType
-            self._F[iGrid][:,:,:,:] = np.reshape(np.fromstring(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [self._nComponents], order = 'F')
+            dtype = self._nComponents * np.prod(self.GetSize(iGrid)) * self.scalarType
+            self._F[iGrid][:,:,:,:] = np.reshape(np.frombuffer(f.read(dtype.itemsize), dtype = dtype), self.GetSize(iGrid) + [self._nComponents], order = 'F')
             f.seek(self.offsetType.itemsize, 1)
         f.close()
         return None
@@ -619,7 +619,7 @@ class Function(MultiBlockObject):
         self.nGrids, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
         f.seek(2 * self.offsetType.itemsize, 1)
         for iGrid in range(self.nGrids):
-            self.SetSize(iGrid, np.fromstring(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
+            self.SetSize(iGrid, np.frombuffer(f.read(3 * self.integerType.itemsize), dtype = self.integerType), allocate = False)
             if iGrid == 0:
                 self._nComponents, = struct.unpack(self.integerTypeStr, f.read(self.integerType.itemsize))
             else:
@@ -659,7 +659,7 @@ class Function(MultiBlockObject):
         for iGrid in range(nGrids):
             f.seek(self.offsetType.itemsize, 1)
             if iGrid != gridIndex:
-                f.seek(self._nComponents * np.product(gridSize[iGrid]) * self.scalarType.itemsize, 1)
+                f.seek(self._nComponents * np.prod(gridSize[iGrid]) * self.scalarType.itemsize, 1)
             else:
 
                 if showProgress is True:
@@ -674,7 +674,7 @@ class Function(MultiBlockObject):
                             if showProgress is True:
                                 progressBar.update(j - startIndices[1] + 1 + (endIndices[1] - startIndices[1] + 1) * (k - startIndices[2] + (endIndices[2] - startIndices[2] + 1) * i))
                             f.seek(startIndices[0] * self.scalarType.itemsize, 1)
-                            self._F[0][:, j - startIndices[1], k - startIndices[2], i] = np.fromstring(f.read((endIndices[0] - startIndices[0] + 1) * self.scalarType.itemsize), dtype = self.scalarType)
+                            self._F[0][:, j - startIndices[1], k - startIndices[2], i] = np.frombuffer(f.read((endIndices[0] - startIndices[0] + 1) * self.scalarType.itemsize), dtype = self.scalarType)
                             f.seek((gridSize[iGrid][0] - (endIndices[0] + 1)) * self.scalarType.itemsize, 1)
                         f.seek(gridSize[iGrid][0] * (gridSize[iGrid][1] - (endIndices[1] + 1)) * self.scalarType.itemsize, 1)
                     f.seek(gridSize[iGrid][0] * gridSize[iGrid][1] * (gridSize[iGrid][2] - (endIndices[2] + 1)) * self.scalarType.itemsize, 1)
